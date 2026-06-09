@@ -1,4 +1,4 @@
-import { examplePing } from "./functions/example.js";
-export { inngest } from "./client.js";
-export { examplePing } from "./functions/example.js";
+import { examplePing } from "./functions/example";
+export { inngest } from "./client";
+export { examplePing } from "./functions/example";
 export const functions = [examplePing];

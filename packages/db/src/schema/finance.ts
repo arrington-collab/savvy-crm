@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { tenant } from "./tenancy.js";
-import { job } from "./jobs.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { tenant } from "./tenancy";
+import { job } from "./jobs";
 
 export const estimate = pgTable("estimate", {
   id: idCol(),

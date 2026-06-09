@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { adminDb, adminPool } from "./admin-client.js";
+import { adminDb, adminPool } from "./admin-client";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

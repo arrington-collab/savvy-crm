@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, jsonb, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { userRoleEnum } from "./enums.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { userRoleEnum } from "./enums";
 
 // Root of isolation. NOTE: tenant itself has no tenant_id; it is gated by
 // Clerk org lookup, not RLS. clerk_org_id/public_key/inbound_phone are

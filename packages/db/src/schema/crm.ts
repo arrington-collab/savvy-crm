@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, doublePrecision, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { tenant, user } from "./tenancy.js";
-import { leadStatusEnum } from "./enums.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { tenant, user } from "./tenancy";
+import { leadStatusEnum } from "./enums";
 
 export const customer = pgTable("customer", {
   id: idCol(),

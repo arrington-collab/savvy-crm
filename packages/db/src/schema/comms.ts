@@ -1,9 +1,9 @@
 import { pgTable, uuid, text, boolean, timestamp, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { tenant, user } from "./tenancy.js";
-import { customer } from "./crm.js";
-import { job } from "./jobs.js";
-import { commChannelEnum, commDirectionEnum } from "./enums.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { tenant, user } from "./tenancy";
+import { customer } from "./crm";
+import { job } from "./jobs";
+import { commChannelEnum, commDirectionEnum } from "./enums";
 
 export const communication = pgTable("communication", {
   id: idCol(),

@@ -1,5 +1,5 @@
-import { adminDb, adminPool } from "./admin-client.js";
-import { tenant, user, customer, property, job } from "./schema/index.js";
+import { adminDb, adminPool } from "./admin-client";
+import { tenant, user, customer, property, job } from "./schema/index";
 
 async function seedTenant(opts: {
   name: string; clerkOrgId: string; publicKey: string; inboundPhone: string;

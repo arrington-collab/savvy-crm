@@ -1,8 +1,8 @@
 import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { tenant, user } from "./tenancy.js";
-import { customer, property, lead } from "./crm.js";
-import { jobTypeEnum, jobStageEnum, taskStatusEnum, automationLevelEnum, agentEnum } from "./enums.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { tenant, user } from "./tenancy";
+import { customer, property, lead } from "./crm";
+import { jobTypeEnum, jobStageEnum, taskStatusEnum, automationLevelEnum, agentEnum } from "./enums";
 
 export const job = pgTable("job", {
   id: idCol(),

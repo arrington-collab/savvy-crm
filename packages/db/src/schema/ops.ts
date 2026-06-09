@@ -1,8 +1,8 @@
 import { pgTable, uuid, text, integer, jsonb, index } from "drizzle-orm/pg-core";
-import { idCol, createdAt, tenantIsolation } from "./_rls.js";
-import { tenant, user } from "./tenancy.js";
-import { customer, property } from "./crm.js";
-import { job } from "./jobs.js";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { tenant, user } from "./tenancy";
+import { customer, property } from "./crm";
+import { job } from "./jobs";
 
 export const document = pgTable("document", {
   id: idCol(),

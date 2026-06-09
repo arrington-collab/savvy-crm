@@ -1,4 +1,4 @@
-import { inngest } from "../client.js";
+import { inngest } from "../client";
 
 export const examplePing = inngest.createFunction(
   { id: "example-ping" },

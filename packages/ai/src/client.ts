@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, generateObject, embed as aiEmbed } from "ai";
 import type { z } from "zod";
-import { CAPABILITY_MODEL, EMBED_MODEL, type Capability } from "./capabilities.js";
+import { CAPABILITY_MODEL, EMBED_MODEL, type Capability } from "./capabilities";
 
 const gateway = () =>
   createOpenAI({
