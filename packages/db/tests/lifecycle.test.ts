@@ -6,6 +6,8 @@ import { adminDb } from "../src/admin-client";
 import { withTenant } from "../src/tenant";
 import { tenant, customer, property, job, jobTask } from "../src/schema/index";
 import { seedJobTasks } from "../src/lifecycle/seed-job-tasks";
+import { recordStageChange } from "../src/lifecycle/record-stage-change";
+import { jobStageEvent, auditLog } from "../src/schema/index";
 
 describe("task lifecycle templates", () => {
   it("has all 212 tasks", () => {
@@ -43,6 +45,34 @@ describe("seedJobTasks", () => {
     expect(rows.length).toBe(n);
     expect(rows.every((r) => r.phase !== "Operations & Compliance" && r.phase !== "Reporting & Analytics")).toBe(true);
     await adminDb.delete(jobTask).where(eq(jobTask.tenantId, t!.id));
+    await adminDb.delete(job).where(eq(job.tenantId, t!.id));
+    await adminDb.delete(property).where(eq(property.tenantId, t!.id));
+    await adminDb.delete(customer).where(eq(customer.tenantId, t!.id));
+    await adminDb.delete(tenant).where(eq(tenant.id, t!.id));
+  });
+});
+
+describe("recordStageChange", () => {
+  it("moves stage, writes event, activates only that stage's pending tasks; idempotent re-fire activates none new", async () => {
+    const [t] = await adminDb.insert(tenant).values({ name: "SC-T", publicKey: `sc-${Date.now()}`, clerkOrgId: `org-sc-${Date.now()}` }).returning();
+    const [c] = await adminDb.insert(customer).values({ tenantId: t!.id, name: "C" }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId: t!.id, customerId: c!.id, address: "1 St" }).returning();
+    const [j] = await adminDb.insert(job).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead" }).returning();
+    await withTenant(t!.id, (tx) => seedJobTasks(tx as never, { id: j!.id, tenantId: t!.id, type: "retail" }));
+
+    const r1 = await withTenant(t!.id, (tx) => recordStageChange(tx, { tenantId: t!.id, jobId: j!.id, toStage: "inspected", byAgent: "orchestrator" }));
+    expect(r1.activated).toBeGreaterThan(0);
+    expect(r1.fromStage).toBe("lead");
+
+    const r2 = await withTenant(t!.id, (tx) => recordStageChange(tx, { tenantId: t!.id, jobId: j!.id, toStage: "inspected", byAgent: "orchestrator" }));
+    expect(r2.activated).toBe(0);
+
+    const events = await withTenant(t!.id, (tx) => tx.select().from(jobStageEvent).where(eq(jobStageEvent.jobId, j!.id)));
+    expect(events.length).toBe(2);
+
+    await adminDb.delete(jobTask).where(eq(jobTask.tenantId, t!.id));
+    await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, t!.id));
+    await adminDb.delete(auditLog).where(eq(auditLog.tenantId, t!.id));
     await adminDb.delete(job).where(eq(job.tenantId, t!.id));
     await adminDb.delete(property).where(eq(property.tenantId, t!.id));
     await adminDb.delete(customer).where(eq(customer.tenantId, t!.id));
