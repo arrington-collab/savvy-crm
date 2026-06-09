@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+// Re-export zod so cross-package consumers (the Next.js app) use THIS package's
+// single zod instance — extending leadIntakeSchema with the app's own zod would
+// produce a duplicate-instance type mismatch (same pattern as @savvy/db operators).
+export { z };
+
 // E.164 phone validation
 const phone = z.string().regex(/^\+[1-9]\d{6,14}$/, "phone must be E.164 (+1...)");
 
