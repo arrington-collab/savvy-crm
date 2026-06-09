@@ -1,0 +1,4104 @@
+[
+  {
+    "key": "lead-generation-001",
+    "num": 1,
+    "title": "Inbound call reception & logging",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Inbound call",
+    "difficulty": 3,
+    "whatGetsAutomated": "AI receptionist answers, logs caller info, creates lead record"
+  },
+  {
+    "key": "lead-generation-002",
+    "num": 2,
+    "title": "Website form submission capture",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Form submit",
+    "difficulty": 2,
+    "whatGetsAutomated": "Form data auto-creates lead in CRM with source tag"
+  },
+  {
+    "key": "lead-generation-003",
+    "num": 3,
+    "title": "Referral tracking & source attribution",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Lead created",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-tags referral source, notifies referrer"
+  },
+  {
+    "key": "lead-generation-004",
+    "num": 4,
+    "title": "Google/Facebook ad lead capture",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Ad conversion",
+    "difficulty": 3,
+    "whatGetsAutomated": "Webhook ingests ad leads, deduplicates, assigns"
+  },
+  {
+    "key": "lead-generation-005",
+    "num": 5,
+    "title": "Storm event monitoring & alerts",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Storm detected",
+    "difficulty": 5,
+    "whatGetsAutomated": "Weather API monitors hail/wind events, triggers canvassing zones"
+  },
+  {
+    "key": "lead-generation-006",
+    "num": 6,
+    "title": "Door-to-door canvassing route generation",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Sales Rep",
+    "trigger": "Storm event",
+    "difficulty": 7,
+    "whatGetsAutomated": "Storm Scout generates scored address lists & optimized routes"
+  },
+  {
+    "key": "lead-generation-007",
+    "num": 7,
+    "title": "D2D lead entry from field",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Field entry",
+    "difficulty": 4,
+    "whatGetsAutomated": "Mobile app captures homeowner info, photos, GPS pin"
+  },
+  {
+    "key": "lead-generation-008",
+    "num": 8,
+    "title": "Yard sign / drive-by lead capture",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "QR scan",
+    "difficulty": 2,
+    "whatGetsAutomated": "QR code scan creates lead with GPS location"
+  },
+  {
+    "key": "lead-generation-009",
+    "num": 9,
+    "title": "Neighbor referral solicitation",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Job completed nearby",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-sends neighbor door hanger/postcard after nearby job"
+  },
+  {
+    "key": "lead-generation-010",
+    "num": 10,
+    "title": "Real estate agent partnership leads",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Agent submission",
+    "difficulty": 4,
+    "whatGetsAutomated": "Agent portal for submitting inspection requests"
+  },
+  {
+    "key": "lead-generation-011",
+    "num": 11,
+    "title": "Insurance agent partnership leads",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Agent submission",
+    "difficulty": 4,
+    "whatGetsAutomated": "Agent referral portal with status tracking"
+  },
+  {
+    "key": "lead-generation-012",
+    "num": 12,
+    "title": "Google Business Profile management",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Schedule/trigger",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-posts photos, responds to questions, updates hours"
+  },
+  {
+    "key": "lead-generation-013",
+    "num": 13,
+    "title": "Social media content scheduling",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Marketing",
+    "trigger": "Job milestone",
+    "difficulty": 5,
+    "whatGetsAutomated": "Templates for job photos, before/after, reviews"
+  },
+  {
+    "key": "lead-generation-014",
+    "num": 14,
+    "title": "SEO content & blog publishing",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Marketing",
+    "trigger": "Content calendar",
+    "difficulty": 6,
+    "whatGetsAutomated": "AI drafts location-based content, human reviews"
+  },
+  {
+    "key": "lead-generation-015",
+    "num": 15,
+    "title": "Direct mail campaign execution",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Marketing",
+    "trigger": "Storm event",
+    "difficulty": 5,
+    "whatGetsAutomated": "Auto-generates targeted mailer lists post-storm"
+  },
+  {
+    "key": "lead-generation-016",
+    "num": 16,
+    "title": "Commercial bid solicitation monitoring",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "New RFP posted",
+    "difficulty": 6,
+    "whatGetsAutomated": "Monitors bid boards and notifies of relevant RFPs"
+  },
+  {
+    "key": "lead-generation-017",
+    "num": 17,
+    "title": "Property management outreach",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Sales Rep",
+    "trigger": "Outreach trigger",
+    "difficulty": 4,
+    "whatGetsAutomated": "Automated intro sequences to property managers"
+  },
+  {
+    "key": "lead-generation-018",
+    "num": 18,
+    "title": "Lead deduplication & merge",
+    "phase": "Lead Generation",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Lead created",
+    "difficulty": 5,
+    "whatGetsAutomated": "Matches phone/email/address across sources, merges records"
+  },
+  {
+    "key": "lead-management-019",
+    "num": 19,
+    "title": "Lead qualification scoring",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Lead created",
+    "difficulty": 6,
+    "whatGetsAutomated": "Scores based on property age, roof type, storm exposure, value"
+  },
+  {
+    "key": "lead-management-020",
+    "num": 20,
+    "title": "Auto-assignment to sales rep by territory",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Lead qualified",
+    "difficulty": 4,
+    "whatGetsAutomated": "Round-robin or territory-based assignment with load balancing"
+  },
+  {
+    "key": "lead-management-021",
+    "num": 21,
+    "title": "Initial contact — phone attempt",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Sales Rep",
+    "trigger": "Lead assigned",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-dials, logs outcome, reschedules if no answer"
+  },
+  {
+    "key": "lead-management-022",
+    "num": 22,
+    "title": "Initial contact — text message",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Lead assigned",
+    "difficulty": 2,
+    "whatGetsAutomated": "Bilingual SMS intro with rep name and company info"
+  },
+  {
+    "key": "lead-management-023",
+    "num": 23,
+    "title": "Initial contact — email",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Lead assigned",
+    "difficulty": 2,
+    "whatGetsAutomated": "Personalized email with storm/area-specific content"
+  },
+  {
+    "key": "lead-management-024",
+    "num": 24,
+    "title": "Follow-up sequence (multi-touch)",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "No response",
+    "difficulty": 4,
+    "whatGetsAutomated": "Automated 7-14 day drip: call, text, email, ringless VM"
+  },
+  {
+    "key": "lead-management-025",
+    "num": 25,
+    "title": "Appointment scheduling",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Sales Rep",
+    "trigger": "Lead engaged",
+    "difficulty": 3,
+    "whatGetsAutomated": "Self-scheduling link or rep books via calendar integration"
+  },
+  {
+    "key": "lead-management-026",
+    "num": 26,
+    "title": "Appointment confirmation & reminder",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Appointment set",
+    "difficulty": 2,
+    "whatGetsAutomated": "SMS/email 24h and 1h before with address and rep info"
+  },
+  {
+    "key": "lead-management-027",
+    "num": 27,
+    "title": "No-show follow-up & reschedule",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "No-show detected",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-texts \"sorry we missed you\" with reschedule link"
+  },
+  {
+    "key": "lead-management-028",
+    "num": 28,
+    "title": "Lead status pipeline tracking",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Status change",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-moves lead through pipeline stages based on activity"
+  },
+  {
+    "key": "lead-management-029",
+    "num": 29,
+    "title": "Lead reactivation (\"Old Gold Miner\")",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "30-day stale",
+    "difficulty": 4,
+    "whatGetsAutomated": "Re-engages stale leads after 30/60/90 days with new hook"
+  },
+  {
+    "key": "lead-management-030",
+    "num": 30,
+    "title": "Competitor loss tracking",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Lead lost",
+    "difficulty": 3,
+    "whatGetsAutomated": "Logs reason lost, competitor name, price difference"
+  },
+  {
+    "key": "lead-management-031",
+    "num": 31,
+    "title": "Lead source ROI reporting",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Monthly trigger",
+    "difficulty": 5,
+    "whatGetsAutomated": "Calculates cost-per-lead and conversion by source"
+  },
+  {
+    "key": "lead-management-032",
+    "num": 32,
+    "title": "Speed-to-lead monitoring & alerts",
+    "phase": "Lead Management",
+    "stage": "lead",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Time elapsed",
+    "difficulty": 3,
+    "whatGetsAutomated": "Alerts manager if lead not contacted within threshold"
+  },
+  {
+    "key": "inspection-033",
+    "num": 33,
+    "title": "Pre-inspection property research",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Inspection scheduled",
+    "difficulty": 5,
+    "whatGetsAutomated": "Pulls property data: age, sqft, roof type, permit history"
+  },
+  {
+    "key": "inspection-034",
+    "num": 34,
+    "title": "Aerial/satellite measurement order",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Inspection scheduled",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-orders EagleView/Roofr report for property"
+  },
+  {
+    "key": "inspection-035",
+    "num": 35,
+    "title": "Drive time & route optimization",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Day-of schedule",
+    "difficulty": 4,
+    "whatGetsAutomated": "Optimizes daily inspection routes for multiple reps"
+  },
+  {
+    "key": "inspection-036",
+    "num": 36,
+    "title": "On-site inspection photo documentation",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Inspector",
+    "trigger": "At property",
+    "difficulty": 3,
+    "whatGetsAutomated": "CompanyCam integration: geotagged, timestamped photos"
+  },
+  {
+    "key": "inspection-037",
+    "num": 37,
+    "title": "Drone inspection flight & imagery",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "manual",
+    "ownerAgent": null,
+    "ownerRole": "Inspector",
+    "trigger": "Complex roof",
+    "difficulty": 8,
+    "whatGetsAutomated": "Pilot captures high-res roof imagery"
+  },
+  {
+    "key": "inspection-038",
+    "num": 38,
+    "title": "Damage identification & documentation",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Inspector",
+    "trigger": "Photos uploaded",
+    "difficulty": 7,
+    "whatGetsAutomated": "AI-assisted damage spotting from photos, inspector confirms"
+  },
+  {
+    "key": "inspection-039",
+    "num": 39,
+    "title": "Interior damage documentation",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Inspector",
+    "trigger": "At property",
+    "difficulty": 3,
+    "whatGetsAutomated": "Photos of water stains, attic damage, ceiling issues"
+  },
+  {
+    "key": "inspection-040",
+    "num": 40,
+    "title": "Gutter/soffit/fascia inspection",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Inspector",
+    "trigger": "At property",
+    "difficulty": 3,
+    "whatGetsAutomated": "Checklist-driven with photo requirements per item"
+  },
+  {
+    "key": "inspection-041",
+    "num": 41,
+    "title": "Ventilation assessment",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Inspector",
+    "trigger": "At property",
+    "difficulty": 5,
+    "whatGetsAutomated": "Counts existing vents, calculates NFA requirements"
+  },
+  {
+    "key": "inspection-042",
+    "num": 42,
+    "title": "Inspection report generation",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Inspection complete",
+    "difficulty": 6,
+    "whatGetsAutomated": "Auto-generates branded report from photos and checklist data"
+  },
+  {
+    "key": "inspection-043",
+    "num": 43,
+    "title": "Homeowner inspection walkthrough",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "manual",
+    "ownerAgent": null,
+    "ownerRole": "Sales Rep",
+    "trigger": "At property",
+    "difficulty": 2,
+    "whatGetsAutomated": "Rep shows damage and explains process"
+  },
+  {
+    "key": "inspection-044",
+    "num": 44,
+    "title": "Contract / authorization signing",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Homeowner agrees",
+    "difficulty": 3,
+    "whatGetsAutomated": "DocuSign/digital signature with auto-populated fields"
+  },
+  {
+    "key": "inspection-045",
+    "num": 45,
+    "title": "Insurance claim filing assistance",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Contract signed",
+    "difficulty": 5,
+    "whatGetsAutomated": "Pre-fills claim form with inspection data"
+  },
+  {
+    "key": "inspection-046",
+    "num": 46,
+    "title": "Post-inspection follow-up (no sign)",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Left without signing",
+    "difficulty": 3,
+    "whatGetsAutomated": "Drip sequence with inspection report and urgency messaging"
+  },
+  {
+    "key": "inspection-047",
+    "num": 47,
+    "title": "Inspection data sync to CRM",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Inspection complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "All inspection data flows into job record automatically"
+  },
+  {
+    "key": "inspection-048",
+    "num": 48,
+    "title": "Property access notes & gate codes",
+    "phase": "Inspection",
+    "stage": "inspected",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Inspector",
+    "trigger": "Inspection",
+    "difficulty": 2,
+    "whatGetsAutomated": "Captured in CRM, shared with crew at production"
+  },
+  {
+    "key": "estimating-049",
+    "num": 49,
+    "title": "Measurement report review & import",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Report received",
+    "difficulty": 5,
+    "whatGetsAutomated": "EagleView/Roofr data parsed into estimate template"
+  },
+  {
+    "key": "estimating-050",
+    "num": 50,
+    "title": "Material takeoff calculation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Measurements imported",
+    "difficulty": 6,
+    "whatGetsAutomated": "Auto-calculates shingles, underlayment, flashing, nails, etc."
+  },
+  {
+    "key": "estimating-051",
+    "num": 51,
+    "title": "Labor cost estimation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Estimator",
+    "trigger": "Takeoff complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "Calculates based on roof complexity, pitch, access, layers"
+  },
+  {
+    "key": "estimating-052",
+    "num": 52,
+    "title": "Xactimate estimate creation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Estimator",
+    "trigger": "Insurance job",
+    "difficulty": 8,
+    "whatGetsAutomated": "Auto-generates Xactimate line items from inspection data"
+  },
+  {
+    "key": "estimating-053",
+    "num": 53,
+    "title": "Retail pricing proposal generation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Estimate complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "Branded multi-tier proposal (good/better/best)"
+  },
+  {
+    "key": "estimating-054",
+    "num": 54,
+    "title": "Upsell option packaging",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Base estimate done",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-generates upgrade options: shingle tier, ventilation, etc."
+  },
+  {
+    "key": "estimating-055",
+    "num": 55,
+    "title": "Commercial bid document preparation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Estimator",
+    "trigger": "Bid requested",
+    "difficulty": 7,
+    "whatGetsAutomated": "Formal bid with scope, timeline, bonding, insurance certs"
+  },
+  {
+    "key": "estimating-056",
+    "num": 56,
+    "title": "Estimate delivery & presentation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Sales Rep",
+    "trigger": "Estimate approved",
+    "difficulty": 3,
+    "whatGetsAutomated": "Sends branded PDF with interactive pricing options"
+  },
+  {
+    "key": "estimating-057",
+    "num": 57,
+    "title": "Estimate follow-up sequence",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Estimate sent",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-follows up at 2, 5, 10 days with urgency framing"
+  },
+  {
+    "key": "estimating-058",
+    "num": 58,
+    "title": "Price matching / negotiation tracking",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Sales Rep",
+    "trigger": "Price objection",
+    "difficulty": 4,
+    "whatGetsAutomated": "Logs competitor quotes, discount approvals, margin impact"
+  },
+  {
+    "key": "estimating-059",
+    "num": 59,
+    "title": "Financing option presentation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Sales Rep",
+    "trigger": "Retail estimate",
+    "difficulty": 5,
+    "whatGetsAutomated": "Auto-generates payment plan options from financing partners"
+  },
+  {
+    "key": "estimating-060",
+    "num": 60,
+    "title": "Financing application submission",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Sales Rep",
+    "trigger": "Customer applies",
+    "difficulty": 5,
+    "whatGetsAutomated": "Submits to GreenSky/EnerBank, tracks approval status"
+  },
+  {
+    "key": "estimating-061",
+    "num": 61,
+    "title": "Estimate revision tracking",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Estimate revised",
+    "difficulty": 3,
+    "whatGetsAutomated": "Version control on estimates with change log"
+  },
+  {
+    "key": "estimating-062",
+    "num": 62,
+    "title": "Gross margin calculation per job",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Estimate created",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-calculates margin based on estimate vs. cost"
+  },
+  {
+    "key": "estimating-063",
+    "num": 63,
+    "title": "Scope of work document generation",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Estimate approved",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-generates detailed SOW from estimate line items"
+  },
+  {
+    "key": "estimating-064",
+    "num": 64,
+    "title": "Estimate approval workflow",
+    "phase": "Estimating",
+    "stage": "estimate",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Manager",
+    "trigger": "High-value estimate",
+    "difficulty": 3,
+    "whatGetsAutomated": "Manager approval required above threshold"
+  },
+  {
+    "key": "insurance-claim-management-065",
+    "num": 65,
+    "title": "Claim filing & submission",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Contract signed",
+    "difficulty": 5,
+    "whatGetsAutomated": "Pre-fills claim form, attaches documentation"
+  },
+  {
+    "key": "insurance-claim-management-066",
+    "num": 66,
+    "title": "Adjuster meeting scheduling",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Claims Rep",
+    "trigger": "Claim filed",
+    "difficulty": 4,
+    "whatGetsAutomated": "Coordinates between adjuster, rep, and homeowner"
+  },
+  {
+    "key": "insurance-claim-management-067",
+    "num": 67,
+    "title": "Adjuster meeting preparation",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Meeting scheduled",
+    "difficulty": 4,
+    "whatGetsAutomated": "Assembles inspection report, photos, measurements for meeting"
+  },
+  {
+    "key": "insurance-claim-management-068",
+    "num": 68,
+    "title": "Adjuster meeting attendance & documentation",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "manual",
+    "ownerAgent": null,
+    "ownerRole": "Claims Rep",
+    "trigger": "Meeting day",
+    "difficulty": 3,
+    "whatGetsAutomated": "Rep meets adjuster on-site, documents findings"
+  },
+  {
+    "key": "insurance-claim-management-069",
+    "num": 69,
+    "title": "Insurance scope of work review",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Scope received",
+    "difficulty": 7,
+    "whatGetsAutomated": "Parses insurance estimate, flags discrepancies vs. company scope"
+  },
+  {
+    "key": "insurance-claim-management-070",
+    "num": 70,
+    "title": "Supplement identification",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Scope reviewed",
+    "difficulty": 8,
+    "whatGetsAutomated": "AI compares approved scope vs. actual needs, flags gaps"
+  },
+  {
+    "key": "insurance-claim-management-071",
+    "num": 71,
+    "title": "Supplement documentation & submission",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Supplement identified",
+    "difficulty": 8,
+    "whatGetsAutomated": "Generates supplement with photos, code references, Xactimate lines"
+  },
+  {
+    "key": "insurance-claim-management-072",
+    "num": 72,
+    "title": "Supplement negotiation tracking",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Supplement submitted",
+    "difficulty": 5,
+    "whatGetsAutomated": "Logs negotiation history, adjuster responses, outcomes"
+  },
+  {
+    "key": "insurance-claim-management-073",
+    "num": 73,
+    "title": "Supplement approval notification",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Supplement approved",
+    "difficulty": 2,
+    "whatGetsAutomated": "Alerts team and homeowner when supplement approved"
+  },
+  {
+    "key": "insurance-claim-management-074",
+    "num": 74,
+    "title": "Depreciation recovery tracking",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Claim approved",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tracks recoverable depreciation amounts and deadlines"
+  },
+  {
+    "key": "insurance-claim-management-075",
+    "num": 75,
+    "title": "Insurance check receipt logging",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "Check received",
+    "difficulty": 4,
+    "whatGetsAutomated": "Scans check, logs amount, matches to claim"
+  },
+  {
+    "key": "insurance-claim-management-076",
+    "num": 76,
+    "title": "Mortgage company endorsement tracking",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Check requires endorsement",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tracks checks sent to mortgage co., follow-up on release"
+  },
+  {
+    "key": "insurance-claim-management-077",
+    "num": 77,
+    "title": "ACV vs. RCV tracking",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Claim created",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks actual cash value vs. replacement cost throughout claim"
+  },
+  {
+    "key": "insurance-claim-management-078",
+    "num": 78,
+    "title": "Deductible tracking & collection",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "Job approved",
+    "difficulty": 3,
+    "whatGetsAutomated": "Calculates deductible, generates invoice, tracks payment"
+  },
+  {
+    "key": "insurance-claim-management-079",
+    "num": 79,
+    "title": "Insurance deadline monitoring",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Claim created",
+    "difficulty": 4,
+    "whatGetsAutomated": "Alerts on supplement deadlines, depreciation recovery windows"
+  },
+  {
+    "key": "insurance-claim-management-080",
+    "num": 80,
+    "title": "Carrier communication log",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Any carrier contact",
+    "difficulty": 3,
+    "whatGetsAutomated": "Logs all carrier calls, emails, faxes with timestamps"
+  },
+  {
+    "key": "insurance-claim-management-081",
+    "num": 81,
+    "title": "Public adjuster coordination",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "PA engaged",
+    "difficulty": 5,
+    "whatGetsAutomated": "Manages PA assignments, fee tracking, scope collaboration"
+  },
+  {
+    "key": "insurance-claim-management-082",
+    "num": 82,
+    "title": "Appraisal / umpire process management",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Dispute escalated",
+    "difficulty": 6,
+    "whatGetsAutomated": "Tracks escalation timeline, documents, outcomes"
+  },
+  {
+    "key": "insurance-claim-management-083",
+    "num": 83,
+    "title": "Code upgrade documentation",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Estimator",
+    "trigger": "Scope review",
+    "difficulty": 6,
+    "whatGetsAutomated": "Documents required code upgrades with local building codes"
+  },
+  {
+    "key": "insurance-claim-management-084",
+    "num": 84,
+    "title": "O&P (overhead & profit) tracking",
+    "phase": "Insurance Claim Management",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Estimate created",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks O&P inclusion/exclusion per carrier per claim"
+  },
+  {
+    "key": "pre-production-085",
+    "num": 85,
+    "title": "Construction meeting scheduling",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Job approved",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-schedules post-approval meeting with homeowner"
+  },
+  {
+    "key": "pre-production-086",
+    "num": 86,
+    "title": "Construction meeting — color selection",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Construction meeting",
+    "difficulty": 4,
+    "whatGetsAutomated": "Digital color selector with visualizer, saves selections"
+  },
+  {
+    "key": "pre-production-087",
+    "num": 87,
+    "title": "Construction meeting — upsell presentation",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Sales Rep",
+    "trigger": "Construction meeting",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-generates upsell options based on property and scope"
+  },
+  {
+    "key": "pre-production-088",
+    "num": 88,
+    "title": "Construction meeting — scope review with homeowner",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "manual",
+    "ownerAgent": null,
+    "ownerRole": "Sales Rep",
+    "trigger": "Construction meeting",
+    "difficulty": 2,
+    "whatGetsAutomated": "Reviews approved scope, sets expectations"
+  },
+  {
+    "key": "pre-production-089",
+    "num": 89,
+    "title": "Construction contract signing",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Sales Rep",
+    "trigger": "Meeting complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "DocuSign with auto-populated contract from CRM data"
+  },
+  {
+    "key": "pre-production-090",
+    "num": 90,
+    "title": "Material order — shingles",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Contract signed",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-generates order from takeoff, rep confirms quantities"
+  },
+  {
+    "key": "pre-production-091",
+    "num": 91,
+    "title": "Material order — underlayment & accessories",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Contract signed",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-orders ice/water, synthetic, drip edge, pipe boots"
+  },
+  {
+    "key": "pre-production-092",
+    "num": 92,
+    "title": "Material order — flat roof materials",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Flat roof in scope",
+    "difficulty": 5,
+    "whatGetsAutomated": "Mod bit, adhesive, primer ordered per spec"
+  },
+  {
+    "key": "pre-production-093",
+    "num": 93,
+    "title": "Material delivery scheduling",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Order placed",
+    "difficulty": 4,
+    "whatGetsAutomated": "Coordinates delivery window with supplier and homeowner"
+  },
+  {
+    "key": "pre-production-094",
+    "num": 94,
+    "title": "Material delivery confirmation",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Delivery scheduled",
+    "difficulty": 3,
+    "whatGetsAutomated": "Supplier confirms delivery, system updates job status"
+  },
+  {
+    "key": "pre-production-095",
+    "num": 95,
+    "title": "Dumpster / debris container order",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Job scheduled",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-orders based on roof size and layer count"
+  },
+  {
+    "key": "pre-production-096",
+    "num": 96,
+    "title": "Permit application",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Job approved",
+    "difficulty": 5,
+    "whatGetsAutomated": "Pre-fills permit app with property and scope data"
+  },
+  {
+    "key": "pre-production-097",
+    "num": 97,
+    "title": "HOA approval submission",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Admin",
+    "trigger": "Colors selected",
+    "difficulty": 4,
+    "whatGetsAutomated": "Submits color selections and scope to HOA"
+  },
+  {
+    "key": "pre-production-098",
+    "num": 98,
+    "title": "Crew assignment",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Job approved",
+    "difficulty": 5,
+    "whatGetsAutomated": "Matches crew based on job type, size, location, availability"
+  },
+  {
+    "key": "pre-production-099",
+    "num": 99,
+    "title": "Production calendar scheduling",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Crew assigned",
+    "difficulty": 6,
+    "whatGetsAutomated": "Schedules install date considering weather, crew, materials"
+  },
+  {
+    "key": "pre-production-100",
+    "num": 100,
+    "title": "Weather monitoring for scheduled jobs",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Job scheduled",
+    "difficulty": 4,
+    "whatGetsAutomated": "Alerts if rain/wind forecasted for install date"
+  },
+  {
+    "key": "pre-production-101",
+    "num": 101,
+    "title": "Pre-production homeowner notification",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "48h before install",
+    "difficulty": 2,
+    "whatGetsAutomated": "SMS/email with date, crew info, what to expect"
+  },
+  {
+    "key": "pre-production-102",
+    "num": 102,
+    "title": "Neighbor notification",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "48h before install",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-sends courtesy notice to adjacent properties"
+  },
+  {
+    "key": "pre-production-103",
+    "num": 103,
+    "title": "Subcontractor agreement / COI verification",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Crew assigned",
+    "difficulty": 4,
+    "whatGetsAutomated": "Checks COI expiration, auto-requests renewal if needed"
+  },
+  {
+    "key": "pre-production-104",
+    "num": 104,
+    "title": "Wood / decking cost pre-authorization",
+    "phase": "Pre-Production",
+    "stage": "approved",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Sales Rep",
+    "trigger": "Pre-production",
+    "difficulty": 4,
+    "whatGetsAutomated": "Estimates potential wood replacement, gets homeowner approval"
+  },
+  {
+    "key": "production-105",
+    "num": 105,
+    "title": "Day-of crew dispatch notification",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Install morning",
+    "difficulty": 3,
+    "whatGetsAutomated": "Sends crew address, gate codes, scope details, contact info"
+  },
+  {
+    "key": "production-106",
+    "num": 106,
+    "title": "Homeowner day-of notification",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Crew dispatched",
+    "difficulty": 2,
+    "whatGetsAutomated": "SMS with crew ETA, foreman name, contact number"
+  },
+  {
+    "key": "production-107",
+    "num": 107,
+    "title": "Job start confirmation (check-in)",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Foreman",
+    "trigger": "Crew arrives",
+    "difficulty": 3,
+    "whatGetsAutomated": "Crew GPS check-in at property, system logs start time"
+  },
+  {
+    "key": "production-108",
+    "num": 108,
+    "title": "Tear-off documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Tear-off begins",
+    "difficulty": 3,
+    "whatGetsAutomated": "Photos of tear-off showing deck condition, damage"
+  },
+  {
+    "key": "production-109",
+    "num": 109,
+    "title": "Wood damage discovery & documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Foreman",
+    "trigger": "During tear-off",
+    "difficulty": 4,
+    "whatGetsAutomated": "Photos of rotted decking/rafters with measurements"
+  },
+  {
+    "key": "production-110",
+    "num": 110,
+    "title": "Wood replacement approval workflow",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Foreman",
+    "trigger": "Wood damage found",
+    "difficulty": 4,
+    "whatGetsAutomated": "Sends photos to homeowner/office, gets approval, logs cost"
+  },
+  {
+    "key": "production-111",
+    "num": 111,
+    "title": "Progress photo documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Each stage",
+    "difficulty": 3,
+    "whatGetsAutomated": "CompanyCam photos at each stage: tear-off, deck, underlayment, install"
+  },
+  {
+    "key": "production-112",
+    "num": 112,
+    "title": "Material usage tracking",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Foreman",
+    "trigger": "During install",
+    "difficulty": 4,
+    "whatGetsAutomated": "Logs actual materials used vs. ordered, tracks waste"
+  },
+  {
+    "key": "production-113",
+    "num": 113,
+    "title": "Mid-day progress update to homeowner",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Noon",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-sends progress photos and status at midday"
+  },
+  {
+    "key": "production-114",
+    "num": 114,
+    "title": "Weather delay management",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Weather event",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tarp protocol, reschedule workflow, customer notification"
+  },
+  {
+    "key": "production-115",
+    "num": 115,
+    "title": "Safety compliance documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Job start",
+    "difficulty": 4,
+    "whatGetsAutomated": "Logs OSHA compliance: harnesses, ladder safety, signage"
+  },
+  {
+    "key": "production-116",
+    "num": 116,
+    "title": "End-of-day job status update",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "End of day",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-logs completion percentage, photos, notes from foreman"
+  },
+  {
+    "key": "production-117",
+    "num": 117,
+    "title": "Multi-day job overnight security protocol",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Multi-day job",
+    "difficulty": 3,
+    "whatGetsAutomated": "Tarp verification photos, material security notes"
+  },
+  {
+    "key": "production-118",
+    "num": 118,
+    "title": "Change order processing",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Production Mgr",
+    "trigger": "Scope change needed",
+    "difficulty": 5,
+    "whatGetsAutomated": "Captures scope changes, reprices, gets homeowner approval"
+  },
+  {
+    "key": "production-119",
+    "num": 119,
+    "title": "Debris cleanup documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Job complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Before/after photos of cleanup, magnetic sweep"
+  },
+  {
+    "key": "production-120",
+    "num": 120,
+    "title": "Final walkthrough with homeowner",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "manual",
+    "ownerAgent": null,
+    "ownerRole": "Foreman",
+    "trigger": "Job complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "In-person review of completed work"
+  },
+  {
+    "key": "production-121",
+    "num": 121,
+    "title": "Punch list creation & tracking",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Walkthrough",
+    "difficulty": 4,
+    "whatGetsAutomated": "Logs any items needing correction, assigns crew, tracks completion"
+  },
+  {
+    "key": "production-122",
+    "num": 122,
+    "title": "Job completion sign-off",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Walkthrough approved",
+    "difficulty": 2,
+    "whatGetsAutomated": "Digital signature from homeowner confirming satisfaction"
+  },
+  {
+    "key": "production-123",
+    "num": 123,
+    "title": "Completion photos — final documentation",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Foreman",
+    "trigger": "Job complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Full set of completion photos from all angles"
+  },
+  {
+    "key": "production-124",
+    "num": 124,
+    "title": "Crew job checkout (GPS departure)",
+    "phase": "Production",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Crew leaves",
+    "difficulty": 2,
+    "whatGetsAutomated": "GPS checkout logs departure time and hours worked"
+  },
+  {
+    "key": "close-out-125",
+    "num": 125,
+    "title": "Final inspection scheduling (if required)",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Admin",
+    "trigger": "Job complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "Schedules city inspection, notifies homeowner"
+  },
+  {
+    "key": "close-out-126",
+    "num": 126,
+    "title": "City/county inspection coordination",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Admin",
+    "trigger": "Permit required",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks inspector availability, submits for inspection"
+  },
+  {
+    "key": "close-out-127",
+    "num": 127,
+    "title": "Permit closure",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Inspection passed",
+    "difficulty": 3,
+    "whatGetsAutomated": "Submits completion docs to close open permit"
+  },
+  {
+    "key": "close-out-128",
+    "num": 128,
+    "title": "Certificate of completion generation",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-generates branded certificate with job details"
+  },
+  {
+    "key": "close-out-129",
+    "num": 129,
+    "title": "Final project photos package",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "Compiles all photos into branded before/after package"
+  },
+  {
+    "key": "close-out-130",
+    "num": 130,
+    "title": "Lien waiver generation & sending",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Final payment received",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-generates lien waiver, sends via DocuSign"
+  },
+  {
+    "key": "close-out-131",
+    "num": 131,
+    "title": "Completion notification to insurance carrier",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "claims",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "Notifies carrier that work is complete per approved scope"
+  },
+  {
+    "key": "close-out-132",
+    "num": 132,
+    "title": "Final supplement submission (if applicable)",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Claims Rep",
+    "trigger": "Job complete",
+    "difficulty": 6,
+    "whatGetsAutomated": "Submits any remaining line items discovered during production"
+  },
+  {
+    "key": "close-out-133",
+    "num": 133,
+    "title": "Job cost reconciliation",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "Compares estimated vs. actual costs — materials, labor, subs"
+  },
+  {
+    "key": "close-out-134",
+    "num": 134,
+    "title": "Profit margin analysis per job",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Costs reconciled",
+    "difficulty": 4,
+    "whatGetsAutomated": "Calculates final gross margin and flags outliers"
+  },
+  {
+    "key": "close-out-135",
+    "num": 135,
+    "title": "Homeowner satisfaction survey",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "3 days post-complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-sends survey 3 days post-completion"
+  },
+  {
+    "key": "close-out-136",
+    "num": 136,
+    "title": "Thank you / gift delivery trigger",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Survey completed",
+    "difficulty": 3,
+    "whatGetsAutomated": "Triggers gift card or branded item for completed jobs"
+  },
+  {
+    "key": "close-out-137",
+    "num": 137,
+    "title": "Job file completeness audit",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 4,
+    "whatGetsAutomated": "Checks all required docs, photos, signatures are present"
+  },
+  {
+    "key": "close-out-138",
+    "num": 138,
+    "title": "CRM job status → closed",
+    "phase": "Close-Out",
+    "stage": "closeout",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "All items complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Updates all systems to closed status"
+  },
+  {
+    "key": "billing-collections-139",
+    "num": 139,
+    "title": "Invoice generation",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-generates invoice from approved estimate/contract"
+  },
+  {
+    "key": "billing-collections-140",
+    "num": 140,
+    "title": "Invoice delivery (email/text)",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Invoice created",
+    "difficulty": 2,
+    "whatGetsAutomated": "Sends invoice via preferred channel with payment link"
+  },
+  {
+    "key": "billing-collections-141",
+    "num": 141,
+    "title": "Payment processing — credit card",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Payment initiated",
+    "difficulty": 3,
+    "whatGetsAutomated": "Processes CC payment through integrated gateway"
+  },
+  {
+    "key": "billing-collections-142",
+    "num": 142,
+    "title": "Payment processing — check",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "Check received",
+    "difficulty": 3,
+    "whatGetsAutomated": "Logs check receipt, deposits, matches to invoice"
+  },
+  {
+    "key": "billing-collections-143",
+    "num": 143,
+    "title": "Payment processing — financing",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "Financing approved",
+    "difficulty": 4,
+    "whatGetsAutomated": "Coordinates disbursement from financing company"
+  },
+  {
+    "key": "billing-collections-144",
+    "num": 144,
+    "title": "Insurance check processing & deposit",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "Check received",
+    "difficulty": 4,
+    "whatGetsAutomated": "Scans check, logs, deposits, updates claim financial record"
+  },
+  {
+    "key": "billing-collections-145",
+    "num": 145,
+    "title": "Collections — 30-day past due",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "30 days past due",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-sends reminder with balance and payment link"
+  },
+  {
+    "key": "billing-collections-146",
+    "num": 146,
+    "title": "Collections — 60-day past due",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Admin",
+    "trigger": "60 days past due",
+    "difficulty": 3,
+    "whatGetsAutomated": "Escalated notice with phone follow-up from office"
+  },
+  {
+    "key": "billing-collections-147",
+    "num": 147,
+    "title": "Collections — 90-day past due",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "90 days past due",
+    "difficulty": 4,
+    "whatGetsAutomated": "Final notice before lien/legal action"
+  },
+  {
+    "key": "billing-collections-148",
+    "num": 148,
+    "title": "Mechanics lien filing",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Admin",
+    "trigger": "90+ days past due",
+    "difficulty": 6,
+    "whatGetsAutomated": "Pre-fills lien documents with job and property data"
+  },
+  {
+    "key": "billing-collections-149",
+    "num": 149,
+    "title": "Depreciation recovery invoicing",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "insurance"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 4,
+    "whatGetsAutomated": "Generates invoice for recoverable depreciation amount"
+  },
+  {
+    "key": "billing-collections-150",
+    "num": 150,
+    "title": "QuickBooks sync — invoices & payments",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Any financial event",
+    "difficulty": 5,
+    "whatGetsAutomated": "Bi-directional sync of invoices and payments"
+  },
+  {
+    "key": "billing-collections-151",
+    "num": 151,
+    "title": "Sales commission calculation",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Payment received",
+    "difficulty": 4,
+    "whatGetsAutomated": "Calculates commission based on job margin and rep tier"
+  },
+  {
+    "key": "billing-collections-152",
+    "num": 152,
+    "title": "Accounts receivable aging report",
+    "phase": "Billing & Collections",
+    "stage": "billing",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Weekly trigger",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-generates AR aging dashboard weekly"
+  },
+  {
+    "key": "reviews-reputation-153",
+    "num": 153,
+    "title": "Google review request",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "5 days post-complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-sends review link 5 days post-completion"
+  },
+  {
+    "key": "reviews-reputation-154",
+    "num": 154,
+    "title": "Review response management",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Manager",
+    "trigger": "Review posted",
+    "difficulty": 4,
+    "whatGetsAutomated": "AI drafts response, human approves for positive and negative"
+  },
+  {
+    "key": "reviews-reputation-155",
+    "num": 155,
+    "title": "Negative review alert & escalation",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Negative review",
+    "difficulty": 2,
+    "whatGetsAutomated": "Immediately alerts manager on 1-3 star reviews"
+  },
+  {
+    "key": "reviews-reputation-156",
+    "num": 156,
+    "title": "Review aggregation dashboard",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Daily sync",
+    "difficulty": 4,
+    "whatGetsAutomated": "Consolidates Google, Yelp, BBB, Facebook reviews"
+  },
+  {
+    "key": "reviews-reputation-157",
+    "num": 157,
+    "title": "Testimonial collection & permission",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "5-star review",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-requests testimonial with media release after 5-star review"
+  },
+  {
+    "key": "reviews-reputation-158",
+    "num": 158,
+    "title": "Before/after portfolio generation",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-creates social-ready before/after from job photos"
+  },
+  {
+    "key": "reviews-reputation-159",
+    "num": 159,
+    "title": "Case study creation",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Marketing",
+    "trigger": "Notable job complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "AI drafts case study from job data, human edits"
+  },
+  {
+    "key": "reviews-reputation-160",
+    "num": 160,
+    "title": "BBB complaint response",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Manager",
+    "trigger": "BBB complaint",
+    "difficulty": 4,
+    "whatGetsAutomated": "Alerts on complaint, drafts response, tracks resolution"
+  },
+  {
+    "key": "reviews-reputation-161",
+    "num": 161,
+    "title": "Social proof content generation",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "New 5-star review",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-creates review highlight graphics for social"
+  },
+  {
+    "key": "reviews-reputation-162",
+    "num": 162,
+    "title": "Net Promoter Score tracking",
+    "phase": "Reviews & Reputation",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Survey responses",
+    "difficulty": 3,
+    "whatGetsAutomated": "Calculates rolling NPS from survey data"
+  },
+  {
+    "key": "referrals-retention-163",
+    "num": 163,
+    "title": "Referral program enrollment",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Positive survey/review",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-enrolls happy customers in referral program"
+  },
+  {
+    "key": "referrals-retention-164",
+    "num": 164,
+    "title": "Referral reward tracking & payout",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Referral converts",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks referral conversions, triggers reward payment"
+  },
+  {
+    "key": "referrals-retention-165",
+    "num": 165,
+    "title": "Annual roof health check reminder",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Annual trigger",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-sends annual inspection offer on job anniversary"
+  },
+  {
+    "key": "referrals-retention-166",
+    "num": 166,
+    "title": "Post-storm check-in (past customers)",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Storm in area",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-texts past customers in storm-affected areas"
+  },
+  {
+    "key": "referrals-retention-167",
+    "num": 167,
+    "title": "Holiday/seasonal greetings",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Calendar trigger",
+    "difficulty": 2,
+    "whatGetsAutomated": "Branded seasonal messages to customer database"
+  },
+  {
+    "key": "referrals-retention-168",
+    "num": 168,
+    "title": "Customer anniversary recognition",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Annual trigger",
+    "difficulty": 2,
+    "whatGetsAutomated": "Sends anniversary note on job completion date"
+  },
+  {
+    "key": "referrals-retention-169",
+    "num": 169,
+    "title": "Cross-sell opportunity identification",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Data analysis",
+    "difficulty": 5,
+    "whatGetsAutomated": "Identifies past customers needing gutters, siding, paint"
+  },
+  {
+    "key": "referrals-retention-170",
+    "num": 170,
+    "title": "Home sale trigger monitoring",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Property sold",
+    "difficulty": 6,
+    "whatGetsAutomated": "Monitors property sales to reach new homeowner"
+  },
+  {
+    "key": "referrals-retention-171",
+    "num": 171,
+    "title": "Maintenance agreement enrollment",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "comms",
+    "ownerRole": "Sales Rep",
+    "trigger": "Commercial job done",
+    "difficulty": 4,
+    "whatGetsAutomated": "Offers annual maintenance plan post-completion"
+  },
+  {
+    "key": "referrals-retention-172",
+    "num": 172,
+    "title": "Customer lifetime value calculation",
+    "phase": "Referrals & Retention",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Any transaction",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks total revenue per customer across all jobs"
+  },
+  {
+    "key": "scheduling-crew-management-173",
+    "num": 173,
+    "title": "Master production calendar management",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Ongoing",
+    "difficulty": 6,
+    "whatGetsAutomated": "Visual calendar with drag-drop, auto-conflict detection"
+  },
+  {
+    "key": "scheduling-crew-management-174",
+    "num": 174,
+    "title": "Crew availability tracking",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Foreman",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Crews update availability, system tracks PTO/conflicts"
+  },
+  {
+    "key": "scheduling-crew-management-175",
+    "num": 175,
+    "title": "Weather-based schedule adjustment",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Bad weather forecast",
+    "difficulty": 5,
+    "whatGetsAutomated": "Auto-reschedules jobs based on weather forecast"
+  },
+  {
+    "key": "scheduling-crew-management-176",
+    "num": 176,
+    "title": "Crew performance scoring",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tracks speed, quality, callbacks per crew"
+  },
+  {
+    "key": "scheduling-crew-management-177",
+    "num": 177,
+    "title": "Daily crew dispatch sheet generation",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Night before",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-generates daily sheet with jobs, addresses, scopes"
+  },
+  {
+    "key": "scheduling-crew-management-178",
+    "num": 178,
+    "title": "Crew time tracking & payroll data",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Check-in/checkout",
+    "difficulty": 4,
+    "whatGetsAutomated": "GPS-based time tracking feeds payroll system"
+  },
+  {
+    "key": "scheduling-crew-management-179",
+    "num": 179,
+    "title": "Subcontractor scheduling coordination",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Sub needed",
+    "difficulty": 4,
+    "whatGetsAutomated": "Coordinates sub availability with production calendar"
+  },
+  {
+    "key": "scheduling-crew-management-180",
+    "num": 180,
+    "title": "Emergency job prioritization",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "repair"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Emergency tagged",
+    "difficulty": 5,
+    "whatGetsAutomated": "Flags emergency repairs, bumps schedule, notifies affected"
+  },
+  {
+    "key": "scheduling-crew-management-181",
+    "num": 181,
+    "title": "Inspection schedule management",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Sales Mgr",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Manages inspector calendars with territory optimization"
+  },
+  {
+    "key": "scheduling-crew-management-182",
+    "num": 182,
+    "title": "Multi-job resource allocation",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Schedule conflict",
+    "difficulty": 7,
+    "whatGetsAutomated": "Optimizes crew/equipment across concurrent jobs"
+  },
+  {
+    "key": "scheduling-crew-management-183",
+    "num": 183,
+    "title": "Equipment tracking & maintenance",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Production Mgr",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks equipment assignment, maintenance schedules"
+  },
+  {
+    "key": "scheduling-crew-management-184",
+    "num": 184,
+    "title": "Vehicle fleet management",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Ongoing",
+    "difficulty": 5,
+    "whatGetsAutomated": "GPS tracking, maintenance alerts, fuel logging"
+  },
+  {
+    "key": "scheduling-crew-management-185",
+    "num": 185,
+    "title": "Crew onboarding checklist",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "New crew added",
+    "difficulty": 4,
+    "whatGetsAutomated": "Digital onboarding: COI, W-9, safety training, equipment"
+  },
+  {
+    "key": "scheduling-crew-management-186",
+    "num": 186,
+    "title": "Capacity planning & forecasting",
+    "phase": "Scheduling & Crew Management",
+    "stage": "production",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Weekly analysis",
+    "difficulty": 7,
+    "whatGetsAutomated": "Projects crew needs based on pipeline and seasonal trends"
+  },
+  {
+    "key": "warranty-management-187",
+    "num": 187,
+    "title": "Manufacturer warranty registration",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Job complete",
+    "difficulty": 4,
+    "whatGetsAutomated": "Submits warranty registration to IKO/GAF/Owens Corning"
+  },
+  {
+    "key": "warranty-management-188",
+    "num": 188,
+    "title": "Warranty certificate delivery to homeowner",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "Registration confirmed",
+    "difficulty": 2,
+    "whatGetsAutomated": "Sends branded warranty package with all coverage details"
+  },
+  {
+    "key": "warranty-management-189",
+    "num": 189,
+    "title": "Workmanship warranty issuance",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 2,
+    "whatGetsAutomated": "Auto-generates company workmanship warranty document"
+  },
+  {
+    "key": "warranty-management-190",
+    "num": 190,
+    "title": "Warranty claim intake",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Admin",
+    "trigger": "Customer report",
+    "difficulty": 3,
+    "whatGetsAutomated": "Customer reports issue, system creates warranty ticket"
+  },
+  {
+    "key": "warranty-management-191",
+    "num": 191,
+    "title": "Warranty inspection scheduling",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "scheduling",
+    "ownerRole": "System",
+    "trigger": "Claim created",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-schedules warranty inspection within SLA window"
+  },
+  {
+    "key": "warranty-management-192",
+    "num": 192,
+    "title": "Warranty repair execution tracking",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "scheduling",
+    "ownerRole": "Production Mgr",
+    "trigger": "Inspection complete",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks repair from assignment to completion"
+  },
+  {
+    "key": "warranty-management-193",
+    "num": 193,
+    "title": "Warranty cost tracking (labor & material)",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Warranty repair done",
+    "difficulty": 4,
+    "whatGetsAutomated": "Logs all warranty costs per job for trending analysis"
+  },
+  {
+    "key": "warranty-management-194",
+    "num": 194,
+    "title": "Warranty expiration reminders",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "comms",
+    "ownerRole": "System",
+    "trigger": "30 days before expiry",
+    "difficulty": 2,
+    "whatGetsAutomated": "Notifies homeowner before workmanship warranty expires"
+  },
+  {
+    "key": "warranty-management-195",
+    "num": 195,
+    "title": "Manufacturer warranty claim submission",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Admin",
+    "trigger": "Material defect found",
+    "difficulty": 5,
+    "whatGetsAutomated": "Files claim with manufacturer for defective materials"
+  },
+  {
+    "key": "warranty-management-196",
+    "num": 196,
+    "title": "Warranty analytics & trending",
+    "phase": "Warranty Management",
+    "stage": "complete",
+    "orgLevel": false,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Monthly analysis",
+    "difficulty": 6,
+    "whatGetsAutomated": "Identifies patterns: crew, material, or area-based failures"
+  },
+  {
+    "key": "operations-compliance-197",
+    "num": 197,
+    "title": "License & certification renewal tracking",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "60 days before expiry",
+    "difficulty": 3,
+    "whatGetsAutomated": "Alerts on upcoming expirations for ROC, insurance, certs"
+  },
+  {
+    "key": "operations-compliance-198",
+    "num": 198,
+    "title": "Insurance policy renewal management",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "90 days before expiry",
+    "difficulty": 3,
+    "whatGetsAutomated": "Tracks GL, WC, auto, umbrella policy renewals"
+  },
+  {
+    "key": "operations-compliance-199",
+    "num": 199,
+    "title": "OSHA compliance documentation",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Maintains safety records, training logs, incident reports"
+  },
+  {
+    "key": "operations-compliance-200",
+    "num": 200,
+    "title": "Employee/sub COI expiration monitoring",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "30 days before expiry",
+    "difficulty": 3,
+    "whatGetsAutomated": "Auto-requests updated COI 30 days before expiration"
+  },
+  {
+    "key": "operations-compliance-201",
+    "num": 201,
+    "title": "Supply chain vendor management",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Production Mgr",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks pricing, lead times, relationships across suppliers"
+  },
+  {
+    "key": "operations-compliance-202",
+    "num": 202,
+    "title": "Inventory tracking (warehouse/yard)",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "finance",
+    "ownerRole": "Production Mgr",
+    "trigger": "Material movement",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tracks leftover materials, returns, reusable stock"
+  },
+  {
+    "key": "operations-compliance-203",
+    "num": 203,
+    "title": "New hire onboarding automation",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "New hire",
+    "difficulty": 4,
+    "whatGetsAutomated": "Digital onboarding workflow: docs, training, equipment"
+  },
+  {
+    "key": "operations-compliance-204",
+    "num": 204,
+    "title": "Training & certification tracking",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Tracks crew safety certs, manufacturer training, renewals"
+  },
+  {
+    "key": "operations-compliance-205",
+    "num": 205,
+    "title": "Building code update monitoring",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "claims",
+    "ownerRole": "Estimator",
+    "trigger": "Code update published",
+    "difficulty": 5,
+    "whatGetsAutomated": "Monitors local code changes that affect roofing practices"
+  },
+  {
+    "key": "operations-compliance-206",
+    "num": 206,
+    "title": "Customer data privacy compliance",
+    "phase": "Operations & Compliance",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "partial",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "Admin",
+    "trigger": "Ongoing",
+    "difficulty": 4,
+    "whatGetsAutomated": "Manages data retention, consent records, opt-outs"
+  },
+  {
+    "key": "reporting-analytics-207",
+    "num": 207,
+    "title": "Daily flash report",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "End of day",
+    "difficulty": 4,
+    "whatGetsAutomated": "Auto-generates daily KPIs: leads, appointments, jobs, revenue"
+  },
+  {
+    "key": "reporting-analytics-208",
+    "num": 208,
+    "title": "Weekly scorecard (EOS-compatible)",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Weekly trigger",
+    "difficulty": 5,
+    "whatGetsAutomated": "Tracks EOS scorecard metrics with trend indicators"
+  },
+  {
+    "key": "reporting-analytics-209",
+    "num": 209,
+    "title": "Monthly P&L by job type",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Monthly trigger",
+    "difficulty": 5,
+    "whatGetsAutomated": "Revenue, COGS, gross margin breakdown by job category"
+  },
+  {
+    "key": "reporting-analytics-210",
+    "num": 210,
+    "title": "Sales rep performance dashboard",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Real-time",
+    "difficulty": 5,
+    "whatGetsAutomated": "Lead conversion, revenue, margin per rep with rankings"
+  },
+  {
+    "key": "reporting-analytics-211",
+    "num": 211,
+    "title": "Crew productivity analytics",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "orchestrator",
+    "ownerRole": "System",
+    "trigger": "Job complete",
+    "difficulty": 5,
+    "whatGetsAutomated": "Squares/day, callbacks, material waste per crew"
+  },
+  {
+    "key": "reporting-analytics-212",
+    "num": 212,
+    "title": "Pipeline forecast & cash flow projection",
+    "phase": "Reporting & Analytics",
+    "stage": null,
+    "orgLevel": true,
+    "jobTypes": [
+      "retail",
+      "insurance",
+      "repair",
+      "commercial"
+    ],
+    "automationLevel": "full",
+    "ownerAgent": "finance",
+    "ownerRole": "System",
+    "trigger": "Weekly trigger",
+    "difficulty": 7,
+    "whatGetsAutomated": "Projects revenue and cash flow from pipeline data"
+  }
+]
