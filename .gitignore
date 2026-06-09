@@ -5,8 +5,14 @@ build/
 .turbo/
 coverage/
 .env
+**/.env
 .env.local
 .env.*.local
+*.tsbuildout
 *.log
 .DS_Store
 .vercel/
+
+# Playwright
+test-results/
+playwright-report/

@@ -1,0 +1,14 @@
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+
+const PUBLIC = [/^\/intake\//, /^\/api\/leads$/, /^\/api\/twilio\//, /^\/api\/inngest$/];
+
+export default process.env.TEST_MODE === "1"
+  ? () => NextResponse.next() // e2e bypass: no Clerk, getTenantId() uses TEST_TENANT_ID
+  : clerkMiddleware(async (auth, req) => {
+      const path = req.nextUrl.pathname;
+      if (PUBLIC.some((re) => re.test(path))) return;
+      await auth.protect();
+    });
+
+export const config = { matcher: ["/((?!_next|.*\\..*).*)", "/api/(.*)"] };

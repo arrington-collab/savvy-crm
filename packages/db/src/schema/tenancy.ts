@@ -1,0 +1,31 @@
+import { pgTable, uuid, text, jsonb, index } from "drizzle-orm/pg-core";
+import { idCol, createdAt, tenantIsolation } from "./_rls";
+import { userRoleEnum } from "./enums";
+
+// Root of isolation. NOTE: tenant itself has no tenant_id; it is gated by
+// Clerk org lookup, not RLS. clerk_org_id/public_key/inbound_phone are
+// extensions beyond DATA-MODEL.md (approved).
+export const tenant = pgTable("tenant", {
+  id: idCol(),
+  name: text("name").notNull(),
+  revenueBand: text("revenue_band"),
+  planPrice: text("plan_price"),
+  clerkOrgId: text("clerk_org_id").unique(),
+  publicKey: text("public_key").unique(),
+  inboundPhone: text("inbound_phone"),
+  settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: createdAt(),
+});
+
+export const user = pgTable("user", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  clerkUserId: text("clerk_user_id"),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  role: userRoleEnum("role").notNull().default("rep"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("user_tenant_idx").on(t.tenantId),
+  tenantIsolation(),
+]);
