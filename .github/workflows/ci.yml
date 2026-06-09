@@ -1,0 +1,58 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: savvy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/savvy
+      DATABASE_URL: postgres://savvy_app:savvy_app@localhost:5432/savvy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The non-superuser app role isn't created by the service container's
+      # init (that only runs for our local docker-compose), so create it here.
+      # Without it RLS would be enforced against the wrong role.
+      - name: Create non-superuser savvy_app role
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d savvy -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE savvy_app WITH LOGIN PASSWORD 'savvy_app' NOSUPERUSER NOBYPASSRLS;" \
+            -c "GRANT CONNECT ON DATABASE savvy TO savvy_app;" \
+            -c "GRANT USAGE ON SCHEMA public TO savvy_app;"
+
+      - name: Migrate (schema + RLS policies + grants)
+        run: pnpm --filter @savvy/db db:migrate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
