@@ -5,6 +5,7 @@ type Events = {
   "lead/created": { data: { leadId: string; tenantId: string } };
   "lead/booked": { data: { leadId: string; tenantId: string; startsAt: string } };
   "demo/ping": { data: { msg: string } };
+  "job/stage-changed": { data: { jobId: string; tenantId: string; toStage: string; byAgent?: string } };
 };
 
 export const inngest = new Inngest({
