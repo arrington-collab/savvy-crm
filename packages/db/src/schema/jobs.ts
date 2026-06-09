@@ -43,3 +43,18 @@ export const jobTask = pgTable("job_task", {
   index("job_task_tenant_job_idx").on(t.tenantId, t.jobId),
   tenantIsolation(),
 ]);
+
+export const jobStageEvent = pgTable("job_stage_event", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  fromStage: jobStageEnum("from_stage"),
+  toStage: jobStageEnum("to_stage").notNull(),
+  enteredAt: timestamp("entered_at", { withTimezone: true }).defaultNow().notNull(),
+  byUserId: uuid("by_user_id").references(() => user.id),
+  byAgent: agentEnum("by_agent"),
+  note: text("note"),
+}, (t) => [
+  index("job_stage_event_tenant_job_idx").on(t.tenantId, t.jobId, t.enteredAt),
+  tenantIsolation(),
+]);
