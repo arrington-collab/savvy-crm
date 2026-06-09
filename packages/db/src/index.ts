@@ -1,6 +1,7 @@
 export { db, pool, schema } from "./client";
 export { adminDb, adminPool } from "./admin-client";
 export { withTenant } from "./tenant";
+export { seedJobTasks } from "./lifecycle/seed-job-tasks";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
 // (the Next.js app, agents) import `{ tenant, job }` from "@savvy/db" instead
