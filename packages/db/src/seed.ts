@@ -1,5 +1,6 @@
 import { adminDb, adminPool } from "./admin-client";
 import { tenant, user, customer, property, job, messageTemplate, drip } from "./schema/index";
+import { parseSchedulingConfig } from "@savvy/core";
 
 async function seedTenant(opts: {
   name: string; clerkOrgId: string; publicKey: string; inboundPhone: string;
@@ -7,6 +8,7 @@ async function seedTenant(opts: {
   const [t] = await adminDb.insert(tenant).values({
     name: opts.name, revenueBand: "1-5M", planPrice: "999",
     clerkOrgId: opts.clerkOrgId, publicKey: opts.publicKey, inboundPhone: opts.inboundPhone,
+    settings: { scheduling: parseSchedulingConfig(undefined) },
   }).returning();
 
   await adminDb.insert(user).values([
