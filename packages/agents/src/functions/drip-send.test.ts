@@ -62,5 +62,27 @@ describe("sendDripStep", () => {
       { sms, email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
     );
     expect(sms.sendSms).not.toHaveBeenCalled();
+    const comms = await adminDb.select().from(communication).where(eq(communication.customerId, custId));
+    expect(comms.some((r) => r.body === "[suppressed: sms opt-out]")).toBe(true);
+    const [enr] = await adminDb.select().from(dripEnrollment).where(eq(dripEnrollment.id, enrId));
+    expect(enr!.currentStep).toBe(2);
+  });
+
+  it("suppresses when the contact has no address for the channel", async () => {
+    const [c2] = await adminDb.insert(customer).values({ tenantId: tId, name: "No Phone" }).returning();
+    const [e2] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c2!.id, status: "active" }).returning();
+    const sms = { sendSms: vi.fn() };
+    const res = await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: e2!.id, customerId: c2!.id,
+        step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Hi {{firstName}}!",
+      },
+      { sms, email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
+    );
+    expect(res.sent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    const comms = await adminDb.select().from(communication).where(eq(communication.customerId, c2!.id));
+    expect(comms.some((r) => r.body === "[suppressed: no sms address]")).toBe(true);
   });
 });

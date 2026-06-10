@@ -37,10 +37,12 @@ function firstNameOf(name: string): string {
 }
 
 /**
- * Renders + sends one drip step, logs a communication + agent_run, advances
- * current_step. Suppresses (and logs nothing sent) when the channel is opted
- * out. Senders are injected + fail-soft (a missing-creds throw still logs the
- * comm with a mock id). Tenant-scoped.
+ * Renders + sends one drip step, then logs a communication and advances
+ * current_step. On a real send attempt it also logs an agent_run (agent
+ * "comms"). Suppresses the send — logging a "[suppressed: ...]" note and
+ * advancing the step, but writing NO agent_run — when the contact is opted out
+ * of the channel OR has no address for it. Senders are injected + fail-soft (a
+ * missing-creds throw still logs the comm with a mock provider id). Tenant-scoped.
  */
 export async function sendDripStep(
   input: {
@@ -56,18 +58,22 @@ export async function sendDripStep(
     return row!;
   });
 
+  const to = step.channel === "sms" ? c.phone : c.email;
   const optedOut = step.channel === "sms" ? c.smsOptOut : c.emailOptOut;
-  if (optedOut) {
-    await withTenant(tenantId, (tx) =>
-      tx.insert(communication).values({
+  // Suppress when opted out OR no address for the channel: log a note + advance, no send.
+  const suppressReason = optedOut
+    ? `${step.channel} opt-out`
+    : !to
+      ? `no ${step.channel} address`
+      : null;
+  if (suppressReason) {
+    await withTenant(tenantId, async (tx) => {
+      await tx.insert(communication).values({
         tenantId, customerId, jobId: jobId ?? null, channel: step.channel, direction: "outbound",
-        to: step.channel === "sms" ? c.phone : c.email,
-        body: `[suppressed: ${step.channel} opt-out]`, aiHandled: false,
-      }),
-    );
-    await withTenant(tenantId, (tx) =>
-      tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId)),
-    );
+        to: to ?? null, body: `[suppressed: ${suppressReason}]`, aiHandled: false,
+      });
+      await tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId));
+    });
     return { sent: false };
   }
 
@@ -77,12 +83,13 @@ export async function sendDripStep(
   let providerId = "mock";
   try {
     if (step.channel === "sms") {
+      // to is non-null here: the suppress guard returned when the address was missing.
       ({ sid: providerId } = await deps.sms.sendSms({
-        to: c.phone ?? "", from: process.env.TWILIO_FROM ?? "+15555550000", body: drafted.body,
+        to: to!, from: process.env.TWILIO_FROM ?? "+15555550000", body: drafted.body,
       }));
     } else {
       ({ id: providerId } = await deps.email.sendEmail({
-        to: c.email ?? "", from: process.env.EMAIL_FROM ?? "noreply@example.com",
+        to: to!, from: process.env.EMAIL_FROM ?? "noreply@example.com",
         subject: "A note from your roofing team", html: drafted.body,
       }));
     }
@@ -93,7 +100,7 @@ export async function sendDripStep(
   await withTenant(tenantId, async (tx) => {
     await tx.insert(communication).values({
       tenantId, customerId, jobId: jobId ?? null, channel: step.channel, direction: "outbound",
-      to: step.channel === "sms" ? c.phone : c.email, body: drafted.body,
+      to, body: drafted.body,
       twilioSid: step.channel === "sms" ? providerId : null, aiHandled: drafted.aiHandled,
     });
     await tx.insert(agentRun).values({
