@@ -1,5 +1,5 @@
 {
-  "id": "48ba0319-b40b-4ceb-8f98-ea1e5970f060",
+  "id": "d48c7482-20b9-4574-b4f2-2b0190c12154",
   "prevId": "65213b49-2338-40de-badc-04027a5befed",
   "version": "7",
   "dialect": "postgresql",
@@ -1537,7 +1537,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1643,8 +1643,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
+        "enrolled_at": {
+          "name": "enrolled_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -1892,7 +1892,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}

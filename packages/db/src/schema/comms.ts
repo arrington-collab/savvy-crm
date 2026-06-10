@@ -48,7 +48,7 @@ export const messageTemplate = pgTable("message_template", {
   aiCapability: text("ai_capability"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (t) => [index("msg_tmpl_tenant_key_idx").on(t.tenantId, t.key), tenantIsolation()]);
+}, (t) => [uniqueIndex("msg_tmpl_tenant_key_idx").on(t.tenantId, t.key), tenantIsolation()]);
 
 export const drip = pgTable("drip", {
   id: idCol(),
@@ -59,7 +59,7 @@ export const drip = pgTable("drip", {
   steps: jsonb("steps").$type<DripStep[]>().notNull().default(sql`'[]'::jsonb`),
   active: boolean("active").default(true).notNull(),
   createdAt: createdAt(),
-}, (t) => [index("drip_tenant_key_idx").on(t.tenantId, t.key), tenantIsolation()]);
+}, (t) => [uniqueIndex("drip_tenant_key_idx").on(t.tenantId, t.key), tenantIsolation()]);
 
 export const dripEnrollment = pgTable("drip_enrollment", {
   id: idCol(),
@@ -72,7 +72,7 @@ export const dripEnrollment = pgTable("drip_enrollment", {
   currentStep: integer("current_step").notNull().default(0),
   stoppedReason: dripStopReasonEnum("stopped_reason"),
   inngestRunId: text("inngest_run_id"),
-  enrolledAt: createdAt(),
+  enrolledAt: timestamp("enrolled_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => [
   index("drip_enr_tenant_customer_idx").on(t.tenantId, t.customerId),

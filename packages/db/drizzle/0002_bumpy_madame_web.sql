@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS "drip_enrollment" (
 	"current_step" integer DEFAULT 0 NOT NULL,
 	"stopped_reason" "drip_stop_reason",
 	"inngest_run_id" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"enrolled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"completed_at" timestamp with time zone
 );
 --> statement-breakpoint
@@ -87,11 +87,11 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "drip_tenant_key_idx" ON "drip" USING btree ("tenant_id","key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "drip_tenant_key_idx" ON "drip" USING btree ("tenant_id","key");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "drip_enr_tenant_customer_idx" ON "drip_enrollment" USING btree ("tenant_id","customer_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "drip_enr_tenant_status_idx" ON "drip_enrollment" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "drip_enr_active_uniq" ON "drip_enrollment" USING btree ("drip_id","customer_id") WHERE status = 'active';--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "msg_tmpl_tenant_key_idx" ON "message_template" USING btree ("tenant_id","key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "msg_tmpl_tenant_key_idx" ON "message_template" USING btree ("tenant_id","key");--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "drip" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "drip_enrollment" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "message_template" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
