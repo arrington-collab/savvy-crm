@@ -13,6 +13,7 @@ export const tenant = pgTable("tenant", {
   clerkOrgId: text("clerk_org_id").unique(),
   publicKey: text("public_key").unique(),
   inboundPhone: text("inbound_phone"),
+  stripeAccountId: text("stripe_account_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
   createdAt: createdAt(),
 });
