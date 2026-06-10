@@ -1,9 +1,11 @@
 import { renderTemplate, type DripStep } from "@savvy/core";
 import * as ai from "@savvy/ai";
 import {
-  withTenant, eq, customer, communication, agentRun, dripEnrollment,
+  withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
+import { twilioSms, resendEmail } from "@savvy/integrations";
+import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
 
@@ -111,3 +113,71 @@ export async function sendDripStep(
 
   return { sent: true };
 }
+
+/**
+ * One run per enrollment. Creates the enrollment, then walks the drip's steps:
+ * sleep -> re-check status (stopped? exit) -> send. Cancellation: drip/stop
+ * matched on customerId kills the run mid-sleep; the stop SOURCE has already
+ * set status='stopped' in the DB, and the per-step re-check is the backstop.
+ */
+export const dripRun = inngest.createFunction(
+  { id: "drip-run", concurrency: { limit: 20 }, cancelOn: [{ event: "drip/stop", match: "data.customerId" }] },
+  { event: "drip/enroll" },
+  async ({ event, step, runId }) => {
+    const { tenantId, dripKey, customerId, jobId, leadId } = event.data;
+
+    const setup = await step.run("create-enrollment", async () =>
+      withTenant(tenantId, async (tx) => {
+        const [d] = await tx.select().from(drip).where(and(eq(drip.key, dripKey), eq(drip.active, true)));
+        if (!d) return null;
+        const existing = await tx.select().from(dripEnrollment).where(and(
+          eq(dripEnrollment.dripId, d.id),
+          eq(dripEnrollment.customerId, customerId),
+          eq(dripEnrollment.status, "active"),
+        ));
+        if (existing.length > 0) return null;
+        const [enr] = await tx.insert(dripEnrollment).values({
+          tenantId, dripId: d.id, customerId, jobId: jobId ?? null, leadId: leadId ?? null,
+          status: "active", inngestRunId: runId,
+        }).returning();
+        return { enrollmentId: enr!.id, steps: d.steps as DripStep[] };
+      }),
+    );
+    if (!setup) return { skipped: true };
+
+    for (const s of setup.steps) {
+      if (s.delayHours > 0) await step.sleep(`step-${s.stepNum}`, `${s.delayHours}h`);
+
+      const stillActive = await step.run(`check-${s.stepNum}`, async () =>
+        withTenant(tenantId, async (tx) => {
+          const [enr] = await tx.select().from(dripEnrollment).where(eq(dripEnrollment.id, setup.enrollmentId));
+          return enr?.status === "active";
+        }),
+      );
+      if (!stillActive) return { stopped: true, atStep: s.stepNum };
+
+      await step.run(`send-${s.stepNum}`, async () => {
+        let templateBody: string | undefined;
+        if (s.templateKey) {
+          templateBody = await withTenant(tenantId, async (tx) => {
+            const [t] = await tx.select().from(messageTemplate).where(eq(messageTemplate.key, s.templateKey!));
+            return t?.body;
+          });
+        }
+        return sendDripStep(
+          { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId },
+          { sms: twilioSms, email: resendEmail },
+        );
+      });
+    }
+
+    await step.run("complete", async () =>
+      withTenant(tenantId, (tx) =>
+        tx.update(dripEnrollment)
+          .set({ status: "completed", completedAt: new Date() })
+          .where(and(eq(dripEnrollment.id, setup.enrollmentId), eq(dripEnrollment.status, "active"))),
+      ),
+    );
+    return { completed: true };
+  },
+);
