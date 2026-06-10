@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-const STOP_WORDS = new Set(["stop", "unsubscribe", "cancel"]);
+const STOP_WORDS = new Set(["stop", "unsubscribe", "end", "quit"]); // 'cancel' removed (Phase 4)
 
 /** True if the whole (trimmed) SMS body is a stop keyword. */
 export function isStopKeyword(body: string): boolean {
@@ -29,4 +29,29 @@ export function verifyUnsubToken(token: string, secret: string): string | null {
   }
   const expected = b64url(createHmac("sha256", secret).update(customerId).digest());
   return expected === sigPart ? customerId : null;
+}
+
+/** True if the whole (trimmed) SMS body is the appointment-cancel keyword. */
+export function isCancelKeyword(body: string): boolean {
+  return body.trim().toLowerCase() === "cancel";
+}
+
+/** Generic signed, URL-safe token: `<base64url(json)>.<hmac>`. */
+export function signPayloadToken(payload: Record<string, string>, secret: string): string {
+  const json = JSON.stringify(payload);
+  const data = Buffer.from(json).toString("base64url");
+  const sig = createHmac("sha256", secret).update(data).digest().toString("base64url");
+  return `${data}.${sig}`;
+}
+
+export function verifyPayloadToken<T = Record<string, string>>(token: string, secret: string): T | null {
+  const [data, sig] = token.split(".");
+  if (!data || !sig) return null;
+  const expected = createHmac("sha256", secret).update(data).digest().toString("base64url");
+  if (expected !== sig) return null;
+  try {
+    return JSON.parse(Buffer.from(data, "base64url").toString("utf8")) as T;
+  } catch {
+    return null;
+  }
 }
