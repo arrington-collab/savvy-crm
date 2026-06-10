@@ -115,7 +115,8 @@ export function computeOpenSlots(input: {
   if (clusterAround) {
     for (const slot of out) {
       const sameDay = existingAppts.filter(
-        (a) => a.lat != null && a.lng != null && a.startsAt.toDateString() === slot.startsAt.toDateString(),
+        // UTC date key to match the UTC slot generation above (avoids TZ-dependent misgrouping).
+        (a) => a.lat != null && a.lng != null && a.startsAt.toISOString().slice(0, 10) === slot.startsAt.toISOString().slice(0, 10),
       );
       const anchor = sameDay.length
         ? sameDay

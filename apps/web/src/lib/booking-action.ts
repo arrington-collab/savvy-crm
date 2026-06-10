@@ -49,7 +49,13 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
     if (!assignee) return { error: "no_assignee" as const };
     const conv = p.leadId ? await convertLeadToJob({ tenantId: p.tenantId, leadId: p.leadId }) : null;
     const jobId = p.jobId ?? conv!.jobId;
-    const customerId = conv?.customerId;
+    // Without a customerId the appointment can't be reminded (no phone/email lookup),
+    // so for a jobId-only token resolve it from the job.
+    let customerId = conv?.customerId;
+    if (!customerId) {
+      const [j] = await adminDb.select().from(job).where(eq(job.id, jobId));
+      customerId = j?.customerId ?? undefined;
+    }
     const appt = await bookAppointment({
       tenantId: p.tenantId, jobId, customerId, type: p.type, assigneeUserId: assignee.id,
       startsAt: new Date(startsAt), endsAt: new Date(endsAt),

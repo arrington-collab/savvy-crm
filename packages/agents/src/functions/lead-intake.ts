@@ -1,6 +1,6 @@
 import { z, signPayloadToken } from "@savvy/core";
 import {
-  withTenant, lead, customer, communication, agentRun, eq, convertLeadToJob,
+  withTenant, lead, customer, communication, agentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { twilioSms, type SmsSender } from "@savvy/integrations";
@@ -82,18 +82,5 @@ export const leadIntake = inngest.createFunction(
     });
 
     return { leadId, score: scored.score };
-  },
-);
-
-export const leadBooked = inngest.createFunction(
-  { id: "lead-booked" },
-  { event: "lead/booked" },
-  async ({ event, step }) => {
-    const { leadId, tenantId } = event.data;
-    const result = await step.run("convert", () => convertLeadToJob({ tenantId, leadId }));
-    await step.run("emit-drip-stop", () =>
-      inngest.send({ name: "drip/stop", data: { tenantId, customerId: result.customerId, reason: "converted" } }),
-    );
-    return { jobId: result.jobId };
   },
 );
