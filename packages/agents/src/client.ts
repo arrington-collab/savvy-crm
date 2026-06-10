@@ -6,6 +6,8 @@ type Events = {
   "lead/booked": { data: { leadId: string; tenantId: string; startsAt: string } };
   "demo/ping": { data: { msg: string } };
   "job/stage-changed": { data: { jobId: string; tenantId: string; toStage: string; byAgent?: string } };
+  "drip/enroll": { data: { tenantId: string; dripKey: string; customerId: string; jobId?: string; leadId?: string } };
+  "drip/stop": { data: { tenantId: string; customerId: string; reason: "reply" | "converted" | "opted_out" | "manual" } };
 };
 
 export const inngest = new Inngest({
