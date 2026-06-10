@@ -13,3 +13,11 @@ describe("phase 3 enums", () => {
     expect(AI_DRAFT_CAPABILITY).toEqual(["reason", "summarize"]);
   });
 });
+
+import { test, expect } from "vitest";
+import { APPOINTMENT_TYPE, APPOINTMENT_STATUS } from "./enums";
+
+test("appointment enums", () => {
+  expect(APPOINTMENT_TYPE).toEqual(["inspection", "cm", "crew"]);
+  expect(APPOINTMENT_STATUS).toEqual(["scheduled", "done", "canceled", "no_show"]);
+});
