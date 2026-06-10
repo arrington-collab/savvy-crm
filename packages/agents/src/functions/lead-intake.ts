@@ -99,7 +99,13 @@ export const leadBooked = inngest.createFunction(
         await seedJobTasks(tx as never, { id: newJob!.id, tenantId, type: "retail" });
         await recordStageChange(tx, { tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
         await tx.insert(appointment).values({
-          tenantId, jobId: newJob!.id, type: "inspection", startsAt: new Date(startsAt), status: "scheduled",
+          tenantId, jobId: newJob!.id, customerId: l!.customerId!, type: "inspection",
+          startsAt: new Date(startsAt),
+          // endsAt now required (appointment.endsAt NOT NULL as of migration 0003).
+          // Interim 60-min inspection block; this whole insert is removed in Task 14
+          // when booking moves to the slot-picker.
+          endsAt: new Date(new Date(startsAt).getTime() + 60 * 60 * 1000),
+          status: "scheduled",
         });
         await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, leadId));
         await stopDripEnrollments(tx, { tenantId, customerId: l!.customerId!, reason: "converted" });
