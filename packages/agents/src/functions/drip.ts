@@ -121,7 +121,16 @@ export async function sendDripStep(
  * set status='stopped' in the DB, and the per-step re-check is the backstop.
  */
 export const dripRun = inngest.createFunction(
-  { id: "drip-run", concurrency: { limit: 20 }, cancelOn: [{ event: "drip/stop", match: "data.customerId" }] },
+  {
+    id: "drip-run",
+    concurrency: { limit: 20 },
+    // cancelOn matches customerId (NOT enrollmentId — the enrollment row is created
+    // inside this run, so its id doesn't exist when the trigger fires). A single
+    // drip/stop therefore halts ALL of a customer's drips, which is the intended
+    // behavior for reply/convert/opt-out/manual stops. `match` is the inngest v3
+    // shorthand; migrate to the `if` expression form when upgrading to inngest v4.
+    cancelOn: [{ event: "drip/stop", match: "data.customerId" }],
+  },
   { event: "drip/enroll" },
   async ({ event, step, runId }) => {
     const { tenantId, dripKey, customerId, jobId, leadId } = event.data;
@@ -130,6 +139,9 @@ export const dripRun = inngest.createFunction(
       withTenant(tenantId, async (tx) => {
         const [d] = await tx.select().from(drip).where(and(eq(drip.key, dripKey), eq(drip.active, true)));
         if (!d) return null;
+        // Idempotent: if two drip/enroll events race, the loser's insert hits the
+        // partial unique index (drip_id, customer_id) WHERE status='active' and throws;
+        // Inngest retries the step, this guard then returns null, and the retry exits cleanly.
         const existing = await tx.select().from(dripEnrollment).where(and(
           eq(dripEnrollment.dripId, d.id),
           eq(dripEnrollment.customerId, customerId),
@@ -140,7 +152,7 @@ export const dripRun = inngest.createFunction(
           tenantId, dripId: d.id, customerId, jobId: jobId ?? null, leadId: leadId ?? null,
           status: "active", inngestRunId: runId,
         }).returning();
-        return { enrollmentId: enr!.id, steps: d.steps as DripStep[] };
+        return { enrollmentId: enr!.id, steps: d.steps };
       }),
     );
     if (!setup) return { skipped: true };
