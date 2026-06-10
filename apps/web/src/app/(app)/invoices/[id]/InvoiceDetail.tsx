@@ -53,7 +53,10 @@ function StatusBadge({ status }: { status: string | null }) {
   const label = status ?? "unknown";
   const cls = STATUS_COLORS[label] ?? "bg-muted text-muted-foreground";
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${cls}`}>
+    <span
+      data-testid="invoice-status"
+      className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
       {label}
     </span>
   );
@@ -111,7 +114,9 @@ export function InvoiceDetail({ invoice: inv, payments }: InvoiceProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">{inv.number ?? "Draft Invoice"}</h1>
+          <h1 data-testid="invoice-number" className="text-2xl font-semibold">
+            {inv.number ?? "Draft Invoice"}
+          </h1>
           {inv.dueAt && (
             <p className="text-sm text-muted-foreground">
               Due {new Date(inv.dueAt).toLocaleDateString()}
@@ -197,7 +202,7 @@ export function InvoiceDetail({ invoice: inv, payments }: InvoiceProps) {
           <h2 className="text-sm font-semibold">Payments</h2>
           <div className="space-y-2">
             {payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
+              <div key={p.id} data-testid="payment-row" className="flex items-center justify-between text-sm">
                 <div className="space-y-0.5">
                   <div className="font-medium">{fmtUsd(p.amount)}</div>
                   <div className="text-xs text-muted-foreground">

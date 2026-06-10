@@ -62,7 +62,13 @@ export function InvoicesClient({ invoices }: { invoices: InvoiceRow[] }) {
 
       <div className="space-y-2">
         {invoices.map((inv) => (
-          <Link key={inv.id} href={`/invoices/${inv.id}`} className="block">
+          <Link
+            key={inv.id}
+            href={`/invoices/${inv.id}`}
+            className="block"
+            data-testid="invoice-row"
+            data-invoice-id={inv.id}
+          >
             <Card className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1 space-y-0.5">
