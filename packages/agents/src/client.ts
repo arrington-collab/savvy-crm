@@ -8,6 +8,14 @@ type Events = {
   "job/stage-changed": { data: { jobId: string; tenantId: string; toStage: string; byAgent?: string } };
   "drip/enroll": { data: { tenantId: string; dripKey: string; customerId: string; jobId?: string; leadId?: string } };
   "drip/stop": { data: { tenantId: string; customerId: string; reason: "reply" | "converted" | "opted_out" | "manual" } };
+  "appointment/booked": { data: { appointmentId: string; tenantId: string } };
+  "appointment/changed": {
+    data: {
+      appointmentId: string; tenantId: string;
+      reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show";
+      prevAssigneeUserId?: string;
+    };
+  };
 };
 
 export const inngest = new Inngest({
