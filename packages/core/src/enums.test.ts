@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY } from "./enums";
+import { describe, it, test, expect } from "vitest";
+import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS } from "./enums";
 
 describe("phase 3 enums", () => {
   it("message channel is sms|email only (no call)", () => {
@@ -13,9 +13,6 @@ describe("phase 3 enums", () => {
     expect(AI_DRAFT_CAPABILITY).toEqual(["reason", "summarize"]);
   });
 });
-
-import { test, expect } from "vitest";
-import { APPOINTMENT_TYPE, APPOINTMENT_STATUS } from "./enums";
 
 test("appointment enums", () => {
   expect(APPOINTMENT_TYPE).toEqual(["inspection", "cm", "crew"]);
