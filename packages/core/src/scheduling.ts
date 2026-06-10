@@ -65,3 +65,67 @@ export function haversineMeters(a: { lat: number; lng: number }, b: { lat: numbe
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+
+export type BusyInterval = { startsAt: Date; endsAt: Date; lat?: number; lng?: number };
+export type Slot = { startsAt: Date; endsAt: Date; score: number };
+
+const WD_INDEX: Record<number, Weekday> = { 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 0: "sun" };
+
+export function computeOpenSlots(input: {
+  config: SchedulingConfig;
+  type: AppointmentType;
+  existingAppts: BusyInterval[];
+  fromDate: Date;
+  now: Date;
+  clusterAround?: { lat: number; lng: number };
+}): Slot[] {
+  const { config, type, existingAppts, fromDate, now, clusterAround } = input;
+  const t = config.types[type];
+  const slotMs = config.slotGranularityMin * 60_000;
+  const durMs = t.durationMin * 60_000;
+  const bufMs = t.bufferMin * 60_000;
+  const out: Slot[] = [];
+
+  for (let day = 0; day < config.bookingHorizonDays; day++) {
+    const base = new Date(fromDate);
+    base.setUTCDate(base.getUTCDate() + day);
+    const wd = WD_INDEX[base.getUTCDay()]!;
+    const hours = config.hours[wd];
+    if (!hours || hours.length === 0) continue;
+    const [openH, closeH] = hours as [number, number];
+
+    const dayOpen = new Date(base); dayOpen.setUTCHours(openH, 0, 0, 0);
+    const dayClose = new Date(base); dayClose.setUTCHours(closeH, 0, 0, 0);
+
+    // A slot is only bookable if the appointment + its buffer fits inside the window.
+    for (let start = dayOpen.getTime(); start + durMs + bufMs <= dayClose.getTime(); start += slotMs) {
+      const s = new Date(start);
+      const e = new Date(start + durMs);
+      if (s.getTime() < now.getTime()) continue;
+      // Overlap check against existing appts, padded by buffer on both sides.
+      const blocked = existingAppts.some((a) =>
+        start - bufMs < a.endsAt.getTime() && a.startsAt.getTime() < start + durMs + bufMs,
+      );
+      if (blocked) continue;
+      out.push({ startsAt: s, endsAt: e, score: 0 });
+    }
+  }
+
+  // Proximity scoring: higher when near the day's existing cluster / target property.
+  if (clusterAround) {
+    for (const slot of out) {
+      const sameDay = existingAppts.filter(
+        (a) => a.lat != null && a.lng != null && a.startsAt.toDateString() === slot.startsAt.toDateString(),
+      );
+      const anchor = sameDay.length
+        ? sameDay
+        : ([{ ...clusterAround, startsAt: slot.startsAt, endsAt: slot.endsAt } as BusyInterval]);
+      const minMeters = Math.min(
+        ...anchor.map((a) => haversineMeters({ lat: a.lat!, lng: a.lng! }, clusterAround)),
+      );
+      slot.score = 1 / (1 + minMeters / 1000); // 0..1, closer = higher
+    }
+  }
+
+  return out.sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
+}
