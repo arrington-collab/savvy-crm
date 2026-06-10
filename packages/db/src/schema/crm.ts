@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, doublePrecision, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, doublePrecision, boolean, index } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { leadStatusEnum } from "./enums";
@@ -10,6 +10,8 @@ export const customer = pgTable("customer", {
   email: text("email"),
   phone: text("phone"),
   billingAddress: text("billing_address"),
+  smsOptOut: boolean("sms_opt_out").default(false).notNull(),
+  emailOptOut: boolean("email_opt_out").default(false).notNull(),
   createdAt: createdAt(),
 }, (t) => [index("customer_tenant_idx").on(t.tenantId), tenantIsolation()]);
 

@@ -1,7 +1,7 @@
 import { z } from "@savvy/core";
 import {
   withTenant, lead, customer, job, appointment, communication, agentRun, eq,
-  seedJobTasks, recordStageChange,
+  seedJobTasks, recordStageChange, stopDripEnrollments,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { twilioSms, type SmsSender } from "@savvy/integrations";
@@ -89,7 +89,7 @@ export const leadBooked = inngest.createFunction(
   { event: "lead/booked" },
   async ({ event, step }) => {
     const { leadId, tenantId, startsAt } = event.data;
-    return step.run("book-and-convert", async () =>
+    const result = await step.run("book-and-convert", async () =>
       withTenant(tenantId, async (tx) => {
         const [l] = await tx.select().from(lead).where(eq(lead.id, leadId));
         const [newJob] = await tx.insert(job).values({
@@ -102,9 +102,14 @@ export const leadBooked = inngest.createFunction(
           tenantId, jobId: newJob!.id, type: "inspection", startsAt: new Date(startsAt), status: "scheduled",
         });
         await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, leadId));
+        await stopDripEnrollments(tx, { tenantId, customerId: l!.customerId!, reason: "converted" });
         await tx.insert(agentRun).values({ tenantId, agent: "orchestrator", jobId: newJob!.id, status: "ok" });
-        return { jobId: newJob!.id };
+        return { jobId: newJob!.id, customerId: l!.customerId! };
       }),
     );
+    await step.run("emit-drip-stop", () =>
+      inngest.send({ name: "drip/stop", data: { tenantId, customerId: result.customerId, reason: "converted" } }),
+    );
+    return { jobId: result.jobId };
   },
 );

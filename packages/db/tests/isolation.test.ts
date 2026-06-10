@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, customer, property, job, jobStageEvent } from "../src/schema/index.js";
+import { tenant, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
 
 let tenantAId: string;
 let tenantBId: string;
@@ -34,10 +34,17 @@ beforeAll(async () => {
   await adminDb
     .insert(jobStageEvent)
     .values({ tenantId: b!.id, jobId: jb!.id, toStage: "inspected" });
+
+  await adminDb.insert(messageTemplate).values({ tenantId: b!.id, key: "b-tmpl", name: "B tmpl", channel: "sms", body: "hi" });
+  const [bDrip] = await adminDb.insert(drip).values({ tenantId: b!.id, key: "b-drip", name: "B drip", steps: [] }).returning();
+  await adminDb.insert(dripEnrollment).values({ tenantId: b!.id, dripId: bDrip!.id, customerId: cb!.id, status: "active" });
 });
 
 afterAll(async () => {
   // Remove child rows first (FK order: stage event -> job -> property) before tenant deletes.
+  await adminDb.delete(dripEnrollment).where(eq(dripEnrollment.tenantId, tenantBId));
+  await adminDb.delete(drip).where(eq(drip.tenantId, tenantBId));
+  await adminDb.delete(messageTemplate).where(eq(messageTemplate.tenantId, tenantBId));
   await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tenantBId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
@@ -86,5 +93,14 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
   it("SELECT on job_stage_event is tenant-scoped", async () => {
     const rows = await withTenant(tenantAId, (tx) => tx.select().from(jobStageEvent));
     expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on comms tables is tenant-scoped (A cannot see B)", async () => {
+    const tmpls = await withTenant(tenantAId, (tx) => tx.select().from(messageTemplate));
+    expect(tmpls.some((r) => r.tenantId === tenantBId)).toBe(false);
+    const drips = await withTenant(tenantAId, (tx) => tx.select().from(drip));
+    expect(drips.some((r) => r.tenantId === tenantBId)).toBe(false);
+    const enrs = await withTenant(tenantAId, (tx) => tx.select().from(dripEnrollment));
+    expect(enrs.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });

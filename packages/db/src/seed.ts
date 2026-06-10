@@ -1,5 +1,5 @@
 import { adminDb, adminPool } from "./admin-client";
-import { tenant, user, customer, property, job } from "./schema/index";
+import { tenant, user, customer, property, job, messageTemplate, drip } from "./schema/index";
 
 async function seedTenant(opts: {
   name: string; clerkOrgId: string; publicKey: string; inboundPhone: string;
@@ -30,6 +30,24 @@ async function seedTenant(opts: {
       type: "retail", stage, valueEstimate: 1500000,
     });
   }
+  // Phase 3: starter nurture templates + a 3-step drip (zero-delay steps so e2e
+  // can trigger the first send immediately; real drips use real delays).
+  await adminDb.insert(messageTemplate).values([
+    { tenantId: t!.id, key: "nurture-sms-1", name: "Nurture · SMS day 0", channel: "sms",
+      body: "Hi {{firstName}}, it's your roofing team — still thinking about that roof? Reply anytime." },
+    { tenantId: t!.id, key: "nurture-email-1", name: "Nurture · Email day 2", channel: "email",
+      subject: "Your roof inspection", body: "Hi {{firstName}}, here's how a free inspection works..." },
+    { tenantId: t!.id, key: "nurture-sms-2", name: "Nurture · SMS day 5", channel: "sms",
+      body: "Hi {{firstName}}, last nudge — want us to swing by this week?" },
+  ]);
+  await adminDb.insert(drip).values({
+    tenantId: t!.id, key: "nurture", name: "New-lead nurture", triggerEvent: "lead/created", active: true,
+    steps: [
+      { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "nurture-sms-1" },
+      { stepNum: 2, delayHours: 0, channel: "email", templateKey: "nurture-email-1" },
+      { stepNum: 3, delayHours: 0, channel: "sms", templateKey: "nurture-sms-2" },
+    ],
+  });
   return t;
 }
 
