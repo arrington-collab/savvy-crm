@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { parseSchedulingConfig } from "./scheduling";
+import { parseSchedulingConfig, haversineMeters } from "./scheduling";
 
 test("empty config yields safe defaults", () => {
   const c = parseSchedulingConfig(undefined);
@@ -19,4 +19,11 @@ test("partial config merges over defaults", () => {
   expect(c.slotGranularityMin).toBe(15);
   expect(c.hours.sat).toEqual([9, 12]);
   expect(c.hours.mon).toEqual([8, 17]); // default kept
+});
+
+test("haversine ~ known distance", () => {
+  // ~1.11 km between 0,0 and 0.01,0
+  const d = haversineMeters({ lat: 0, lng: 0 }, { lat: 0.01, lng: 0 });
+  expect(d).toBeGreaterThan(1090);
+  expect(d).toBeLessThan(1130);
 });
