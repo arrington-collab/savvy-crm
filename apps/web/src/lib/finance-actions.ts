@@ -52,6 +52,7 @@ export async function createCheckoutForInvoice(invoiceId: string) {
     return { inv, accountId: t?.stripeAccountId ?? null };
   });
   if (!ctx.inv) return { error: "not_found" as const };
+  if (ctx.inv.status === "paid" || ctx.inv.status === "void") return { error: "not_payable" as const };
   if (!ctx.accountId) return { error: "stripe_not_connected" as const };
 
   const session = await stripeGateway.createCheckoutSession({
