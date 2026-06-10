@@ -3,11 +3,13 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, customer } from "../src/schema/index.js";
+import { tenant, customer, property, job, jobStageEvent } from "../src/schema/index.js";
 
 let tenantAId: string;
 let tenantBId: string;
 let custBId: string;
+let propBId: string;
+let jobBId: string;
 
 beforeAll(async () => {
   // Seed two isolated tenants directly via the admin (RLS-bypassing) connection.
@@ -17,9 +19,28 @@ beforeAll(async () => {
   await adminDb.insert(customer).values({ tenantId: a!.id, name: "A-cust" });
   const [cb] = await adminDb.insert(customer).values({ tenantId: b!.id, name: "B-cust" }).returning();
   custBId = cb!.id;
+
+  // Give tenant B a property + job + stage event so A has something it must NOT see.
+  const [pb] = await adminDb
+    .insert(property)
+    .values({ tenantId: b!.id, customerId: cb!.id, address: "B-property" })
+    .returning();
+  propBId = pb!.id;
+  const [jb] = await adminDb
+    .insert(job)
+    .values({ tenantId: b!.id, customerId: cb!.id, propertyId: pb!.id })
+    .returning();
+  jobBId = jb!.id;
+  await adminDb
+    .insert(jobStageEvent)
+    .values({ tenantId: b!.id, jobId: jb!.id, toStage: "inspected" });
 });
 
 afterAll(async () => {
+  // Remove child rows first (FK order: stage event -> job -> property) before tenant deletes.
+  await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tenantBId));
+  await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
+  await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantAId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantBId));
   await adminDb.delete(tenant).where(eq(tenant.id, tenantAId));
@@ -60,5 +81,10 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
         tx.insert(customer).values({ tenantId: tenantBId, name: "smuggled" }),
       ),
     ).rejects.toThrow();
+  });
+
+  it("SELECT on job_stage_event is tenant-scoped", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(jobStageEvent));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });

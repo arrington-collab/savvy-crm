@@ -1,6 +1,7 @@
 import { z } from "@savvy/core";
 import {
   withTenant, lead, customer, job, appointment, communication, agentRun, eq,
+  seedJobTasks, recordStageChange,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { twilioSms, type SmsSender } from "@savvy/integrations";
@@ -93,8 +94,10 @@ export const leadBooked = inngest.createFunction(
         const [l] = await tx.select().from(lead).where(eq(lead.id, leadId));
         const [newJob] = await tx.insert(job).values({
           tenantId, customerId: l!.customerId!, propertyId: l!.propertyId!,
-          type: "retail", stage: "inspected", leadId,
+          type: "retail", stage: "lead", leadId,
         }).returning();
+        await seedJobTasks(tx as never, { id: newJob!.id, tenantId, type: "retail" });
+        await recordStageChange(tx, { tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
         await tx.insert(appointment).values({
           tenantId, jobId: newJob!.id, type: "inspection", startsAt: new Date(startsAt), status: "scheduled",
         });
