@@ -1,9 +1,12 @@
 import { withTenant } from "../tenant";
 import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
-import { property } from "../schema/crm";
+import { property, lead } from "../schema/crm";
 import { eq, and } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
+import { seedJobTasks } from "./seed-job-tasks";
+import { recordStageChange } from "./record-stage-change";
+import { stopDripEnrollments } from "./stop-drip";
 
 export class SlotTakenError extends Error {
   constructor() { super("slot_taken"); this.name = "SlotTakenError"; }
@@ -93,11 +96,27 @@ export async function getBusyIntervals(input: {
 }
 
 /**
- * Converts a lead to a job if not already converted (idempotent). Returns the
- * jobId + customerId. Real body is implemented in Task 14 (it needs
- * seedJobTasks/recordStageChange). Leave this stub THROWING for now so Task 8
- * stays focused on the appointment helpers.
+ * Converts a lead to a job if not already converted (idempotent). Seeds the
+ * job's tasks, records the stage change to "inspected", marks the lead booked,
+ * and stops any active drip enrollments. Returns the jobId + customerId.
+ * Idempotent: a repeat call on an already-booked lead returns the existing job.
  */
-export async function convertLeadToJob(_args: { tenantId: string; leadId: string }): Promise<{ jobId: string; customerId: string }> {
-  throw new Error("implemented in Task 14 refactor");
+export async function convertLeadToJob(args: { tenantId: string; leadId: string }): Promise<{ jobId: string; customerId: string }> {
+  return withTenant(args.tenantId, async (tx) => {
+    const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
+    if (!l) throw new Error("lead not found");
+    if (l.status === "booked") {
+      const [existing] = await tx.select().from(job).where(eq(job.leadId, l.id));
+      if (existing) return { jobId: existing.id, customerId: l.customerId! };
+    }
+    const [newJob] = await tx.insert(job).values({
+      tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
+      type: "retail", stage: "lead", leadId: l.id,
+    }).returning();
+    await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: "retail" });
+    await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
+    await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, l.id));
+    await stopDripEnrollments(tx, { tenantId: args.tenantId, customerId: l.customerId!, reason: "converted" });
+    return { jobId: newJob!.id, customerId: l.customerId! };
+  });
 }

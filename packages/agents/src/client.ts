@@ -3,7 +3,7 @@ import { EventSchemas, Inngest } from "inngest";
 // Event types the app emits. Add new events here as workflows grow.
 type Events = {
   "lead/created": { data: { leadId: string; tenantId: string } };
-  "lead/booked": { data: { leadId: string; tenantId: string; startsAt: string } };
+  "lead/booked": { data: { leadId: string; tenantId: string } };
   "demo/ping": { data: { msg: string } };
   "job/stage-changed": { data: { jobId: string; tenantId: string; toStage: string; byAgent?: string } };
   "drip/enroll": { data: { tenantId: string; dripKey: string; customerId: string; jobId?: string; leadId?: string } };
