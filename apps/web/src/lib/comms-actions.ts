@@ -1,5 +1,5 @@
 "use server";
-import { withTenant, messageTemplate, drip, dripEnrollment, eq, and, stopDripEnrollments } from "@savvy/db";
+import { withTenant, messageTemplate, drip, eq, stopDripEnrollments } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
