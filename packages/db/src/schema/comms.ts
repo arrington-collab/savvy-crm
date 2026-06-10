@@ -4,7 +4,7 @@ import { idCol, createdAt, updatedAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, lead } from "./crm";
 import { job } from "./jobs";
-import { commChannelEnum, commDirectionEnum, messageChannelEnum, dripStatusEnum, dripStopReasonEnum } from "./enums";
+import { commChannelEnum, commDirectionEnum, messageChannelEnum, dripStatusEnum, dripStopReasonEnum, appointmentTypeEnum, appointmentStatusEnum } from "./enums";
 import type { DripStep } from "@savvy/core";
 
 export const communication = pgTable("communication", {
@@ -28,13 +28,17 @@ export const appointment = pgTable("appointment", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").notNull().references(() => job.id),
-  type: text("type").notNull(), // inspection | crew | cm
+  customerId: uuid("customer_id").references(() => customer.id),
+  type: appointmentTypeEnum("type").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   assigneeUserId: uuid("assignee_user_id").references(() => user.id),
-  status: text("status").notNull().default("scheduled"), // scheduled|done|canceled|no_show
+  status: appointmentStatusEnum("status").notNull().default("scheduled"),
   gcalEventId: text("gcal_event_id"),
   createdAt: createdAt(),
+  // NOTE: a Postgres EXCLUDE constraint (appointment_no_overlap) enforcing
+  // no overlapping 'scheduled' appts per assignee is added by hand in
+  // migration 0003 (drizzle-kit can't express EXCLUDE). See plan Task 7.
 }, (t) => [index("appt_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
 
 export const messageTemplate = pgTable("message_template", {

@@ -24,6 +24,7 @@ export const user = pgTable("user", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: userRoleEnum("role").notNull().default("rep"),
+  gcalConnectionId: text("gcal_connection_id"),
   createdAt: createdAt(),
 }, (t) => [
   index("user_tenant_idx").on(t.tenantId),
