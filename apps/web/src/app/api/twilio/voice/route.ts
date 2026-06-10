@@ -31,8 +31,10 @@ export async function POST(req: Request) {
   }
 
   const action = `${url.origin}/api/twilio/voice?event=recording`;
+  // Only `action` (not recordingStatusCallback) — using both fires the callback
+  // twice and would log a duplicate communication + lead per voicemail.
   return xml(
     `<Response><Say>Thanks for calling. Please leave a message after the tone and we'll call you back.</Say>` +
-    `<Record maxLength="120" action="${action}" recordingStatusCallback="${action}"/></Response>`,
+    `<Record maxLength="120" action="${action}"/></Response>`,
   );
 }
