@@ -12,3 +12,24 @@ export type JobType = (typeof JOB_TYPE)[number];
 export type JobStage = (typeof JOB_STAGE)[number];
 export type Agent = (typeof AGENT)[number];
 export type LeadStatus = (typeof LEAD_STATUS)[number];
+
+// --- Phase 3 (comms) ---
+export const MESSAGE_CHANNEL = ["sms", "email"] as const;
+export const DRIP_STATUS = ["active", "stopped", "completed"] as const;
+export const DRIP_STOP_REASON = ["reply", "converted", "opted_out", "manual"] as const;
+export const AI_DRAFT_CAPABILITY = ["reason", "summarize"] as const;
+
+export type MessageChannel = (typeof MESSAGE_CHANNEL)[number];
+export type DripStatus = (typeof DRIP_STATUS)[number];
+export type DripStopReason = (typeof DRIP_STOP_REASON)[number];
+
+// One step in a drip sequence. References a template by key OR carries an inline
+// AI prompt. delayHours is the wait BEFORE this step sends (relative to prior step).
+export type DripStep = {
+  stepNum: number;
+  delayHours: number;
+  channel: MessageChannel;
+  templateKey?: string;
+  aiPrompt?: string;
+  aiCapability?: (typeof AI_DRAFT_CAPABILITY)[number];
+};
