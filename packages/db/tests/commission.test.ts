@@ -39,4 +39,50 @@ describe("commission table", () => {
     expect(row!.amountCents).toBe(10000);
     expect(row!.status).toBe("pending");
   });
+
+  it("enforces one commission per invoice (idempotency key)", async () => {
+    // Fresh tenant + job + invoice so this test is independent of the shared beforeAll state
+    const { tenantId: t2 } = await makeTenant();
+    const { jobId: j2 } = await makeJobWithCustomer(t2);
+    const { userId: userA } = await makeUser(t2);
+    const { userId: userB } = await makeUser(t2);
+
+    const inv2Id = await withTenant(t2, async (tx) => {
+      const [inv] = await tx
+        .insert(invoice)
+        .values({ tenantId: t2, jobId: j2, amountDue: 50000 })
+        .returning({ id: invoice.id });
+      return inv!.id;
+    });
+
+    // First insert (userA) must succeed
+    await withTenant(t2, async (tx) => {
+      await tx.insert(commission).values({
+        tenantId: t2,
+        invoiceId: inv2Id,
+        userId: userA,
+        model: "flat",
+        basisCents: 50000,
+        rate: 1000,
+        amountCents: 500,
+        periodKey: "2026-06",
+      });
+    });
+
+    // Second insert for the SAME (tenantId, invoiceId) with a different user must be rejected
+    await expect(
+      withTenant(t2, async (tx) => {
+        await tx.insert(commission).values({
+          tenantId: t2,
+          invoiceId: inv2Id,
+          userId: userB,
+          model: "flat",
+          basisCents: 5000,
+          rate: 1000,
+          amountCents: 500,
+          periodKey: "2026-06",
+        });
+      }),
+    ).rejects.toThrow();
+  });
 });

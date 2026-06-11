@@ -71,6 +71,8 @@ export const commission = pgTable("commission", {
   createdAt: createdAt(),
 }, (t) => [
   index("commission_tenant_user_idx").on(t.tenantId, t.userId),
+  // Idempotency key: one commission per paid invoice. A redelivered invoice/paid
+  // event hits this and is deduped (onConflictDoNothing) — never double-pays.
   uniqueIndex("commission_tenant_invoice_uniq").on(t.tenantId, t.invoiceId),
   tenantIsolation(),
 ]);
