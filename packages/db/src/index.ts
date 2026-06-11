@@ -8,6 +8,10 @@ export {
   bookAppointment, rescheduleAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, convertLeadToJob, SlotTakenError, NoAssigneeError,
 } from "./lifecycle/appointments";
+export {
+  createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
+  recordStripePayment, StripeNotConnectedError,
+} from "./lifecycle/invoices";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
 // (the Next.js app, agents) import `{ tenant, job }` from "@savvy/db" instead

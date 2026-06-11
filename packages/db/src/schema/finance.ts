@@ -1,7 +1,10 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { job } from "./jobs";
+import { customer } from "./crm";
+import { invoiceStatusEnum, paymentMethodEnum } from "./enums";
 
 export const estimate = pgTable("estimate", {
   id: idCol(),
@@ -21,23 +24,34 @@ export const invoice = pgTable("invoice", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").notNull().references(() => job.id),
+  customerId: uuid("customer_id").references(() => customer.id),
   number: text("number"),
-  status: text("status").notNull().default("draft"), // draft|sent|paid|overdue|void
+  status: invoiceStatusEnum("status").notNull().default("draft"),
   lineItems: jsonb("line_items").$type<unknown[]>().default([]).notNull(),
   amountDue: integer("amount_due"),
   amountPaid: integer("amount_paid").default(0).notNull(),
   dueAt: timestamp("due_at", { withTimezone: true }),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
   stripeInvoiceId: text("stripe_invoice_id"),
   qboId: text("qbo_id"),
   createdAt: createdAt(),
-}, (t) => [index("invoice_tenant_status_idx").on(t.tenantId, t.status), tenantIsolation()]);
+}, (t) => [
+  index("invoice_tenant_status_idx").on(t.tenantId, t.status),
+  uniqueIndex("invoice_tenant_number_uniq").on(t.tenantId, t.number).where(sql`number IS NOT NULL`),
+  tenantIsolation(),
+]);
 
 export const payment = pgTable("payment", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   invoiceId: uuid("invoice_id").notNull().references(() => invoice.id),
-  method: text("method").notNull(), // card|ach|check|insurance|mortgage
+  method: paymentMethodEnum("method").notNull(),
   amount: integer("amount").notNull(),
   stripePaymentId: text("stripe_payment_id"),
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [index("payment_tenant_invoice_idx").on(t.tenantId, t.invoiceId), tenantIsolation()]);
+}, (t) => [
+  index("payment_tenant_invoice_idx").on(t.tenantId, t.invoiceId),
+  uniqueIndex("payment_stripe_pmt_uniq").on(t.tenantId, t.stripePaymentId).where(sql`stripe_payment_id IS NOT NULL`),
+  tenantIsolation(),
+]);

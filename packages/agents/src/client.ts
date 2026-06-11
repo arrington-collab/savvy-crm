@@ -15,6 +15,8 @@ type Events = {
       prevAssigneeUserId?: string;
     };
   };
+  "invoice/sent": { data: { invoiceId: string; tenantId: string } };
+  "invoice/paid": { data: { invoiceId: string; tenantId: string } };
 };
 
 export const inngest = new Inngest({
