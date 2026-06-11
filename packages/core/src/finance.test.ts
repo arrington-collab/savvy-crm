@@ -16,6 +16,25 @@ test("formatInvoiceNumber zero-pads to 6", () => {
 });
 
 test("parseFinanceConfig fills defaults", () => {
-  expect(parseFinanceConfig(undefined)).toEqual({ netDays: 14, invoiceNumberPrefix: "INV-" });
-  expect(parseFinanceConfig({ netDays: 30 })).toEqual({ netDays: 30, invoiceNumberPrefix: "INV-" });
+  expect(parseFinanceConfig(undefined).invoiceNumberPrefix).toBe("INV-");
+  expect(parseFinanceConfig(undefined).netDays).toBe(14);
+  expect(parseFinanceConfig({ netDays: 30 }).netDays).toBe(30);
+});
+
+test("finance config defaults include dunning + commission", () => {
+  const cfg = parseFinanceConfig(undefined);
+  expect(cfg.timezone).toBe("America/Phoenix");
+  expect(cfg.dunning).toEqual({
+    enabled: true, smsEscalationDay: 30, quietHours: { startHour: 21, endHour: 8 },
+  });
+  expect(cfg.commission).toEqual({
+    model: "flat", rate: 1000, tiers: [], period: "monthly", perRepRate: {},
+  });
+});
+
+test("finance config merges partial overrides", () => {
+  const cfg = parseFinanceConfig({ commission: { model: "tiered", rate: 800 } });
+  expect(cfg.commission.model).toBe("tiered");
+  expect(cfg.commission.rate).toBe(800);
+  expect(cfg.commission.period).toBe("monthly"); // default still applied
 });
