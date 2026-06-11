@@ -39,6 +39,7 @@ export async function sendInvoiceAction(invoiceId: string) {
 export async function voidInvoiceAction(invoiceId: string) {
   const tenantId = await getTenantId();
   await voidInvoice({ tenantId, invoiceId });
+  try { await inngest.send({ name: "invoice/void", data: { invoiceId, tenantId } }); } catch (e) { console.error(e); }
   revalidatePath("/invoices");
   return { ok: true as const };
 }
