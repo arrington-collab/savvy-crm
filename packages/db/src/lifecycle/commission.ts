@@ -2,14 +2,15 @@ import { withTenant } from "../tenant";
 import { invoice, payment, commission } from "../schema/finance";
 import { job } from "../schema/jobs";
 import { tenant } from "../schema/tenancy";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { parseFinanceConfig, computeCommission } from "@savvy/core";
 
-function periodKeyFor(date: Date, period: "monthly" | "quarterly"): string {
-  const y = date.getUTCFullYear();
-  const m = date.getUTCMonth(); // 0-based
-  if (period === "quarterly") return `${y}-Q${Math.floor(m / 3) + 1}`;
-  return `${y}-${String(m + 1).padStart(2, "0")}`;
+function periodKeyFor(date: Date, period: "monthly" | "quarterly", tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit" }).formatToParts(date);
+  const y = Number(parts.find((p) => p.type === "year")!.value);
+  const m = Number(parts.find((p) => p.type === "month")!.value); // 1-based
+  if (period === "quarterly") return `${y}-Q${Math.ceil(m / 3)}`;
+  return `${y}-${String(m).padStart(2, "0")}`;
 }
 
 export async function recordCommission(input: {
@@ -22,17 +23,18 @@ export async function recordCommission(input: {
 
     // Idempotency check — one commission row per (tenant, invoice)
     const existing = await tx
-      .select({ id: commission.id })
+      .select({ amountCents: commission.amountCents })
       .from(commission)
       .where(and(eq(commission.tenantId, input.tenantId), eq(commission.invoiceId, input.invoiceId)));
-    if (existing.length > 0) return { amountCents: 0, alreadyRecorded: true };
+    if (existing.length > 0) return { amountCents: existing[0]!.amountCents, alreadyRecorded: true };
 
     const [j] = await tx.select().from(job).where(eq(job.id, inv.jobId));
     const repId = j?.assignedUserId;
     if (!repId) return null; // no rep assigned → skip silently
 
     const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
-    const cfg = parseFinanceConfig((t?.settings as { finance?: unknown })?.finance).commission;
+    const finance = parseFinanceConfig((t?.settings as { finance?: unknown })?.finance);
+    const cfg = finance.commission;
     // Per-rep override takes precedence over the global rate
     const rate = cfg.perRepRate[repId] ?? cfg.rate;
 
@@ -48,9 +50,9 @@ export async function recordCommission(input: {
       .select()
       .from(payment)
       .where(eq(payment.invoiceId, input.invoiceId))
-      .orderBy(sql`received_at desc`)
+      .orderBy(desc(payment.receivedAt))
       .limit(1);
-    const periodKey = periodKeyFor(pmt?.receivedAt ?? new Date(), cfg.period);
+    const periodKey = periodKeyFor(pmt?.receivedAt ?? new Date(), cfg.period, finance.timezone);
 
     // Sum up the rep's basis already booked this period for tiered rate lookup
     const priorRows = await tx

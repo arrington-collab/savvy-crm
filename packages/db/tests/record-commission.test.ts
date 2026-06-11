@@ -13,6 +13,7 @@ interface PaidInvoiceOptions {
   assignRep: boolean;
   model?: "flat" | "profit" | "tiered";
   costCents?: number | null;
+  receivedAt?: Date;
 }
 
 /** Creates a tenant (with optional finance commission settings), a job, an invoice, and a payment row. */
@@ -62,6 +63,7 @@ async function makePaidInvoice(opts: PaidInvoiceOptions): Promise<{ tenantId: st
       invoiceId,
       method: "check",
       amount: opts.amountPaidCents,
+      ...(opts.receivedAt !== undefined ? { receivedAt: opts.receivedAt } : {}),
     }),
   );
 
@@ -106,5 +108,20 @@ describe("recordCommission", () => {
     });
     const result = await recordCommission({ tenantId, invoiceId });
     expect(result).toBeNull();
+  });
+
+  it("buckets period key by tenant timezone (Phoenix), not UTC", async () => {
+    // 2026-01-01T03:00:00Z = 2025-12-31 20:00 in America/Phoenix (UTC-7, no DST)
+    // UTC would give periodKey "2026-01"; Phoenix local should give "2025-12"
+    const { tenantId, invoiceId } = await makePaidInvoice({
+      amountPaidCents: 100_000,
+      assignRep: true,
+      receivedAt: new Date("2026-01-01T03:00:00Z"),
+    });
+    await recordCommission({ tenantId, invoiceId });
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select().from(commission).where(eq(commission.invoiceId, invoiceId)),
+    );
+    expect(row?.periodKey).toBe("2025-12"); // Phoenix local = Dec 31, not Jan (UTC)
   });
 });
