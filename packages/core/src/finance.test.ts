@@ -32,6 +32,11 @@ test("finance config defaults include dunning + commission", () => {
   });
 });
 
+test("finance config rejects an invalid timezone", () => {
+  expect(() => parseFinanceConfig({ timezone: "Not/AZone" })).toThrow();
+  expect(parseFinanceConfig({ timezone: "America/New_York" }).timezone).toBe("America/New_York");
+});
+
 test("finance config merges partial overrides", () => {
   const cfg = parseFinanceConfig({ commission: { model: "tiered", rate: 800 } });
   expect(cfg.commission.model).toBe("tiered");

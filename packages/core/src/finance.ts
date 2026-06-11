@@ -11,6 +11,7 @@ export function formatInvoiceNumber(prefix: string, seq: number): string {
   return `${prefix}${String(seq).padStart(6, "0")}`;
 }
 
+// Overnight range: a time is "quiet" if hour >= startHour OR hour < endHour (e.g. 21–8 = 9pm–8am).
 const quietHoursSchema = z.object({
   startHour: z.number().int().min(0).max(23).default(21),
   endHour: z.number().int().min(0).max(23).default(8),
@@ -18,7 +19,7 @@ const quietHoursSchema = z.object({
 
 const dunningSchema = z.object({
   enabled: z.boolean().default(true),
-  smsEscalationDay: z.number().int().positive().default(30),
+  smsEscalationDay: z.number().int().positive().default(30), // days after invoice due date
   quietHours: quietHoursSchema.default({}),
 });
 
@@ -37,7 +38,9 @@ const commissionSettingsSchema = z.object({
 const financeSchema = z.object({
   netDays: z.number().int().positive().default(14),
   invoiceNumberPrefix: z.string().default("INV-"),
-  timezone: z.string().default("America/Phoenix"),
+  timezone: z.string()
+    .refine((s) => { try { Intl.DateTimeFormat(undefined, { timeZone: s }); return true; } catch { return false; } }, "invalid IANA timezone")
+    .default("America/Phoenix"),
   dunning: dunningSchema.default({}),
   commission: commissionSettingsSchema.default({}),
 });
