@@ -1,5 +1,5 @@
 import { z } from "./schemas";
-import { COMMISSION_MODEL } from "./enums";
+import { COMMISSION_MODEL, type CommissionModel } from "./enums";
 
 export type LineItem = { description: string; qty: number; unitAmountCents: number };
 
@@ -24,7 +24,7 @@ const dunningSchema = z.object({
 
 // zod v3: z.record takes a single value schema (key is always string)
 const commissionSettingsSchema = z.object({
-  model: z.enum([...COMMISSION_MODEL] as [string, ...string[]]).default("flat"),
+  model: z.enum(COMMISSION_MODEL as unknown as [CommissionModel, ...CommissionModel[]]).default("flat"),
   rate: z.number().int().min(0).default(1000), // basis points (1000 = 10%)
   tiers: z.array(z.object({
     thresholdCents: z.number().int().min(0),
