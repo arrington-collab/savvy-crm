@@ -1,6 +1,6 @@
 import type { CommissionModel } from "./enums";
 
-export type CommissionTier = { thresholdCents: number; rate: number };
+export type CommissionTier = { thresholdCents: number; rate: number /* basis points */ };
 
 export function computeCommission(input: {
   model: CommissionModel;
