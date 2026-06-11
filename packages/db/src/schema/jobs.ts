@@ -15,6 +15,7 @@ export const job = pgTable("job", {
   valueFinal: integer("value_final"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),
   leadId: uuid("lead_id").references(() => lead.id),
+  costCents: integer("cost_cents"),
   openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
   stageEnteredAt: timestamp("stage_entered_at", { withTimezone: true }).defaultNow().notNull(),

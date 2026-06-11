@@ -14,6 +14,7 @@ export const tenant = pgTable("tenant", {
   publicKey: text("public_key").unique(),
   inboundPhone: text("inbound_phone"),
   stripeAccountId: text("stripe_account_id"),
+  qboConnectionId: text("qbo_connection_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
   createdAt: createdAt(),
 });

@@ -1,10 +1,10 @@
 import { pgTable, uuid, text, integer, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
-import { tenant } from "./tenancy";
+import { tenant, user } from "./tenancy";
 import { job } from "./jobs";
 import { customer } from "./crm";
-import { invoiceStatusEnum, paymentMethodEnum } from "./enums";
+import { invoiceStatusEnum, paymentMethodEnum, commissionModelEnum, commissionStatusEnum } from "./enums";
 
 export const estimate = pgTable("estimate", {
   id: idCol(),
@@ -49,9 +49,28 @@ export const payment = pgTable("payment", {
   method: paymentMethodEnum("method").notNull(),
   amount: integer("amount").notNull(),
   stripePaymentId: text("stripe_payment_id"),
+  qboId: text("qbo_id"),
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index("payment_tenant_invoice_idx").on(t.tenantId, t.invoiceId),
   uniqueIndex("payment_stripe_pmt_uniq").on(t.tenantId, t.stripePaymentId).where(sql`stripe_payment_id IS NOT NULL`),
+  tenantIsolation(),
+]);
+
+export const commission = pgTable("commission", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  invoiceId: uuid("invoice_id").notNull().references(() => invoice.id),
+  userId: uuid("user_id").notNull().references(() => user.id),
+  model: commissionModelEnum("model").notNull(),
+  basisCents: integer("basis_cents").notNull(),
+  rate: integer("rate").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  periodKey: text("period_key").notNull(),
+  status: commissionStatusEnum("status").notNull().default("pending"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("commission_tenant_user_idx").on(t.tenantId, t.userId),
+  uniqueIndex("commission_tenant_invoice_uniq").on(t.tenantId, t.invoiceId),
   tenantIsolation(),
 ]);
