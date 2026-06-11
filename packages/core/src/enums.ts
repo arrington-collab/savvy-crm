@@ -48,3 +48,9 @@ export const INVOICE_STATUS = ["draft", "sent", "paid", "overdue", "void"] as co
 export const PAYMENT_METHOD = ["card", "ach", "check", "insurance", "mortgage"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUS)[number];
 export type PaymentMethod = (typeof PAYMENT_METHOD)[number];
+
+// --- Phase 5B (finance automation) ---
+export const COMMISSION_MODEL = ["flat", "profit", "tiered"] as const;
+export const COMMISSION_STATUS = ["pending", "approved", "paid"] as const;
+export type CommissionModel = (typeof COMMISSION_MODEL)[number];
+export type CommissionStatus = (typeof COMMISSION_STATUS)[number];

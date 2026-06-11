@@ -1,5 +1,5 @@
 import { describe, it, test, expect } from "vitest";
-import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD } from "./enums";
+import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD, COMMISSION_MODEL, COMMISSION_STATUS } from "./enums";
 
 describe("phase 3 enums", () => {
   it("message channel is sms|email only (no call)", () => {
@@ -22,4 +22,9 @@ test("appointment enums", () => {
 test("finance enums", () => {
   expect(INVOICE_STATUS).toEqual(["draft", "sent", "paid", "overdue", "void"]);
   expect(PAYMENT_METHOD).toEqual(["card", "ach", "check", "insurance", "mortgage"]);
+});
+
+test("commission enums", () => {
+  expect(COMMISSION_MODEL).toEqual(["flat", "profit", "tiered"]);
+  expect(COMMISSION_STATUS).toEqual(["pending", "approved", "paid"]);
 });
