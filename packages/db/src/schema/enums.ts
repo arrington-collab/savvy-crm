@@ -5,6 +5,7 @@ import {
   MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON,
   APPOINTMENT_TYPE, APPOINTMENT_STATUS,
   INVOICE_STATUS, PAYMENT_METHOD,
+  COMMISSION_MODEL, COMMISSION_STATUS,
 } from "@savvy/core";
 
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
@@ -23,3 +24,5 @@ export const appointmentTypeEnum = pgEnum("appointment_type", APPOINTMENT_TYPE);
 export const appointmentStatusEnum = pgEnum("appointment_status", APPOINTMENT_STATUS);
 export const invoiceStatusEnum = pgEnum("invoice_status", INVOICE_STATUS);
 export const paymentMethodEnum = pgEnum("payment_method", PAYMENT_METHOD);
+export const commissionModelEnum = pgEnum("commission_model", COMMISSION_MODEL);
+export const commissionStatusEnum = pgEnum("commission_status", COMMISSION_STATUS);
