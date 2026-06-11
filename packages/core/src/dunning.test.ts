@@ -6,7 +6,7 @@ describe("dunning schedule", () => {
     const steps = dunningSchedule({ smsEscalationDay: 30 });
     expect(steps.map((s) => s.dayOffset)).toEqual([3, 7, 14, 30]);
     expect(steps.map((s) => s.channel)).toEqual(["email", "email", "email", "sms"]);
-    expect(steps[3].flipsOverdue).toBe(true);
+    expect(steps[3]?.flipsOverdue).toBe(true);
   });
 
   it("email copy includes number + pay link, escalating tone", () => {
