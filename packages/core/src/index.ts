@@ -4,3 +4,4 @@ export * from "./render-template";
 export * from "./comms";
 export * from "./scheduling";
 export * from "./finance";
+export * from "./quiet-hours";
