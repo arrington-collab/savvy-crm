@@ -13,6 +13,8 @@ export const tenant = pgTable("tenant", {
   clerkOrgId: text("clerk_org_id").unique(),
   publicKey: text("public_key").unique(),
   inboundPhone: text("inbound_phone"),
+  stripeAccountId: text("stripe_account_id"),
+  qboConnectionId: text("qbo_connection_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
   createdAt: createdAt(),
 });
@@ -24,6 +26,7 @@ export const user = pgTable("user", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: userRoleEnum("role").notNull().default("rep"),
+  gcalConnectionId: text("gcal_connection_id"),
   createdAt: createdAt(),
 }, (t) => [
   index("user_tenant_idx").on(t.tenantId),

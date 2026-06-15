@@ -1,6 +1,18 @@
 export { db, pool, schema } from "./client";
 export { adminDb, adminPool } from "./admin-client";
 export { withTenant } from "./tenant";
+export { seedJobTasks } from "./lifecycle/seed-job-tasks";
+export { recordStageChange } from "./lifecycle/record-stage-change";
+export { stopDripEnrollments } from "./lifecycle/stop-drip";
+export {
+  bookAppointment, rescheduleAppointment, cancelAppointment, setAppointmentStatus,
+  getBusyIntervals, convertLeadToJob, SlotTakenError, NoAssigneeError,
+} from "./lifecycle/appointments";
+export {
+  createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
+  recordStripePayment, StripeNotConnectedError,
+} from "./lifecycle/invoices";
+export { recordCommission } from "./lifecycle/commission";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
 // (the Next.js app, agents) import `{ tenant, job }` from "@savvy/db" instead

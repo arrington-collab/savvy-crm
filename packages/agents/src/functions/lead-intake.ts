@@ -1,6 +1,6 @@
-import { z } from "@savvy/core";
+import { z, signPayloadToken } from "@savvy/core";
 import {
-  withTenant, lead, customer, job, appointment, communication, agentRun, eq,
+  withTenant, lead, customer, communication, agentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { twilioSms, type SmsSender } from "@savvy/integrations";
@@ -62,7 +62,9 @@ export const leadIntake = inngest.createFunction(
 
     await step.run("send-sms", async () => {
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
-      const body = buildBookingSms({ name: ctx.name, bookingUrl: `${base}/api/leads/${leadId}/book` });
+      const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+      const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
+      const body = buildBookingSms({ name: ctx.name, bookingUrl: `${base}/book/${token}` });
       const sender: SmsSender = twilioSms;
       let sid = "mock";
       try {
@@ -80,28 +82,5 @@ export const leadIntake = inngest.createFunction(
     });
 
     return { leadId, score: scored.score };
-  },
-);
-
-export const leadBooked = inngest.createFunction(
-  { id: "lead-booked" },
-  { event: "lead/booked" },
-  async ({ event, step }) => {
-    const { leadId, tenantId, startsAt } = event.data;
-    return step.run("book-and-convert", async () =>
-      withTenant(tenantId, async (tx) => {
-        const [l] = await tx.select().from(lead).where(eq(lead.id, leadId));
-        const [newJob] = await tx.insert(job).values({
-          tenantId, customerId: l!.customerId!, propertyId: l!.propertyId!,
-          type: "retail", stage: "inspected", leadId,
-        }).returning();
-        await tx.insert(appointment).values({
-          tenantId, jobId: newJob!.id, type: "inspection", startsAt: new Date(startsAt), status: "scheduled",
-        });
-        await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, leadId));
-        await tx.insert(agentRun).values({ tenantId, agent: "orchestrator", jobId: newJob!.id, status: "ok" });
-        return { jobId: newJob!.id };
-      }),
-    );
   },
 );

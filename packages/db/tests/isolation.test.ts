@@ -3,11 +3,15 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, customer } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
+import { commission, invoice } from "../src/schema/finance.js";
 
 let tenantAId: string;
 let tenantBId: string;
 let custBId: string;
+let propBId: string;
+let jobBId: string;
+let commissionBId: string;
 
 beforeAll(async () => {
   // Seed two isolated tenants directly via the admin (RLS-bypassing) connection.
@@ -17,9 +21,64 @@ beforeAll(async () => {
   await adminDb.insert(customer).values({ tenantId: a!.id, name: "A-cust" });
   const [cb] = await adminDb.insert(customer).values({ tenantId: b!.id, name: "B-cust" }).returning();
   custBId = cb!.id;
+
+  // Give tenant B a property + job + stage event so A has something it must NOT see.
+  const [pb] = await adminDb
+    .insert(property)
+    .values({ tenantId: b!.id, customerId: cb!.id, address: "B-property" })
+    .returning();
+  propBId = pb!.id;
+  const [jb] = await adminDb
+    .insert(job)
+    .values({ tenantId: b!.id, customerId: cb!.id, propertyId: pb!.id })
+    .returning();
+  jobBId = jb!.id;
+  await adminDb
+    .insert(jobStageEvent)
+    .values({ tenantId: b!.id, jobId: jb!.id, toStage: "inspected" });
+
+  await adminDb.insert(messageTemplate).values({ tenantId: b!.id, key: "b-tmpl", name: "B tmpl", channel: "sms", body: "hi" });
+  const [bDrip] = await adminDb.insert(drip).values({ tenantId: b!.id, key: "b-drip", name: "B drip", steps: [] }).returning();
+  await adminDb.insert(dripEnrollment).values({ tenantId: b!.id, dripId: bDrip!.id, customerId: cb!.id, status: "active" });
+
+  // Give tenant B a user + invoice + commission so A has something it must NOT see.
+  const id = crypto.randomUUID();
+  const [ub] = await adminDb
+    .insert(user)
+    .values({ tenantId: b!.id, name: "B-rep", email: `b-rep-${id}@test.example`, role: "rep" })
+    .returning();
+  const [inv] = await adminDb
+    .insert(invoice)
+    .values({ tenantId: b!.id, jobId: jb!.id, customerId: cb!.id, status: "draft" })
+    .returning();
+  const [comm] = await adminDb
+    .insert(commission)
+    .values({
+      tenantId: b!.id,
+      invoiceId: inv!.id,
+      userId: ub!.id,
+      model: "flat",
+      basisCents: 100000,
+      rate: 5,
+      amountCents: 5000,
+      periodKey: "2026-01",
+    })
+    .returning();
+  commissionBId = comm!.id;
 });
 
 afterAll(async () => {
+  // Remove child rows first (FK order: stage event -> job -> property) before tenant deletes.
+  await adminDb.delete(dripEnrollment).where(eq(dripEnrollment.tenantId, tenantBId));
+  await adminDb.delete(drip).where(eq(drip.tenantId, tenantBId));
+  await adminDb.delete(messageTemplate).where(eq(messageTemplate.tenantId, tenantBId));
+  await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tenantBId));
+  // commission -> invoice must go before job/customer (FK chain)
+  await adminDb.delete(commission).where(eq(commission.tenantId, tenantBId));
+  await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantBId));
+  await adminDb.delete(user).where(eq(user.tenantId, tenantBId));
+  await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
+  await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantAId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantBId));
   await adminDb.delete(tenant).where(eq(tenant.id, tenantAId));
@@ -60,5 +119,24 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
         tx.insert(customer).values({ tenantId: tenantBId, name: "smuggled" }),
       ),
     ).rejects.toThrow();
+  });
+
+  it("SELECT on job_stage_event is tenant-scoped", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(jobStageEvent));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on comms tables is tenant-scoped (A cannot see B)", async () => {
+    const tmpls = await withTenant(tenantAId, (tx) => tx.select().from(messageTemplate));
+    expect(tmpls.some((r) => r.tenantId === tenantBId)).toBe(false);
+    const drips = await withTenant(tenantAId, (tx) => tx.select().from(drip));
+    expect(drips.some((r) => r.tenantId === tenantBId)).toBe(false);
+    const enrs = await withTenant(tenantAId, (tx) => tx.select().from(dripEnrollment));
+    expect(enrs.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on commission is tenant-scoped (A cannot see B's commissions)", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(commission));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });
