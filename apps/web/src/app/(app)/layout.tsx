@@ -10,6 +10,8 @@ const NAV = [
   { href: "/invoices", label: "Invoices" },
   { href: "/commissions", label: "Commissions" },
   { href: "/billing", label: "Billing" },
+  { href: "/settings/payments", label: "Payments" },
+  { href: "/settings/quickbooks", label: "QuickBooks" },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

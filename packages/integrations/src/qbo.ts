@@ -47,7 +47,7 @@ export const nangoQbo: QboGateway = {
     return { qboId: String((res as { Invoice?: { Id: string } }).Invoice?.Id ?? "") };
   },
 
-  async recordPayment({ connectionId, qboInvoiceId, amountCents }) {
+  async recordPayment({ connectionId, qboInvoiceId, amountCents, receivedAt }) {
     const res = await nangoProxy({
       connectionId,
       integrationId: QBO_INTEGRATION(),
@@ -55,6 +55,7 @@ export const nangoQbo: QboGateway = {
       endpoint: "/v3/company/payment",
       body: {
         TotalAmt: amountCents / 100,
+        TxnDate: receivedAt.substring(0, 10),
         Line: [
           {
             Amount: amountCents / 100,
