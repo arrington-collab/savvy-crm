@@ -79,6 +79,8 @@ export async function pushPaymentToQbo(
       .select()
       .from(payment)
       .where(eq(payment.invoiceId, invoiceId))
+      // NOTE: syncs only the earliest unsynced payment. Partial-payment invoices (multiple
+      // payments) need a loop here — tracked as a follow-up; Phase 5B assumes single payment.
       .orderBy(payment.receivedAt);
     if (!pmt || pmt.qboId) return { skipped: "no_unsynced_payment" };
 

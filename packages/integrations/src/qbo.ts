@@ -10,6 +10,9 @@ const QBO_INTEGRATION = () => process.env.NANGO_QBO_INTEGRATION_ID ?? "quickbook
 
 export const nangoQbo: QboGateway = {
   async upsertCustomer({ connectionId, customer }) {
+    // NOTE: QBO create-customer is NOT idempotent at the API level (no match-by-name). True
+    // idempotency needs query-then-create or a sparse update. The DB-level customer.qboId guard
+    // covers clean retries; harden here during QBO sandbox validation (follow-up).
     const res = await nangoProxy({
       connectionId,
       integrationId: QBO_INTEGRATION(),
