@@ -3,13 +3,15 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
+import { commission, invoice } from "../src/schema/finance.js";
 
 let tenantAId: string;
 let tenantBId: string;
 let custBId: string;
 let propBId: string;
 let jobBId: string;
+let commissionBId: string;
 
 beforeAll(async () => {
   // Seed two isolated tenants directly via the admin (RLS-bypassing) connection.
@@ -38,6 +40,31 @@ beforeAll(async () => {
   await adminDb.insert(messageTemplate).values({ tenantId: b!.id, key: "b-tmpl", name: "B tmpl", channel: "sms", body: "hi" });
   const [bDrip] = await adminDb.insert(drip).values({ tenantId: b!.id, key: "b-drip", name: "B drip", steps: [] }).returning();
   await adminDb.insert(dripEnrollment).values({ tenantId: b!.id, dripId: bDrip!.id, customerId: cb!.id, status: "active" });
+
+  // Give tenant B a user + invoice + commission so A has something it must NOT see.
+  const id = crypto.randomUUID();
+  const [ub] = await adminDb
+    .insert(user)
+    .values({ tenantId: b!.id, name: "B-rep", email: `b-rep-${id}@test.example`, role: "rep" })
+    .returning();
+  const [inv] = await adminDb
+    .insert(invoice)
+    .values({ tenantId: b!.id, jobId: jb!.id, customerId: cb!.id, status: "draft" })
+    .returning();
+  const [comm] = await adminDb
+    .insert(commission)
+    .values({
+      tenantId: b!.id,
+      invoiceId: inv!.id,
+      userId: ub!.id,
+      model: "flat",
+      basisCents: 100000,
+      rate: 5,
+      amountCents: 5000,
+      periodKey: "2026-01",
+    })
+    .returning();
+  commissionBId = comm!.id;
 });
 
 afterAll(async () => {
@@ -46,6 +73,10 @@ afterAll(async () => {
   await adminDb.delete(drip).where(eq(drip.tenantId, tenantBId));
   await adminDb.delete(messageTemplate).where(eq(messageTemplate.tenantId, tenantBId));
   await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tenantBId));
+  // commission -> invoice must go before job/customer (FK chain)
+  await adminDb.delete(commission).where(eq(commission.tenantId, tenantBId));
+  await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantBId));
+  await adminDb.delete(user).where(eq(user.tenantId, tenantBId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantAId));
@@ -102,5 +133,10 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
     expect(drips.some((r) => r.tenantId === tenantBId)).toBe(false);
     const enrs = await withTenant(tenantAId, (tx) => tx.select().from(dripEnrollment));
     expect(enrs.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on commission is tenant-scoped (A cannot see B's commissions)", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(commission));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ export const customer = pgTable("customer", {
   billingAddress: text("billing_address"),
   smsOptOut: boolean("sms_opt_out").default(false).notNull(),
   emailOptOut: boolean("email_opt_out").default(false).notNull(),
+  qboId: text("qbo_id"),
   createdAt: createdAt(),
 }, (t) => [index("customer_tenant_idx").on(t.tenantId), tenantIsolation()]);
 
