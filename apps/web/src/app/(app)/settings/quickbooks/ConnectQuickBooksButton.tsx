@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { saveQuickBooksConnection } from "@/lib/quickbooks-actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_connection_id: "QuickBooks connection failed — no connection id returned. Please try again.",
@@ -15,9 +16,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 interface ConnectQuickBooksButtonProps {
   connected: boolean;
   connectionId?: string;
-  /** Set when the page was reached via ?connected=1 redirect from Nango OAuth */
+  /** Set when the page was reached via ?connected=1 after a successful connection */
   connectedFlag: boolean;
-  /** Error code from ?error=<code> when OAuth failed */
+  /** Error code from ?error=<code> when the connection failed */
   errorCode?: string;
 }
 
@@ -41,25 +42,45 @@ export function ConnectQuickBooksButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // onConnected is the handler the Nango frontend SDK will call via its onSuccess
+  // callback once @nangohq/frontend is installed. It persists the connectionId to
+  // the tenant row via a server action (bypassing RLS, same pattern as Stripe).
+  // It is wired into handleConnect's SDK stub below so it's live and type-checked.
+  // TODO: replace the stub block with: nango.connect(token, { onSuccess: onConnected })
+  const onConnected = async (nangoConnectionId: string): Promise<void> => {
+    const result = await saveQuickBooksConnection(nangoConnectionId);
+    if ("error" in result) {
+      toast.error(
+        ERROR_MESSAGES[result.error] ?? "Couldn't save QuickBooks connection.",
+      );
+    } else {
+      toast.success("QuickBooks connected");
+    }
+  };
+
   async function handleConnect() {
     setLoading(true);
     try {
+      // Step 1: Mint a Nango connect-session token from the server.
       const res = await fetch("/api/nango/qbo/start", { method: "POST" });
       const data = (await res.json()) as { token?: string; error?: string };
-      if (!res.ok || data.error) {
+      if (!res.ok || data.error || !data.token) {
         toast.error("Could not start QuickBooks connection.");
-        setLoading(false);
         return;
       }
-      // Nango connect-sessions returns a token for the frontend SDK.
-      // Without the full SDK installed, we surface the token for manual use in dev.
-      // In production, pass this token to the Nango frontend SDK's connect() method.
-      if (data.token) {
-        toast.success("Connection session started (use Nango frontend SDK with this token).");
-        console.info("Nango QBO connect session token:", data.token);
-      } else {
-        toast.error("Could not start QuickBooks connection.");
-      }
+
+      // Step 2 (STUB — pending @nangohq/frontend SDK install):
+      // The session-token flow delivers the connectionId to the frontend via the
+      // SDK's onSuccess callback — it is never sent to a server redirect URL.
+      // When the SDK is installed, replace this block with:
+      //
+      //   import Nango from "@nangohq/frontend";
+      //   const nango = new Nango();
+      //   await nango.connect(data.token, { onSuccess: ({ connectionId }) => onConnected(connectionId) });
+      //
+      // For now, surface a clear message so the flow is honest in dev/staging.
+      await onConnected(""); // ← calls the real persist path; empty string returns missing_connection_id error
+      // (The error toast surfaces "no connection id returned" — expected until SDK is wired.)
     } catch {
       toast.error("Network error connecting to QuickBooks.");
     } finally {
