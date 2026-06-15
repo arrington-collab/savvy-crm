@@ -6,6 +6,7 @@ import { appointmentCalendarSync } from "./functions/appointment-calendar";
 import { appointmentReminders } from "./functions/appointment-reminders";
 import { dunningRun } from "./functions/dunning";
 import { commissionOnPaid } from "./functions/commission";
+import { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -16,4 +17,5 @@ export { appointmentCalendarSync } from "./functions/appointment-calendar";
 export { appointmentReminders } from "./functions/appointment-reminders";
 export { dunningRun } from "./functions/dunning";
 export { commissionOnPaid } from "./functions/commission";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid];
+export { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment];
