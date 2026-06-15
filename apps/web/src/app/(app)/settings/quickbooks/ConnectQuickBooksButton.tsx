@@ -9,8 +9,7 @@ import { saveQuickBooksConnection } from "@/lib/quickbooks-actions";
 const ERROR_MESSAGES: Record<string, string> = {
   missing_connection_id: "QuickBooks connection failed — no connection id returned. Please try again.",
   unauthorized: "QuickBooks connection failed — not authorized. Please try again.",
-  no_active_tenant: "QuickBooks connection failed — no active organization. Please try again.",
-  persist_failed: "QuickBooks connection failed — could not save connection. Please try again.",
+  not_verified: "QuickBooks connection failed — could not verify connection ownership. Please try again.",
 };
 
 interface ConnectQuickBooksButtonProps {
