@@ -20,17 +20,17 @@ describe("generateEstimateLineItems", () => {
   const byKey = Object.fromEntries(out.lineItems.map((l) => [l.key, l]));
 
   it("waste applies ONLY to field shingles", () => {
-    expect(byKey["field-shingles"].quantity).toBeCloseTo(22.4); // 20 * 1.12
-    expect(byKey["starter"].quantity).toBe(100);                // no waste
+    expect(byKey["field-shingles"]!.quantity).toBeCloseTo(22.4); // 20 * 1.12
+    expect(byKey["starter"]!.quantity).toBe(100);                // no waste
   });
   it("drip edge rounds up to packSize (10ft sticks)", () => {
-    expect(byKey["drip-edge"].quantity).toBe(150); // 100+50=150 already multiple of 10
+    expect(byKey["drip-edge"]!.quantity).toBe(150); // 100+50=150 already multiple of 10
   });
   it("pitch surcharge applies ONLY to labor (8/12 -> +20%)", () => {
     // install base = 20 * 8000 = 160000; +20% = 192000
-    expect(byKey["install"].amountCents).toBe(192000);
-    expect(byKey["install"].pitchSurchargePct).toBe(2000);
-    expect(byKey["field-shingles"].pitchSurchargePct).toBeUndefined();
+    expect(byKey["install"]!.amountCents).toBe(192000);
+    expect(byKey["install"]!.pitchSurchargePct).toBe(2000);
+    expect(byKey["field-shingles"]!.pitchSurchargePct).toBeUndefined();
   });
   it("skips inactive items and reports the applied waste + tier", () => {
     expect(byKey["inactive"]).toBeUndefined();
