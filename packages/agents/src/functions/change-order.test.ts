@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, eq, tenant, customer, property, job, invoice, changeOrder, createChangeOrder } from "@savvy/db";
+import { adminDb, withTenant, eq, tenant, customer, property, job, invoice, createChangeOrder } from "@savvy/db";
 import { applyAcceptedChangeOrder } from "./change-order";
 
 async function seed(total: number): Promise<{ tenantId: string; jobId: string; changeOrderId: string }> {
