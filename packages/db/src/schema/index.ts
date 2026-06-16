@@ -6,3 +6,4 @@ export * from "./comms";
 export * from "./finance";
 export * from "./ops";
 export * from "./agents";
+export * from "./pricing";

@@ -8,6 +8,9 @@ import { dunningRun } from "./functions/dunning";
 import { commissionOnPaid } from "./functions/commission";
 import { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
 import { esignFinalize } from "./functions/esign-finalize";
+import { roofrOrderMeasurement } from "./functions/roofr-order";
+import { generateEstimateOnMeasurement } from "./functions/estimate-generate";
+import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -20,4 +23,7 @@ export { dunningRun } from "./functions/dunning";
 export { commissionOnPaid } from "./functions/commission";
 export { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
 export { esignFinalize } from "./functions/esign-finalize";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize];
+export { roofrOrderMeasurement } from "./functions/roofr-order";
+export { generateEstimateOnMeasurement } from "./functions/estimate-generate";
+export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob];

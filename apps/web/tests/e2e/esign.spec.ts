@@ -3,11 +3,11 @@
  *
  * Strategy:
  *  - Seed a job + customer (WITH email) via adminDb, like production-gating.spec.ts.
- *  - Drive the UI: open the E-sign tab, click "Send for signature". The send action
- *    calls the DocuSeal stub (configured via playwright.config webServer env), so a
- *    `sent` request with a copy-link appears.
- *  - Capture the real DocuSeal submission id from the esign_request row, then POST a
- *    simulated webhook to the public route. With an empty DOCUSEAL_WEBHOOK_SECRET the
+ *  - Drive the UI: open the E-sign tab, click "Send for signature". With DOCUSEAL_API_KEY
+ *    unset, the send uses the FAKE gateway (same fail-soft pattern as estimate signing),
+ *    so a `sent` request with a copy-link appears without any network call.
+ *  - Capture the fake submission id from the esign_request row, then POST a simulated
+ *    `form.completed` webhook to the public route. With no DOCUSEAL_WEBHOOK_SECRET the
  *    gateway skips HMAC, so the plain body is accepted.
  *  - Assert the request flips to "Completed".
  *
@@ -63,10 +63,11 @@ test("send for signature, then webhook marks it completed", async ({ page, reque
     .where(eq(esignRequest.jobId, jobId));
   expect(row?.submissionId).toBeTruthy();
 
-  // ── simulate the DocuSeal webhook (empty secret => no signature needed) ─────
+  // ── simulate the DocuSeal webhook (no secret in dev => verification skipped) ──
+  // `form.completed` is the event the gateway's parseEvent treats as completed.
   const res = await request.post("/api/docuseal/webhook", {
     headers: { "content-type": "application/json" },
-    data: { event_type: "submission.completed", data: { submission_id: Number(row!.submissionId) } },
+    data: { event_type: "form.completed", data: { submission_id: row!.submissionId } },
   });
   expect(res.status()).toBe(200);
 

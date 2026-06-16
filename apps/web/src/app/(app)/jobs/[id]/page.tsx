@@ -16,11 +16,17 @@ import {
   asc,
   sql,
 } from "@savvy/db";
+import Link from "next/link";
 import { parseProductionConfig } from "@savvy/core";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
 import { JobTabs } from "./tabs";
+import { EstimateActions } from "./EstimateActions";
+import {
+  listEstimatesForJob,
+  getLatestMeasurementForJob,
+} from "@/lib/estimate-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +51,7 @@ export default async function JobDetailPage({
         stage: job.stage,
         valueEstimate: job.valueEstimate,
         stageEnteredAt: job.stageEnteredAt,
+        propertyId: job.propertyId,
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
@@ -230,6 +237,35 @@ export default async function JobDetailPage({
 
   const value = (jobRow.valueEstimate ?? 0) / 100;
 
+  // Fetch estimate and measurement data in parallel (after confirming job exists).
+  const [estimates, measurement] = await Promise.all([
+    listEstimatesForJob(id),
+    getLatestMeasurementForJob(id),
+  ]);
+
+  // Serialize measurement areas for client component (jsonb -> plain object).
+  const measurementForClient = measurement
+    ? {
+        id: measurement.id,
+        areas: (measurement.areas as Record<string, unknown>) ?? {},
+        pitch: measurement.pitch ?? null,
+      }
+    : null;
+
+  // Status badge color map for estimates.
+  const ESTIMATE_STATUS_COLORS: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-700",
+    sent: "bg-blue-100 text-blue-800",
+    accepted: "bg-green-100 text-green-800",
+  };
+
+  function fmtUsd(cents: number | null | undefined): string {
+    return ((cents ?? 0) / 100).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    });
+  }
+
   return (
     <div data-testid="job-detail" className="space-y-6">
       <Card className="p-5">
@@ -278,6 +314,57 @@ export default async function JobDetailPage({
         esignRequests={esignRows}
         customerEmail={jobRow.customerEmail ?? null}
       />
+
+      {/* Estimates section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Estimates</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <EstimateActions
+            jobId={id}
+            propertyId={jobRow.propertyId}
+            measurement={measurementForClient}
+          />
+
+          {estimates.length > 0 && (
+            <div className="space-y-2">
+              {estimates.map((est) => {
+                const statusLabel = est.status ?? "draft";
+                const statusCls =
+                  ESTIMATE_STATUS_COLORS[statusLabel] ??
+                  "bg-muted text-muted-foreground";
+                return (
+                  <Link
+                    key={est.id}
+                    href={`/jobs/${id}/estimates/${est.id}`}
+                    className="block"
+                    data-testid="estimate-row"
+                  >
+                    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                      <span className="text-muted-foreground capitalize">
+                        {est.source} estimate
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">{fmtUsd(est.total)}</span>
+                        <span
+                          className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${statusCls}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {estimates.length === 0 && (
+            <p className="text-sm text-muted-foreground">No estimates yet.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

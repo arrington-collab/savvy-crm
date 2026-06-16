@@ -1,11 +1,14 @@
 "use server";
 import { withTenant, adminDb, tenant, job, customer, property, esignRequest, eq } from "@savvy/db";
-import { docusealGateway } from "@savvy/integrations";
+import { httpDocuseal, makeFakeDocuseal } from "@savvy/integrations";
 import {
   parseEsignConfig, resolveEsignTemplate, buildEsignPrefill, ESIGN_DOC_TYPE, type EsignDocType,
 } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
+
+/** Real gateway when DocuSeal is configured; fake (fail-soft) otherwise (dev/e2e). */
+const docuseal = () => (process.env.DOCUSEAL_API_KEY ? httpDocuseal : makeFakeDocuseal());
 
 type SendResult =
   | { ok: true; requestId: string; signingUrl: string }
@@ -59,7 +62,7 @@ export async function sendForSignature(input: { jobId: string; docType: EsignDoc
   // Outbound HTTP OUTSIDE the transaction.
   let submission: { submissionId: string; signingUrl: string };
   try {
-    submission = await docusealGateway.createSubmission({
+    submission = await docuseal().createClosoutSubmission({
       templateId,
       signer: { name: ctx.c.name, email },
       fields,

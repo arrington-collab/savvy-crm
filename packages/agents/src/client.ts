@@ -19,6 +19,10 @@ type Events = {
   "invoice/paid": { data: { invoiceId: string; tenantId: string } };
   "invoice/void": { data: { invoiceId: string; tenantId: string } };
   "esign/completed": { data: { requestId: string; tenantId: string } };
+  "roofr/order.requested": { data: { tenantId: string; jobId: string; propertyId: string } };
+  "measurement/ready": { data: { tenantId: string; jobId: string; measurementId: string } };
+  "estimate/send.requested": { data: { tenantId: string; estimateId: string } };
+  "estimate/accepted": { data: { tenantId: string; estimateId: string } };
 };
 
 export const inngest = new Inngest({

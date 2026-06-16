@@ -1,5 +1,5 @@
 import { describe, it, test, expect } from "vitest";
-import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD, COMMISSION_MODEL, COMMISSION_STATUS } from "./enums";
+import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD, COMMISSION_MODEL, COMMISSION_STATUS, ESTIMATE_SOURCE, ESTIMATE_STATUS, PRICE_BOOK_CATEGORY, PRICE_BOOK_UNIT, MEASUREMENT_FIELD } from "./enums";
 
 describe("phase 3 enums", () => {
   it("message channel is sms|email only (no call)", () => {
@@ -27,4 +27,13 @@ test("finance enums", () => {
 test("commission enums", () => {
   expect(COMMISSION_MODEL).toEqual(["flat", "profit", "tiered"]);
   expect(COMMISSION_STATUS).toEqual(["pending", "approved", "paid"]);
+});
+
+test("phase 7 enums", () => {
+  expect(ESTIMATE_SOURCE).toEqual(["roofr", "manual", "carrier"]);
+  expect(ESTIMATE_STATUS).toEqual(["draft", "sent", "accepted"]);
+  expect(PRICE_BOOK_CATEGORY).toEqual(["material", "labor", "accessory", "upgrade"]);
+  expect(PRICE_BOOK_UNIT).toEqual(["square", "lf", "each", "flat"]);
+  expect(MEASUREMENT_FIELD).toContain("squares");
+  expect(MEASUREMENT_FIELD).toContain("ridgeLf");
 });

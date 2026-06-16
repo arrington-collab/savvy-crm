@@ -1,7 +1,12 @@
 import { withTenant, eq, esignRequest, document } from "@savvy/db";
 import type { DocusealGateway, StorageGateway } from "@savvy/integrations";
-import { docusealGateway, r2Storage } from "@savvy/integrations";
+import { httpDocuseal, makeFakeDocuseal, r2Storage } from "@savvy/integrations";
 import { inngest } from "../client";
+
+/** Real gateway when DocuSeal is configured; fake (fail-soft) otherwise (dev/e2e). */
+function defaultDocuseal(): DocusealGateway {
+  return process.env.DOCUSEAL_API_KEY ? httpDocuseal : makeFakeDocuseal();
+}
 
 /**
  * Pure helper (injectable deps) so it can be tested with fake gateways against a
@@ -60,6 +65,6 @@ export const esignFinalize = inngest.createFunction(
   { event: "esign/completed" },
   async ({ event, step }) =>
     step.run("finalize", () =>
-      finalizeEsign(event.data, { docuseal: docusealGateway, storage: r2Storage }),
+      finalizeEsign(event.data, { docuseal: defaultDocuseal(), storage: r2Storage }),
     ),
 );

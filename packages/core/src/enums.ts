@@ -54,3 +54,17 @@ export const COMMISSION_MODEL = ["flat", "profit", "tiered"] as const;
 export const COMMISSION_STATUS = ["pending", "approved", "paid"] as const;
 export type CommissionModel = (typeof COMMISSION_MODEL)[number];
 export type CommissionStatus = (typeof COMMISSION_STATUS)[number];
+
+// --- Phase 7 (measurement & estimate) ---
+export const ESTIMATE_SOURCE = ["roofr", "manual", "carrier"] as const;
+export const ESTIMATE_STATUS = ["draft", "sent", "accepted"] as const;
+export const PRICE_BOOK_CATEGORY = ["material", "labor", "accessory", "upgrade"] as const;
+export const PRICE_BOOK_UNIT = ["square", "lf", "each", "flat"] as const;
+export const MEASUREMENT_FIELD = [
+  "squares", "ridgeLf", "hipLf", "valleyLf", "eaveLf", "rakeLf", "stepFlashingLf", "penetrationCount",
+] as const;
+export type EstimateSource = (typeof ESTIMATE_SOURCE)[number];
+export type EstimateStatus = (typeof ESTIMATE_STATUS)[number];
+export type PriceBookCategory = (typeof PRICE_BOOK_CATEGORY)[number];
+export type PriceBookUnit = (typeof PRICE_BOOK_UNIT)[number];
+export type MeasurementField = (typeof MEASUREMENT_FIELD)[number];
