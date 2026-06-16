@@ -83,9 +83,12 @@ export async function approveChangeOrder(input: {
     if (!co || co.applied) return { invoiceCreated: false };
     const total = co.total ?? 0;
 
-    const [j] = await tx.select().from(job).where(eq(job.id, co.jobId));
-    const base = j?.valueFinal ?? j?.valueEstimate ?? 0;
-    await tx.update(job).set({ valueFinal: base + total }).where(eq(job.id, co.jobId));
+    // Atomic add in SQL so concurrent change orders on the same job can't lose a
+    // delta (a read-modify-write would race under READ COMMITTED).
+    await tx
+      .update(job)
+      .set({ valueFinal: sql`coalesce(${job.valueFinal}, ${job.valueEstimate}, 0) + ${total}` })
+      .where(eq(job.id, co.jobId));
 
     let invoiceId: string | null = null;
     if (total > 0) {
