@@ -21,6 +21,7 @@ export const communication = pgTable("communication", {
   transcript: text("transcript"),
   twilioSid: text("twilio_sid"),
   aiHandled: boolean("ai_handled").default(false).notNull(),
+  durationSeconds: integer("duration_seconds"),
   createdAt: createdAt(),
 }, (t) => [index("comm_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
 
