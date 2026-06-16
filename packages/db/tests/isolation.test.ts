@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest } from "../src/schema/index.js";
 import { commission, invoice } from "../src/schema/finance.js";
 
 let tenantAId: string;
@@ -159,5 +159,26 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
   it("SELECT on document is tenant-scoped (A cannot see B's documents)", async () => {
     const rows = await withTenant(tenantAId, (tx) => tx.select().from(document));
     expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on esign_request is tenant-scoped (A cannot see B's requests)", async () => {
+    const [er] = await adminDb
+      .insert(esignRequest)
+      .values({
+        tenantId: tenantBId,
+        jobId: jobBId,
+        customerId: custBId,
+        docType: "lien_waiver",
+        templateId: "tpl_b",
+        docusealSubmissionId: "sub_b_iso_1",
+        status: "sent",
+      })
+      .returning();
+    try {
+      const rows = await withTenant(tenantAId, (tx) => tx.select().from(esignRequest));
+      expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+    } finally {
+      await adminDb.delete(esignRequest).where(eq(esignRequest.id, er!.id));
+    }
   });
 });
