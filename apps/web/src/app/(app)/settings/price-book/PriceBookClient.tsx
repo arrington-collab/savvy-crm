@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { updatePriceBookItem } from "@/lib/price-book-queries";
+import { updatePriceBookItem } from "@/lib/price-book-actions";
 import type { listPriceBook } from "@/lib/price-book-queries";
 
 type PriceBookRow = Awaited<ReturnType<typeof listPriceBook>>[number];
