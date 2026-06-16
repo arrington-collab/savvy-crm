@@ -5,3 +5,4 @@ export { stripeGateway, makeFakeStripe, type StripeGateway, type StripeEventLite
 export { nangoProxy, getNangoConnection } from "./nango";
 export { nangoQbo, makeFakeQbo, type QboGateway } from "./qbo";
 export { r2Storage, makeFakeStorage, type StorageGateway } from "./storage";
+export { docusealGateway, makeFakeDocuseal, type DocusealGateway } from "./docuseal";
