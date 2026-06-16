@@ -15,3 +15,4 @@ export * from "./estimate";
 export * from "./price-book";
 export * from "./billing-bands";
 export * from "./billing";
+export * from "./velocity";
