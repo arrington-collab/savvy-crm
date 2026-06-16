@@ -15,7 +15,9 @@ const BASE = () => process.env.DOCUSEAL_BASE_URL ?? "https://api.docuseal.com";
 
 function hmacVerify(rawBody: string, signature: string | null): boolean {
   const secret = process.env.DOCUSEAL_WEBHOOK_SECRET;
-  if (!secret) return true; // no secret configured -> verification disabled (dev/test)
+  // Fail CLOSED in production if the secret is missing; allow only in dev/test
+  // (so the fake-first e2e works without configuring a secret).
+  if (!secret) return process.env.NODE_ENV !== "production";
   if (!signature) return false;
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   const a = Buffer.from(expected);

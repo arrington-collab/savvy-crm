@@ -29,6 +29,17 @@ describe("verifyWebhook", () => {
     expect(ds.verifyWebhook("{}", null)).toBe(true);
   });
 
+  it("fails closed when no secret is configured in production", () => {
+    const prev = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      const ds = makeFakeDocuseal();
+      expect(ds.verifyWebhook("{}", null)).toBe(false);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
   it("requires a valid HMAC signature when a secret is set", () => {
     process.env.DOCUSEAL_WEBHOOK_SECRET = "shh";
     const ds = makeFakeDocuseal();
