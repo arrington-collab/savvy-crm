@@ -10,6 +10,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toggleTask } from "@/lib/job-actions";
+import { DocsPanel, type DocRow } from "./DocsPanel";
 
 type TaskRow = {
   id: string;
@@ -96,10 +97,16 @@ export function JobTabs({
   tasksByPhase,
   timeline,
   comms,
+  docs,
+  requiredPhotos,
+  jobId,
 }: {
   tasksByPhase: { phase: string; tasks: TaskRow[] }[];
   timeline: TimelineItem[];
   comms: CommRow[];
+  docs: DocRow[];
+  requiredPhotos: string[];
+  jobId: string;
 }) {
   return (
     <Tabs defaultValue="tasks">
@@ -180,16 +187,11 @@ export function JobTabs({
       </TabsContent>
 
       <TabsContent value="docs">
-        <div className="space-y-3 text-center">
-          <p className="text-sm text-muted-foreground">No documents yet</p>
-          <button
-            type="button"
-            disabled
-            className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground opacity-50"
-          >
-            Upload — coming in Phase 6
-          </button>
-        </div>
+        <DocsPanel
+          jobId={jobId}
+          documents={docs}
+          requiredPhotos={requiredPhotos}
+        />
       </TabsContent>
     </Tabs>
   );

@@ -7,12 +7,15 @@ import {
   communication,
   jobStageEvent,
   auditLog,
+  document,
+  tenant,
   eq,
   and,
   desc,
   asc,
   sql,
 } from "@savvy/db";
+import { parseProductionConfig } from "@savvy/core";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
@@ -103,7 +106,25 @@ export default async function JobDetailPage({
       .where(and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id)))
       .orderBy(desc(auditLog.createdAt));
 
-    return { jobRow, taskRows, commRows, stageEvents, audits };
+    const docRows = await tx
+      .select({
+        id: document.id,
+        kind: document.kind,
+        label: document.label,
+        filename: document.filename,
+        mime: document.mime,
+        createdAt: document.createdAt,
+      })
+      .from(document)
+      .where(eq(document.jobId, id))
+      .orderBy(desc(document.createdAt));
+
+    const [tenantRow] = await tx
+      .select({ settings: tenant.settings })
+      .from(tenant)
+      .where(eq(tenant.id, tenantId));
+
+    return { jobRow, taskRows, commRows, stageEvents, audits, docRows, tenantRow };
   });
 
   if (!data) {
@@ -114,7 +135,7 @@ export default async function JobDetailPage({
     );
   }
 
-  const { jobRow, taskRows, commRows, stageEvents, audits } = data;
+  const { jobRow, taskRows, commRows, stageEvents, audits, docRows, tenantRow } = data;
 
   // Build merged timeline (server-side), dates serialized to ISO strings.
   type TimelineItem = { kind: "stage" | "comm" | "audit"; at: string; text: string };
@@ -176,6 +197,24 @@ export default async function JobDetailPage({
     createdAt: c.createdAt.toISOString(),
   }));
 
+  // Serialize document dates to ISO strings for client props
+  const docs = docRows.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    label: d.label,
+    filename: d.filename,
+    mime: d.mime,
+    createdAt: d.createdAt.toISOString(),
+  }));
+
+  // Parse required-photo config from tenant settings and pick the job's type
+  const productionConfig = parseProductionConfig(
+    (tenantRow?.settings as { production?: unknown } | undefined)?.production,
+  );
+  const requiredPhotos =
+    productionConfig.requiredPhotos[jobRow.type as keyof typeof productionConfig.requiredPhotos] ??
+    [];
+
   const value = (jobRow.valueEstimate ?? 0) / 100;
 
   return (
@@ -216,7 +255,14 @@ export default async function JobDetailPage({
         </div>
       </Card>
 
-      <JobTabs tasksByPhase={tasksByPhase} timeline={timeline} comms={comms} />
+      <JobTabs
+        tasksByPhase={tasksByPhase}
+        timeline={timeline}
+        comms={comms}
+        docs={docs}
+        requiredPhotos={requiredPhotos}
+        jobId={jobRow.id}
+      />
     </div>
   );
 }

@@ -1,9 +1,19 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { job, jobTask, jobStageEvent, auditLog } from "../schema/index";
+import { job, jobTask, jobStageEvent, auditLog, document, tenant } from "../schema/index";
 import { db } from "../client";
-import type { JobStage, Agent } from "@savvy/core";
+import type { JobStage, Agent, JobType } from "@savvy/core";
+import { parseProductionConfig, missingRequiredPhotos } from "@savvy/core";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export class IncompletePhotosError extends Error {
+  missing: string[];
+  constructor(missing: string[]) {
+    super("incomplete_photos");
+    this.name = "IncompletePhotosError";
+    this.missing = missing;
+  }
+}
 
 const DUE_DAYS = 3; // Phase 2 default SLA offset for activated tasks
 
@@ -17,6 +27,20 @@ export async function recordStageChange(
   tx: Tx,
   opts: { tenantId: string; jobId: string; toStage: JobStage; byUserId?: string | null; byAgent?: Agent | null; now?: Date },
 ): Promise<{ activated: number; fromStage: JobStage | null }> {
+  if (opts.toStage === "complete") {
+    const [j] = await tx.select({ type: job.type }).from(job).where(eq(job.id, opts.jobId));
+    const [t] = await tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, opts.tenantId));
+    const cfg = parseProductionConfig((t?.settings as { production?: unknown } | undefined)?.production);
+    const required = cfg.requiredPhotos[(j?.type ?? "retail") as JobType] ?? [];
+    if (required.length > 0) {
+      const rows = await tx.selectDistinct({ label: document.label }).from(document)
+        .where(and(eq(document.jobId, opts.jobId), eq(document.kind, "photo")));
+      const present = rows.map((r) => r.label).filter((x): x is string => !!x);
+      const missing = missingRequiredPhotos(required, present);
+      if (missing.length > 0) throw new IncompletePhotosError(missing);
+    }
+  }
+
   const now = opts.now ?? new Date();
   const [current] = await tx.select({ stage: job.stage }).from(job).where(eq(job.id, opts.jobId));
   const fromStage = (current?.stage ?? null) as JobStage | null;

@@ -1,5 +1,11 @@
 "use server";
-import { withTenant, recordStageChange, jobTask, eq } from "@savvy/db";
+import {
+  withTenant,
+  recordStageChange,
+  IncompletePhotosError,
+  jobTask,
+  eq,
+} from "@savvy/db";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import type { JobStage } from "@savvy/core";
@@ -7,11 +13,17 @@ import type { JobStage } from "@savvy/core";
 export async function moveJobToStage(
   jobId: string,
   toStage: JobStage,
-): Promise<{ ok: true }> {
+): Promise<{ ok: true } | { error: "missing_photos"; missing: string[] }> {
   const tenantId = await getTenantId();
-  await withTenant(tenantId, (tx) =>
-    recordStageChange(tx, { tenantId, jobId, toStage }),
-  );
+  try {
+    await withTenant(tenantId, (tx) =>
+      recordStageChange(tx, { tenantId, jobId, toStage }),
+    );
+  } catch (e) {
+    if (e instanceof IncompletePhotosError)
+      return { error: "missing_photos", missing: e.missing };
+    throw e;
+  }
   revalidatePath("/jobs");
   return { ok: true };
 }

@@ -4,4 +4,4 @@ export { nangoGcal, makeFakeCalendarSync, type CalendarSync } from "./gcal";
 export { stripeGateway, makeFakeStripe, type StripeGateway, type StripeEventLite } from "./stripe";
 export { nangoProxy, getNangoConnection } from "./nango";
 export { nangoQbo, makeFakeQbo, type QboGateway } from "./qbo";
-// Stubs for later phases (R2, DocuSeal, Roofr) added per-phase.
+export { r2Storage, makeFakeStorage, type StorageGateway } from "./storage";
