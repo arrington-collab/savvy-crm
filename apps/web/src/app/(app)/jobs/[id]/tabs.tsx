@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toggleTask } from "@/lib/job-actions";
 import { DocsPanel, type DocRow } from "./DocsPanel";
+import { EsignPanel, type EsignRow } from "./EsignPanel";
 
 type TaskRow = {
   id: string;
@@ -100,6 +101,8 @@ export function JobTabs({
   docs,
   requiredPhotos,
   jobId,
+  esignRequests,
+  customerEmail,
 }: {
   tasksByPhase: { phase: string; tasks: TaskRow[] }[];
   timeline: TimelineItem[];
@@ -107,6 +110,8 @@ export function JobTabs({
   docs: DocRow[];
   requiredPhotos: string[];
   jobId: string;
+  esignRequests: EsignRow[];
+  customerEmail: string | null;
 }) {
   return (
     <Tabs defaultValue="tasks">
@@ -115,6 +120,7 @@ export function JobTabs({
         <TabsTrigger value="timeline">Timeline</TabsTrigger>
         <TabsTrigger value="comms">Comms</TabsTrigger>
         <TabsTrigger value="docs">Docs</TabsTrigger>
+        <TabsTrigger value="esign">E-sign</TabsTrigger>
       </TabsList>
 
       <TabsContent value="tasks">
@@ -192,6 +198,10 @@ export function JobTabs({
           documents={docs}
           requiredPhotos={requiredPhotos}
         />
+      </TabsContent>
+
+      <TabsContent value="esign">
+        <EsignPanel jobId={jobId} customerEmail={customerEmail} requests={esignRequests} />
       </TabsContent>
     </Tabs>
   );
