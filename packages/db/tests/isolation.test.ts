@@ -5,6 +5,7 @@ import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
 import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
 import { commission, invoice } from "../src/schema/finance.js";
+import { priceBookItem } from "../src/schema/pricing.js";
 
 let tenantAId: string;
 let tenantBId: string;
@@ -65,6 +66,12 @@ beforeAll(async () => {
     })
     .returning();
   commissionBId = comm!.id;
+
+  // Give tenant B a price book item so A has something it must NOT see.
+  await adminDb.insert(priceBookItem).values({
+    tenantId: b!.id, key: "field-shingles", name: "B shingles", category: "material",
+    unit: "square", unitPriceCents: 12000, sourceFields: ["squares"], wasteApplies: true,
+  });
 });
 
 afterAll(async () => {
@@ -73,6 +80,7 @@ afterAll(async () => {
   await adminDb.delete(drip).where(eq(drip.tenantId, tenantBId));
   await adminDb.delete(messageTemplate).where(eq(messageTemplate.tenantId, tenantBId));
   await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tenantBId));
+  await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tenantBId));
   // commission -> invoice must go before job/customer (FK chain)
   await adminDb.delete(commission).where(eq(commission.tenantId, tenantBId));
   await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantBId));
@@ -137,6 +145,11 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
 
   it("SELECT on commission is tenant-scoped (A cannot see B's commissions)", async () => {
     const rows = await withTenant(tenantAId, (tx) => tx.select().from(commission));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on price_book_item is tenant-scoped (A cannot see B's price book)", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(priceBookItem));
     expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });
