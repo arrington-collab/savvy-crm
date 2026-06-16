@@ -60,12 +60,13 @@ export function generateEstimateLineItems(input: {
     }
     qty = roundUpToPack(qty, item.packSize);
 
-    let amountCents = Math.round(qty * item.unitPriceCents);
     let pitchSurchargePct: number | undefined;
+    let surchargeMult = 1;
     if (item.category === "labor" && tier.laborSurchargePct > 0) {
       pitchSurchargePct = tier.laborSurchargePct;
-      amountCents = Math.round(amountCents * (1 + tier.laborSurchargePct / 10_000));
+      surchargeMult = 1 + tier.laborSurchargePct / 10_000;
     }
+    const amountCents = Math.round(qty * item.unitPriceCents * surchargeMult);
 
     lineItems.push({
       key: item.key, name: item.name, category: item.category, unit: item.unit,
