@@ -23,6 +23,7 @@ type Events = {
   "measurement/ready": { data: { tenantId: string; jobId: string; measurementId: string } };
   "estimate/send.requested": { data: { tenantId: string; estimateId: string } };
   "estimate/accepted": { data: { tenantId: string; estimateId: string } };
+  "change_order/accepted": { data: { changeOrderId: string; tenantId: string } };
 };
 
 export const inngest = new Inngest({

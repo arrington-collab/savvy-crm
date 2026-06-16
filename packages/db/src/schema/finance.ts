@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, jsonb, index, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
@@ -81,5 +81,31 @@ export const commission = pgTable("commission", {
   // Idempotency key: one commission per paid invoice. A redelivered invoice/paid
   // event hits this and is deduped (onConflictDoNothing) — never double-pays.
   uniqueIndex("commission_tenant_invoice_uniq").on(t.tenantId, t.invoiceId),
+  tenantIsolation(),
+]);
+
+// Change orders (Phase 6C). A priced mid-production delta on a job, signed via
+// DocuSeal. docusealSubmissionId is globally unique within the single Savvy
+// instance; the (tenant, submission) unique index makes the webhook idempotent.
+export const changeOrder = pgTable("change_order", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  customerId: uuid("customer_id").notNull().references(() => customer.id),
+  reason: text("reason"),
+  status: text("status").notNull().default("draft"), // draft|sent|approved|declined|voided
+  lineItems: jsonb("line_items").$type<unknown[]>().default([]).notNull(),
+  subtotal: integer("subtotal"),
+  total: integer("total"),
+  docusealSubmissionId: text("docuseal_submission_id"),
+  signingUrl: text("signing_url"),
+  invoiceId: uuid("invoice_id").references(() => invoice.id),
+  applied: boolean("applied").notNull().default(false),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  index("change_order_tenant_job_idx").on(t.tenantId, t.jobId),
+  uniqueIndex("change_order_submission_uniq").on(t.tenantId, t.docusealSubmissionId),
   tenantIsolation(),
 ]);

@@ -32,6 +32,7 @@ export default defineConfig({
       // "no_template". No webhook secret => verifyWebhook skips HMAC in dev.
       DOCUSEAL_TEMPLATE_LIEN_WAIVER: "1",
       DOCUSEAL_TEMPLATE_CERT: "2",
+      DOCUSEAL_TEMPLATE_CHANGE_ORDER: "3",
       NEXT_TELEMETRY_DISABLED: "1",
     },
   },
