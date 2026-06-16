@@ -13,3 +13,4 @@ export * from "./measurement";
 export * from "./estimate-engine";
 export * from "./estimate";
 export * from "./price-book";
+export * from "./billing-bands";
