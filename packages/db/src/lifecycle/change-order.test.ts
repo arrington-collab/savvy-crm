@@ -88,6 +88,7 @@ describe("approveChangeOrder", () => {
     expect(invs.length).toBe(1);
     expect(invs[0]!.amountDue).toBe(25000);
     expect(invs[0]!.status).toBe("draft");
+    expect(r1.invoiceId).toBe(invs[0]!.id);
     const [coAfter] = await adminDb.select().from(changeOrder).where(eq(changeOrder.id, co.id));
     expect(coAfter!.applied).toBe(true);
     expect(coAfter!.invoiceId).toBe(invs[0]!.id);

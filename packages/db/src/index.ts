@@ -28,3 +28,4 @@ export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration } from "./lifecycle/voice";
+export { recordAgentRun, type AgentRunStatus } from "./lifecycle/agent-run";
