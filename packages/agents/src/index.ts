@@ -7,6 +7,8 @@ import { appointmentReminders } from "./functions/appointment-reminders";
 import { dunningRun } from "./functions/dunning";
 import { commissionOnPaid } from "./functions/commission";
 import { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
+import { roofrOrderMeasurement } from "./functions/roofr-order";
+import { generateEstimateOnMeasurement } from "./functions/estimate-generate";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -18,4 +20,6 @@ export { appointmentReminders } from "./functions/appointment-reminders";
 export { dunningRun } from "./functions/dunning";
 export { commissionOnPaid } from "./functions/commission";
 export { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment];
+export { roofrOrderMeasurement } from "./functions/roofr-order";
+export { generateEstimateOnMeasurement } from "./functions/estimate-generate";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, roofrOrderMeasurement, generateEstimateOnMeasurement];
