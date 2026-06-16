@@ -11,7 +11,7 @@ describe("price_book_item", () => {
         tenantId, key: "field-shingles", name: "Field shingles", category: "material",
         unit: "square", unitPriceCents: 12000, sourceFields: ["squares"], wasteApplies: true,
       }).returning();
-      return r;
+      return r!;
     });
     expect(row.wasteApplies).toBe(true);
     expect(row.sourceFields).toEqual(["squares"]);
