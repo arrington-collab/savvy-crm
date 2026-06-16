@@ -18,3 +18,4 @@ export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";
 export * from "./rep-performance";
+export * from "./change-order";
