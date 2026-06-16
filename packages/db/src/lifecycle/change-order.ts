@@ -77,10 +77,10 @@ export async function markChangeOrderBySubmission(input: {
 export async function approveChangeOrder(input: {
   tenantId: string;
   changeOrderId: string;
-}): Promise<{ invoiceCreated: boolean }> {
+}): Promise<{ invoiceCreated: boolean; invoiceId: string | null }> {
   return withTenant(input.tenantId, async (tx) => {
     const [co] = await tx.select().from(changeOrder).where(eq(changeOrder.id, input.changeOrderId));
-    if (!co || co.applied) return { invoiceCreated: false };
+    if (!co || co.applied) return { invoiceCreated: false, invoiceId: co?.invoiceId ?? null };
     const total = co.total ?? 0;
 
     // Atomic add in SQL so concurrent change orders on the same job can't lose a
@@ -107,6 +107,6 @@ export async function approveChangeOrder(input: {
     }
 
     await tx.update(changeOrder).set({ applied: true, invoiceId }).where(eq(changeOrder.id, co.id));
-    return { invoiceCreated: invoiceId !== null };
+    return { invoiceCreated: invoiceId !== null, invoiceId };
   });
 }
