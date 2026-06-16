@@ -9,7 +9,7 @@ import { getTenantId } from "./tenant";
 
 type SendResult =
   | { ok: true; requestId: string; signingUrl: string }
-  | { error: "bad_doc_type" | "not_found" | "no_customer_email" | "docuseal_failed" };
+  | { error: "bad_doc_type" | "not_found" | "no_customer_email" | "no_template" | "docuseal_failed" };
 
 export async function sendForSignature(input: { jobId: string; docType: EsignDocType }): Promise<SendResult> {
   if (!ESIGN_DOC_TYPE.includes(input.docType)) return { error: "bad_doc_type" };
@@ -43,6 +43,8 @@ export async function sendForSignature(input: { jobId: string; docType: EsignDoc
       ? process.env.DOCUSEAL_TEMPLATE_LIEN_WAIVER ?? ""
       : process.env.DOCUSEAL_TEMPLATE_CERT ?? "";
   const templateId = resolveEsignTemplate(cfg, input.docType, fallback);
+  // No tenant override and no env fallback → DocuSeal template isn't set up yet.
+  if (!templateId) return { error: "no_template" };
 
   const amountCents = ctx.j.valueFinal ?? ctx.j.valueEstimate ?? null;
   const amount = amountCents != null ? `$${(amountCents / 100).toFixed(2)}` : "";
