@@ -10,6 +10,7 @@ import { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
 import { roofrOrderMeasurement } from "./functions/roofr-order";
 import { generateEstimateOnMeasurement } from "./functions/estimate-generate";
 import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
+import { meterUsageMonthly } from "./functions/meter-usage";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -24,4 +25,5 @@ export { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
 export { roofrOrderMeasurement } from "./functions/roofr-order";
 export { generateEstimateOnMeasurement } from "./functions/estimate-generate";
 export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob];
+export { meterUsageMonthly } from "./functions/meter-usage";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly];
