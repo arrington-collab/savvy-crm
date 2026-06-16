@@ -57,6 +57,13 @@
       "when": 1781593277288,
       "tag": "0007_skinny_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781624413907,
+      "tag": "0008_aberrant_bushwacker",
+      "breakpoints": true
     }
   ]
 }

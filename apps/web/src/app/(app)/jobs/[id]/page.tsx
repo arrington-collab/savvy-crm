@@ -8,6 +8,7 @@ import {
   jobStageEvent,
   auditLog,
   document,
+  esignRequest,
   tenant,
   eq,
   and,
@@ -126,12 +127,24 @@ export default async function JobDetailPage({
       .where(eq(document.jobId, id))
       .orderBy(desc(document.createdAt));
 
+    const esignRows = await tx
+      .select({
+        id: esignRequest.id,
+        docType: esignRequest.docType,
+        status: esignRequest.status,
+        signingUrl: esignRequest.signingUrl,
+        documentId: esignRequest.documentId,
+      })
+      .from(esignRequest)
+      .where(eq(esignRequest.jobId, id))
+      .orderBy(desc(esignRequest.createdAt));
+
     const [tenantRow] = await tx
       .select({ settings: tenant.settings })
       .from(tenant)
       .where(eq(tenant.id, tenantId));
 
-    return { jobRow, taskRows, commRows, stageEvents, audits, docRows, tenantRow };
+    return { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow };
   });
 
   if (!data) {
@@ -142,7 +155,7 @@ export default async function JobDetailPage({
     );
   }
 
-  const { jobRow, taskRows, commRows, stageEvents, audits, docRows, tenantRow } = data;
+  const { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow } = data;
 
   // Build merged timeline (server-side), dates serialized to ISO strings.
   type TimelineItem = { kind: "stage" | "comm" | "audit"; at: string; text: string };
@@ -298,6 +311,8 @@ export default async function JobDetailPage({
         docs={docs}
         requiredPhotos={requiredPhotos}
         jobId={jobRow.id}
+        esignRequests={esignRows}
+        customerEmail={jobRow.customerEmail ?? null}
       />
 
       {/* Estimates section */}

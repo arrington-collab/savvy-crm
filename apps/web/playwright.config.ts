@@ -26,6 +26,12 @@ export default defineConfig({
       DATABASE_ADMIN_URL: process.env.DATABASE_ADMIN_URL ?? "postgres://postgres:postgres@localhost:5432/savvy",
       APP_BASE_URL: "http://localhost:3000",
       TWILIO_FROM: "+15555550000",
+      // Phase 6B closeout e-sign: leave DOCUSEAL_API_KEY unset so the send uses the
+      // fake gateway (same fail-soft pattern as estimate signing). The template ids
+      // just need to be non-empty so sendForSignature doesn't short-circuit on
+      // "no_template". No webhook secret => verifyWebhook skips HMAC in dev.
+      DOCUSEAL_TEMPLATE_LIEN_WAIVER: "1",
+      DOCUSEAL_TEMPLATE_CERT: "2",
       NEXT_TELEMETRY_DISABLED: "1",
     },
   },

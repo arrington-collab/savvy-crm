@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { makeFakeDocuseal } from "./docuseal";
 
 describe("makeFakeDocuseal", () => {
-  it("creates a submission and parses a completed event", async () => {
+  it("creates an estimate submission and parses a completed event", async () => {
     const ds = makeFakeDocuseal();
     const { submissionId, signUrl } = await ds.createSubmission({ estimateId: "e1", signerEmail: "x@y.com", total: 500000 });
     expect(submissionId).toMatch(/^ds_sub_/);
@@ -16,6 +16,26 @@ describe("makeFakeDocuseal", () => {
     const ds = makeFakeDocuseal();
     expect(ds.parseEvent({ event_type: "form.completed", data: {} })).toBeNull();
     expect(ds.parseEvent({ event_type: "form.viewed", data: { submission_id: "x" } })).toEqual({ submissionId: "x", status: "other" });
+  });
+
+  it("creates a closeout submission (lien waiver / cert) and records the call", async () => {
+    const ds = makeFakeDocuseal();
+    const r = await ds.createClosoutSubmission({
+      templateId: "tpl_1",
+      signer: { name: "Jane", email: "jane@x.com" },
+      fields: [{ name: "customer_name", default_value: "Jane" }],
+      metadata: { tenantId: "t1", jobId: "j1", docType: "cert" },
+    });
+    expect(r.submissionId).toMatch(/^ds_sub_/);
+    expect(r.signingUrl).toContain(r.submissionId);
+    expect(ds.calls).toContain(r.submissionId);
+  });
+
+  it("downloadSignedPdf returns PDF-magic bytes", async () => {
+    const ds = makeFakeDocuseal();
+    const { bytes, mime } = await ds.downloadSignedPdf({ submissionId: "ds_sub_x" });
+    expect(mime).toBe("application/pdf");
+    expect(Array.from(bytes.slice(0, 4))).toEqual([37, 80, 68, 70]); // %PDF
   });
 });
 

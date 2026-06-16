@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, test, expect } from "vitest";
 import { makeFakeStorage } from "./storage";
 
 describe("makeFakeStorage", () => {
@@ -10,4 +10,10 @@ describe("makeFakeStorage", () => {
     expect(dn.url).toContain("sig=get");
     expect(s.calls.map((c) => c.op)).toEqual(["upload", "download"]);
   });
+});
+
+test("makeFakeStorage.putObject records the call", async () => {
+  const s = makeFakeStorage();
+  await s.putObject({ key: "t/j/file.pdf", bytes: new Uint8Array([1, 2, 3]), contentType: "application/pdf" });
+  expect(s.calls).toContainEqual({ op: "put", key: "t/j/file.pdf" });
 });
