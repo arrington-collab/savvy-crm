@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document } from "../src/schema/index.js";
 import { commission, invoice } from "../src/schema/finance.js";
 
 let tenantAId: string;
@@ -12,6 +12,7 @@ let custBId: string;
 let propBId: string;
 let jobBId: string;
 let commissionBId: string;
+let documentBId: string;
 
 beforeAll(async () => {
   // Seed two isolated tenants directly via the admin (RLS-bypassing) connection.
@@ -65,6 +66,19 @@ beforeAll(async () => {
     })
     .returning();
   commissionBId = comm!.id;
+
+  // Give tenant B a document (on B's job) so A has something it must NOT see.
+  const [doc] = await adminDb
+    .insert(document)
+    .values({
+      tenantId: b!.id,
+      jobId: jb!.id,
+      kind: "contract",
+      r2Key: "test/b-doc.pdf",
+      source: "upload",
+    })
+    .returning();
+  documentBId = doc!.id;
 });
 
 afterAll(async () => {
@@ -76,6 +90,8 @@ afterAll(async () => {
   // commission -> invoice must go before job/customer (FK chain)
   await adminDb.delete(commission).where(eq(commission.tenantId, tenantBId));
   await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantBId));
+  // document references job + tenant; must go before job delete
+  await adminDb.delete(document).where(eq(document.tenantId, tenantBId));
   await adminDb.delete(user).where(eq(user.tenantId, tenantBId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
@@ -137,6 +153,11 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
 
   it("SELECT on commission is tenant-scoped (A cannot see B's commissions)", async () => {
     const rows = await withTenant(tenantAId, (tx) => tx.select().from(commission));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on document is tenant-scoped (A cannot see B's documents)", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(document));
     expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 });
