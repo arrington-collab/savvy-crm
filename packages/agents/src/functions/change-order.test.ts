@@ -55,6 +55,21 @@ describe("autoSendSupplementalInvoice", () => {
     expect(invs.length).toBe(1);
   });
 
+  it("does not send (no Stripe call) when the invoice amount is non-positive", async () => {
+    const { tenantId, jobId, changeOrderId } = await seed(50000);
+    await adminDb.update(tenant).set({ stripeAccountId: "acct_test" }).where(eq(tenant.id, tenantId));
+    const applied = await applyAcceptedChangeOrder(tenantId, changeOrderId);
+    // Force a non-positive amount on the draft invoice.
+    await adminDb.update(invoice).set({ amountDue: 0 }).where(eq(invoice.id, applied.invoiceId!));
+
+    const fake = makeFakeStripe();
+    const res = await autoSendSupplementalInvoice({ tenantId, invoiceId: applied.invoiceId }, { stripe: fake });
+    expect(res).toEqual({ sent: false, reason: "already-sent" });
+    expect(fake.calls.some((c) => c.op === "checkout")).toBe(false);
+    const [inv] = await adminDb.select().from(invoice).where(eq(invoice.jobId, jobId));
+    expect(inv!.status).toBe("sent"); // sendInvoice already flipped it; we just don't charge $0
+  });
+
   it("skips (no throw) when the tenant has no Stripe account; logs finance/skipped", async () => {
     const { tenantId, jobId, changeOrderId } = await seed(50000);
     const applied = await applyAcceptedChangeOrder(tenantId, changeOrderId);

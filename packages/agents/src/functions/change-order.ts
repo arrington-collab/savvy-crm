@@ -48,6 +48,13 @@ export async function autoSendSupplementalInvoice(
 
   const sent = await sendInvoice({ tenantId, invoiceId }); // number + draft->sent (atomic)
 
+  // sendInvoice's UPDATE is WHERE status='draft'; a concurrent run may have already
+  // flipped it (row undefined at runtime despite the non-null type), and a supplemental
+  // invoice must have a positive amount to charge. Either way: don't call Stripe.
+  if (!sent || (sent.amountDue ?? 0) <= 0) {
+    return { sent: false, reason: "already-sent" };
+  }
+
   const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
   const session = await stripe.createCheckoutSession({
     connectedAccountId: ctx.accountId,
