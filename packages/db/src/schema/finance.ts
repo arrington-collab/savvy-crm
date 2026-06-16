@@ -17,6 +17,13 @@ export const estimate = pgTable("estimate", {
   tax: integer("tax"),
   total: integer("total"),
   esxUrl: text("esx_url"),
+  measurementId: uuid("measurement_id"),
+  wastePctUsed: integer("waste_pct_used"),
+  pitchTierApplied: text("pitch_tier_applied"),
+  upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  docusealSubmissionId: text("docuseal_submission_id"),
   createdAt: createdAt(),
 }, (t) => [index("estimate_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
 

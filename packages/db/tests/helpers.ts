@@ -42,3 +42,19 @@ export async function makeJobWithCustomer(tenantId: string): Promise<{ jobId: st
     .returning();
   return { jobId: j!.id, customerId: c!.id };
 }
+
+export async function makeJobWithProperty(tenantId: string): Promise<{ jobId: string; customerId: string; propertyId: string }> {
+  const [c] = await adminDb
+    .insert(customer)
+    .values({ tenantId, name: "Test Customer" })
+    .returning();
+  const [p] = await adminDb
+    .insert(property)
+    .values({ tenantId, customerId: c!.id, address: "1 Test St" })
+    .returning();
+  const [j] = await adminDb
+    .insert(job)
+    .values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead" })
+    .returning();
+  return { jobId: j!.id, customerId: c!.id, propertyId: p!.id };
+}

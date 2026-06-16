@@ -22,3 +22,5 @@ export * from "./schema/index";
 // single drizzle-orm instance (avoids duplicate-instance type mismatches where
 // the app's own `eq` doesn't match @savvy/db's columns).
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull } from "drizzle-orm";
+export { ensurePriceBook } from "./lifecycle/price-book";
+export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
