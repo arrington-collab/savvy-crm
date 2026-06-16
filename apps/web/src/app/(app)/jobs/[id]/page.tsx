@@ -262,7 +262,6 @@ export default async function JobDetailPage({
         docs={docs}
         requiredPhotos={requiredPhotos}
         jobId={jobRow.id}
-        jobType={jobRow.type}
       />
     </div>
   );

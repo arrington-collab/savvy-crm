@@ -18,7 +18,6 @@ export interface DocRow {
 
 interface Props {
   jobId: string;
-  jobType: string;
   documents: DocRow[];
   requiredPhotos: string[];
 }
@@ -116,50 +115,53 @@ export function DocsPanel({ jobId, documents, requiredPhotos }: Props) {
     if (!f) return;
 
     startBusy(async () => {
-      const pre = await presignDocumentUpload({
-        jobId,
-        kind: selectedKind,
-        label: selectedLabel,
-        filename: f.name,
-        contentType: f.type,
-      });
+      try {
+        const pre = await presignDocumentUpload({
+          jobId,
+          kind: selectedKind,
+          label: selectedLabel,
+          filename: f.name,
+          contentType: f.type,
+        });
 
-      if (!("ok" in pre)) {
-        toast.error(
-          pre.error === "storage_not_configured"
-            ? "Storage is not configured — set R2 env vars."
-            : "Job not found.",
-        );
-        return;
-      }
+        if (!("ok" in pre)) {
+          toast.error(
+            pre.error === "storage_not_configured"
+              ? "Storage is not configured — set R2 env vars."
+              : "Job not found.",
+          );
+          return;
+        }
 
-      const put = await fetch(pre.uploadUrl, {
-        method: "PUT",
-        body: f,
-        headers: { "Content-Type": f.type },
-      });
-      if (!put.ok) {
-        toast.error("Upload failed — please try again.");
-        return;
-      }
+        const put = await fetch(pre.uploadUrl, {
+          method: "PUT",
+          body: f,
+          headers: { "Content-Type": f.type },
+        });
+        if (!put.ok) {
+          toast.error("Upload failed — please try again.");
+          return;
+        }
 
-      const rec = await recordDocument({
-        jobId,
-        r2Key: pre.r2Key,
-        kind: selectedKind,
-        label: selectedLabel,
-        filename: f.name,
-        mime: f.type,
-        sizeBytes: f.size,
-      });
+        const rec = await recordDocument({
+          jobId,
+          r2Key: pre.r2Key,
+          kind: selectedKind,
+          label: selectedLabel,
+          filename: f.name,
+          mime: f.type,
+          sizeBytes: f.size,
+        });
 
-      if ("ok" in rec) {
-        toast.success("Document saved.");
-        // Reset file input so the same file can be re-selected if needed
+        if ("ok" in rec) {
+          toast.success("Document saved.");
+          router.refresh();
+        } else {
+          toast.error(`Could not save document record (${rec.error}).`);
+        }
+      } finally {
+        // Reset file input on success or failure so stale filename is not retained
         if (fileRef.current) fileRef.current.value = "";
-        router.refresh();
-      } else {
-        toast.error(`Could not save document record (${rec.error}).`);
       }
     });
   }

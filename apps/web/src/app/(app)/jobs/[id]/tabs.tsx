@@ -100,7 +100,6 @@ export function JobTabs({
   docs,
   requiredPhotos,
   jobId,
-  jobType,
 }: {
   tasksByPhase: { phase: string; tasks: TaskRow[] }[];
   timeline: TimelineItem[];
@@ -108,7 +107,6 @@ export function JobTabs({
   docs: DocRow[];
   requiredPhotos: string[];
   jobId: string;
-  jobType: string;
 }) {
   return (
     <Tabs defaultValue="tasks">
@@ -191,7 +189,6 @@ export function JobTabs({
       <TabsContent value="docs">
         <DocsPanel
           jobId={jobId}
-          jobType={jobType}
           documents={docs}
           requiredPhotos={requiredPhotos}
         />
