@@ -20,10 +20,16 @@ export async function POST(req: Request) {
   if (url.searchParams.get("event") === "recording") {
     const recordingUrl = String(form.get("RecordingUrl") ?? "");
     const transcript = String(form.get("TranscriptionText") ?? "");
+    // CallDuration (seconds) is present when Twilio fires this as a statusCallback
+    // at call completion. For a plain <Record> action callback it is absent.
+    // Full duration capture requires configuring Twilio's statusCallback to POST
+    // here at call end — operational config, no new endpoint needed.
+    const callDuration = form.get("CallDuration");
     await withTenant(t.id, (tx) =>
       tx.insert(communication).values({
         tenantId: t.id, channel: "call", direction: "inbound", from,
         recordingUrl: recordingUrl || null, transcript: transcript || null, aiHandled: true,
+        durationSeconds: callDuration ? parseInt(String(callDuration), 10) : null,
       }),
     );
     await createLeadForTenant(t.id, { name: `Voicemail ${from}`, phone: from, address: "unknown", source: "after-hours-voicemail" });
