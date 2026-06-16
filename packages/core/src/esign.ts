@@ -6,8 +6,8 @@ export type EsignDocType = (typeof ESIGN_DOC_TYPE)[number];
 const esignSchema = z.object({
   templates: z
     .object({
-      lien_waiver: z.string().default(""),
-      cert: z.string().default(""),
+      lien_waiver: z.string().trim().default(""),
+      cert: z.string().trim().default(""),
     })
     .default({}),
 });
