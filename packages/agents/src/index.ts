@@ -7,6 +7,7 @@ import { appointmentReminders } from "./functions/appointment-reminders";
 import { dunningRun } from "./functions/dunning";
 import { commissionOnPaid } from "./functions/commission";
 import { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
+import { esignFinalize } from "./functions/esign-finalize";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -18,4 +19,5 @@ export { appointmentReminders } from "./functions/appointment-reminders";
 export { dunningRun } from "./functions/dunning";
 export { commissionOnPaid } from "./functions/commission";
 export { qboPushInvoice, qboPushPayment } from "./functions/qbo-sync";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment];
+export { esignFinalize } from "./functions/esign-finalize";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize];

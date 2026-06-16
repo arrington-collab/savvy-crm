@@ -18,6 +18,7 @@ type Events = {
   "invoice/sent": { data: { invoiceId: string; tenantId: string } };
   "invoice/paid": { data: { invoiceId: string; tenantId: string } };
   "invoice/void": { data: { invoiceId: string; tenantId: string } };
+  "esign/completed": { data: { requestId: string; tenantId: string } };
 };
 
 export const inngest = new Inngest({
