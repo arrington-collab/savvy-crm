@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, property } from "./crm";
@@ -33,3 +33,26 @@ export const measurement = pgTable("measurement", {
   costCents: integer("cost_cents"),
   createdAt: createdAt(),
 }, (t) => [index("measurement_tenant_idx").on(t.tenantId), tenantIsolation()]);
+
+// E-sign requests (Phase 6B). One row per lien-waiver/cert signature request.
+// docusealSubmissionId is globally unique within the single Savvy DocuSeal instance;
+// the (tenant, submission) unique index makes the webhook idempotent.
+export const esignRequest = pgTable("esign_request", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  customerId: uuid("customer_id").notNull().references(() => customer.id),
+  docType: text("doc_type").notNull(), // lien_waiver|cert
+  templateId: text("template_id").notNull(),
+  docusealSubmissionId: text("docuseal_submission_id").notNull(),
+  status: text("status").notNull().default("draft"), // draft|sent|completed|declined|voided
+  signingUrl: text("signing_url"),
+  documentId: uuid("document_id").references(() => document.id),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  index("esign_request_tenant_job_idx").on(t.tenantId, t.jobId),
+  uniqueIndex("esign_request_submission_uniq").on(t.tenantId, t.docusealSubmissionId),
+  tenantIsolation(),
+]);

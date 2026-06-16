@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 export interface StorageGateway {
   presignUpload(o: { key: string; contentType: string }): Promise<{ url: string }>;
   presignDownload(o: { key: string }): Promise<{ url: string }>;
+  putObject(o: { key: string; bytes: Uint8Array; contentType: string }): Promise<void>;
 }
 
 function r2Client(): S3Client {
@@ -38,6 +39,11 @@ export const r2Storage: StorageGateway = {
     );
     return { url };
   },
+  async putObject({ key, bytes, contentType }) {
+    await r2Client().send(
+      new PutObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key, Body: bytes, ContentType: contentType }),
+    );
+  },
 };
 
 export function makeFakeStorage(): StorageGateway & { calls: { op: string; key: string }[] } {
@@ -51,6 +57,9 @@ export function makeFakeStorage(): StorageGateway & { calls: { op: string; key: 
     async presignDownload({ key }) {
       calls.push({ op: "download", key });
       return { url: `https://fake-r2/${key}?sig=get` };
+    },
+    async putObject({ key }) {
+      calls.push({ op: "put", key });
     },
   };
 }
