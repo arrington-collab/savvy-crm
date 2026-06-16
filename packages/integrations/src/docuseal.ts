@@ -1,9 +1,27 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 export interface DocusealGateway {
   createSubmission(o: { estimateId: string; signerEmail: string; total: number }): Promise<{ submissionId: string; signUrl: string }>;
   parseEvent(payload: unknown): { submissionId: string; status: "completed" | "other" } | null;
+  /**
+   * Verifies a webhook's HMAC signature against the raw request body.
+   * Returns true when no `DOCUSEAL_WEBHOOK_SECRET` is configured (dev/test/fake);
+   * when a secret IS set, requires a valid signature.
+   */
+  verifyWebhook(rawBody: string, signature: string | null): boolean;
 }
 
 const BASE = () => process.env.DOCUSEAL_BASE_URL ?? "https://api.docuseal.com";
+
+function hmacVerify(rawBody: string, signature: string | null): boolean {
+  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET;
+  if (!secret) return true; // no secret configured -> verification disabled (dev/test)
+  if (!signature) return false;
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export const httpDocuseal: DocusealGateway = {
   async createSubmission({ estimateId, signerEmail }) {
@@ -27,6 +45,9 @@ export const httpDocuseal: DocusealGateway = {
     if (!submissionId) return null;
     return { submissionId, status: p.event_type === "form.completed" ? "completed" : "other" };
   },
+  verifyWebhook(rawBody, signature) {
+    return hmacVerify(rawBody, signature);
+  },
 };
 
 export function makeFakeDocuseal(): DocusealGateway & { calls: string[] } {
@@ -44,6 +65,9 @@ export function makeFakeDocuseal(): DocusealGateway & { calls: string[] } {
       const submissionId = String(p.data?.submission_id ?? "");
       if (!submissionId) return null;
       return { submissionId, status: p.event_type === "form.completed" ? "completed" : "other" };
+    },
+    verifyWebhook(rawBody, signature) {
+      return hmacVerify(rawBody, signature);
     },
   };
 }
