@@ -19,3 +19,4 @@ export * from "./billing";
 export * from "./velocity";
 export * from "./rep-performance";
 export * from "./change-order";
+export * from "./agent-activity";
