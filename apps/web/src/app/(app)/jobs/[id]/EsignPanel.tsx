@@ -53,8 +53,13 @@ export function EsignPanel({
   }
 
   async function copyLink(url: string) {
-    await navigator.clipboard.writeText(url);
-    toast.success("Signing link copied.");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Signing link copied.");
+    } catch {
+      // clipboard API rejects on non-HTTPS / denied permission
+      toast.error("Couldn't copy — copy the link manually.");
+    }
   }
 
   async function viewSigned(documentId: string) {
