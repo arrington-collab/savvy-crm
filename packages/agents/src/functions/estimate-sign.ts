@@ -1,6 +1,11 @@
 import { withTenant, eq, sql, estimate, job, customer, recordStageChange } from "@savvy/db";
-import { httpDocuseal, type DocusealGateway } from "@savvy/integrations";
+import { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "@savvy/integrations";
 import { inngest } from "../client";
+
+/** Real gateway when DocuSeal is configured; fake (fail-soft) otherwise (dev/e2e). */
+function defaultDocuseal(): DocusealGateway {
+  return process.env.DOCUSEAL_API_KEY ? httpDocuseal : makeFakeDocuseal();
+}
 
 /**
  * Creates a DocuSeal submission for an estimate and flips it to `sent`.
@@ -9,7 +14,7 @@ import { inngest } from "../client";
 export async function createEstimateSubmission(
   tenantId: string,
   estimateId: string,
-  gateway: DocusealGateway = httpDocuseal,
+  gateway: DocusealGateway = defaultDocuseal(),
 ): Promise<{ submissionId: string } | { skipped: true }> {
   return withTenant(tenantId, async (tx) => {
     const [est] = await tx.select().from(estimate).where(eq(estimate.id, estimateId));
