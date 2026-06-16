@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 
 export interface DocusealGateway {
   createSubmission(o: { estimateId: string; signerEmail: string; total: number }): Promise<{ submissionId: string; signUrl: string }>;
@@ -52,11 +52,12 @@ export const httpDocuseal: DocusealGateway = {
 
 export function makeFakeDocuseal(): DocusealGateway & { calls: string[] } {
   const calls: string[] = [];
-  let n = 0;
   return {
     calls,
     async createSubmission() {
-      const submissionId = `ds_sub_${++n}`;
+      // Globally unique so webhook lookups by submissionId never collide across
+      // estimates/runs (a per-instance counter would repeat "ds_sub_1").
+      const submissionId = `ds_sub_${randomUUID().replace(/-/g, "")}`;
       calls.push(submissionId);
       return { submissionId, signUrl: `https://docuseal.test/s/${submissionId}` };
     },
