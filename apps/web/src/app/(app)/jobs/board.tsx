@@ -145,7 +145,14 @@ export function Board({
 
     startTransition(async () => {
       try {
-        await moveJobToStage(jobId, toStage);
+        const result = await moveJobToStage(jobId, toStage);
+        if ("error" in result) {
+          setBoard(prevBoard);
+          toast.error(
+            `Can't mark complete — missing photos: ${result.missing.join(", ")}`,
+          );
+          return;
+        }
       } catch {
         setBoard(prevBoard);
         toast.error("Couldn't move job. Reverted.");
