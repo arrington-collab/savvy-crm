@@ -14,6 +14,7 @@ export {
 } from "./lifecycle/invoices";
 export { recordCommission } from "./lifecycle/commission";
 export { markEsignBySubmission } from "./lifecycle/esign";
+export { createChangeOrder, sendChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
 // (the Next.js app, agents) import `{ tenant, job }` from "@savvy/db" instead
