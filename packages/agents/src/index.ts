@@ -13,6 +13,7 @@ import { generateEstimateOnMeasurement } from "./functions/estimate-generate";
 import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
 import { meterUsageMonthly } from "./functions/meter-usage";
 import { coldArchiveDocuments } from "./functions/cold-archive";
+import { changeOrderAccepted } from "./functions/change-order";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -30,4 +31,5 @@ export { generateEstimateOnMeasurement } from "./functions/estimate-generate";
 export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./functions/estimate-sign";
 export { meterUsageMonthly } from "./functions/meter-usage";
 export { coldArchiveDocuments } from "./functions/cold-archive";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments];
+export { changeOrderAccepted } from "./functions/change-order";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted];
