@@ -1,5 +1,5 @@
 {
-  "id": "68c30122-a7d4-444d-b56e-83c75c4e3f13",
+  "id": "bd5adf94-e9a6-4ede-9e52-80821e7a9ee7",
   "prevId": "6dcf569e-157f-4a30-9856-35bfa9152c3b",
   "version": "7",
   "dialect": "postgresql",
@@ -2225,49 +2225,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "measurement_id": {
-          "name": "measurement_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "waste_pct_used": {
-          "name": "waste_pct_used",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pitch_tier_applied": {
-          "name": "pitch_tier_applied",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "upsell_suggestions": {
-          "name": "upsell_suggestions",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_at": {
-          "name": "accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "docuseal_submission_id": {
-          "name": "docuseal_submission_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2725,6 +2682,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "r2_key": {
           "name": "r2_key",
@@ -3267,168 +3230,6 @@
       },
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.price_book_item": {
-      "name": "price_book_item",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "category": {
-          "name": "category",
-          "type": "price_book_category",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit": {
-          "name": "unit",
-          "type": "price_book_unit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit_price_cents": {
-          "name": "unit_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "source_fields": {
-          "name": "source_fields",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "waste_applies": {
-          "name": "waste_applies",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "pack_size": {
-          "name": "pack_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "price_book_tenant_idx": {
-          "name": "price_book_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "price_book_tenant_key_uniq": {
-          "name": "price_book_tenant_key_uniq",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "price_book_item_tenant_id_tenant_id_fk": {
-          "name": "price_book_item_tenant_id_tenant_id_fk",
-          "tableFrom": "price_book_item",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -3590,26 +3391,6 @@
         "check",
         "insurance",
         "mortgage"
-      ]
-    },
-    "public.price_book_category": {
-      "name": "price_book_category",
-      "schema": "public",
-      "values": [
-        "material",
-        "labor",
-        "accessory",
-        "upgrade"
-      ]
-    },
-    "public.price_book_unit": {
-      "name": "price_book_unit",
-      "schema": "public",
-      "values": [
-        "square",
-        "lf",
-        "each",
-        "flat"
       ]
     },
     "public.task_status": {

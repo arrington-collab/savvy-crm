@@ -2,7 +2,7 @@ export { db, pool, schema } from "./client";
 export { adminDb, adminPool } from "./admin-client";
 export { withTenant } from "./tenant";
 export { seedJobTasks } from "./lifecycle/seed-job-tasks";
-export { recordStageChange } from "./lifecycle/record-stage-change";
+export { recordStageChange, IncompletePhotosError } from "./lifecycle/record-stage-change";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export {
   bookAppointment, rescheduleAppointment, cancelAppointment, setAppointmentStatus,

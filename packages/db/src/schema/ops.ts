@@ -10,6 +10,7 @@ export const document = pgTable("document", {
   jobId: uuid("job_id").references(() => job.id),
   customerId: uuid("customer_id").references(() => customer.id),
   kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other
+  label: text("label"),
   r2Key: text("r2_key").notNull(),
   filename: text("filename"),
   mime: text("mime"),
