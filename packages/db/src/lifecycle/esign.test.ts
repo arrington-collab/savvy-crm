@@ -67,6 +67,18 @@ describe("markEsignBySubmission", () => {
     expect(second?.changed).toBe(false); // already completed → no-op
   });
 
+  it("flips a sent request to declined with null completedAt", async () => {
+    await adminDb.insert(esignRequest).values({
+      tenantId: tId, jobId, customerId: custId, docType: "lien_waiver",
+      templateId: "tpl", docusealSubmissionId: "sub_decl", status: "sent",
+    });
+    const r = await markEsignBySubmission({ submissionId: "sub_decl", status: "declined" });
+    expect(r?.changed).toBe(true);
+    const [row] = await adminDb.select().from(esignRequest).where(eq(esignRequest.docusealSubmissionId, "sub_decl"));
+    expect(row!.status).toBe("declined");
+    expect(row!.completedAt).toBeNull();
+  });
+
   it("returns null for an unknown submission", async () => {
     const r = await markEsignBySubmission({ submissionId: "does_not_exist", status: "completed" });
     expect(r).toBeNull();
