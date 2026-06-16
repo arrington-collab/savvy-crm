@@ -6,6 +6,7 @@ import {
   APPOINTMENT_TYPE, APPOINTMENT_STATUS,
   INVOICE_STATUS, PAYMENT_METHOD,
   COMMISSION_MODEL, COMMISSION_STATUS,
+  PRICE_BOOK_CATEGORY, PRICE_BOOK_UNIT,
 } from "@savvy/core";
 
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
@@ -26,3 +27,5 @@ export const invoiceStatusEnum = pgEnum("invoice_status", INVOICE_STATUS);
 export const paymentMethodEnum = pgEnum("payment_method", PAYMENT_METHOD);
 export const commissionModelEnum = pgEnum("commission_model", COMMISSION_MODEL);
 export const commissionStatusEnum = pgEnum("commission_status", COMMISSION_STATUS);
+export const priceBookCategoryEnum = pgEnum("price_book_category", PRICE_BOOK_CATEGORY);
+export const priceBookUnitEnum = pgEnum("price_book_unit", PRICE_BOOK_UNIT);
