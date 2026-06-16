@@ -27,6 +27,8 @@ import {
   listEstimatesForJob,
   getLatestMeasurementForJob,
 } from "@/lib/estimate-queries";
+import { listChangeOrdersForJob } from "@/lib/change-order-queries";
+import { ChangeOrdersSection } from "./ChangeOrdersSection";
 
 export const dynamic = "force-dynamic";
 
@@ -238,9 +240,10 @@ export default async function JobDetailPage({
   const value = (jobRow.valueEstimate ?? 0) / 100;
 
   // Fetch estimate and measurement data in parallel (after confirming job exists).
-  const [estimates, measurement] = await Promise.all([
+  const [estimates, measurement, changeOrders] = await Promise.all([
     listEstimatesForJob(id),
     getLatestMeasurementForJob(id),
+    listChangeOrdersForJob(id),
   ]);
 
   // Serialize measurement areas for client component (jsonb -> plain object).
@@ -362,6 +365,31 @@ export default async function JobDetailPage({
 
           {estimates.length === 0 && (
             <p className="text-sm text-muted-foreground">No estimates yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Change orders section */}
+      <Card>
+        <CardHeader><CardTitle>Change orders</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <ChangeOrdersSection jobId={id} />
+          {changeOrders.length > 0 ? (
+            <div className="space-y-2">
+              {changeOrders.map((co) => (
+                <Link key={co.id} href={`/jobs/${id}/change-orders/${co.id}`} className="block" data-testid="change-order-row">
+                  <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                    <span className="text-muted-foreground truncate">{co.reason || "Change order"}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">{fmtUsd(co.total ?? 0)}</span>
+                      <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground">{co.status}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No change orders yet.</p>
           )}
         </CardContent>
       </Card>
