@@ -24,3 +24,4 @@ export * from "./schema/index";
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull } from "drizzle-orm";
 export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
+export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
