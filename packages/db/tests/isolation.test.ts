@@ -6,6 +6,7 @@ import { withTenant } from "../src/tenant.js";
 import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest } from "../src/schema/index.js";
 import { commission, invoice } from "../src/schema/finance.js";
 import { priceBookItem } from "../src/schema/pricing.js";
+import { usageSnapshot } from "../src/schema/billing.js";
 
 let tenantAId: string;
 let tenantBId: string;
@@ -14,6 +15,7 @@ let propBId: string;
 let jobBId: string;
 let commissionBId: string;
 let documentBId: string;
+let usageSnapshotBId: string;
 
 beforeAll(async () => {
   // Seed two isolated tenants directly via the admin (RLS-bypassing) connection.
@@ -86,6 +88,24 @@ beforeAll(async () => {
     })
     .returning();
   documentBId = doc!.id;
+
+  // Give tenant B a usage_snapshot so A has something it must NOT see.
+  const [snap] = await adminDb
+    .insert(usageSnapshot)
+    .values({
+      tenantId: b!.id,
+      periodKey: "2026-06",
+      jobsProcessed: 0,
+      aiSpendCents: 0,
+      aiVoiceMinutes: 0,
+      storageBytes: 0,
+      bandKey: "starter",
+      basePriceCents: 49900,
+      overageCents: 0,
+      totalCents: 49900,
+    })
+    .returning();
+  usageSnapshotBId = snap!.id;
 });
 
 afterAll(async () => {
@@ -100,6 +120,8 @@ afterAll(async () => {
   await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantBId));
   // document references job + tenant; must go before job delete
   await adminDb.delete(document).where(eq(document.tenantId, tenantBId));
+  // usage_snapshot references tenant; must go before tenant delete
+  await adminDb.delete(usageSnapshot).where(eq(usageSnapshot.tenantId, tenantBId));
   await adminDb.delete(user).where(eq(user.tenantId, tenantBId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantBId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantBId));
@@ -171,6 +193,11 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
 
   it("SELECT on document is tenant-scoped (A cannot see B's documents)", async () => {
     const rows = await withTenant(tenantAId, (tx) => tx.select().from(document));
+    expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+  });
+
+  it("SELECT on usage_snapshot is tenant-scoped (A cannot see B)", async () => {
+    const rows = await withTenant(tenantAId, (tx) => tx.select().from(usageSnapshot));
     expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
   });
 

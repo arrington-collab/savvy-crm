@@ -17,6 +17,7 @@ export const document = pgTable("document", {
   sizeBytes: integer("size_bytes"),
   source: text("source").default("upload"), // companycam|savvy|upload
   sharedWith: jsonb("shared_with").$type<unknown[]>().default([]).notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [index("document_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
 
