@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, estimate, esignRequest, markEsignBySubmission, eq } from "@savvy/db";
+import { adminDb, estimate, markEsignBySubmission, markChangeOrderBySubmission, eq } from "@savvy/db";
 import { httpDocuseal } from "@savvy/integrations";
 import { inngest } from "@savvy/agents";
 
@@ -9,6 +9,7 @@ export const runtime = "nodejs"; // node:crypto for HMAC signature verification
 // signature once, parse the event, then route by what the submission belongs to:
 //   - an `estimate` (Phase 7)        -> emit estimate/accepted (advances job to approved)
 //   - an `esign_request` (Phase 6B)  -> mark completed + emit esign/completed (stores signed PDF)
+//   - a `change_order` (Phase 6C)    -> mark approved + emit change_order/accepted (valueFinal + draft invoice)
 export async function POST(req: Request): Promise<NextResponse> {
   const raw = await req.text(); // raw body required for signature verification
   const sig = req.headers.get("x-docuseal-signature");
@@ -44,17 +45,27 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // Closeout signing (Phase 6B): lien waiver / cert. markEsignBySubmission resolves
   // the tenant (globally-unique submission id) and is idempotent (changed:false on replay).
-  try {
-    const r = await markEsignBySubmission({ submissionId: ev.submissionId, status: "completed" });
-    if (r && r.changed) {
+  const esign = await markEsignBySubmission({ submissionId: ev.submissionId, status: "completed" });
+  if (esign) {
+    if (esign.changed) {
       try {
-        await inngest.send({ name: "esign/completed", data: { requestId: r.requestId, tenantId: r.tenantId } });
+        await inngest.send({ name: "esign/completed", data: { requestId: esign.requestId, tenantId: esign.tenantId } });
       } catch (e) {
         console.error(e);
       }
     }
-  } catch (e) {
-    console.error("docuseal esign webhook", e);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Change-order signing (Phase 6C): markChangeOrderBySubmission resolves the tenant
+  // (globally-unique submission id) and is idempotent (changed:false on replay).
+  const co = await markChangeOrderBySubmission({ submissionId: ev.submissionId });
+  if (co && co.changed) {
+    try {
+      await inngest.send({ name: "change_order/accepted", data: { changeOrderId: co.changeOrderId, tenantId: co.tenantId } });
+    } catch (e) {
+      console.error(e);
+    }
   }
   return NextResponse.json({ ok: true });
 }
