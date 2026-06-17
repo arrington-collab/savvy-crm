@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import type { BoardCard } from "@/lib/pipeline-queries";
 import type { JobStage } from "@savvy/core";
 import { moveJobToStage } from "@/lib/job-actions";
-import { resolveAgentForStage, personaLine } from "@/lib/agents";
+import { resolveAgent, resolveAgentForStage, personaLine } from "@/lib/agents";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 
 const ACTIVE_STAGES: JobStage[] = [
@@ -49,7 +49,8 @@ function seedFromId(id: string): number {
 function JobCard({ card }: { card: BoardCard }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-  const { persona } = resolveAgentForStage(card.stage);
+  // Real owning agent (latest run on this job) with stage heuristic as fallback.
+  const { persona } = card.agent ? resolveAgent({ agent: card.agent, taskKey: card.taskKey }) : resolveAgentForStage(card.stage);
   return (
     <Card
       ref={setNodeRef}

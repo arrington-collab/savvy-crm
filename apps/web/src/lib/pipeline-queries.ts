@@ -1,10 +1,12 @@
-import { withTenant, job, customer, property, eq, desc, sql } from "@savvy/db";
+import { withTenant, job, customer, property, invoice, eq, and, desc, sql } from "@savvy/db";
 import { JOB_STAGE } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 export type BoardCard = {
   id: string; stage: string; customerName: string; address: string;
   valueEstimate: number | null; stageEnteredAt: string;
+  // Real owning agent = the most recent agent_run on this job (null if none yet).
+  agent: string | null; taskKey: string | null;
 };
 
 export async function getBoard(): Promise<Record<string, BoardCard[]>> {
@@ -13,6 +15,8 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
     tx.select({
       id: job.id, stage: job.stage, valueEstimate: job.valueEstimate,
       stageEnteredAt: job.stageEnteredAt, customerName: customer.name, address: property.address,
+      agent: sql<string | null>`(select agent from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
+      taskKey: sql<string | null>`(select task_key from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
     }).from(job)
       .leftJoin(customer, eq(customer.id, job.customerId))
       .leftJoin(property, eq(property.id, job.propertyId))
@@ -23,9 +27,23 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
     (byStage[r.stage] ??= []).push({
       id: r.id, stage: r.stage, customerName: r.customerName ?? "—", address: r.address ?? "—",
       valueEstimate: r.valueEstimate, stageEnteredAt: (r.stageEnteredAt as Date).toISOString(),
+      agent: r.agent ?? null, taskKey: r.taskKey ?? null,
     });
   }
   return byStage;
+}
+
+/** Jobs with a DRAFT (unsent) invoice — feeds the Jobs "Sage suggestions" rail. */
+export async function getDraftInvoicesByJob(): Promise<{ jobId: string; customerName: string }[]> {
+  const tenantId = await getTenantId();
+  const rows = await withTenant(tenantId, (tx) =>
+    tx.select({ jobId: invoice.jobId, customerName: customer.name })
+      .from(invoice)
+      .leftJoin(customer, eq(customer.id, invoice.customerId))
+      .where(and(eq(invoice.tenantId, tenantId), eq(invoice.status, "draft"))),
+  );
+  return rows.filter((r): r is { jobId: string; customerName: string } => r.jobId != null)
+    .map((r) => ({ jobId: r.jobId, customerName: r.customerName ?? "a customer" }));
 }
 
 export async function getStageVelocity(): Promise<Record<string, number>> {

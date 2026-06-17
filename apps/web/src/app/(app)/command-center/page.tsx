@@ -5,6 +5,7 @@ import { resolveAgent, agentLabel } from "@/lib/agents";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { SageCore } from "@/components/cockpit/SageCore";
 import { MetricCard } from "@/components/cockpit/MetricCard";
+import { CommandCenterAskSage } from "@/components/cockpit/CommandCenterAskSage";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -50,6 +51,7 @@ export default async function CommandCenterPage() {
 
   return (
     <div className="space-y-6">
+      <CommandCenterAskSage activity={activity} coverage={coverage} spendCents={stats.spendCents} />
       <div>
         <div className="eyebrow">Telemetry</div>
         <h1 className="text-2xl font-semibold tracking-tight">Command Center</h1>
