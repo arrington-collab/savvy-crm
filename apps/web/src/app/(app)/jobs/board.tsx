@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import type { BoardCard } from "@/lib/pipeline-queries";
 import type { JobStage } from "@savvy/core";
 import { moveJobToStage } from "@/lib/job-actions";
+import { resolveAgentForStage, personaLine } from "@/lib/agents";
+import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 
 const ACTIVE_STAGES: JobStage[] = [
   "lead",
@@ -33,18 +35,21 @@ const ALL_STAGES: JobStage[] = [...ACTIVE_STAGES, "lost"];
 function daysInStage(stageEnteredAt: string): number {
   return Math.floor((Date.now() - Date.parse(stageEnteredAt)) / 86_400_000);
 }
-
 function formatValue(cents: number | null): string {
   if (cents == null) return "—";
   return `$${(cents / 100).toLocaleString()}`;
 }
+// Stable seed from the card id so the in-voice line doesn't reshuffle on render.
+function seedFromId(id: string): number {
+  let n = 0;
+  for (let i = 0; i < id.length; i++) n = (n + id.charCodeAt(i)) % 997;
+  return n;
+}
 
 function JobCard({ card }: { card: BoardCard }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: card.id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  const { persona } = resolveAgentForStage(card.stage);
   return (
     <Card
       ref={setNodeRef}
@@ -56,21 +61,27 @@ function JobCard({ card }: { card: BoardCard }) {
       {...listeners}
       {...attributes}
     >
-      <div className="font-medium">{card.customerName}</div>
-      <div className="text-xs text-muted-foreground">{card.address}</div>
+      <div className="font-medium" style={{ color: "var(--text-primary)" }}>{card.customerName}</div>
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>{card.address}</div>
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">{formatValue(card.valueEstimate)}</span>
-        <span className="text-muted-foreground">
+        <span className="mono font-medium" style={{ color: persona.colorToken }}>{formatValue(card.valueEstimate)}</span>
+        <span className="mono rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--text-faint)", background: "var(--surface-panel)" }}>
           {daysInStage(card.stageEnteredAt)}d
         </span>
       </div>
-      <Link
-        href={`/jobs/${card.id}`}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="text-xs font-medium text-primary hover:underline"
-      >
-        Open
-      </Link>
+      <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border-panel)", paddingTop: 8 }}>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <AgentAvatar persona={persona} size="sm" />
+          <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
+        </span>
+        <Link
+          href={`/jobs/${card.id}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="mono shrink-0 text-[11px] text-accent-gold hover:underline"
+        >
+          Open
+        </Link>
+      </div>
     </Card>
   );
 }
@@ -78,19 +89,24 @@ function JobCard({ card }: { card: BoardCard }) {
 function Column({ stage, cards }: { stage: JobStage; cards: BoardCard[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const muted = stage === "lost";
+  const accent = resolveAgentForStage(stage).persona.colorToken;
   return (
     <div
       ref={setNodeRef}
       data-testid={`col-${stage}`}
-      className={cn(
-        "flex w-64 shrink-0 flex-col gap-2 rounded-lg border border-border p-2",
-        muted && "opacity-60",
-        isOver && "ring-2 ring-primary",
-      )}
+      className={cn("flex w-64 shrink-0 flex-col gap-2 rounded-xl p-2", muted && "opacity-60")}
+      style={{
+        border: isOver ? "1px solid var(--accent-040)" : "1px solid var(--border-panel)",
+        background: "var(--surface-panel)",
+        boxShadow: isOver ? "var(--active-shadow)" : "none",
+      }}
     >
-      <div className="flex items-center justify-between px-1 text-sm font-medium">
-        <span className="capitalize">{stage}</span>
-        <span className="text-muted-foreground">{cards.length}</span>
+      <div className="flex items-center justify-between px-1">
+        <span className="mono flex items-center gap-1.5 text-[12px] uppercase tracking-wider" style={{ color: "var(--text-body)" }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
+          {stage}
+        </span>
+        <span className="mono text-[12px]" style={{ color: "var(--text-faint)" }}>{cards.length}</span>
       </div>
       <div className="flex flex-col gap-2">
         {cards.map((c) => (
@@ -101,24 +117,16 @@ function Column({ stage, cards }: { stage: JobStage; cards: BoardCard[] }) {
   );
 }
 
-export function Board({
-  initialBoard,
-}: {
-  initialBoard: Record<string, BoardCard[]>;
-}) {
-  const [board, setBoard] =
-    useState<Record<string, BoardCard[]>>(initialBoard);
+export function Board({ initialBoard }: { initialBoard: Record<string, BoardCard[]> }) {
+  const [board, setBoard] = useState<Record<string, BoardCard[]>>(initialBoard);
   const [, startTransition] = useTransition();
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   function handleDragEnd(event: DragEndEvent) {
     const jobId = String(event.active.id);
     const toStage = event.over ? (String(event.over.id) as JobStage) : null;
     if (!toStage) return;
 
-    // Locate the card and its current column.
     let fromStage: string | null = null;
     let moved: BoardCard | undefined;
     for (const [stage, cards] of Object.entries(board)) {
@@ -132,11 +140,7 @@ export function Board({
     if (!moved || fromStage === null || fromStage === toStage) return;
 
     const prevBoard = board;
-    const optimistic: BoardCard = {
-      ...moved,
-      stage: toStage,
-      stageEnteredAt: new Date().toISOString(),
-    };
+    const optimistic: BoardCard = { ...moved, stage: toStage, stageEnteredAt: new Date().toISOString() };
     setBoard((b) => ({
       ...b,
       [fromStage!]: (b[fromStage!] ?? []).filter((c) => c.id !== jobId),
@@ -148,9 +152,7 @@ export function Board({
         const result = await moveJobToStage(jobId, toStage);
         if ("error" in result) {
           setBoard(prevBoard);
-          toast.error(
-            `Can't mark complete — missing photos: ${result.missing.join(", ")}`,
-          );
+          toast.error(`Can't mark complete — missing photos: ${result.missing.join(", ")}`);
           return;
         }
       } catch {

@@ -1,26 +1,147 @@
 @import "tailwindcss";
 
+/* ───────────────────────────────────────────────────────────────────────────
+   AI Command Cockpit — espresso-dark theme (always-on; cockpit is dark-only).
+   The shadcn token set is defined here so Card/Button/Badge/Input render in the
+   cockpit palette app-wide. Bespoke cockpit/persona/status tokens are exposed
+   through @theme inline so they're usable as utilities (bg-accent-gold, etc.).
+   ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* shadcn tokens — espresso/gold */
+  --background: #161009;
+  --foreground: #f3ecdc;
+  --card: rgba(241, 234, 217, 0.03);
+  --card-foreground: #f3ecdc;
+  --popover: #1b140b;
+  --popover-foreground: #f3ecdc;
+  --primary: #d8a85f;            /* gold accent */
+  --primary-foreground: #161009; /* dark text on gold */
+  --secondary: rgba(216, 168, 95, 0.1);
+  --secondary-foreground: #ece2cd;
+  --muted: rgba(241, 234, 217, 0.04);
+  --muted-foreground: #a89c82;
+  --accent: rgba(216, 168, 95, 0.1);   /* shadcn hover accent */
+  --accent-foreground: #f3ecdc;
+  --destructive: #e5564b;
+  --destructive-foreground: #f3ecdc;
+  --border: rgba(216, 168, 95, 0.14);
+  --input: rgba(216, 168, 95, 0.2);
+  --ring: #d8a85f;
+  --radius: 0.5rem;             /* chips/inputs ~8px; cards stay rounded-xl=12px */
+
+  /* bespoke cockpit surfaces + text */
+  --surface-app: radial-gradient(125% 95% at 50% -12%, #241d12 0%, #161009 52%, #0f0b05 100%);
+  --surface-panel: rgba(241, 234, 217, 0.025);
+  --border-panel: rgba(216, 168, 95, 0.14);
+  --text-primary: #f3ecdc;
+  --text-body: #ece2cd;
+  --text-muted: #a89c82;
+  --text-faint: #8a7d63;
+
+  /* accent scale + sage */
+  --accent-gold: #d8a85f;
+  --accent-bright: #e7c188;
+  --accent-deep: #c7a06a;
+  --accent-006: rgba(216, 168, 95, 0.06);
+  --accent-010: rgba(216, 168, 95, 0.1);
+  --accent-016: rgba(216, 168, 95, 0.16);
+  --accent-030: rgba(216, 168, 95, 0.3);
+  --accent-040: rgba(216, 168, 95, 0.4);
+  --sage: #93a26a;
+
+  /* persona colors (resolveAgent → colorToken) */
+  --agent-sage: #d8a85f;   /* SAGE / ATLAS (gold) */
+  --agent-vera: #93a26a;   /* VERA  (sage) */
+  --agent-milo: #5fa6a0;   /* MILO  (turquoise) */
+  --agent-scout: #cd7f56;  /* SCOUT (terracotta) */
+  --agent-raine: #a87f9a;  /* RAINE (plum) */
+  --agent-nova: #cf8f7d;   /* NOVA  (clay) */
+
+  /* status */
+  --status-ok: #6f9f5b;
+  --status-skip: #d8a85f;
+  --status-error: #e5564b;
+
+  /* glows */
+  --glow-accent: 0 0 18px rgba(216, 168, 95, 0.18);
+  --active-shadow: 0 0 18px rgba(216, 168, 95, 0.18);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+
+  /* bespoke utilities */
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-deep: var(--accent-deep);
+  --color-surface-panel: var(--surface-panel);
+  --color-border-panel: var(--border-panel);
+  --color-text-primary: var(--text-primary);
+  --color-text-body: var(--text-body);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-sage: var(--sage);
+  --color-agent-sage: var(--agent-sage);
+  --color-agent-vera: var(--agent-vera);
+  --color-agent-milo: var(--agent-milo);
+  --color-agent-scout: var(--agent-scout);
+  --color-agent-raine: var(--agent-raine);
+  --color-agent-nova: var(--agent-nova);
+  --color-status-ok: var(--status-ok);
+  --color-status-skip: var(--status-skip);
+  --color-status-error: var(--status-error);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--surface-app);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── motion (gated by prefers-reduced-motion) ─────────────────────────────── */
+@keyframes ck-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes ck-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes ck-spin { to { transform: rotate(360deg); } }
+@keyframes ck-spinrev { to { transform: rotate(-360deg); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .anim-pulse { animation: ck-pulse 2.4s ease-in-out infinite; }
+  .anim-blink { animation: ck-blink 1s step-end infinite; }
+  .anim-spin { animation: ck-spin 14s linear infinite; }
+  .anim-spinrev { animation: ck-spinrev 20s linear infinite; }
 }
+
+/* ── shared text helpers ──────────────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--font-geist-mono), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.mono { font-family: var(--font-geist-mono), monospace; }
