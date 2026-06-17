@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { EstimateLineItem } from "@savvy/core";
-import { updateChangeOrderLineItemsAction, sendChangeOrderForSignatureAction } from "@/lib/change-order-actions";
+import { updateChangeOrderLineItemsAction, sendChangeOrderForSignatureAction, draftChangeOrderLineItemsAction } from "@/lib/change-order-actions";
 
 interface ChangeOrderRow {
   id: string; jobId: string; reason: string | null; status: string;
@@ -20,6 +20,8 @@ export function ChangeOrderEditor({ changeOrder, jobId }: { changeOrder: ChangeO
   const [reason, setReason] = useState(changeOrder.reason ?? "");
   const [savePending, startSave] = useTransition();
   const [sendPending, startSend] = useTransition();
+  const [aiDesc, setAiDesc] = useState("");
+  const [draftPending, startDraft] = useTransition();
   const totalCents = lineItems.reduce((s, li) => s + li.amountCents, 0);
 
   function updateQty(i: number, v: string) {
@@ -34,6 +36,20 @@ export function ChangeOrderEditor({ changeOrder, jobId }: { changeOrder: ChangeO
     setLineItems((p) => [...p, { key: `manual-${Date.now()}`, name: "New item", category: "other" as EstimateLineItem["category"], unit: "each" as EstimateLineItem["unit"], quantity: 1, unitPriceCents: 0, amountCents: 0 }]);
   }
   function removeRow(i: number) { setLineItems((p) => p.filter((_, idx) => idx !== i)); }
+  function handleDraft() {
+    startDraft(async () => {
+      const r = await draftChangeOrderLineItemsAction({ jobId, description: aiDesc });
+      if ("ok" in r) {
+        setLineItems((p) => [...p, ...r.lineItems]);
+        toast.success(r.summary ? `Drafted: ${r.summary}` : `Drafted ${r.lineItems.length} item(s) — review below.`);
+        setAiDesc("");
+      } else if (r.error === "empty_description") {
+        toast.error("Describe the change first.");
+      } else {
+        toast.error("AI drafting is unavailable right now.");
+      }
+    });
+  }
   function handleSave() { startSave(async () => { await updateChangeOrderLineItemsAction({ changeOrderId: changeOrder.id, jobId, lineItems }); }); }
   function handleSend() {
     startSend(async () => {
@@ -65,6 +81,25 @@ export function ChangeOrderEditor({ changeOrder, jobId }: { changeOrder: ChangeO
           <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is the scope changing?" aria-label="Reason" />
         </CardContent>
       </Card>
+
+      {changeOrder.status === "draft" && (
+        <Card>
+          <CardHeader><CardTitle>Draft with AI</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <textarea
+              value={aiDesc}
+              onChange={(e) => setAiDesc(e.target.value)}
+              placeholder="Describe the scope change in plain English (e.g. 'replace 3 pipe boots and add 2 squares of ridge cap')"
+              aria-label="Describe the change"
+              data-testid="ai-draft-input"
+              className="w-full min-h-20 rounded border border-border bg-background p-2 text-sm"
+            />
+            <Button type="button" size="sm" variant="outline" disabled={draftPending} onClick={handleDraft} data-testid="ai-draft-btn">
+              {draftPending ? "Drafting…" : "Draft with AI"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>

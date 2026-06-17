@@ -5,12 +5,15 @@
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.AI_STUB_PORT ?? 4010);
-const payload = { score: 75, reason: "e2e stub: storm zone, owner-occupied" };
 
 const server = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    const isScopeDraft = body.includes("Scope change") || body.includes('"items"');
+    const payload = isScopeDraft
+      ? { items: [{ key: "pipe-boots", quantity: 2 }], summary: "e2e stub: 2 pipe boots" }
+      : { score: 75, reason: "e2e stub: storm zone, owner-occupied" };
     res.setHeader("content-type", "application/json");
     res.end(
       JSON.stringify({
