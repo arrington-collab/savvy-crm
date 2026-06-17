@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <body className="min-h-full">
         {children}
-        <Toaster />
+        <Toaster position="bottom-center" />
       </body>
     </html>
   );

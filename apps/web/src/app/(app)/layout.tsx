@@ -1,37 +1,17 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/command-center", label: "Command Center" },
-  { href: "/jobs", label: "Jobs" },
-  { href: "/leads", label: "Leads" },
-  { href: "/comms", label: "Comms" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/invoices", label: "Invoices" },
-  { href: "/commissions", label: "Commissions" },
-  { href: "/billing", label: "Billing" },
-  { href: "/settings/payments", label: "Payments" },
-  { href: "/settings/quickbooks", label: "QuickBooks" },
-  { href: "/settings/price-book", label: "Price Book" },
-];
+import { Sidebar } from "@/components/cockpit/Sidebar";
+import { TopBar } from "@/components/cockpit/TopBar";
+import { AskSage } from "@/components/cockpit/AskSage";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 border-r p-4 space-y-1">
-        <div className="font-semibold mb-4 px-2">Savvy</div>
-        {NAV.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className="block rounded px-2 py-1.5 text-sm hover:bg-muted"
-          >
-            {n.label}
-          </Link>
-        ))}
-      </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar />
+        <main className="flex-1 p-6">{children}</main>
+      </div>
+      <AskSage />
     </div>
   );
 }

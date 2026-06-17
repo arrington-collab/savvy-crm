@@ -25,6 +25,7 @@ export type ActivityRow = {
   modelUsed: string | null;
   startedAt: Date;
   target: string | null;
+  error: string | null;
 };
 
 /** Detailed feed: newest runs joined to the customer name (via job) for a readable target. */
@@ -38,6 +39,7 @@ export async function getAgentActivity(tenantId: string, limit: number): Promise
       modelUsed: agentRun.modelUsed,
       startedAt: agentRun.startedAt,
       target: customer.name,
+      error: agentRun.error,
     })
       .from(agentRun)
       .leftJoin(job, eq(job.id, agentRun.jobId))
