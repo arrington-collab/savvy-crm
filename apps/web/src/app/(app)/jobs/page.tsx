@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getBoard, getStageVelocity } from "@/lib/pipeline-queries";
+import { getBoard, getStageVelocity, getDraftInvoicesByJob } from "@/lib/pipeline-queries";
 import { Board } from "./board";
 import { Card } from "@/components/ui/card";
 import { MetricCard } from "@/components/cockpit/MetricCard";
@@ -15,7 +15,7 @@ function daysInStage(stageEnteredAt: string): number {
 type Suggestion = { jobId: string; persona: Persona; text: string };
 
 export default async function JobsPage() {
-  const [board, velocity] = await Promise.all([getBoard(), getStageVelocity()]);
+  const [board, velocity, draftInvoices] = await Promise.all([getBoard(), getStageVelocity(), getDraftInvoicesByJob()]);
   const activeStages = ["lead", "inspected", "estimate", "approved", "production", "closeout", "billing", "complete"] as const;
   const total = activeStages.reduce((n, s) => n + (board[s]?.length ?? 0), 0);
 
@@ -29,6 +29,10 @@ export default async function JobsPage() {
   for (const c of board.approved ?? []) {
     const d = daysInStage(c.stageEnteredAt);
     if (d > 7) suggestions.push({ jobId: c.id, persona: PERSONAS.MILO, text: `${c.customerName} is approved but unscheduled ${d}d — want me to find a slot?` });
+  }
+  // Real signal: jobs with a drafted (unsent) invoice — RAINE can send it.
+  for (const di of draftInvoices) {
+    suggestions.push({ jobId: di.jobId, persona: PERSONAS.RAINE, text: `${di.customerName} has a drafted invoice waiting — I can send it for the sign-off.` });
   }
 
   return (

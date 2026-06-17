@@ -9,6 +9,8 @@ import {
   markStatusAction,
   rescheduleAction,
 } from "@/lib/scheduling-actions";
+import { StatusBadge } from "@/components/cockpit/StatusBadge";
+import { personaLine, PERSONAS } from "@/lib/agents";
 
 type AppointmentRow = {
   id: string;
@@ -25,23 +27,6 @@ type DayGroup = {
   day: string; // "YYYY-MM-DD"
   items: AppointmentRow[];
 };
-
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: "bg-blue-100 text-blue-800",
-  done: "bg-green-100 text-green-800",
-  canceled: "bg-red-100 text-red-800",
-  no_show: "bg-yellow-100 text-yellow-800",
-};
-
-function StatusBadge({ status }: { status: string | null }) {
-  const label = status ?? "unknown";
-  const cls = STATUS_COLORS[label] ?? "bg-muted text-muted-foreground";
-  return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${cls}`}>
-      {label.replace("_", " ")}
-    </span>
-  );
-}
 
 function AppointmentRow({ appt }: { appt: AppointmentRow }) {
   const [pending, start] = useTransition();
@@ -97,7 +82,7 @@ function AppointmentRow({ appt }: { appt: AppointmentRow }) {
     <Card className="p-3 space-y-2" data-testid="appointment-row">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-0.5">
-          <div className="font-medium text-sm">
+          <div className="mono font-medium text-sm">
             {new Date(appt.startsAt).toLocaleString(undefined, {
               hour: "2-digit",
               minute: "2-digit",
@@ -109,13 +94,13 @@ function AppointmentRow({ appt }: { appt: AppointmentRow }) {
             {appt.type ? ` · ${appt.type}` : ""}
           </div>
           {appt.customerName && (
-            <div className="text-sm text-muted-foreground truncate">{appt.customerName}</div>
+            <div className="text-sm truncate" style={{ color: "var(--text-muted)" }}>{appt.customerName}</div>
           )}
           {appt.address && (
-            <div className="text-xs text-muted-foreground truncate">{appt.address}</div>
+            <div className="text-xs truncate" style={{ color: "var(--text-faint)" }}>{appt.address}</div>
           )}
         </div>
-        <StatusBadge status={appt.status} />
+        <StatusBadge status={appt.status ?? "unknown"} />
       </div>
 
       {isActive && (
@@ -199,14 +184,14 @@ function formatDayHeading(day: string): string {
 
 export function ScheduleClient({ days }: { days: DayGroup[] }) {
   if (days.length === 0) {
-    return <p className="text-sm text-muted-foreground">No appointments scheduled.</p>;
+    return <p className="text-sm" style={{ color: "var(--text-faint)" }}>{personaLine(PERSONAS.MILO)}</p>;
   }
 
   return (
     <div className="space-y-8">
       {days.map((group) => (
         <section key={group.day}>
-          <h2 className="text-base font-semibold mb-3">{formatDayHeading(group.day)}</h2>
+          <h2 className="mono text-base font-semibold mb-3">{formatDayHeading(group.day)}</h2>
           <div className="space-y-2">
             {group.items.map((appt) => (
               <AppointmentRow key={appt.id} appt={appt} />

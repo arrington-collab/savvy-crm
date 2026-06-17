@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { toggleTask } from "@/lib/job-actions";
 import { DocsPanel, type DocRow } from "./DocsPanel";
 import { EsignPanel, type EsignRow } from "./EsignPanel";
+import { formatDate } from "@/lib/format";
+import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
+import { resolveAgent, personaLine, PERSONAS } from "@/lib/agents";
 
 type TaskRow = {
   id: string;
@@ -36,15 +39,6 @@ type CommRow = {
   body: string | null;
   createdAt: string;
 };
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 function automationBadge(level: string) {
   if (level === "full")
@@ -73,6 +67,9 @@ function TaskItem({ task }: { task: TaskRow }) {
           });
         }}
       />
+      {task.ownerAgent ? (
+        <AgentAvatar persona={resolveAgent({ agent: task.ownerAgent }).persona} size="sm" />
+      ) : null}
       <span
         className={
           done
@@ -84,11 +81,11 @@ function TaskItem({ task }: { task: TaskRow }) {
       </span>
       {automationBadge(task.automationLevel)}
       {task.dueAt ? (
-        <span className="text-xs font-medium text-primary">
+        <span className="mono text-xs font-medium text-primary">
           active · {formatDate(task.dueAt)}
         </span>
       ) : (
-        <span className="text-xs text-muted-foreground">upcoming</span>
+        <span className="mono text-xs text-muted-foreground">upcoming</span>
       )}
     </div>
   );
@@ -130,7 +127,7 @@ export function JobTabs({
           <div className="space-y-6">
             {tasksByPhase.map((group) => (
               <div key={group.phase} className="space-y-2">
-                <h3 className="text-sm font-semibold capitalize text-muted-foreground">
+                <h3 className="eyebrow capitalize">
                   {group.phase}
                 </h3>
                 <div className="space-y-2">
@@ -147,7 +144,7 @@ export function JobTabs({
       <TabsContent value="timeline">
         <div data-testid="timeline" className="space-y-3">
           {timeline.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activity yet.</p>
+            <p className="text-sm" style={{ color: "var(--text-faint)" }}>{personaLine(PERSONAS.SAGE)}</p>
           ) : (
             timeline.map((item, i) => (
               <div key={i} className="flex items-start gap-3 text-sm">
@@ -157,7 +154,7 @@ export function JobTabs({
                 />
                 <div className="flex-1">
                   <div>{item.text}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
                     {formatDate(item.at)}
                   </div>
                 </div>
@@ -169,8 +166,8 @@ export function JobTabs({
 
       <TabsContent value="comms">
         {comms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No communications yet.
+          <p className="text-sm" style={{ color: "var(--text-faint)" }}>
+            {personaLine(PERSONAS.NOVA)}
           </p>
         ) : (
           <div className="space-y-2">
@@ -183,7 +180,7 @@ export function JobTabs({
                   <span className="capitalize">
                     {c.direction} · {c.channel}
                   </span>
-                  <span>{formatDate(c.createdAt)}</span>
+                  <span className="mono" style={{ color: "var(--text-faint)" }}>{formatDate(c.createdAt)}</span>
                 </div>
                 {c.body && <div className="mt-1">{c.body}</div>}
               </div>

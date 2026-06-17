@@ -29,6 +29,10 @@ import {
 } from "@/lib/estimate-queries";
 import { listChangeOrdersForJob } from "@/lib/change-order-queries";
 import { ChangeOrdersSection } from "./ChangeOrdersSection";
+import { fmtUsd } from "@/lib/format";
+import { StatusBadge } from "@/components/cockpit/StatusBadge";
+import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
+import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
 
 export const dynamic = "force-dynamic";
 
@@ -255,20 +259,6 @@ export default async function JobDetailPage({
       }
     : null;
 
-  // Status badge color map for estimates.
-  const ESTIMATE_STATUS_COLORS: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
-    sent: "bg-blue-100 text-blue-800",
-    accepted: "bg-green-100 text-green-800",
-  };
-
-  function fmtUsd(cents: number | null | undefined): string {
-    return ((cents ?? 0) / 100).toLocaleString("en-US", {
-      style: "currency",
-      currency: "USD",
-    });
-  }
-
   return (
     <div data-testid="job-detail" className="space-y-6">
       <Card className="p-5">
@@ -294,13 +284,14 @@ export default async function JobDetailPage({
               <Badge variant="secondary" className="capitalize">
                 {jobRow.stage}
               </Badge>
+              <AgentAvatar persona={resolveAgentForStage(jobRow.stage).persona} size="sm" />
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-semibold">
+            <div className="mono text-2xl font-semibold text-accent-gold">
               ${value.toLocaleString()}
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
               {daysInStage(jobRow.stageEnteredAt)}d in stage
             </div>
           </div>
@@ -334,9 +325,6 @@ export default async function JobDetailPage({
             <div className="space-y-2">
               {estimates.map((est) => {
                 const statusLabel = est.status ?? "draft";
-                const statusCls =
-                  ESTIMATE_STATUS_COLORS[statusLabel] ??
-                  "bg-muted text-muted-foreground";
                 return (
                   <Link
                     key={est.id}
@@ -345,16 +333,12 @@ export default async function JobDetailPage({
                     data-testid="estimate-row"
                   >
                     <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
-                      <span className="text-muted-foreground capitalize">
+                      <span className="capitalize" style={{ color: "var(--text-muted)" }}>
                         {est.source} estimate
                       </span>
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">{fmtUsd(est.total)}</span>
-                        <span
-                          className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${statusCls}`}
-                        >
-                          {statusLabel}
-                        </span>
+                        <span className="mono font-medium text-accent-gold">{fmtUsd(est.total)}</span>
+                        <StatusBadge status={statusLabel} />
                       </div>
                     </div>
                   </Link>
@@ -364,7 +348,7 @@ export default async function JobDetailPage({
           )}
 
           {estimates.length === 0 && (
-            <p className="text-sm text-muted-foreground">No estimates yet.</p>
+            <p className="text-sm" style={{ color: "var(--text-faint)" }}>{personaLine(PERSONAS.VERA)}</p>
           )}
         </CardContent>
       </Card>
@@ -379,17 +363,17 @@ export default async function JobDetailPage({
               {changeOrders.map((co) => (
                 <Link key={co.id} href={`/jobs/${id}/change-orders/${co.id}`} className="block" data-testid="change-order-row">
                   <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
-                    <span className="text-muted-foreground truncate">{co.reason || "Change order"}</span>
+                    <span className="truncate" style={{ color: "var(--text-muted)" }}>{co.reason || "Change order"}</span>
                     <div className="flex items-center gap-3">
-                      <span className="font-medium">{fmtUsd(co.total ?? 0)}</span>
-                      <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground">{co.status}</span>
+                      <span className="mono font-medium text-accent-gold">{fmtUsd(co.total ?? 0)}</span>
+                      <StatusBadge status={co.status} />
                     </div>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No change orders yet.</p>
+            <p className="text-sm" style={{ color: "var(--text-faint)" }}>{personaLine(PERSONAS.VERA, 2)}</p>
           )}
         </CardContent>
       </Card>

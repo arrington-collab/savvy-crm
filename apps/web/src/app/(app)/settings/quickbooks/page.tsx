@@ -1,6 +1,7 @@
 import { getTenantId } from "@/lib/tenant";
 import { adminDb, tenant, eq } from "@savvy/db";
 import { ConnectQuickBooksButton } from "./ConnectQuickBooksButton";
+import { PageHeader } from "@/components/cockpit/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function QuickBooksSettingsPage({
 
   return (
     <div className="max-w-2xl space-y-4">
-      <h1 className="text-2xl font-semibold">QuickBooks</h1>
+      <PageHeader eyebrow="Integration" title="QuickBooks" />
       <p className="text-sm text-muted-foreground">
         Connect your QuickBooks Online account to sync invoices and payments automatically.
       </p>

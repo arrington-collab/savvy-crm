@@ -37,12 +37,15 @@ export function AskSage() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState<SageQuestion | null>(null);
+  const [extra, setExtra] = useState<SageQuestion[]>([]);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const sage = PERSONAS.SAGE;
 
   useEffect(() => {
     const openPalette = () => { setSel(null); setQuery(""); setOpen(true); };
+    const onSet = (e: Event) => setExtra((e as CustomEvent<SageQuestion[]>).detail ?? []);
+    window.addEventListener("ask-sage:set", onSet as EventListener);
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -58,6 +61,7 @@ export function AskSage() {
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("ask-sage:open", openPalette);
+      window.removeEventListener("ask-sage:set", onSet as EventListener);
     };
   }, []);
 
@@ -69,8 +73,8 @@ export function AskSage() {
   }, [open]);
 
   const filtered = useMemo(
-    () => QUESTIONS.filter((x) => x.q.toLowerCase().includes(query.toLowerCase())),
-    [query],
+    () => [...extra, ...QUESTIONS].filter((x) => x.q.toLowerCase().includes(query.toLowerCase())),
+    [query, extra],
   );
 
   if (!open) return null;

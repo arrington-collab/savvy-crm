@@ -6,14 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updatePriceBookItem } from "@/lib/price-book-actions";
 import type { listPriceBook } from "@/lib/price-book-queries";
+import { PageHeader } from "@/components/cockpit/PageHeader";
 
 type PriceBookRow = Awaited<ReturnType<typeof listPriceBook>>[number];
 
-function fmtUsd(cents: number): string {
-  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-function PriceBookRowItem({ item }: { item: PriceBookRow }) {
+function PriceBookRowItem({ item, index }: { item: PriceBookRow; index: number }) {
   // Store price as dollars string for the input; send as cents to server
   const [priceDollars, setPriceDollars] = useState(
     (item.unitPriceCents / 100).toFixed(2),
@@ -44,39 +41,40 @@ function PriceBookRowItem({ item }: { item: PriceBookRow }) {
       className="p-4"
       data-testid="price-book-row"
       data-key={item.key}
+      style={{ background: index % 2 ? "var(--surface-panel)" : "transparent" }}
     >
       <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_auto] gap-3 items-center text-sm">
         {/* Name */}
-        <span className="font-medium truncate">{item.name}</span>
+        <span className="font-medium truncate" style={{ color: "var(--text-body)" }}>{item.name}</span>
 
         {/* Category */}
-        <span className="capitalize text-muted-foreground">{item.category}</span>
+        <span className="capitalize" style={{ color: "var(--text-muted)" }}>{item.category}</span>
 
         {/* Unit */}
-        <span className="text-muted-foreground">{item.unit}</span>
+        <span style={{ color: "var(--text-muted)" }}>{item.unit}</span>
 
         {/* Source fields */}
-        <span className="text-xs text-muted-foreground truncate">
+        <span className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
           {(item.sourceFields ?? []).join(", ") || "—"}
         </span>
 
         {/* Unit price (editable) */}
         <div className="flex items-center gap-1">
-          <span className="text-muted-foreground text-xs">$</span>
+          <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>$</span>
           <Input
             type="number"
             min="0"
             step="0.01"
             value={priceDollars}
             onChange={(e) => setPriceDollars(e.target.value)}
-            className="h-7 w-24 text-sm"
+            className="h-7 w-24 text-sm mono"
             aria-label={`Unit price for ${item.name}`}
           />
         </div>
 
         {/* Toggles */}
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1 text-xs cursor-pointer">
+          <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: "var(--text-body)" }}>
             <Checkbox
               checked={wasteApplies}
               onChange={(e) => setWasteApplies(e.target.checked)}
@@ -84,7 +82,7 @@ function PriceBookRowItem({ item }: { item: PriceBookRow }) {
             />
             Waste
           </label>
-          <label className="flex items-center gap-1 text-xs cursor-pointer">
+          <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: "var(--text-body)" }}>
             <Checkbox
               checked={active}
               onChange={(e) => setActive(e.target.checked)}
@@ -112,14 +110,19 @@ function PriceBookRowItem({ item }: { item: PriceBookRow }) {
 export function PriceBookClient({ items }: { items: PriceBookRow[] }) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No price book items yet.</p>
+      <div className="space-y-4">
+        <PageHeader eyebrow="Catalog" title="Price Book" />
+        <p style={{ color: "var(--text-faint)" }}>No price book items yet.</p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-2">
+      <PageHeader eyebrow="Catalog" title="Price Book" />
+
       {/* Header */}
-      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_auto] gap-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_auto] gap-3 px-4 eyebrow">
         <span>Name</span>
         <span>Category</span>
         <span>Unit</span>
@@ -129,8 +132,8 @@ export function PriceBookClient({ items }: { items: PriceBookRow[] }) {
         <span />
       </div>
 
-      {items.map((item) => (
-        <PriceBookRowItem key={item.id} item={item} />
+      {items.map((item, i) => (
+        <PriceBookRowItem key={item.id} item={item} index={i} />
       ))}
     </div>
   );

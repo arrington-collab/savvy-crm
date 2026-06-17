@@ -1,5 +1,6 @@
 import { listAppointments } from "@/lib/scheduling-queries";
 import { ScheduleClient } from "./ScheduleClient";
+import { PageHeader } from "@/components/cockpit/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Schedule</h1>
+      <PageHeader eyebrow="Dispatch" title="Schedule" />
       <ScheduleClient days={days} />
     </div>
   );
