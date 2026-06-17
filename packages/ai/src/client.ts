@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, generateObject, embed as aiEmbed } from "ai";
 import type { z } from "zod";
-import { CAPABILITY_MODEL, EMBED_MODEL, type Capability } from "./capabilities";
+import { EMBED_MODEL, resolveModel, isAnthropicGateway, type Capability } from "./capabilities";
 
 const gateway = () =>
   createOpenAI({
@@ -15,7 +15,7 @@ export async function complete(opts: {
   prompt: string;
   system?: string;
 }): Promise<{ text: string; model: string }> {
-  const model = CAPABILITY_MODEL[opts.capability]!;
+  const model = resolveModel(opts.capability, process.env.LITELLM_BASE_URL);
   const res = await generateText({
     model: gateway()(model),
     system: opts.system,
@@ -30,9 +30,12 @@ export async function completeObject<T>(opts: {
   schema: z.ZodType<T>;
   system?: string;
 }): Promise<{ object: T; model: string }> {
-  const model = CAPABILITY_MODEL[opts.capability]!;
+  const model = resolveModel(opts.capability, process.env.LITELLM_BASE_URL);
   const res = await generateObject({
     model: gateway()(model),
+    // Anthropic's OpenAI-compat endpoint needs tool-mode for structured output;
+    // LiteLLM/OpenAI use the SDK default.
+    ...(isAnthropicGateway(process.env.LITELLM_BASE_URL) ? { mode: "tool" as const } : {}),
     schema: opts.schema,
     system: opts.system,
     prompt: opts.prompt,
