@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/cockpit/PageHeader";
 
 const SECTIONS = [
   { href: "/comms/templates", title: "Templates", desc: "SMS + email message templates" },
@@ -10,7 +11,7 @@ const SECTIONS = [
 export default function CommsPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Comms</h1>
+      <PageHeader eyebrow="Messaging" title="Comms" />
       <div className="grid gap-3 sm:grid-cols-3">
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href}>

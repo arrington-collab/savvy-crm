@@ -1,6 +1,7 @@
 import { getTenantId } from "@/lib/tenant";
 import { getStripeConnection } from "@/lib/stripe-connection";
 import { ConnectStripeButton } from "./ConnectStripeButton";
+import { PageHeader } from "@/components/cockpit/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function PaymentsSettingsPage({
 
   return (
     <div className="max-w-2xl space-y-4">
-      <h1 className="text-2xl font-semibold">Payments</h1>
+      <PageHeader eyebrow="Integration" title="Payments" />
       <p className="text-sm text-muted-foreground">
         Connect your Stripe account to collect payments from customers.
       </p>
