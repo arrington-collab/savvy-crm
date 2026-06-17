@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { withTenant, adminDb, tenant, job, customer, property, changeOrder, createChangeOrder, sendChangeOrder, eq } from "@savvy/db";
 import { computeChangeOrderTotal, type EstimateLineItem } from "@savvy/core";
 import { httpDocuseal, makeFakeDocuseal } from "@savvy/integrations";
+import { draftChangeOrderScope } from "@savvy/agents";
 import { getTenantId } from "./tenant";
 
 /** Real gateway when DocuSeal is configured; fake (fail-soft) otherwise (dev/e2e). */
@@ -79,4 +80,17 @@ export async function sendChangeOrderForSignatureAction(changeOrderId: string, j
   await sendChangeOrder({ tenantId, changeOrderId, docusealSubmissionId: submission.submissionId, signingUrl: submission.signingUrl });
   revalidatePath(`/jobs/${jobId}/change-orders/${changeOrderId}`);
   return { ok: true, signingUrl: submission.signingUrl };
+}
+
+export async function draftChangeOrderLineItemsAction(
+  input: { jobId: string; description: string },
+): Promise<{ ok: true; lineItems: EstimateLineItem[]; summary: string | null } | { error: "empty_description" | "ai_failed" }> {
+  const tenantId = await getTenantId();
+  if (!input.description.trim()) return { error: "empty_description" };
+  try {
+    const draft = await draftChangeOrderScope({ tenantId, jobId: input.jobId, description: input.description });
+    return { ok: true, lineItems: draft.lineItems, summary: draft.summary };
+  } catch {
+    return { error: "ai_failed" };
+  }
 }
