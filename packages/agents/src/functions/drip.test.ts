@@ -25,7 +25,7 @@ describe("draftMessage", () => {
     expect(res.aiHandled).toBe(true);
     expect(res.model).toBe("gemini-flash");
     expect(ai.complete).toHaveBeenCalledWith(
-      expect.objectContaining({ capability: "summarize" }),
+      expect.objectContaining({ capability: "workhorse" }),
     );
   });
 

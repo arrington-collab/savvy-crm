@@ -10,7 +10,7 @@ describe("phase 3 enums", () => {
     expect(DRIP_STOP_REASON).toEqual(["reply", "converted", "opted_out", "manual"]);
   });
   it("ai draft capabilities", () => {
-    expect(AI_DRAFT_CAPABILITY).toEqual(["reason", "summarize"]);
+    expect(AI_DRAFT_CAPABILITY).toEqual(["reasoning", "workhorse", "reflex", "reason", "summarize"]);
   });
 });
 

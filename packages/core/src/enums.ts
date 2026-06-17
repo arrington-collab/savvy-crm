@@ -19,7 +19,7 @@ export type LeadStatus = (typeof LEAD_STATUS)[number];
 export const MESSAGE_CHANNEL = ["sms", "email"] as const;
 export const DRIP_STATUS = ["active", "stopped", "completed"] as const;
 export const DRIP_STOP_REASON = ["reply", "converted", "opted_out", "manual"] as const;
-export const AI_DRAFT_CAPABILITY = ["reason", "summarize"] as const;
+export const AI_DRAFT_CAPABILITY = ["reasoning", "workhorse", "reflex", "reason", "summarize"] as const;
 
 export type MessageChannel = (typeof MESSAGE_CHANNEL)[number];
 export type DripStatus = (typeof DRIP_STATUS)[number];

@@ -56,7 +56,7 @@ export async function draftChangeOrderScope(
 
   try {
     const { object, model } = await aiClient.completeObject({
-      capability: "reason" as Capability,
+      capability: "reasoning",
       schema: draftSchema,
       system:
         "You are a roofing change-order assistant. Given a rep's plain-English description of a mid-job " +

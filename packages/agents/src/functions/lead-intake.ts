@@ -14,7 +14,7 @@ export async function qualifyLead(
   aiClient: Pick<typeof ai, "completeObject"> = ai,
 ): Promise<{ score: number; reason: string; model: string }> {
   const { object, model } = await aiClient.completeObject({
-    capability: "cheap-classify",
+    capability: "reflex",
     schema: qualifySchema,
     system: "You score roofing leads 0-100 by likelihood to close. Be terse.",
     prompt: `Lead: ${input.name}, ${input.address}, source=${input.source}. Score it.`,

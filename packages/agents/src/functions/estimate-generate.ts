@@ -2,7 +2,6 @@ import { withTenant, eq, createEstimateFromMeasurement, estimate, measurement, p
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
-import type { Capability } from "@savvy/ai";
 
 // ---------------------------------------------------------------------------
 // AI gateway type — injectable for tests so the AI call can be stubbed without
@@ -48,7 +47,7 @@ export async function generateUpsells(
     );
 
     const { object } = await aiClient.completeObject({
-      capability: "reason" as Capability,
+      capability: "reasoning",
       schema: upsellSchema,
       system:
         "You are a roofing sales assistant. Suggest 0-3 optional upgrade line items a rep could offer. " +

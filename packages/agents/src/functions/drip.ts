@@ -22,7 +22,7 @@ export async function draftMessage(
   const { step, templateBody, ctx } = input;
   if (step.aiPrompt) {
     const { text, model } = await aiClient.complete({
-      capability: step.aiCapability ?? "summarize",
+      capability: step.aiCapability ?? "workhorse",
       system: "You write short, friendly roofing-company follow-up messages. No placeholders.",
       prompt: `${step.aiPrompt}\n\nContact: ${ctx.name}. Keep it concise for ${step.channel}.`,
     });
