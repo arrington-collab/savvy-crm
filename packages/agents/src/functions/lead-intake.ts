@@ -1,6 +1,6 @@
 import { z, signPayloadToken } from "@savvy/core";
 import {
-  withTenant, lead, customer, communication, agentRun, eq,
+  withTenant, lead, customer, communication, recordAgentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { twilioSms, type SmsSender } from "@savvy/integrations";
@@ -52,11 +52,10 @@ export const leadIntake = inngest.createFunction(
       await withTenant(tenantId, (tx) =>
         tx.update(lead).set({ score: r.score, scoreReason: r.reason, status: "contacted" }).where(eq(lead.id, leadId)),
       );
-      await withTenant(tenantId, (tx) =>
-        tx.insert(agentRun).values({
-          tenantId, agent: "comms", inngestRunId: event.id ?? null, status: "ok", modelUsed: r.model,
-        }),
-      );
+      await recordAgentRun({
+        tenantId, agent: "comms", taskKey: "lead.qualify", status: "ok",
+        modelUsed: r.model, inngestRunId: event.id ?? null,
+      });
       return r;
     });
 
