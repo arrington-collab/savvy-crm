@@ -25,6 +25,11 @@ export async function createLeadForTenant(tenantId: string, input: LeadIntakeInp
     }).returning();
     return l!.id;
   });
-  await inngest.send({ name: "lead/created", data: { leadId, tenantId } });
+  try {
+    await inngest.send({ name: "lead/created", data: { leadId, tenantId } });
+  } catch (err) {
+    // Lead is already persisted; a missing Inngest engine must not fail creation.
+    console.error("lead/created send failed (lead still created):", err);
+  }
   return leadId;
 }
