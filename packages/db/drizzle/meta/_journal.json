@@ -85,6 +85,13 @@
       "when": 1781758691282,
       "tag": "0011_familiar_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781761417484,
+      "tag": "0012_old_namorita",
+      "breakpoints": true
     }
   ]
 }
