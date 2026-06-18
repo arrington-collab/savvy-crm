@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, property } from "./crm";
@@ -11,11 +11,13 @@ export const document = pgTable("document", {
   customerId: uuid("customer_id").references(() => customer.id),
   kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other
   label: text("label"),
-  r2Key: text("r2_key").notNull(),
+  r2Key: text("r2_key"),
   filename: text("filename"),
   mime: text("mime"),
   sizeBytes: integer("size_bytes"),
   source: text("source").default("upload"), // companycam|savvy|upload
+  externalUrl: text("external_url"),                 // CompanyCam-hosted URL (source='companycam')
+  companycamPhotoId: text("companycam_photo_id"),    // dedupe key for the CompanyCam webhook
   sharedWith: jsonb("shared_with").$type<unknown[]>().default([]).notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: createdAt(),
@@ -56,3 +58,17 @@ export const esignRequest = pgTable("esign_request", {
   uniqueIndex("esign_request_submission_uniq").on(t.tenantId, t.docusealSubmissionId),
   tenantIsolation(),
 ]);
+
+export const crewCheckin = pgTable("crew_checkin", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  crewUserId: uuid("crew_user_id").notNull().references(() => user.id),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }).defaultNow().notNull(),
+  checkInLat: doublePrecision("check_in_lat"),
+  checkInLng: doublePrecision("check_in_lng"),
+  checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
+  checkOutLat: doublePrecision("check_out_lat"),
+  checkOutLng: doublePrecision("check_out_lng"),
+  createdAt: createdAt(),
+}, (t) => [index("crew_checkin_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);

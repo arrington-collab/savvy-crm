@@ -80,6 +80,9 @@ export async function presignDocumentView(
     return d;
   });
   if (!doc) return { error: "not_found" };
+  // CompanyCam-sourced documents have no R2 object (they reference externalUrl);
+  // presigned R2 views don't apply to them.
+  if (!doc.r2Key) return { error: "not_found" };
   try {
     const { url } = await r2Storage.presignDownload({ key: doc.r2Key });
     return { ok: true, url };

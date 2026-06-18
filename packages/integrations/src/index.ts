@@ -7,3 +7,4 @@ export { nangoQbo, makeFakeQbo, type QboGateway } from "./qbo";
 export { r2Storage, makeFakeStorage, type StorageGateway } from "./storage";
 export { nangoRoofr, makeFakeRoofr, type RoofrGateway, type RoofrReport } from "./roofr";
 export { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "./docuseal";
+export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway, type CompanyCamEvent } from "./companycam";

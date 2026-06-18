@@ -109,7 +109,7 @@ export function resolveAgent(row: { agent: string; taskKey?: string | null }): R
   switch (row.agent) {
     case "orchestrator": key = "SAGE"; break;
     case "comms": key = action.startsWith("lead.") ? "ATLAS" : "NOVA"; break;
-    case "scheduling": key = "MILO"; break;
+    case "scheduling": key = action.startsWith("photo.") ? "SCOUT" : "MILO"; break;
     case "finance": key = /invoice|payment|collect/.test(action) ? "RAINE" : "VERA"; break;
     case "claims": key = "SCOUT"; break;
     default: key = "SAGE";

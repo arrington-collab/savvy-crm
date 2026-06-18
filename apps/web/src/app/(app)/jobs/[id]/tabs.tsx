@@ -16,6 +16,13 @@ import { formatDate } from "@/lib/format";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgent, personaLine, PERSONAS } from "@/lib/agents";
 
+type CheckinRow = {
+  id: string;
+  crewName: string | null;
+  checkedInAt: string;
+  checkedOutAt: string | null;
+};
+
 type TaskRow = {
   id: string;
   title: string;
@@ -98,8 +105,10 @@ export function JobTabs({
   docs,
   requiredPhotos,
   jobId,
+  companycamProjectId,
   esignRequests,
   customerEmail,
+  checkins,
 }: {
   tasksByPhase: { phase: string; tasks: TaskRow[] }[];
   timeline: TimelineItem[];
@@ -107,8 +116,10 @@ export function JobTabs({
   docs: DocRow[];
   requiredPhotos: string[];
   jobId: string;
+  companycamProjectId: string | null;
   esignRequests: EsignRow[];
   customerEmail: string | null;
+  checkins: CheckinRow[];
 }) {
   return (
     <Tabs defaultValue="tasks">
@@ -194,7 +205,29 @@ export function JobTabs({
           jobId={jobId}
           documents={docs}
           requiredPhotos={requiredPhotos}
+          companycamProjectId={companycamProjectId}
         />
+
+        {/* ── Crew check-in history ───────────────────────────────────── */}
+        {checkins.length > 0 && (
+          <div data-testid="crew-checkin-strip" className="mt-6 space-y-2">
+            <h3 className="text-sm font-semibold text-muted-foreground">Crew check-ins</h3>
+            {checkins.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                <AgentAvatar
+                  persona={resolveAgent({ agent: "scheduling", taskKey: "crew.checkin" }).persona}
+                  size="sm"
+                />
+                <span className="flex-1 truncate">
+                  {c.crewName ?? "Crew member"}
+                </span>
+                <span className="mono text-xs text-muted-foreground">
+                  in {formatDate(c.checkedInAt)} · out {c.checkedOutAt ? formatDate(c.checkedOutAt) : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </TabsContent>
 
       <TabsContent value="esign">

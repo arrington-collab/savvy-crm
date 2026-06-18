@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, property, lead } from "./crm";
@@ -15,6 +16,7 @@ export const job = pgTable("job", {
   valueFinal: integer("value_final"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),
   leadId: uuid("lead_id").references(() => lead.id),
+  companycamProjectId: text("companycam_project_id"),
   costCents: integer("cost_cents"),
   openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
@@ -23,6 +25,7 @@ export const job = pgTable("job", {
 }, (t) => [
   index("job_tenant_stage_idx").on(t.tenantId, t.stage),
   tenantIsolation(),
+  uniqueIndex("job_companycam_project_uniq").on(t.companycamProjectId).where(sql`${t.companycamProjectId} IS NOT NULL`),
 ]);
 
 export const jobTask = pgTable("job_task", {
