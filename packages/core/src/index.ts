@@ -22,3 +22,4 @@ export * from "./change-order";
 export * from "./agent-activity";
 export * from "./crew-pin";
 export * from "./clerk-role";
+export * from "./onboarding";
