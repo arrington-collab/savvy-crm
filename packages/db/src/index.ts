@@ -31,3 +31,4 @@ export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration } from "./lifecycle/voice";
 export { recordAgentRun, type AgentRunStatus } from "./lifecycle/agent-run";
 export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
+export { recordCompanyCamPhoto } from "./lifecycle/companycam";
