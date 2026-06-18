@@ -1,5 +1,5 @@
 "use server";
-import { adminDb, user, eq, and, withTenant, job, document } from "@savvy/db";
+import { adminDb, user, eq, and, isNull, withTenant, job, document } from "@savvy/db";
 import { openCheckIn, closeCheckIn, recordAgentRun } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 import { verifyPin } from "@savvy/core";
@@ -10,10 +10,12 @@ import { crewCanAccessJob } from "./crew-queries";
 export async function crewLogin(key: string, pin: string): Promise<{ ok: true } | { error: string }> {
   const t = await tenantByKey(key);
   if (!t) return { error: "unknown workspace" };
+  // Filter to active (non-deactivated) crew members only — deactivated users must not be
+  // able to sign in even if their PIN hash is still present in the database.
   const crew = await adminDb
     .select({ id: user.id, pinHash: user.pinHash })
     .from(user)
-    .where(and(eq(user.tenantId, t.id), eq(user.role, "crew")));
+    .where(and(eq(user.tenantId, t.id), eq(user.role, "crew"), isNull(user.deactivatedAt)));
   const match = crew.find((u) => verifyPin(pin, u.pinHash));
   if (!match) return { error: "invalid PIN" };
   await setCrewCookie({ tenantId: t.id, crewUserId: match.id });
