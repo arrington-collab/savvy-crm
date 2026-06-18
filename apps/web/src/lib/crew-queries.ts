@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, job, customer, property, appointment, crewCheckin, eq, and, or, inArray, isNull, desc } from "@savvy/db";
+import { withTenant, job, customer, property, appointment, crewCheckin, user, eq, and, or, inArray, isNull, desc } from "@savvy/db";
 import type { CrewSession } from "./crew-session";
 
 const ACTIVE_STAGES = ["approved", "production", "closeout"] as const;
@@ -36,6 +36,27 @@ export type CrewJobDetail = {
   id: string; stage: string; customerName: string | null; address: string | null;
   openCheckinAt: Date | null;
 };
+
+/** Crew check-in history for a job (admin view, not scoped to a single crew member). */
+export async function getJobCheckins(
+  tenantId: string,
+  jobId: string,
+): Promise<{ id: string; crewName: string | null; checkedInAt: Date; checkedOutAt: Date | null }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        id: crewCheckin.id,
+        crewName: user.name,
+        checkedInAt: crewCheckin.checkedInAt,
+        checkedOutAt: crewCheckin.checkedOutAt,
+      })
+      .from(crewCheckin)
+      .leftJoin(user, eq(user.id, crewCheckin.crewUserId))
+      .where(eq(crewCheckin.jobId, jobId))
+      .orderBy(desc(crewCheckin.checkedInAt))
+      .limit(20),
+  );
+}
 
 export async function getCrewJob(s: CrewSession, jobId: string): Promise<CrewJobDetail | null> {
   if (!(await crewCanAccessJob(s, jobId))) return null;

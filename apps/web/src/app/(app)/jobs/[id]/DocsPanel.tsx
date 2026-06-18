@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { presignDocumentUpload, presignDocumentView, recordDocument } from "@/lib/document-actions";
+import { linkCompanyCamProject } from "@/lib/companycam-actions";
 import { Button } from "@/components/ui/button";
 
 // Mirrors the columns selected in page.tsx
@@ -13,6 +14,8 @@ export interface DocRow {
   label: string | null;
   filename: string | null;
   mime: string | null;
+  source: string | null;
+  externalUrl: string | null;
   createdAt: string;
 }
 
@@ -20,6 +23,7 @@ interface Props {
   jobId: string;
   documents: DocRow[];
   requiredPhotos: string[];
+  companycamProjectId: string | null;
 }
 
 const KIND_OPTIONS = ["photo", "measurement", "contract", "evidence", "other"] as const;
@@ -90,10 +94,12 @@ function DocFile({ docId, filename }: { docId: string; filename: string | null }
 }
 
 // ─── DocsPanel ───────────────────────────────────────────────────────────────
-export function DocsPanel({ jobId, documents, requiredPhotos }: Props) {
+export function DocsPanel({ jobId, documents, requiredPhotos, companycamProjectId }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, startBusy] = useTransition();
+  const [ccProjectId, setCcProjectId] = useState(companycamProjectId ?? "");
+  const [ccSaving, startCcSave] = useTransition();
 
   const [selectedLabel, setSelectedLabel] = useState<string>(requiredPhotos[0] ?? "other");
   const [selectedKind, setSelectedKind] = useState<DocKind>("photo");
@@ -166,8 +172,49 @@ export function DocsPanel({ jobId, documents, requiredPhotos }: Props) {
     });
   }
 
+  function handleLinkSave() {
+    startCcSave(async () => {
+      const res = await linkCompanyCamProject(jobId, ccProjectId);
+      if ("ok" in res) {
+        toast.success("CompanyCam project linked.");
+        router.refresh();
+      } else {
+        toast.error(`Could not link project (${res.error}).`);
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
+      {/* ── 0. CompanyCam project link ──────────────────────────────────── */}
+      <section className="space-y-2 rounded-md border border-border p-4">
+        <h3 className="text-sm font-semibold">CompanyCam project</h3>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={ccProjectId}
+            onChange={(e) => setCcProjectId(e.target.value)}
+            placeholder="Project ID"
+            data-testid="companycam-link"
+            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={ccSaving}
+            onClick={handleLinkSave}
+            data-testid="companycam-link-save"
+          >
+            {ccSaving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+        {companycamProjectId && (
+          <p className="text-xs text-muted-foreground">
+            Linked: <span className="font-mono">{companycamProjectId}</span>
+          </p>
+        )}
+      </section>
+
       {/* ── 1. Required-photo checklist ─────────────────────────────────── */}
       {requiredPhotos.length > 0 && (
         <section>
@@ -204,7 +251,17 @@ export function DocsPanel({ jobId, documents, requiredPhotos }: Props) {
           <div className="flex flex-wrap gap-2">
             {photos.map((doc) => (
               <div key={doc.id} className="space-y-1">
-                <DocThumb docId={doc.id} filename={doc.filename} />
+                {doc.externalUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={doc.externalUrl}
+                    alt={doc.label ?? "photo"}
+                    className="h-24 w-24 rounded-md border border-border object-cover"
+                    data-testid="companycam-photo"
+                  />
+                ) : (
+                  <DocThumb docId={doc.id} filename={doc.filename} />
+                )}
                 {doc.label && (
                   <p className="w-24 truncate text-center text-xs text-muted-foreground">
                     {doc.label}

@@ -16,6 +16,7 @@ import {
   asc,
   sql,
 } from "@savvy/db";
+import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
 import { parseProductionConfig } from "@savvy/core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -58,6 +59,7 @@ export default async function JobDetailPage({
         valueEstimate: job.valueEstimate,
         stageEnteredAt: job.stageEnteredAt,
         propertyId: job.propertyId,
+        companycamProjectId: job.companycamProjectId,
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
@@ -127,6 +129,8 @@ export default async function JobDetailPage({
         label: document.label,
         filename: document.filename,
         mime: document.mime,
+        source: document.source,
+        externalUrl: document.externalUrl,
         createdAt: document.createdAt,
       })
       .from(document)
@@ -230,6 +234,8 @@ export default async function JobDetailPage({
     label: d.label,
     filename: d.filename,
     mime: d.mime,
+    source: d.source ?? null,
+    externalUrl: d.externalUrl ?? null,
     createdAt: d.createdAt.toISOString(),
   }));
 
@@ -243,12 +249,21 @@ export default async function JobDetailPage({
 
   const value = (jobRow.valueEstimate ?? 0) / 100;
 
-  // Fetch estimate and measurement data in parallel (after confirming job exists).
-  const [estimates, measurement, changeOrders] = await Promise.all([
+  // Fetch estimate, measurement, change orders, and crew check-ins in parallel.
+  const [estimates, measurement, changeOrders, checkins] = await Promise.all([
     listEstimatesForJob(id),
     getLatestMeasurementForJob(id),
     listChangeOrdersForJob(id),
+    getJobCheckins(tenantId, id),
   ]);
+
+  // Serialize checkin dates to ISO strings for client props.
+  const checkinRows = checkins.map((c) => ({
+    id: c.id,
+    crewName: c.crewName,
+    checkedInAt: c.checkedInAt.toISOString(),
+    checkedOutAt: c.checkedOutAt ? c.checkedOutAt.toISOString() : null,
+  }));
 
   // Serialize measurement areas for client component (jsonb -> plain object).
   const measurementForClient = measurement
@@ -305,8 +320,10 @@ export default async function JobDetailPage({
         docs={docs}
         requiredPhotos={requiredPhotos}
         jobId={jobRow.id}
+        companycamProjectId={jobRow.companycamProjectId ?? null}
         esignRequests={esignRows}
         customerEmail={jobRow.customerEmail ?? null}
+        checkins={checkinRows}
       />
 
       {/* Estimates section */}
