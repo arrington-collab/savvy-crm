@@ -38,6 +38,6 @@ export async function closeCheckIn(tx: Tx, opts: Key & Loc): Promise<{ id: strin
   if (!open) return null;
   await tx.update(crewCheckin).set({
     checkedOutAt: new Date(), checkOutLat: opts.lat ?? null, checkOutLng: opts.lng ?? null,
-  }).where(eq(crewCheckin.id, open.id));
+  }).where(and(eq(crewCheckin.id, open.id), eq(crewCheckin.tenantId, opts.tenantId)));
   return { id: open.id };
 }

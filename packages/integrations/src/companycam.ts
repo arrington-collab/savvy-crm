@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { nangoProxy } from "./nango";
 
 export interface CompanyCamEvent {
@@ -29,8 +29,14 @@ export const httpCompanyCam: CompanyCamGateway = {
     const secret = process.env.COMPANYCAM_WEBHOOK_SECRET ?? "";
     if (!secret) return true;
     if (!sig) return false;
-    const expected = createHmac("sha256", secret).update(raw).digest("hex");
-    return expected === sig;
+    const expected = createHmac("sha256", secret).update(raw).digest();
+    let provided: Buffer;
+    try {
+      provided = Buffer.from(sig, "hex");
+    } catch {
+      return false;
+    }
+    return expected.length === provided.length && timingSafeEqual(expected, provided);
   },
   parseEvent(payload) {
     const p = payload as {

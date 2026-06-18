@@ -9,7 +9,7 @@ import { adminDb } from "../admin-client";
  * Idempotent: dedupes by (jobId, companycamPhotoId). Unknown project -> null.
  */
 export async function recordCompanyCamPhoto(input: {
-  projectId: string; photoId: string; url: string; capturedAt?: string | null;
+  projectId: string; photoId: string; url: string;
 }): Promise<{ tenantId: string; jobId: string; documentId: string; created: boolean } | null> {
   const [j] = await adminDb
     .select({ id: job.id, tenantId: job.tenantId, customerId: job.customerId })
