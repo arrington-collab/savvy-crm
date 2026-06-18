@@ -6,12 +6,19 @@ import { getTenantId } from "./tenant";
 import { isOrgAdmin } from "./authz";
 import type { UserRole } from "@savvy/core";
 
+/** Returns the Clerk orgId, or null in TEST_MODE (no Clerk session). */
+async function getOrgId(): Promise<string | null> {
+  if (process.env.TEST_MODE === "1") return null;
+  const { orgId } = await auth();
+  return orgId ?? null;
+}
+
 const CLERK_ROLE = (r: UserRole): "org:admin" | "org:member" =>
   r === "owner" || r === "admin" ? "org:admin" : "org:member";
 
 export async function inviteMember(email: string, role: UserRole): Promise<{ ok: true } | { error: string }> {
   if (!(await isOrgAdmin())) return { error: "forbidden" };
-  const { orgId } = await auth();
+  const orgId = await getOrgId();
   if (!orgId) return { error: "no organization" };
   try {
     const cc = await clerkClient();
@@ -25,7 +32,7 @@ export async function inviteMember(email: string, role: UserRole): Promise<{ ok:
 export async function changeUserRole(userId: string, role: UserRole): Promise<{ ok: true } | { error: string }> {
   if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
-  const { orgId } = await auth();
+  const orgId = await getOrgId();
   const target = await withTenant(tenantId, async (tx) => {
     const [u] = await tx.select({ id: user.id, clerkUserId: user.clerkUserId }).from(user).where(eq(user.id, userId));
     return u ?? null;
@@ -47,7 +54,7 @@ export async function changeUserRole(userId: string, role: UserRole): Promise<{ 
 export async function removeMember(userId: string): Promise<{ ok: true } | { error: string }> {
   if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
-  const { orgId } = await auth();
+  const orgId = await getOrgId();
   const target = await withTenant(tenantId, async (tx) => {
     const [u] = await tx.select({ id: user.id, clerkUserId: user.clerkUserId }).from(user).where(eq(user.id, userId));
     return u ?? null;
