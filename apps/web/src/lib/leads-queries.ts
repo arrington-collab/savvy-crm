@@ -1,4 +1,5 @@
-import { withTenant, lead, customer, property, user, communication, eq, desc, sql } from "@savvy/db";
+import "server-only";
+import { withTenant, lead, customer, property, user, communication, count, eq, desc, sql } from "@savvy/db";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -30,6 +31,7 @@ export async function getLeads(
       .from(lead)
       .leftJoin(customer, eq(customer.id, lead.customerId))
       .leftJoin(property, eq(property.id, lead.propertyId))
+      // undefined omits the WHERE clause (Drizzle no-op) — no status filter
       .where(opts.status ? eq(lead.status, opts.status) : undefined)
       .orderBy(
         ...(opts.sort === "age"
@@ -42,7 +44,7 @@ export async function getLeads(
 export async function getLeadFunnelCounts(): Promise<Record<LeadStatus, number>> {
   const tenantId = await getTenantId();
   const rows = await withTenant(tenantId, (tx) =>
-    tx.select({ status: lead.status, n: sql<number>`count(*)::int` }).from(lead).groupBy(lead.status),
+    tx.select({ status: lead.status, n: count() }).from(lead).groupBy(lead.status),
   );
   const out = Object.fromEntries(LEAD_STATUS.map((s) => [s, 0])) as Record<LeadStatus, number>;
   for (const r of rows) out[r.status as LeadStatus] = r.n;
