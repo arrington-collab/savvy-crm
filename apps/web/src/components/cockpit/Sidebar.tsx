@@ -15,6 +15,7 @@ const NAV = [
   { href: "/settings/payments", label: "Payments" },
   { href: "/settings/quickbooks", label: "QuickBooks" },
   { href: "/settings/price-book", label: "Price Book" },
+  { href: "/settings/team", label: "Team" },
 ];
 
 export function Sidebar() {
