@@ -148,3 +148,13 @@ export function personaLine(persona: Persona, seed = 0): string {
   const n = persona.samples.length;
   return persona.samples[((seed % n) + n) % n] ?? persona.samples[0]!;
 }
+
+/**
+ * Presentation persona for a lead's funnel status (NOT a real agent_run lookup —
+ * agent_run has no lead linkage yet). ATLAS hunts the early funnel; SAGE closes.
+ */
+export function leadStatusPersona(status: string): { persona: Persona; dimmed: boolean } {
+  if (status === "won") return { persona: PERSONAS.SAGE, dimmed: false };
+  if (status === "lost") return { persona: PERSONAS.ATLAS, dimmed: true };
+  return { persona: PERSONAS.ATLAS, dimmed: false }; // new | contacted | qualified | booked
+}
