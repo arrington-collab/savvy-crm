@@ -24,7 +24,7 @@ export * from "./schema/index";
 // Re-export the query operators consumers need, so app code uses THIS package's
 // single drizzle-orm instance (avoids duplicate-instance type mismatches where
 // the app's own `eq` doesn't match @savvy/db's columns).
-export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, lt, gte, lte, gt } from "drizzle-orm";
+export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt, gte, lte, gt } from "drizzle-orm";
 export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
