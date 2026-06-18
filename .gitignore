@@ -16,3 +16,6 @@ coverage/
 # Playwright
 test-results/
 playwright-report/
+
+# Claude Code local worktrees/state
+.claude/
