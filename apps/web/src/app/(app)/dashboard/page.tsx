@@ -1,9 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { getPipelineCounts, getRecentAgentRuns, getVelocity, getRepPerformance } from "@/lib/dashboard-queries";
+import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { MetricCard } from "@/components/cockpit/MetricCard";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgent, agentLabel } from "@/lib/agents";
-import { AGENT } from "@savvy/core";
+import { AGENT, isOnboardingComplete } from "@savvy/core";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -31,12 +33,14 @@ const STAGE_DOT: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [pipeline, runs, velocity, repPerf] = await Promise.all([
+  const [pipeline, runs, velocity, repPerf, onboarding] = await Promise.all([
     getPipelineCounts(),
     getRecentAgentRuns(),
     getVelocity(),
     getRepPerformance(),
+    getOnboardingStatus(),
   ]);
+  const showChecklist = !onboarding.state.dismissed && !isOnboardingComplete(onboarding.steps);
   const activeStages = ["lead", "inspected", "estimate", "approved", "production"] as const;
 
   // CREW HEALTH — latest run per service (runs are newest-first).
@@ -46,6 +50,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {showChecklist && <OnboardingChecklist steps={onboarding.steps} />}
       <div>
         <div className="eyebrow">Operations</div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
