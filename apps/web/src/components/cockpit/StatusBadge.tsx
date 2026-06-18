@@ -13,6 +13,9 @@ const STATUS_TONE: Record<string, string> = {
   sent: "var(--accent-gold)", scheduled: "var(--accent-gold)",
   // faint — idle/draft
   draft: "var(--text-faint)", upcoming: "var(--text-faint)", pending: "var(--text-faint)",
+  // lead funnel
+  new: "var(--text-faint)", contacted: "var(--accent-gold)", qualified: "var(--accent-gold)",
+  booked: "var(--status-ok)", won: "var(--status-ok)", lost: "var(--status-error)",
 };
 
 export function StatusBadge({ status }: { status: string }) {
