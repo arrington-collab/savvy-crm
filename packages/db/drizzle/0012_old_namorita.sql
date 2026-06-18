@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "job_companycam_project_uniq" ON "job" USING btree ("companycam_project_id") WHERE "job"."companycam_project_id" IS NOT NULL;

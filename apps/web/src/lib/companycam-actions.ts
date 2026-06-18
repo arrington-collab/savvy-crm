@@ -23,11 +23,19 @@ export async function saveCompanyCamConnection(
 export async function linkCompanyCamProject(
   jobId: string, projectId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
+  const pid = projectId.trim();
+  if (pid) {
+    // Reject claiming a CompanyCam project already linked to another tenant's job
+    // (webhook routing is by projectId globally; cross-tenant collisions = data leak).
+    const claimed = await adminDb.select({ tenantId: job.tenantId }).from(job).where(eq(job.companycamProjectId, pid));
+    if (claimed.some((c) => c.tenantId !== tenantId)) return { error: "project already linked to another workspace" };
+  }
   const res = await withTenant(tenantId, async (tx) => {
     const [j] = await tx.select({ id: job.id }).from(job).where(eq(job.id, jobId));
     if (!j) return null;
-    await tx.update(job).set({ companycamProjectId: projectId.trim() || null }).where(eq(job.id, jobId));
+    await tx.update(job).set({ companycamProjectId: pid || null }).where(eq(job.id, jobId));
     return j;
   });
   if (!res) return { error: "not_found" };
