@@ -24,6 +24,7 @@ export function LeadActions({
 
   const terminal = status === "won" || status === "lost";
   const canConvert = !terminal && status !== "booked";
+  const canLose = !terminal && status !== "booked";
 
   function doConvert() {
     start(async () => {
@@ -83,9 +84,11 @@ export function LeadActions({
           </option>
         ))}
       </select>
-      <Button variant="outline" onClick={doLost} disabled={pending} data-testid="mark-lost">
-        Mark lost
-      </Button>
+      {canLose && (
+        <Button variant="outline" onClick={doLost} disabled={pending} data-testid="mark-lost">
+          Mark lost
+        </Button>
+      )}
     </div>
   );
 }

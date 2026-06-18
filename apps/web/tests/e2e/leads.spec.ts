@@ -46,10 +46,11 @@ test("leads: list, filter, detail, convert, mark lost", async ({ page }) => {
   const [converted] = await withTenant(tenantId, (tx) => tx.select().from(lead).where(eq(lead.id, newId)));
   expect(converted!.status).toBe("booked");
 
-  // Re-open: Convert is gone (booked), Assign remains.
+  // Re-open: Convert is gone (booked), Assign remains, Mark lost is gone too.
   await page.goto(`/leads/${newId}`);
   await expect(page.getByTestId("convert-lead")).toHaveCount(0);
   await expect(page.getByTestId("assign-owner")).toBeVisible();
+  await expect(page.getByTestId("mark-lost")).toHaveCount(0);
 
   // Mark the contacted lead lost -> read-only.
   await page.goto(`/leads/${contactedId}`);

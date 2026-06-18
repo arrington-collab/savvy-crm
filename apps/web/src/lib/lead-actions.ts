@@ -29,6 +29,7 @@ export async function convertLead(
     revalidatePath("/leads");
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/jobs");
+    revalidatePath(`/jobs/${jobId}`);
     return { ok: true, jobId };
   } catch {
     return { error: "could not convert lead" };
