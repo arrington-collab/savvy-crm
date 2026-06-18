@@ -1,6 +1,7 @@
 "use server";
-import { adminDb, user, eq, and, withTenant } from "@savvy/db";
+import { adminDb, user, eq, and, withTenant, job, document } from "@savvy/db";
 import { openCheckIn, closeCheckIn, recordAgentRun } from "@savvy/db";
+import { r2Storage } from "@savvy/integrations";
 import { verifyPin } from "@savvy/core";
 import { tenantByKey } from "./intake";
 import { setCrewCookie, clearCrewCookie, getCrewSession } from "./crew-session";
@@ -44,4 +45,42 @@ export async function crewCheckOut(
   await withTenant(s.tenantId, (tx) => closeCheckIn(tx, { tenantId: s.tenantId, jobId, crewUserId: s.crewUserId, lat, lng }));
   await recordAgentRun({ tenantId: s.tenantId, agent: "scheduling", taskKey: "crew.checkout", jobId, status: "ok" });
   return { ok: true };
+}
+
+export async function crewPresignPhoto(
+  jobId: string, input: { filename: string; contentType: string },
+): Promise<{ ok: true; uploadUrl: string; r2Key: string } | { error: string }> {
+  const s = await getCrewSession();
+  if (!s) return { error: "not signed in" };
+  if (!(await crewCanAccessJob(s, jobId))) return { error: "not your job" };
+  const safe = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+  const r2Key = `${s.tenantId}/${jobId}/${crypto.randomUUID()}-${safe}`;
+  try {
+    const { url } = await r2Storage.presignUpload({ key: r2Key, contentType: input.contentType });
+    return { ok: true, uploadUrl: url, r2Key };
+  } catch {
+    return { error: "storage_not_configured" };
+  }
+}
+
+export async function crewRecordPhoto(
+  jobId: string,
+  input: { r2Key: string; label: string; filename: string; mime: string; sizeBytes: number },
+): Promise<{ ok: true; id: string } | { error: string }> {
+  const s = await getCrewSession();
+  if (!s) return { error: "not signed in" };
+  if (!(await crewCanAccessJob(s, jobId))) return { error: "not your job" };
+  if (!input.r2Key.startsWith(`${s.tenantId}/${jobId}/`)) return { error: "bad_key" };
+  const res = await withTenant(s.tenantId, async (tx) => {
+    const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, jobId));
+    if (!j) return null;
+    const [row] = await tx.insert(document).values({
+      tenantId: s.tenantId, jobId, customerId: j.customerId ?? null,
+      kind: "photo", label: input.label, r2Key: input.r2Key,
+      filename: input.filename, mime: input.mime, sizeBytes: input.sizeBytes, source: "savvy",
+    }).returning({ id: document.id });
+    return row;
+  });
+  if (!res) return { error: "not_found" };
+  return { ok: true, id: res.id };
 }
