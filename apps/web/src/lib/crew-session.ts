@@ -4,7 +4,12 @@ import { signPayloadToken, verifyPayloadToken } from "@savvy/core";
 
 const COOKIE = "crew_session";
 const TTL_MS = 12 * 60 * 60 * 1000;
-const SECRET = () => process.env.CREW_SESSION_SECRET ?? "dev-crew-secret";
+const SECRET = () => {
+  const s = process.env.CREW_SESSION_SECRET;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") throw new Error("CREW_SESSION_SECRET is required in production");
+  return "dev-crew-secret";
+};
 
 export type CrewSession = { tenantId: string; crewUserId: string };
 
@@ -14,7 +19,8 @@ export async function getCrewSession(): Promise<CrewSession | null> {
   if (!tok) return null;
   const p = verifyPayloadToken<{ tenantId: string; crewUserId: string; exp: string }>(tok, SECRET());
   if (!p) return null;
-  if (Number(p.exp) < Date.now()) return null;
+  const exp = Number(p.exp);
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
   return { tenantId: p.tenantId, crewUserId: p.crewUserId };
 }
 

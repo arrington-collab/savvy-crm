@@ -15,7 +15,7 @@ export async function listCrewUsers(): Promise<{ id: string; name: string; hasPi
 export async function setCrewPin(userId: string, pin: string | null): Promise<{ ok: true } | { error: string }> {
   if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
-  if (pin !== null && !/^\d{4,8}$/.test(pin)) return { error: "PIN must be 4–8 digits" };
+  if (pin !== null && !/^\d{6,8}$/.test(pin)) return { error: "PIN must be 6–8 digits" };
   const res = await withTenant(tenantId, async (tx) => {
     const [u] = await tx.select({ id: user.id }).from(user).where(and(eq(user.id, userId), eq(user.role, "crew")));
     if (!u) return null;

@@ -27,7 +27,7 @@ function pickUri(uris?: { uri: string; type: string }[]): string {
 export const httpCompanyCam: CompanyCamGateway = {
   verifyWebhook(raw, sig) {
     const secret = process.env.COMPANYCAM_WEBHOOK_SECRET ?? "";
-    if (!secret) return true;
+    if (!secret) return process.env.NODE_ENV !== "production";
     if (!sig) return false;
     const expected = createHmac("sha256", secret).update(raw).digest();
     let provided: Buffer;
