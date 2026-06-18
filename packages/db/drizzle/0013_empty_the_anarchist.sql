@@ -1,0 +1,2 @@
+ALTER TABLE "user" ADD COLUMN "deactivated_at" timestamp with time zone;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "user_tenant_clerk_uniq" ON "user" USING btree ("tenant_id","clerk_user_id") WHERE "user"."clerk_user_id" IS NOT NULL;

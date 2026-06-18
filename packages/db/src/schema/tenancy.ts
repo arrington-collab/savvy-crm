@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, jsonb, index, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { userRoleEnum } from "./enums";
 
@@ -29,8 +30,10 @@ export const user = pgTable("user", {
   role: userRoleEnum("role").notNull().default("rep"),
   gcalConnectionId: text("gcal_connection_id"),
   pinHash: text("pin_hash"),
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   index("user_tenant_idx").on(t.tenantId),
   tenantIsolation(),
+  uniqueIndex("user_tenant_clerk_uniq").on(t.tenantId, t.clerkUserId).where(sql`${t.clerkUserId} IS NOT NULL`),
 ]);

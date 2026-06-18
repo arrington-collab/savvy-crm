@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 
-export function TopBar() {
+export function TopBar({ authEnabled }: { authEnabled: boolean }) {
   const [time, setTime] = useState("");
   useEffect(() => {
     const tick = () =>
@@ -44,6 +45,12 @@ export function TopBar() {
           <span className="text-accent-gold">✦</span> Ask Sage
           <kbd className="text-[10px]" style={{ color: "var(--text-faint)" }}>⌘K</kbd>
         </button>
+        {authEnabled ? (
+          <>
+            <OrganizationSwitcher hidePersonal afterCreateOrganizationUrl="/dashboard" afterSelectOrganizationUrl="/dashboard" />
+            <UserButton />
+          </>
+        ) : null}
       </div>
     </header>
   );

@@ -7,6 +7,7 @@ export const COMM_CHANNEL = ["call","sms","email"] as const;
 export const COMM_DIRECTION = ["inbound","outbound"] as const;
 export const LEAD_STATUS = ["new","contacted","qualified","booked","won","lost"] as const;
 export const USER_ROLE = ["owner","admin","rep","crew","office"] as const;
+export type UserRole = (typeof USER_ROLE)[number];
 
 export type JobType = (typeof JOB_TYPE)[number];
 export type JobStage = (typeof JOB_STAGE)[number];
