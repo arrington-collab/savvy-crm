@@ -54,4 +54,14 @@ describe("onboarding write helpers", () => {
     expect(s.onboarding.dismissed).toBe(true);
     expect(s.onboarding.requiredCompletedAt).toBe("x");
   });
+
+  it("only writes the targeted tenant — a sibling tenant is untouched", async () => {
+    const a = await makeTenant({});
+    const b = await makeTenant({ onboarding: { requiredCompletedAt: "keep", dismissed: false } });
+    await setOnboardingProfile({ tenantId: a, revenueBand: "scale", timezone: "America/Denver" });
+    const [tb] = await adminDb.select().from(tenant).where(eq(tenant.id, b));
+    expect(tb!.revenueBand).toBeNull();
+    const sb = tb!.settings as Record<string, any>;
+    expect(sb.onboarding.requiredCompletedAt).toBe("keep");
+  });
 });
