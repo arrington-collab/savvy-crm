@@ -3,6 +3,7 @@ import { withTenant, user, eq, and } from "@savvy/db";
 import { hashPin } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
+import { isOrgAdmin } from "./authz";
 
 export async function listCrewUsers(): Promise<{ id: string; name: string; hasPin: boolean }[]> {
   const tenantId = await getTenantId();
@@ -12,6 +13,7 @@ export async function listCrewUsers(): Promise<{ id: string; name: string; hasPi
 }
 
 export async function setCrewPin(userId: string, pin: string | null): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   if (pin !== null && !/^\d{4,8}$/.test(pin)) return { error: "PIN must be 4–8 digits" };
   const res = await withTenant(tenantId, async (tx) => {
