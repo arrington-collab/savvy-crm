@@ -10,10 +10,14 @@ export async function createLead(
 ): Promise<{ ok: true; leadId: string } | { error: string }> {
   const parsed = leadIntakeSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "invalid input" };
-  const tenantId = await getTenantId();
-  const leadId = await createLeadForTenant(tenantId, parsed.data);
-  revalidatePath("/leads");
-  return { ok: true, leadId };
+  try {
+    const tenantId = await getTenantId();
+    const leadId = await createLeadForTenant(tenantId, parsed.data);
+    revalidatePath("/leads");
+    return { ok: true, leadId };
+  } catch {
+    return { error: "could not create lead" };
+  }
 }
 
 export async function convertLead(
@@ -50,8 +54,12 @@ export async function markLeadLost(
   leadId: string,
 ): Promise<{ ok: true } | { error: string }> {
   const tenantId = await getTenantId();
-  await withTenant(tenantId, (tx) => setLeadLost(tx, { tenantId, leadId }));
-  revalidatePath(`/leads/${leadId}`);
-  revalidatePath("/leads");
-  return { ok: true };
+  try {
+    await withTenant(tenantId, (tx) => setLeadLost(tx, { tenantId, leadId }));
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    return { ok: true };
+  } catch {
+    return { error: "could not mark lead lost" };
+  }
 }
