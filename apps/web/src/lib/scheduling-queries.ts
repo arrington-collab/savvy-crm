@@ -1,5 +1,5 @@
 import {
-  withTenant, appointment, job, property, customer, user, eq, and, desc,
+  withTenant, appointment, job, property, customer, user, eq, and, desc, isNull,
 } from "@savvy/db";
 import { getTenantId } from "./tenant";
 
@@ -32,6 +32,6 @@ export async function listAppointments(filter?: { assigneeUserId?: string; type?
 export async function listUsers() {
   const tenantId = await getTenantId();
   return withTenant(tenantId, (tx) =>
-    tx.select({ id: user.id, name: user.name }).from(user),
+    tx.select({ id: user.id, name: user.name }).from(user).where(isNull(user.deactivatedAt)),
   );
 }

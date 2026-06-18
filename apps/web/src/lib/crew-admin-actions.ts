@@ -1,5 +1,5 @@
 "use server";
-import { withTenant, user, eq, and } from "@savvy/db";
+import { withTenant, user, eq, and, isNull } from "@savvy/db";
 import { hashPin } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
@@ -8,7 +8,7 @@ import { isOrgAdmin } from "./authz";
 export async function listCrewUsers(): Promise<{ id: string; name: string; hasPin: boolean }[]> {
   const tenantId = await getTenantId();
   const rows = await withTenant(tenantId, (tx) =>
-    tx.select({ id: user.id, name: user.name, pinHash: user.pinHash }).from(user).where(eq(user.role, "crew")));
+    tx.select({ id: user.id, name: user.name, pinHash: user.pinHash }).from(user).where(and(eq(user.role, "crew"), isNull(user.deactivatedAt))));
   return rows.map((r) => ({ id: r.id, name: r.name, hasPin: !!r.pinHash }));
 }
 

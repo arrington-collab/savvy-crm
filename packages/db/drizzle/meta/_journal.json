@@ -92,6 +92,13 @@
       "when": 1781761417484,
       "tag": "0012_old_namorita",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781786287070,
+      "tag": "0013_empty_the_anarchist",
+      "breakpoints": true
     }
   ]
 }
