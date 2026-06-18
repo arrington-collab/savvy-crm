@@ -26,7 +26,7 @@ export function CrewPinManager({ crew }: { crew: Crew[] }) {
   }
 
   if (crew.length === 0) {
-    return <p className="text-sm" style={{ color: "var(--text-faint)" }}>No crew users yet. Add users with role "crew".</p>;
+    return <p className="text-sm" style={{ color: "var(--text-faint)" }}>No crew users yet. Add users with role &quot;crew&quot;.</p>;
   }
   return (
     <Card className="divide-y divide-white/5 p-0">
