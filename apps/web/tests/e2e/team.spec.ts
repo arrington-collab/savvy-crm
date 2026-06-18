@@ -11,16 +11,18 @@ const { id: tenantId } = JSON.parse(
 // Clerk-backed invite/role/remove paths need a Clerk instance (manual checklist).
 
 test("team: add crew member, change role, remove → deactivated", async ({ page }) => {
+  const crewName = `E2E Cody ${Date.now()}`;
+
   await page.goto("/settings/team");
   await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
 
-  await page.getByPlaceholder("Crew member name").fill("E2E Cody");
+  await page.getByPlaceholder("Crew member name").fill(crewName);
   await page.getByTestId("add-crew-submit").click();
-  const row = page.locator('[data-testid="team-row"]', { hasText: "E2E Cody" });
+  const row = page.locator('[data-testid="team-row"]', { hasText: crewName });
   await expect(row).toBeVisible();
 
   const u = await withTenant(tenantId, (tx) =>
-    tx.select({ id: user.id }).from(user).where(and(eq(user.name, "E2E Cody"), isNull(user.deactivatedAt))));
+    tx.select({ id: user.id }).from(user).where(and(eq(user.name, crewName), isNull(user.deactivatedAt))));
   expect(u.length).toBe(1);
   const userId = u[0]!.id;
 
