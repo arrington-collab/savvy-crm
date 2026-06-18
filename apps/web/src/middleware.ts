@@ -1,7 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const PUBLIC = [/^\/intake\//, /^\/crew\//, /^\/api\/leads$/, /^\/api\/twilio\//, /^\/api\/inngest$/, /^\/api\/stripe\/webhook$/, /^\/api\/docuseal\/webhook$/, /^\/api\/companycam\/webhook$/];
+const PUBLIC = [/^\/intake\//, /^\/crew\//, /^\/api\/leads$/, /^\/api\/twilio\//, /^\/api\/inngest$/, /^\/api\/stripe\/webhook$/, /^\/api\/docuseal\/webhook$/, /^\/api\/companycam\/webhook$/, /^\/api\/clerk\/webhook$/];
 
 export default process.env.TEST_MODE === "1"
   ? () => NextResponse.next() // e2e bypass: no Clerk, getTenantId() uses TEST_TENANT_ID
