@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { adminDb, withTenant, customer, property, lead, user, eq } from "@savvy/db";
+import { withTenant, customer, property, lead, user, eq } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(
   readFileSync("/tmp/savvy-e2e-tenant.json", "utf8"),
