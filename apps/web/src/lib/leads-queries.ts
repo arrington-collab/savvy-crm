@@ -66,6 +66,7 @@ export type LeadDetail = {
   scoreReason: string | null;
   source: string | null;
   customerName: string | null;
+  phone: string | null;
   address: string | null;
   assignedUserId: string | null;
   ownerName: string | null;
@@ -84,6 +85,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         source: lead.source,
         customerId: lead.customerId,
         customerName: customer.name,
+        phone: customer.phone,
         address: property.address,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
@@ -116,6 +118,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       scoreReason: row.scoreReason,
       source: row.source,
       customerName: row.customerName,
+      phone: row.phone,
       address: row.address,
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,

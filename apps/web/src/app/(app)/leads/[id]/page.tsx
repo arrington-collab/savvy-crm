@@ -43,6 +43,7 @@ export default async function LeadDetailPage({
         <Card className="p-4">
           <div className="eyebrow mb-1">Contact</div>
           <p className="text-sm" style={{ color: "var(--text-body)" }}>{detail.address ?? "—"}</p>
+          <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }} data-testid="lead-phone">{detail.phone ?? "no phone"}</p>
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }}>source: {detail.source ?? "—"}</p>
         </Card>
         <Card className="p-4">
