@@ -60,6 +60,7 @@ export function OnboardingWizard({
           <p style={{ color: "var(--text-faint)" }}>Confirm your company name to get started.</p>
           <input
             data-testid="welcome-company"
+            aria-label="Company name"
             className="w-full rounded border bg-transparent px-3 py-2"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
@@ -86,7 +87,7 @@ export function OnboardingWizard({
                 key={b.key}
                 data-testid={`band-${b.key}`}
                 onClick={() => setBand(b.key)}
-                className="rounded border p-3 text-left"
+                className="rounded border p-3 text-left focus-visible:ring-2"
                 style={{ borderColor: band === b.key ? "var(--accent-gold)" : undefined }}
               >
                 <div className="font-semibold">{b.name}</div>
@@ -96,6 +97,7 @@ export function OnboardingWizard({
           </div>
           <input
             data-testid="profile-tz"
+            aria-label="Timezone (IANA, e.g. America/Phoenix)"
             className="w-full rounded border bg-transparent px-3 py-2"
             value={tz}
             onChange={(e) => setTz(e.target.value)}
@@ -114,6 +116,7 @@ export function OnboardingWizard({
           <h1 className="text-2xl font-bold">Invite your team</h1>
           <input
             data-testid="invite-email"
+            aria-label="Teammate email"
             className="w-full rounded border bg-transparent px-3 py-2"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
