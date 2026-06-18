@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { lead, user } from "../schema/index";
-import { db } from "../client";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
 
 /**
  * Sets (or clears, when userId is null) the lead's owner. Validates that a

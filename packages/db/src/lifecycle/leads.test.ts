@@ -1,9 +1,12 @@
-import { describe, it, expect } from "vitest";
-import { eq } from "drizzle-orm";
-import { adminDb } from "../admin-client.js";
+import { afterAll, describe, it, expect } from "vitest";
+import { eq, inArray } from "drizzle-orm";
+import { adminDb, adminPool } from "../admin-client.js";
+import { pool } from "../client.js";
 import { withTenant } from "../tenant.js";
 import { lead, customer, property, user, tenant } from "../schema/index.js";
 import { setLeadOwner, setLeadLost } from "./leads.js";
+
+const seededTenantIds: string[] = [];
 
 async function seedTenantWithLead() {
   const [t] = await adminDb.insert(tenant).values({
@@ -18,8 +21,21 @@ async function seedTenantWithLead() {
     const [u] = await tx.insert(user).values({ tenantId: t!.id, name: "Rep Rae", email: `rae-${crypto.randomUUID()}@x.com` }).returning();
     return { leadId: l!.id, userId: u!.id };
   });
+  seededTenantIds.push(t!.id);
   return { tenantId: t!.id, ...out };
 }
+
+afterAll(async () => {
+  if (seededTenantIds.length > 0) {
+    await adminDb.delete(lead).where(inArray(lead.tenantId, seededTenantIds));
+    await adminDb.delete(user).where(inArray(user.tenantId, seededTenantIds));
+    await adminDb.delete(property).where(inArray(property.tenantId, seededTenantIds));
+    await adminDb.delete(customer).where(inArray(customer.tenantId, seededTenantIds));
+    await adminDb.delete(tenant).where(inArray(tenant.id, seededTenantIds));
+  }
+  await pool.end();
+  await adminPool.end();
+});
 
 describe("setLeadOwner / setLeadLost", () => {
   it("assigns then clears an owner", async () => {
