@@ -6,7 +6,7 @@ export { recordStageChange, IncompletePhotosError } from "./lifecycle/record-sta
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
 export {
-  bookAppointment, rescheduleAppointment, cancelAppointment, setAppointmentStatus,
+  bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, convertLeadToJob, SlotTakenError, NoAssigneeError,
 } from "./lifecycle/appointments";
 export {
