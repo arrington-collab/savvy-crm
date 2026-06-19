@@ -14,7 +14,7 @@ export async function crewLogin(key: string, pin: string): Promise<{ ok: true } 
   const ip = clientIp(await headers());
   const limited = await checkRateLimit("crew-pin", `${key}:${ip}`);
   if (!limited.ok) {
-    log.warn("crew login rate limited", { route: "crew-login" });
+    log.warn("crew login rate limited", { route: "crew-login", tenantKey: key });
     return { error: "too many attempts" };
   }
   const t = await tenantByKey(key);

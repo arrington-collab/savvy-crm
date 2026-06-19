@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const ip = clientIp(req.headers);
   const { ok } = await checkRateLimit("leads", `${key}:${ip}`);
   if (!ok) {
-    log.warn("lead intake rate limited", { route: "/api/leads" });
+    log.warn("lead intake rate limited", { route: "/api/leads", tenantKey: key });
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
   const t = await tenantByKey(key);

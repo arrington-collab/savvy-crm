@@ -38,9 +38,9 @@ function getLimiter(bucket: RateBucket): Ratelimit | null {
  * capture or crew login. The throttle only exists once Upstash env is set in prod.
  */
 export async function checkRateLimit(bucket: RateBucket, id: string): Promise<{ ok: boolean }> {
-  const limiter = getLimiter(bucket);
-  if (!limiter) return { ok: true }; // disabled mode (no env)
   try {
+    const limiter = getLimiter(bucket);
+    if (!limiter) return { ok: true }; // disabled mode (no env)
     const { success } = await limiter.limit(rateLimitKey(bucket, id));
     return { ok: success };
   } catch (err) {
