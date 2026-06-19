@@ -64,7 +64,7 @@ export default async function DashboardPage() {
         <div className="flex gap-2" data-testid="pipeline">
           {activeStages.map((s) => (
             <Link key={s} href={`/jobs?stage=${s}`} className="flex-1" data-testid={`pipeline-link-${s}`}>
-              <Card className="h-full p-3 transition hover:border-accent-040">
+              <Card className="h-full p-3 transition-colors hover:border-[var(--accent-040)]">
                 <div className="mono flex items-center gap-1.5 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: STAGE_DOT[s] ?? "var(--text-faint)" }} />
                   {s}
