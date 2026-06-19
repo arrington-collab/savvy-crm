@@ -23,3 +23,4 @@ export * from "./agent-activity";
 export * from "./crew-pin";
 export * from "./clerk-role";
 export * from "./address";
+export * from "./schedule-view";
