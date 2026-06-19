@@ -9,6 +9,7 @@
  */
 export function requireSecret(name: string, opts?: { devFallback?: string }): string {
   const value = process.env[name];
+  // An empty string is treated as unset — a blank secret is no secret.
   if (value) return value;
   if (process.env.NODE_ENV === "production") {
     throw new Error(`Missing required secret: ${name}`);
