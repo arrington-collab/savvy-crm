@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createLeadForTenant, tenantByPhone } from "@/lib/intake";
 import { handleInboundSms } from "@/lib/inbound-sms";
+import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
   const sid = form.get("MessageSid");
   const t = await tenantByPhone(to);
   if (!t) return xml("<Response/>");
+  log.info("twilio inbound received", { route: "/api/twilio/inbound", kind: body !== null ? "sms" : "voice" });
 
   if (body !== null) {
     // Inbound SMS: log + stop/opt-out. (Lead creation from SMS stays out of scope here.)

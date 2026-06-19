@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withTenant, communication, setCallDuration } from "@savvy/db";
 import { tenantByPhone, createLeadForTenant } from "@/lib/intake";
+import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   const callSid = String(form.get("CallSid") ?? "");
   const t = await tenantByPhone(to);
   if (!t) return xml("<Response/>");
+  log.info("twilio voice received", { route: "/api/twilio/voice", event: url.searchParams.get("event") ?? "greeting" });
 
   if (url.searchParams.get("event") === "recording") {
     const recordingUrl = String(form.get("RecordingUrl") ?? "");
