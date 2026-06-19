@@ -47,7 +47,7 @@ function seedFromId(id: string): number {
 }
 
 function JobCard({ card }: { card: BoardCard }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   // Real owning agent (latest run on this job) with stage heuristic as fallback.
   const { persona } = card.agent ? resolveAgent({ agent: card.agent, taskKey: card.taskKey }) : resolveAgentForStage(card.stage);
@@ -58,29 +58,33 @@ function JobCard({ card }: { card: BoardCard }) {
       style={style}
       data-testid="job-card"
       data-job-id={card.id}
-      className={cn("cursor-grab gap-2 p-3", isDragging && "opacity-50")}
-      {...listeners}
-      {...attributes}
+      className={cn("gap-2 p-3", isDragging && "opacity-50")}
     >
-      <div className="font-medium" style={{ color: "var(--text-primary)" }}>{card.customerName}</div>
-      <div className="text-xs" style={{ color: "var(--text-muted)" }}>{card.address}</div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="mono font-medium" style={{ color: persona.colorToken }}>{formatValue(card.valueEstimate)}</span>
-        <span className="mono rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--text-faint)", background: "var(--surface-panel)" }}>
-          {daysInStage(card.stageEnteredAt)}d
-        </span>
-      </div>
-      <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border-panel)", paddingTop: 8 }}>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <AgentAvatar persona={persona} size="sm" />
-          <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
-        </span>
-        <Link
-          href={`/jobs/${card.id}`}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="mono shrink-0 text-[11px] text-accent-gold hover:underline"
+      <div className="flex items-start gap-1.5">
+        <button
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+          aria-label="Drag to move"
+          data-testid="job-card-grip"
+          className="mt-0.5 shrink-0 cursor-grab touch-none text-[13px] leading-none"
+          style={{ color: "var(--text-faint)", background: "transparent", border: "none" }}
         >
-          Open
+          ⠿
+        </button>
+        <Link href={`/jobs/${card.id}`} data-testid="job-card-link" className="min-w-0 flex-1 outline-none">
+          <div className="font-medium" style={{ color: "var(--text-primary)" }}>{card.customerName}</div>
+          <div className="text-xs" style={{ color: "var(--text-muted)" }}>{card.address}</div>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="mono font-medium" style={{ color: persona.colorToken }}>{formatValue(card.valueEstimate)}</span>
+            <span className="mono rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--text-faint)", background: "var(--surface-panel)" }}>
+              {daysInStage(card.stageEnteredAt)}d
+            </span>
+          </div>
+          <div className="mt-2 flex min-w-0 items-center gap-1.5" style={{ borderTop: "1px solid var(--border-panel)", paddingTop: 8 }}>
+            <AgentAvatar persona={persona} size="sm" />
+            <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
+          </div>
         </Link>
       </div>
     </Card>
