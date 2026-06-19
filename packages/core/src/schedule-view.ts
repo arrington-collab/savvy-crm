@@ -172,6 +172,45 @@ export function buildMonthView(appts: ScheduleAppt[], anchor: string, tz: string
 export type CrewColumn = { userId: string | null; name: string; days: { date: string; weekday: string; appts: ScheduleAppt[] }[]; appts: ScheduleAppt[] };
 export type CrewView = { dates: string[]; columns: CrewColumn[] };
 
+// ---- drag: tz inverse + position->time -----------------------------------
+/** Inverse of toCivilDate/minutesInTz: a wall-clock day+minutes in `tz` -> UTC ISO instant.
+ *  Offset-correction; exact outside the 1h DST spring-forward gap (approximate inside it). */
+export function zonedTimeToUtc(civilDate: string, minutes: number, tz: string): string {
+  const [y, mo, d] = civilDate.split("-").map(Number);
+  const guess = Date.UTC(y!, mo! - 1, d!, Math.floor(minutes / 60), minutes % 60);
+  const p = partsInTz(new Date(guess).toISOString(), tz); // wall time that `guess` shows in tz
+  const wallAsUTC = Date.UTC(p.y, p.mo - 1, p.d, Math.floor(p.minutes / 60), p.minutes % 60);
+  const offset = wallAsUTC - guess; // how far tz is from UTC at this instant
+  return new Date(guess - offset).toISOString();
+}
+
+function snap30(min: number): number { return Math.round(min / 30) * 30; }
+
+/** New {startsAt,endsAt} after dragging a week block by `deltaYpx` (within a `gridHeightPx`
+ *  6a-8p grid) onto `newDate`. Snaps to 30 min, preserves duration, clamps into the window. */
+export function applyDragToWeek(
+  appt: { startsAt: string; endsAt: string }, deltaYpx: number, gridHeightPx: number, newDate: string, tz: string,
+): { startsAt: string; endsAt: string } {
+  const startMin = minutesInTz(appt.startsAt, tz);
+  const durMin = (Date.parse(appt.endsAt) - Date.parse(appt.startsAt)) / 60000;
+  const deltaMin = Math.round((deltaYpx / gridHeightPx) * SPAN_MIN);
+  const newStart = Math.max(DAY_START_MIN, Math.min(snap30(startMin + deltaMin), DAY_END_MIN - durMin));
+  const startsAt = zonedTimeToUtc(newDate, newStart, tz);
+  const endsAt = new Date(Date.parse(startsAt) + durMin * 60000).toISOString();
+  return { startsAt, endsAt };
+}
+
+/** New {startsAt,endsAt} after dragging a month chip onto `newDate` (keeps the time-of-day). */
+export function applyDragToMonth(
+  appt: { startsAt: string; endsAt: string }, newDate: string, tz: string,
+): { startsAt: string; endsAt: string } {
+  const startMin = minutesInTz(appt.startsAt, tz);
+  const durMin = (Date.parse(appt.endsAt) - Date.parse(appt.startsAt)) / 60000;
+  const startsAt = zonedTimeToUtc(newDate, startMin, tz);
+  const endsAt = new Date(Date.parse(startsAt) + durMin * 60000).toISOString();
+  return { startsAt, endsAt };
+}
+
 export function buildCrewView(appts: ScheduleAppt[], anchor: string, tz: string, crew: { id: string; name: string }[]): CrewView {
   const dates = weekDays(anchor);
   const inWeek = appts.filter((a) => dates.includes(toCivilDate(a.startsAt, tz)));
