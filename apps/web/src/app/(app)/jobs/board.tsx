@@ -72,7 +72,11 @@ function JobCard({ card }: { card: BoardCard }) {
         >
           ⠿
         </button>
-        <Link href={`/jobs/${card.id}`} data-testid="job-card-link" className="min-w-0 flex-1 outline-none">
+        <Link
+          href={`/jobs/${card.id}`}
+          data-testid="job-card-link"
+          className="min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        >
           <div className="font-medium" style={{ color: "var(--text-primary)" }}>{card.customerName}</div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>{card.address}</div>
           <div className="mt-2 flex items-center justify-between text-xs">
