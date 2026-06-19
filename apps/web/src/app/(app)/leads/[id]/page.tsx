@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ago } from "@/lib/format";
 import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
+import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function LeadDetailPage({
 
   return (
     <div className="space-y-6" data-testid="lead-detail">
+      <Breadcrumb segments={[{ label: "Leads", href: "/leads" }, { label: detail.customerName ?? "Lead" }]} />
       <PageHeader
         eyebrow="Lead"
         title={detail.customerName ?? "Lead"}
