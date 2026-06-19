@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -95,19 +95,31 @@ function JobCard({ card }: { card: BoardCard }) {
   );
 }
 
-function Column({ stage, cards }: { stage: JobStage; cards: BoardCard[] }) {
+function Column({ stage, cards, focused }: { stage: JobStage; cards: BoardCard[]; focused?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  const colRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (focused) colRef.current?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [focused]);
   const muted = stage === "lost";
   const accent = resolveAgentForStage(stage).persona.colorToken;
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        colRef.current = el;
+      }}
       data-testid={`col-${stage}`}
+      data-focused={focused ? "true" : undefined}
       className={cn("flex w-64 shrink-0 flex-col gap-2 rounded-xl p-2", muted && "opacity-60")}
       style={{
-        border: isOver ? "1px solid var(--accent-040)" : "1px solid var(--border-panel)",
+        border: focused
+          ? "1px solid var(--accent-gold)"
+          : isOver
+            ? "1px solid var(--accent-040)"
+            : "1px solid var(--border-panel)",
         background: "var(--surface-panel)",
-        boxShadow: isOver ? "var(--active-shadow)" : "none",
+        boxShadow: focused ? "0 0 0 2px var(--accent-gold)" : isOver ? "var(--active-shadow)" : "none",
       }}
     >
       <div className="flex items-center justify-between px-1">
@@ -126,7 +138,7 @@ function Column({ stage, cards }: { stage: JobStage; cards: BoardCard[] }) {
   );
 }
 
-export function Board({ initialBoard }: { initialBoard: Record<string, BoardCard[]> }) {
+export function Board({ initialBoard, focusStage }: { initialBoard: Record<string, BoardCard[]>; focusStage?: string }) {
   const [board, setBoard] = useState<Record<string, BoardCard[]>>(initialBoard);
   const [, startTransition] = useTransition();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -175,7 +187,7 @@ export function Board({ initialBoard }: { initialBoard: Record<string, BoardCard
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div data-testid="board" className="flex gap-3 overflow-x-auto pb-4">
         {ALL_STAGES.map((stage) => (
-          <Column key={stage} stage={stage} cards={board[stage] ?? []} />
+          <Column key={stage} stage={stage} cards={board[stage] ?? []} focused={stage === focusStage} />
         ))}
       </div>
     </DndContext>

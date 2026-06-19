@@ -14,7 +14,8 @@ function daysInStage(stageEnteredAt: string): number {
 
 type Suggestion = { jobId: string; persona: Persona; text: string };
 
-export default async function JobsPage() {
+export default async function JobsPage({ searchParams }: { searchParams: Promise<{ stage?: string }> }) {
+  const { stage: focusStage } = await searchParams;
   const [board, velocity, draftInvoices] = await Promise.all([getBoard(), getStageVelocity(), getDraftInvoicesByJob()]);
   const activeStages = ["lead", "inspected", "estimate", "approved", "production", "closeout", "billing", "complete"] as const;
   const total = activeStages.reduce((n, s) => n + (board[s]?.length ?? 0), 0);
@@ -53,7 +54,7 @@ export default async function JobsPage() {
 
       <div className="flex gap-4">
         <div className="min-w-0 flex-1">
-          <Board initialBoard={board} />
+          <Board initialBoard={board} focusStage={focusStage} />
         </div>
 
         {suggestions.length > 0 ? (
