@@ -21,6 +21,7 @@ export const property = pgTable("property", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   customerId: uuid("customer_id").references(() => customer.id),
   address: text("address").notNull(),
+  city: text("city"),
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   parcelId: text("parcel_id"),
