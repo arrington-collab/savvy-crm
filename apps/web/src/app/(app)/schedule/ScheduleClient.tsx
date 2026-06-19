@@ -32,7 +32,7 @@ export function ScheduleClient(props: {
   }
   const setView = (view: View) => setParam({ view });
   const step = (dir: -1 | 1) =>
-    setParam({ anchor: props.view === "month" ? addMonths(props.anchor, dir) : addWeeks(props.anchor, dir) });
+    setParam({ anchor: props.view === "month" ? `${addMonths(props.anchor, dir).slice(0, 7)}-01` : addWeeks(props.anchor, dir) });
   const goToday = () => setParam({ anchor: toCivilDate(new Date().toISOString(), props.tz) });
 
   const sel = (cls: string) => "rounded-md px-2 py-1 text-sm " + cls;
@@ -70,7 +70,7 @@ export function ScheduleClient(props: {
       {props.view === "month" && <MonthGrid appts={props.appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} />}
       {props.view === "crew" && <CrewBoard appts={props.appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={setSelected} />}
 
-      {selected && <AppointmentPopover appt={selected} onClose={() => setSelected(null)} />}
+      {selected && <AppointmentPopover appt={selected} tz={props.tz} onClose={() => setSelected(null)} />}
     </div>
   );
 }

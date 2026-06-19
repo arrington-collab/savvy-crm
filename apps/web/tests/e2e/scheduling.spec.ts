@@ -4,7 +4,7 @@ import {
   adminDb, tenant, user, customer, property, lead, appointment,
   rescheduleAppointment, eq, and,
 } from "@savvy/db";
-import { signPayloadToken } from "@savvy/core";
+import { signPayloadToken, toCivilDate } from "@savvy/core";
 
 const { id: tenantId } = JSON.parse(
   readFileSync("/tmp/savvy-e2e-tenant.json", "utf8"),
@@ -80,11 +80,14 @@ test("scheduling: book via slot-picker -> /schedule -> no-double-book -> resched
   const bookedJobId = appt.jobId;
 
   // ---- 2) It shows on /schedule (TEST_MODE bypasses Clerk) ----------------
-  await page.goto("/schedule");
+  // The booked slot may be in the current or next week; navigate to its week
+  // (anchor = the appt's civil date in the tenant tz; e2e tenant uses default America/Phoenix).
+  const apptAnchor = toCivilDate(appt.startsAt.toISOString(), "America/Phoenix");
+  await page.goto(`/schedule?anchor=${apptAnchor}`);
   await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
-  // The booked appointment renders as a row showing the customer name.
-  const apptRow = page.getByTestId("appointment-row").filter({ hasText: "Booking Bob" });
-  await expect(apptRow.first()).toBeVisible();
+  // The booked appointment renders as a calendar block showing the customer name.
+  const apptBlock = page.getByTestId("appt-block").filter({ hasText: "Booking Bob" });
+  await expect(apptBlock.first()).toBeVisible();
 
   // ---- 3) No-double-book: the EXCLUDE constraint backstop -----------------
   // A second SCHEDULED appointment for the same assignee that overlaps the

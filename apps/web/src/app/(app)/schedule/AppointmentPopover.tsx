@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { cancelAction, markStatusAction, rescheduleAction } from "@/lib/scheduling-actions";
 
-export function AppointmentPopover({ appt, onClose }: { appt: ScheduleAppt; onClose: () => void }) {
+export function AppointmentPopover({ appt, tz, onClose }: { appt: ScheduleAppt; tz: string; onClose: () => void }) {
   const [pending, start] = useTransition();
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleVal, setRescheduleVal] = useState("");
   const [slotTaken, setSlotTaken] = useState(false);
   const isActive = appt.status === "scheduled";
-  const fmt = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: true });
+  const fmt = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: tz });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
