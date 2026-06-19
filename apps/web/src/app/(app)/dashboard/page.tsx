@@ -144,7 +144,7 @@ export default async function DashboardPage() {
                   {deferred ? <span className="eyebrow" style={{ fontSize: "0.55rem" }}>deferred</span> : null}
                   <span className="ml-auto flex items-center gap-3">
                     {latest?.modelUsed ? <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }}>{latest.modelUsed}</span> : null}
-                    <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }}>{latest ? ago(latest.startedAt) : "idle"}</span>
+                    <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }} title={latest ? undefined : "No activity in the recent window"}>{latest ? ago(latest.startedAt) : "idle"}</span>
                     <span className="h-2 w-2 rounded-full" style={{ background: statusColor(latest?.status), boxShadow: latest && !deferred ? `0 0 8px ${statusColor(latest.status)}` : "none" }} />
                   </span>
                 </li>
