@@ -83,3 +83,46 @@ describe("buildCrewView", () => {
     expect(unassigned.appts.map((a) => a.id)).toContain("q");
   });
 });
+
+import { zonedTimeToUtc, applyDragToWeek, applyDragToMonth } from "./schedule-view.js";
+
+describe("zonedTimeToUtc", () => {
+  it("round-trips a Phoenix wall time", () => {
+    const iso = zonedTimeToUtc("2026-06-17", 540, TZ); // 09:00 Phoenix
+    expect(iso).toBe("2026-06-17T16:00:00.000Z");
+    expect(toCivilDate(iso, TZ)).toBe("2026-06-17");
+  });
+  it("round-trips a New York (DST) wall time", () => {
+    const ny = "America/New_York"; // UTC-4 in June
+    const iso = zonedTimeToUtc("2026-06-17", 540, ny); // 09:00 EDT
+    expect(iso).toBe("2026-06-17T13:00:00.000Z");
+    expect(toCivilDate(iso, ny)).toBe("2026-06-17");
+  });
+});
+
+describe("applyDragToWeek", () => {
+  const base = { startsAt: "2026-06-17T16:00:00Z", endsAt: "2026-06-17T17:00:00Z" }; // 09:00-10:00 Phoenix, 1h
+  it("shifts time by the vertical delta (snapped), same day, keeps duration", () => {
+    // 80px / 560px * 840min = 120min -> 09:00 + 2h = 11:00 Phoenix = 18:00Z
+    const r = applyDragToWeek(base, 80, 560, "2026-06-17", TZ);
+    expect(r.startsAt).toBe("2026-06-17T18:00:00.000Z");
+    expect(r.endsAt).toBe("2026-06-17T19:00:00.000Z");
+  });
+  it("moves to a new day when dropped on another column (delta 0)", () => {
+    const r = applyDragToWeek(base, 0, 560, "2026-06-19", TZ);
+    expect(toCivilDate(r.startsAt, TZ)).toBe("2026-06-19");
+    expect(r.startsAt).toBe("2026-06-19T16:00:00.000Z"); // still 09:00 Phoenix
+  });
+  it("clamps above the 6am window edge", () => {
+    const r = applyDragToWeek(base, -1000, 560, "2026-06-17", TZ); // drag far up
+    expect(r.startsAt).toBe("2026-06-17T13:00:00.000Z"); // 06:00 Phoenix
+  });
+});
+
+describe("applyDragToMonth", () => {
+  it("changes the day, keeps the time-of-day", () => {
+    const r = applyDragToMonth({ startsAt: "2026-06-17T16:00:00Z", endsAt: "2026-06-17T17:00:00Z" }, "2026-06-20", TZ);
+    expect(r.startsAt).toBe("2026-06-20T16:00:00.000Z");
+    expect(r.endsAt).toBe("2026-06-20T17:00:00.000Z");
+  });
+});
