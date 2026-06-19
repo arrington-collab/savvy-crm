@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import {
-  rescheduleAppointment, cancelAppointment, setAppointmentStatus, SlotTakenError,
+  rescheduleAppointment, cancelAppointment, setAppointmentStatus, SlotTakenError, reassignAppointment,
 } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { getTenantId } from "./tenant";
@@ -45,6 +45,22 @@ export async function markStatusAction(
   const tenantId = await getTenantId();
   await setAppointmentStatus({ tenantId, appointmentId, status });
   await emit("appointment/changed", { appointmentId, tenantId, reason: status });
+  revalidatePath("/schedule");
+  return { ok: true as const };
+}
+
+export async function reassignAction(
+  appointmentId: string,
+  assigneeUserId: string | null,
+): Promise<{ ok: true } | { error: "slot_taken" }> {
+  const tenantId = await getTenantId();
+  try {
+    await reassignAppointment({ tenantId, appointmentId, assigneeUserId });
+  } catch (e) {
+    if (e instanceof SlotTakenError) return { error: "slot_taken" as const };
+    throw e;
+  }
+  await emit("appointment/changed", { appointmentId, tenantId, reason: "reassigned" });
   revalidatePath("/schedule");
   return { ok: true as const };
 }
