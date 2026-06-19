@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { addWeeks, addMonths, toCivilDate, type ScheduleAppt } from "@savvy/core";
 import { APPOINTMENT_TYPE, JOB_TYPE } from "@savvy/core";
 import { WeekGrid } from "./WeekGrid";
@@ -8,6 +8,8 @@ import { MonthGrid } from "./MonthGrid";
 import { CrewBoard } from "./CrewBoard";
 import { AppointmentPopover } from "./AppointmentPopover";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { rescheduleAction, reassignAction } from "@/lib/scheduling-actions";
 
 type Crew = { id: string; name: string };
 type View = "week" | "month" | "crew";
@@ -24,6 +26,28 @@ export function ScheduleClient(props: {
   const router = useRouter();
   const sp = useSearchParams();
   const [selected, setSelected] = useState<ScheduleAppt | null>(null);
+  const [appts, setAppts] = useState(props.appts);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync from server: re-hydrate optimistic state on server revalidation
+  useEffect(() => setAppts(props.appts), [props.appts]);
+  const [, startTransition] = useTransition();
+  const crewName = (id: string | null) => props.crew.find((c) => c.id === id)?.name ?? null;
+
+  function onReschedule(id: string, next: { startsAt: string; endsAt: string }) {
+    const prev = appts;
+    setAppts((a) => a.map((x) => (x.id === id ? { ...x, ...next } : x)));
+    startTransition(async () => {
+      const r = await rescheduleAction(id, next.startsAt, next.endsAt);
+      if ("error" in r) { setAppts(prev); toast.error("That time is taken — reverted."); }
+    });
+  }
+  function onReassign(id: string, userId: string | null) {
+    const prev = appts;
+    setAppts((a) => a.map((x) => (x.id === id ? { ...x, assigneeUserId: userId, assigneeName: crewName(userId) } : x)));
+    startTransition(async () => {
+      const r = await reassignAction(id, userId);
+      if ("error" in r) { setAppts(prev); toast.error("That crew is busy then — reverted."); }
+    });
+  }
 
   function setParam(patch: Record<string, string>) {
     const next = new URLSearchParams(sp.toString());
@@ -66,9 +90,9 @@ export function ScheduleClient(props: {
             ...(props.cityOptions.hasUnknown ? [["__unknown__", "Unknown"] as [string, string]] : [])]} testid="filter-city" />
       </div>
 
-      {props.view === "week" && <WeekGrid appts={props.appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} />}
-      {props.view === "month" && <MonthGrid appts={props.appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} />}
-      {props.view === "crew" && <CrewBoard appts={props.appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={setSelected} />}
+      {props.view === "week" && <WeekGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} />}
+      {props.view === "month" && <MonthGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} />}
+      {props.view === "crew" && <CrewBoard appts={appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={setSelected} onReassign={onReassign} />}
 
       {selected && <AppointmentPopover appt={selected} tz={props.tz} onClose={() => setSelected(null)} />}
     </div>
