@@ -1,5 +1,5 @@
 import { withTenant, eq, appointment, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
-import { parseSchedulingConfig, signPayloadToken } from "@savvy/core";
+import { parseSchedulingConfig, signPayloadToken, requireSecret } from "@savvy/core";
 import { twilioSms, resendEmail } from "@savvy/integrations";
 import { inngest } from "../client";
 
@@ -41,7 +41,7 @@ export const appointmentReminders = inngest.createFunction(
     if (!ctx) return { skipped: true };
 
     const cfg = parseSchedulingConfig(ctx.settings);
-    const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+    const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
     const token = signPayloadToken({ appointmentId, tenantId, type: ctx.type }, secret);
     const bookUrl = `${process.env.APP_BASE_URL ?? "http://localhost:3000"}/book/${token}`;
 
