@@ -139,3 +139,51 @@ export function buildWeekView(appts: ScheduleAppt[], anchor: string, tz: string)
   });
   return { days, hourLabels };
 }
+
+// ---- month view -----------------------------------------------------------
+export type MonthChip = ScheduleAppt & { tone: string };
+export type MonthCell = { date: string; day: number; outside: boolean; chips: MonthChip[] };
+export type MonthView = { weeks: MonthCell[][] };
+
+export function buildMonthView(appts: ScheduleAppt[], anchor: string, tz: string): MonthView {
+  const [y, m] = anchor.split("-").map(Number);
+  const firstOfMonth = `${y}-${String(m).padStart(2, "0")}-01`;
+  const gridStart = addDays(firstOfMonth, -weekday(firstOfMonth));
+  const byDate = new Map<string, MonthChip[]>();
+  for (const a of appts) {
+    const d = toCivilDate(a.startsAt, tz);
+    const list = byDate.get(d) ?? [];
+    list.push({ ...a, tone: appointmentTypeTone(a.type) });
+    byDate.set(d, list);
+  }
+  const weeks: MonthCell[][] = [];
+  for (let w = 0; w < 6; w++) {
+    const row: MonthCell[] = [];
+    for (let d = 0; d < 7; d++) {
+      const date = addDays(gridStart, w * 7 + d);
+      row.push({ date, day: Number(date.slice(8)), outside: Number(date.slice(5, 7)) !== m, chips: byDate.get(date) ?? [] });
+    }
+    weeks.push(row);
+  }
+  return { weeks };
+}
+
+// ---- crew view ------------------------------------------------------------
+export type CrewColumn = { userId: string | null; name: string; days: { date: string; weekday: string; appts: ScheduleAppt[] }[]; appts: ScheduleAppt[] };
+export type CrewView = { dates: string[]; columns: CrewColumn[] };
+
+export function buildCrewView(appts: ScheduleAppt[], anchor: string, tz: string, crew: { id: string; name: string }[]): CrewView {
+  const dates = weekDays(anchor);
+  const inWeek = appts.filter((a) => dates.includes(toCivilDate(a.startsAt, tz)));
+  const mkColumn = (userId: string | null, name: string): CrewColumn => {
+    const mine = inWeek.filter((a) => a.assigneeUserId === userId);
+    return {
+      userId, name,
+      days: dates.map((date) => ({ date, weekday: WEEKDAY_LABEL[weekday(date)]!, appts: mine.filter((a) => toCivilDate(a.startsAt, tz) === date) })),
+      appts: mine,
+    };
+  };
+  const columns = crew.map((c) => mkColumn(c.id, c.name));
+  if (inWeek.some((a) => a.assigneeUserId === null)) columns.push(mkColumn(null, "Unassigned"));
+  return { dates, columns };
+}

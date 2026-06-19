@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, type ScheduleAppt } from "./schedule-view.js";
+import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, buildMonthView, buildCrewView, type ScheduleAppt } from "./schedule-view.js";
 
 const TZ = "America/Phoenix"; // UTC-7, no DST
 
@@ -50,5 +50,36 @@ describe("buildWeekView", () => {
     expect(blocks).toHaveLength(2);
     expect(Math.max(...blocks.map((b) => b.lanes))).toBe(2);
     expect(new Set(blocks.map((b) => b.lane)).size).toBe(2);
+  });
+});
+
+describe("buildMonthView", () => {
+  it("returns a 6x7 grid covering the anchor month with outside-month flags", () => {
+    const v = buildMonthView([], "2026-06-15", TZ);
+    expect(v.weeks).toHaveLength(6);
+    expect(v.weeks[0]).toHaveLength(7);
+    const firstOfJune = v.weeks.flat().find((c) => c.date === "2026-06-01")!;
+    expect(firstOfJune.outside).toBe(false);
+    expect(v.weeks[0]![0]!.date).toBe("2026-05-31");
+    expect(v.weeks[0]![0]!.outside).toBe(true);
+  });
+  it("places an appointment chip on its civil day", () => {
+    const a = appt({ id: "m", startsAt: "2026-06-17T16:00:00Z", endsAt: "2026-06-17T17:00:00Z" });
+    const v = buildMonthView([a], "2026-06-15", TZ);
+    expect(v.weeks.flat().find((c) => c.date === "2026-06-17")!.chips.map((x) => x.id)).toContain("m");
+  });
+});
+
+describe("buildCrewView", () => {
+  it("groups the week's appts into one column per crew member + Unassigned", () => {
+    const crew = [{ id: "u1", name: "Mike" }, { id: "u2", name: "Sara" }];
+    const v = buildCrewView([
+      appt({ id: "p", assigneeUserId: "u1", startsAt: "2026-06-17T16:00:00Z", endsAt: "2026-06-17T17:00:00Z" }),
+      appt({ id: "q", assigneeUserId: null, startsAt: "2026-06-18T16:00:00Z", endsAt: "2026-06-18T17:00:00Z" }),
+    ], "2026-06-19", TZ, crew);
+    const mike = v.columns.find((c) => c.userId === "u1")!;
+    expect(mike.appts.map((a) => a.id)).toContain("p");
+    const unassigned = v.columns.find((c) => c.userId === null)!;
+    expect(unassigned.appts.map((a) => a.id)).toContain("q");
   });
 });
