@@ -3,10 +3,10 @@ import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
 } from "@savvy/db";
-import { verifyPayloadToken, parseSchedulingConfig, computeOpenSlots } from "@savvy/core";
+import { verifyPayloadToken, parseSchedulingConfig, computeOpenSlots, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 
-const SECRET = () => process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+const SECRET = () => requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
 
 type TokenPayload = {
   tenantId: string;

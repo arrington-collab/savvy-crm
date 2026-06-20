@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyPayloadToken } from "@savvy/core";
+import { verifyPayloadToken, requireSecret } from "@savvy/core";
 import { stripeGateway } from "@savvy/integrations";
 import { adminDb, tenant, eq } from "@savvy/db";
 import { getTenantId } from "@/lib/tenant";
@@ -11,7 +11,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+  const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
   const payload = state ? verifyPayloadToken<{ tenantId: string }>(state, secret) : null;
   if (!code || !payload) return NextResponse.redirect(`${base}/settings/payments?error=invalid`);
 

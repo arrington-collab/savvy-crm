@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withTenant, adminDb, customer, eq, stopDripEnrollments } from "@savvy/db";
-import { verifyUnsubToken } from "@savvy/core";
+import { verifyUnsubToken, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 // Public link from outbound emails: /api/unsubscribe/<signed customerId>.
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+  const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
   const customerId = verifyUnsubToken(token, secret);
   if (!customerId) return new NextResponse("Invalid unsubscribe link", { status: 400 });
 
