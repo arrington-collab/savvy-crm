@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { getCurrentUser } from "@/lib/current-user";
+import { getOnboardingStatus } from "@/lib/onboarding-queries";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const authEnabled = process.env.TEST_MODE !== "1";
@@ -13,6 +14,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     if (!userId) redirect("/sign-in");
     if (!orgId) redirect("/select-org");
     await getCurrentUser(); // lazily provision tenant + this user's row
+    const status = await getOnboardingStatus();
+    if (status.state.requiredCompletedAt === null) redirect("/onboarding");
   }
   return (
     <div className="flex min-h-screen">
