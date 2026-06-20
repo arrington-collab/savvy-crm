@@ -56,6 +56,19 @@ export async function rescheduleAppointment(input: {
   }
 }
 
+export async function reassignAppointment(input: {
+  tenantId: string; appointmentId: string; assigneeUserId: string | null;
+}): Promise<void> {
+  try {
+    await withTenant(input.tenantId, (tx) => tx.update(appointment).set({
+      assigneeUserId: input.assigneeUserId,
+    }).where(and(eq(appointment.id, input.appointmentId), eq(appointment.status, "scheduled"))));
+  } catch (e) {
+    if (isExclusionViolation(e)) throw new SlotTakenError();
+    throw e;
+  }
+}
+
 export async function cancelAppointment(input: { tenantId: string; appointmentId: string }): Promise<void> {
   await withTenant(input.tenantId, (tx) => tx.update(appointment)
     .set({ status: "canceled" })
