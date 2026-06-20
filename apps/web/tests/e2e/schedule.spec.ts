@@ -123,13 +123,16 @@ test("type filter narrows the set", async ({ page }) => {
 test("clicking an appointment opens the popover and marks done", async ({ page }) => {
   await seedAppt({ type: "crew", dayOffset: 2 });
 
-  await page.goto("/schedule");
-  await page.getByTestId("view-crew").click();
+  // Filter to crew-type + crew view directly so the board is small (the shared
+  // e2e DB accumulates many cards across tests; a bare .first() can land on an
+  // off-screen/other card). The freshly-seeded appt is appended last in its column.
+  await page.goto("/schedule?view=crew&type=crew");
   await expect(page.getByTestId("crew-board")).toBeVisible();
 
-  // Wait for at least one card to be present before clicking.
-  await expect(page.getByTestId("appt-card").first()).toBeVisible();
-  await page.getByTestId("appt-card").first().click();
+  const card = page.getByTestId("crew-board").getByTestId("appt-card").last();
+  await expect(card).toBeVisible();
+  await card.scrollIntoViewIfNeeded();
+  await card.click();
 
   await expect(page.getByTestId("appt-popover")).toBeVisible();
   await page.getByRole("button", { name: "Done" }).click();
