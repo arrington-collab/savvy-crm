@@ -21,7 +21,7 @@ function isExclusionViolation(e: unknown): boolean {
 
 export type BookInput = {
   tenantId: string; jobId: string; customerId?: string;
-  type: AppointmentType; assigneeUserId: string;
+  type: AppointmentType; assigneeUserId: string | null;
   startsAt: Date; endsAt: Date;
 };
 
@@ -31,7 +31,7 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
     return await withTenant(tenantId, async (tx) => {
       const [row] = await tx.insert(appointment).values({
         tenantId, jobId: input.jobId, customerId: input.customerId ?? null,
-        type: input.type, assigneeUserId: input.assigneeUserId,
+        type: input.type, assigneeUserId: input.assigneeUserId ?? null,
         startsAt: input.startsAt, endsAt: input.endsAt, status: "scheduled",
       }).returning({ id: appointment.id });
       return { id: row!.id };
