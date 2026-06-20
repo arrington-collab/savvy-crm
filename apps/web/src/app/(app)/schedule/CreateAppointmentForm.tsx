@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { APPOINTMENT_TYPE, type AppointmentType } from "@savvy/core";
@@ -28,7 +28,8 @@ export function CreateAppointmentForm(props: {
   const [results, setResults] = useState<SchedulableJob[]>([]);
   const [picked, setPicked] = useState<SchedulableJob | null>(null);
   const [slotTaken, setSlotTaken] = useState(false);
-  const [, startSearch] = useTransition();
+  const [searching, startSearch] = useTransition();
+  const searchSeq = useRef(0);
 
   function onType(next: AppointmentType) {
     setType(next);
@@ -37,12 +38,17 @@ export function CreateAppointmentForm(props: {
   function onQuery(v: string) {
     setJobQuery(v);
     setPicked(null);
-    startSearch(async () => setResults(await searchJobsAction(v)));
+    const seq = ++searchSeq.current;
+    startSearch(async () => {
+      const r = await searchJobsAction(v);
+      if (seq === searchSeq.current) setResults(r); // ignore out-of-order responses
+    });
   }
   function submit() {
     if (!picked) return;
-    setSlotTaken(false);
     const s = new Date(startVal);
+    if (isNaN(s.getTime())) { toast.error("Pick a valid start time"); return; }
+    setSlotTaken(false);
     const e = new Date(s.getTime() + durationMin * 60_000);
     start(async () => {
       const r = await createAppointmentAction({
@@ -74,7 +80,7 @@ export function CreateAppointmentForm(props: {
                   {j.customerName}{j.address ? ` · ${j.address}` : ""}
                 </button>
               ))}
-              {results.length === 0 ? (
+              {!searching && results.length === 0 ? (
                 <Link href="/leads/new" data-testid="create-new-lead" className="block px-2 py-1 text-sm text-accent-gold hover:underline">
                   + New lead
                 </Link>
