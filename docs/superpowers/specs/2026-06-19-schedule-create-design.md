@@ -40,7 +40,7 @@ Centered modal mirroring `AppointmentPopover`'s shell. Pre-filled from the click
 | Type | native `<select>` | `APPOINTMENT_TYPE`; default first/`inspection` |
 | Crew | native `<select>` | `props.crew` + an **"Unassigned"** option; optional |
 | Start | `datetime-local` | pre-filled from clicked slot (editable) |
-| Duration | native `<select>` | 30/60/90/120 min; default from scheduling config for the type, else 60 |
+| Duration | native `<select>` | options 30/60/90/120/480 min; default = the type's configured `durationMin` (`parseSchedulingConfig().types[type]`: inspection/cm = 60, crew = 480) |
 
 - The typeahead is a controlled input + a results list (debounced or transition-driven server call). No shadcn `Select`/combobox exists in the repo → build a minimal controlled typeahead with a native list (consistent with the "native `<select>`" precedent).
 - Submit → `createAppointmentAction(...)`. On `{error:"slot_taken"}` show an inline message (mirrors the reschedule popover's `slotTaken` pattern) and keep the form open. On `{ok}` → success toast, close, `revalidatePath` re-fetch brings the new block in (no client-side optimistic synth — simpler than reschedule because it's a new entity with server-derived display fields).
