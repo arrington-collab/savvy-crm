@@ -1,40 +1,44 @@
-import { listAppointments } from "@/lib/scheduling-queries";
+import { listAppointments, listUsers, getScheduleCities, getTenantTimezone, type ScheduleFilter } from "@/lib/scheduling-queries";
+import { toCivilDate, type ScheduleAppt } from "@savvy/core";
 import { ScheduleClient } from "./ScheduleClient";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 
 export const dynamic = "force-dynamic";
 
-export default async function SchedulePage() {
-  const appts = await listAppointments();
+type SP = { view?: string; anchor?: string; crew?: string; type?: string; jobType?: string; city?: string };
 
-  // Group by UTC date string, then sort ascending
-  const groupMap = new Map<string, typeof appts>();
-  for (const a of appts) {
-    const day = a.startsAt.toISOString().slice(0, 10);
-    if (!groupMap.has(day)) groupMap.set(day, []);
-    groupMap.get(day)!.push(a);
-  }
-
-  const days = [...groupMap.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([day, items]) => ({
-      day,
-      items: items.map((i) => ({
-        id: i.id,
-        type: i.type,
-        status: i.status,
-        startsAt: i.startsAt.toISOString(),
-        endsAt: i.endsAt ? i.endsAt.toISOString() : null,
-        assigneeUserId: i.assigneeUserId,
-        customerName: i.customerName,
-        address: i.address,
-      })),
-    }));
+export default async function SchedulePage({ searchParams }: { searchParams: Promise<SP> }) {
+  const sp = await searchParams;
+  const filter: ScheduleFilter = {
+    assigneeUserId: sp.crew || undefined,
+    type: sp.type || undefined,
+    jobType: sp.jobType || undefined,
+    city: sp.city || undefined,
+  };
+  const [rows, crew, cityOpts, tz] = await Promise.all([
+    listAppointments(filter), listUsers(), getScheduleCities(), getTenantTimezone(),
+  ]);
+  const appts: ScheduleAppt[] = rows.map((r) => ({
+    id: r.id, type: r.type, status: r.status,
+    startsAt: r.startsAt.toISOString(), endsAt: r.endsAt.toISOString(),
+    assigneeUserId: r.assigneeUserId, assigneeName: r.assigneeName,
+    customerName: r.customerName, address: r.address, jobId: r.jobId, jobType: r.jobType, city: r.city,
+  }));
+  const view = (sp.view === "month" || sp.view === "crew") ? sp.view : "week";
+  const anchor = sp.anchor || toCivilDate(new Date().toISOString(), tz);
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Dispatch" title="Schedule" />
-      <ScheduleClient days={days} />
+      <ScheduleClient
+        appts={appts}
+        crew={crew}
+        cityOptions={cityOpts}
+        tz={tz}
+        view={view}
+        anchor={anchor}
+        filters={{ crew: sp.crew ?? "", type: sp.type ?? "", jobType: sp.jobType ?? "", city: sp.city ?? "" }}
+      />
     </div>
   );
 }

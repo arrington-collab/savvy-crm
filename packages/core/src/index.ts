@@ -22,6 +22,8 @@ export * from "./change-order";
 export * from "./agent-activity";
 export * from "./crew-pin";
 export * from "./clerk-role";
+export * from "./address";
+export * from "./schedule-view";
 export * from "./secrets";
 export * from "./rate-limit-key";
 export * from "./log-format";
