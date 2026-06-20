@@ -20,14 +20,17 @@ async function waitFor<T>(fn: () => Promise<T | undefined>, ms = 20_000): Promis
 
 // dnd-kit needs a pointer move past the activation distance, then steps to the target.
 async function dragCardToColumn(page: Page, jobId: string, toStage: string) {
+  // The card body is a <Link> (click = open detail); only the grip handle carries the
+  // dnd-kit drag listeners. Press the grip, not the card center, or we just navigate.
   const card = page.locator(`[data-testid="job-card"][data-job-id="${jobId}"]`);
+  const grip = card.locator(`[data-testid="job-card-grip"]`);
   const col = page.locator(`[data-testid="col-${toStage}"]`);
-  const cb = await card.boundingBox();
+  const gb = await grip.boundingBox();
   const tb = await col.boundingBox();
-  if (!cb || !tb) throw new Error("card or column not visible");
-  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  if (!gb || !tb) throw new Error("grip or column not visible");
+  await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
   await page.mouse.down();
-  await page.mouse.move(cb.x + cb.width / 2 + 12, cb.y + cb.height / 2 + 12, { steps: 5 }); // pass activation distance
+  await page.mouse.move(gb.x + gb.width / 2 + 12, gb.y + gb.height / 2 + 12, { steps: 5 }); // pass activation distance
   await page.mouse.move(tb.x + tb.width / 2, tb.y + 40, { steps: 10 });
   await page.mouse.up();
 }
