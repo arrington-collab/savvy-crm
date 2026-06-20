@@ -1,4 +1,4 @@
-import { z, signPayloadToken } from "@savvy/core";
+import { z, signPayloadToken, requireSecret } from "@savvy/core";
 import {
   withTenant, lead, customer, communication, recordAgentRun, eq,
 } from "@savvy/db";
@@ -61,7 +61,7 @@ export const leadIntake = inngest.createFunction(
 
     await step.run("send-sms", async () => {
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
-      const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
+      const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
       const body = buildBookingSms({ name: ctx.name, bookingUrl: `${base}/book/${token}` });
       const sender: SmsSender = twilioSms;

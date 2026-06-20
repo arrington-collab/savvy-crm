@@ -6,8 +6,17 @@ import { verifyPin } from "@savvy/core";
 import { tenantByKey } from "./intake";
 import { setCrewCookie, clearCrewCookie, getCrewSession } from "./crew-session";
 import { crewCanAccessJob } from "./crew-queries";
+import { headers } from "next/headers";
+import { checkRateLimit, clientIp } from "./rate-limit";
+import { log } from "./log";
 
 export async function crewLogin(key: string, pin: string): Promise<{ ok: true } | { error: string }> {
+  const ip = clientIp(await headers());
+  const limited = await checkRateLimit("crew-pin", `${key}:${ip}`);
+  if (!limited.ok) {
+    log.warn("crew login rate limited", { route: "crew-login", tenantKey: key });
+    return { error: "too many attempts" };
+  }
   const t = await tenantByKey(key);
   if (!t) return { error: "unknown workspace" };
   // Filter to active (non-deactivated) crew members only — deactivated users must not be

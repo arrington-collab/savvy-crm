@@ -1,15 +1,10 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { signPayloadToken, verifyPayloadToken } from "@savvy/core";
+import { signPayloadToken, verifyPayloadToken, requireSecret } from "@savvy/core";
 
 const COOKIE = "crew_session";
 const TTL_MS = 12 * 60 * 60 * 1000;
-const SECRET = () => {
-  const s = process.env.CREW_SESSION_SECRET;
-  if (s) return s;
-  if (process.env.NODE_ENV === "production") throw new Error("CREW_SESSION_SECRET is required in production");
-  return "dev-crew-secret";
-};
+const SECRET = () => requireSecret("CREW_SESSION_SECRET", { devFallback: "dev-crew-secret" });
 
 export type CrewSession = { tenantId: string; crewUserId: string };
 

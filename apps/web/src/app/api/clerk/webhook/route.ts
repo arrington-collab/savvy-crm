@@ -3,6 +3,7 @@ import { adminDb, tenant, ensureTenantForOrg, ensureUser, deactivateUserByClerkI
 import { clerkClient } from "@clerk/nextjs/server";
 import { mapClerkRole } from "@savvy/core";
 import { verifySvix } from "@/lib/svix";
+import { log } from "@/lib/log";
 
 export const runtime = "nodejs"; // node:crypto for HMAC
 
@@ -26,6 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   let evt: ClerkEvent;
   try { evt = JSON.parse(raw) as ClerkEvent; } catch { return new NextResponse("bad payload", { status: 400 }); }
   const data = (evt.data ?? {}) as Record<string, unknown>;
+  log.info("clerk webhook received", { route: "/api/clerk/webhook", event: evt.type ?? "unknown" });
 
   if (evt.type === "organization.created") {
     const orgId = str(data.id);

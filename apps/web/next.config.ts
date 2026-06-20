@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   transpilePackages: [
@@ -11,4 +12,7 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Source-map upload disabled for now (no SENTRY_AUTH_TOKEN) — deferred polish.
+  silent: !process.env.CI,
+});
