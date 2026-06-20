@@ -188,8 +188,11 @@ function snap30(min: number): number { return Math.round(min / 30) * 30; }
 
 /** Inverse of the week grid's vertical positioning: a click offset within a day
  *  column (height px) → minute-of-day, snapped to 30, clamped so a 30-min appt
- *  fits inside the 6a–8p window. */
+ *  fits inside the 6a–8p window. `offsetY` is relative to the column's top
+ *  (e.g. `clientY - column.getBoundingClientRect().top`), NOT the browser event's
+ *  `offsetY`. A non-positive `height` (unmeasured column) falls back to the window start. */
 export function minutesFromOffset(offsetY: number, height: number): number {
+  if (height <= 0) return DAY_START_MIN;
   const raw = DAY_START_MIN + (offsetY / height) * SPAN_MIN;
   const snapped = snap30(raw);
   return Math.max(DAY_START_MIN, Math.min(snapped, DAY_END_MIN - 30));

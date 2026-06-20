@@ -145,4 +145,11 @@ describe("minutesFromOffset", () => {
   it("clamps negative offsets to the top", () => {
     expect(minutesFromOffset(-50, 560)).toBe(360);
   });
+  it("snaps up when nearer the later 30-min mark", () => {
+    // 215/560 = 38.4% → 360 + 0.384*840 = 682.5 → snaps up to 690 (11:30am)
+    expect(minutesFromOffset(215, 560)).toBe(690);
+  });
+  it("falls back to the window start when height is 0 (unmeasured column)", () => {
+    expect(minutesFromOffset(100, 0)).toBe(360);
+  });
 });
