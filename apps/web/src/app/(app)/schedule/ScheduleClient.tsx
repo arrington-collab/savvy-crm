@@ -1,12 +1,13 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useTransition } from "react";
-import { addWeeks, addMonths, toCivilDate, type ScheduleAppt } from "@savvy/core";
+import { addWeeks, addMonths, toCivilDate, zonedTimeToUtc, type ScheduleAppt } from "@savvy/core";
 import { APPOINTMENT_TYPE, JOB_TYPE } from "@savvy/core";
 import { WeekGrid } from "./WeekGrid";
 import { MonthGrid } from "./MonthGrid";
 import { CrewBoard } from "./CrewBoard";
 import { AppointmentPopover } from "./AppointmentPopover";
+import { CreateAppointmentForm } from "./CreateAppointmentForm";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { rescheduleAction, reassignAction } from "@/lib/scheduling-actions";
@@ -26,6 +27,7 @@ export function ScheduleClient(props: {
   const router = useRouter();
   const sp = useSearchParams();
   const [selected, setSelected] = useState<ScheduleAppt | null>(null);
+  const [createDraft, setCreateDraft] = useState<{ date: string; minutes: number } | null>(null);
   const [appts, setAppts] = useState(props.appts);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync from server: re-hydrate optimistic state on server revalidation
   useEffect(() => setAppts(props.appts), [props.appts]);
@@ -59,6 +61,18 @@ export function ScheduleClient(props: {
     setParam({ anchor: props.view === "month" ? `${addMonths(props.anchor, dir).slice(0, 7)}-01` : addWeeks(props.anchor, dir) });
   const goToday = () => setParam({ anchor: toCivilDate(new Date().toISOString(), props.tz) });
 
+  function draftStartLocal(date: string, minutes: number): string {
+    // zonedTimeToUtc gives the UTC instant for that wall-clock slot; render it back
+    // as a tz-local "YYYY-MM-DDTHH:mm" for the datetime-local input.
+    const iso = zonedTimeToUtc(date, minutes, props.tz);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: props.tz, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(new Date(iso));
+    const g = (t: string) => parts.find((p) => p.type === t)!.value;
+    return `${g("year")}-${g("month")}-${g("day")}T${g("hour") === "24" ? "00" : g("hour")}:${g("minute")}`;
+  }
+
   const sel = (cls: string) => "rounded-md px-2 py-1 text-sm " + cls;
   return (
     <div className="space-y-4">
@@ -90,11 +104,19 @@ export function ScheduleClient(props: {
             ...(props.cityOptions.hasUnknown ? [["__unknown__", "Unknown"] as [string, string]] : [])]} testid="filter-city" />
       </div>
 
-      {props.view === "week" && <WeekGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} />}
+      {props.view === "week" && <WeekGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} onCreate={(date, minutes) => setCreateDraft({ date, minutes })} />}
       {props.view === "month" && <MonthGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} />}
       {props.view === "crew" && <CrewBoard appts={appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={setSelected} onReassign={onReassign} />}
 
       {selected && <AppointmentPopover appt={selected} tz={props.tz} onClose={() => setSelected(null)} />}
+      {createDraft && (
+        <CreateAppointmentForm
+          startLocal={draftStartLocal(createDraft.date, createDraft.minutes)}
+          crew={props.crew}
+          onClose={() => setCreateDraft(null)}
+          onCreated={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
