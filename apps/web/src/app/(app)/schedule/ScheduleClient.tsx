@@ -104,9 +104,9 @@ export function ScheduleClient(props: {
             ...(props.cityOptions.hasUnknown ? [["__unknown__", "Unknown"] as [string, string]] : [])]} testid="filter-city" />
       </div>
 
-      {props.view === "week" && <WeekGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} onCreate={(date, minutes) => setCreateDraft({ date, minutes })} />}
-      {props.view === "month" && <MonthGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={setSelected} onReschedule={onReschedule} />}
-      {props.view === "crew" && <CrewBoard appts={appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={setSelected} onReassign={onReassign} />}
+      {props.view === "week" && <WeekGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={(appt) => { setCreateDraft(null); setSelected(appt); }} onReschedule={onReschedule} onCreate={(date, minutes) => { setSelected(null); setCreateDraft({ date, minutes }); }} />}
+      {props.view === "month" && <MonthGrid appts={appts} anchor={props.anchor} tz={props.tz} onSelect={(appt) => { setCreateDraft(null); setSelected(appt); }} onReschedule={onReschedule} />}
+      {props.view === "crew" && <CrewBoard appts={appts} anchor={props.anchor} tz={props.tz} crew={props.crew} onSelect={(appt) => { setCreateDraft(null); setSelected(appt); }} onReassign={onReassign} />}
 
       {selected && <AppointmentPopover appt={selected} tz={props.tz} onClose={() => setSelected(null)} />}
       {createDraft && (
