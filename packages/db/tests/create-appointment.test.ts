@@ -36,6 +36,7 @@ describe("bookAppointment with a null assignee", () => {
       endsAt: new Date("2026-07-02T18:00:00Z"),
     };
 
+    // Same slot + null assignee on both: the per-crew EXCLUDE constraint must not fire for nulls.
     await bookAppointment({
       tenantId,
       jobId,
@@ -54,6 +55,6 @@ describe("bookAppointment with a null assignee", () => {
         assigneeUserId: null,
         ...at,
       }),
-    ).resolves.toBeTruthy();
+    ).resolves.toMatchObject({ id: expect.any(String) });
   });
 });
