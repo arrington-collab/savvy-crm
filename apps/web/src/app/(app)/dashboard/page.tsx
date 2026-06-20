@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { getPipelineCounts, getRecentAgentRuns, getVelocity, getRepPerformance } from "@/lib/dashboard-queries";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
@@ -67,13 +68,15 @@ export default async function DashboardPage() {
         <h2 className="eyebrow mb-2">Pipeline</h2>
         <div className="flex gap-2" data-testid="pipeline">
           {activeStages.map((s) => (
-            <Card key={s} className="flex-1 p-3">
-              <div className="mono flex items-center gap-1.5 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: STAGE_DOT[s] ?? "var(--text-faint)" }} />
-                {s}
-              </div>
-              <div className="mt-1 text-xl font-semibold" data-testid={`stage-${s}`}>{pipeline.byStage[s]}</div>
-            </Card>
+            <Link key={s} href={`/jobs?stage=${s}`} className="flex-1" data-testid={`pipeline-link-${s}`}>
+              <Card className="h-full p-3 transition-colors hover:border-[var(--accent-040)]">
+                <div className="mono flex items-center gap-1.5 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: STAGE_DOT[s] ?? "var(--text-faint)" }} />
+                  {s}
+                </div>
+                <div className="mt-1 text-xl font-semibold" data-testid={`stage-${s}`}>{pipeline.byStage[s]}</div>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>
@@ -146,7 +149,7 @@ export default async function DashboardPage() {
                   {deferred ? <span className="eyebrow" style={{ fontSize: "0.55rem" }}>deferred</span> : null}
                   <span className="ml-auto flex items-center gap-3">
                     {latest?.modelUsed ? <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }}>{latest.modelUsed}</span> : null}
-                    <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }}>{latest ? ago(latest.startedAt) : "idle"}</span>
+                    <span className="mono text-[11px]" style={{ color: "var(--text-faint)" }} title={latest ? undefined : "No activity in the recent window"}>{latest ? ago(latest.startedAt) : "idle"}</span>
                     <span className="h-2 w-2 rounded-full" style={{ background: statusColor(latest?.status), boxShadow: latest && !deferred ? `0 0 8px ${statusColor(latest.status)}` : "none" }} />
                   </span>
                 </li>

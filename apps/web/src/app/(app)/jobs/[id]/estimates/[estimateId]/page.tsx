@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getEstimate } from "@/lib/estimate-queries";
 import { EstimateEditor } from "./EstimateEditor";
+import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
+import { getJobCustomerName } from "@/lib/breadcrumb-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -16,5 +18,18 @@ export default async function EstimateEditorPage({
     notFound();
   }
 
-  return <EstimateEditor estimate={estimate} jobId={jobId} />;
+  const customerName = await getJobCustomerName(jobId);
+
+  return (
+    <div className="space-y-4">
+      <Breadcrumb
+        segments={[
+          { label: "Jobs", href: "/jobs" },
+          { label: customerName ?? "Job", href: `/jobs/${jobId}` },
+          { label: "Estimate" },
+        ]}
+      />
+      <EstimateEditor estimate={estimate} jobId={jobId} />
+    </div>
+  );
 }

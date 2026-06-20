@@ -34,6 +34,7 @@ import { fmtUsd } from "@/lib/format";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
+import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -276,6 +277,7 @@ export default async function JobDetailPage({
 
   return (
     <div data-testid="job-detail" className="space-y-6">
+      <Breadcrumb segments={[{ label: "Jobs", href: "/jobs" }, { label: jobRow.customerName ?? "Job" }]} />
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
