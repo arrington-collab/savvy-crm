@@ -1,12 +1,12 @@
 "use client";
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { buildWeekView, applyDragToWeek, type ScheduleAppt, type PositionedAppt, type WeekDay } from "@savvy/core";
+import { buildWeekView, applyDragToWeek, minutesFromOffset, type ScheduleAppt, type PositionedAppt, type WeekDay } from "@savvy/core";
 
 function WeekBlock({ b, onSelect }: { b: PositionedAppt; onSelect: (a: ScheduleAppt) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: b.id });
   const drag = transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined;
   return (
-    <button ref={setNodeRef} {...listeners} {...attributes} data-testid="appt-block" onClick={() => onSelect(b)}
+    <button ref={setNodeRef} {...listeners} {...attributes} data-testid="appt-block" onClick={(e) => { e.stopPropagation(); onSelect(b); }}
       className="absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-[11px]"
       style={{
         top: `${b.topPct}%`, height: `${b.heightPct}%`, left: `${(b.lane / b.lanes) * 100}%`, width: `${(1 / b.lanes) * 100}%`,
@@ -18,18 +18,25 @@ function WeekBlock({ b, onSelect }: { b: PositionedAppt; onSelect: (a: ScheduleA
   );
 }
 
-function WeekCol({ day, onSelect }: { day: WeekDay; onSelect: (a: ScheduleAppt) => void }) {
+function WeekCol({ day, onSelect, onCreate }: {
+  day: WeekDay; onSelect: (a: ScheduleAppt) => void; onCreate: (date: string, minutes: number) => void;
+}) {
   const { setNodeRef } = useDroppable({ id: day.date });
   return (
-    <div ref={setNodeRef} data-testid={`week-col-${day.date}`} className="relative border-l" style={{ height: 560, borderColor: "var(--border-panel)" }}>
+    <div ref={setNodeRef} data-testid={`week-col-${day.date}`} className="relative border-l" style={{ height: 560, borderColor: "var(--border-panel)" }}
+      onClick={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        onCreate(day.date, minutesFromOffset(e.clientY - rect.top, rect.height));
+      }}>
       {day.blocks.map((b) => <WeekBlock key={b.id} b={b} onSelect={onSelect} />)}
     </div>
   );
 }
 
-export function WeekGrid({ appts, anchor, tz, onSelect, onReschedule }: {
+export function WeekGrid({ appts, anchor, tz, onSelect, onReschedule, onCreate }: {
   appts: ScheduleAppt[]; anchor: string; tz: string;
   onSelect: (a: ScheduleAppt) => void; onReschedule: (id: string, next: { startsAt: string; endsAt: string }) => void;
+  onCreate: (date: string, minutes: number) => void;
 }) {
   const view = buildWeekView(appts, anchor, tz);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -52,7 +59,7 @@ export function WeekGrid({ appts, anchor, tz, onSelect, onReschedule }: {
               <div key={h} className="mono absolute right-1 text-[10px]" style={{ top: `${(i / (view.hourLabels.length - 1)) * 100}%`, color: "var(--text-faint)" }}>{h}</div>
             ))}
           </div>
-          {view.days.map((d) => <WeekCol key={d.date} day={d} onSelect={onSelect} />)}
+          {view.days.map((d) => <WeekCol key={d.date} day={d} onSelect={onSelect} onCreate={onCreate} />)}
         </div>
       </div>
     </DndContext>

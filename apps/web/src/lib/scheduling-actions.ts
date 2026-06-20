@@ -2,9 +2,16 @@
 import { revalidatePath } from "next/cache";
 import {
   rescheduleAppointment, cancelAppointment, setAppointmentStatus, SlotTakenError, reassignAppointment,
+  bookAppointment, withTenant, job, eq,
 } from "@savvy/db";
+import type { AppointmentType } from "@savvy/core";
+import { searchSchedulableJobs, type SchedulableJob } from "./schedule-create-queries";
 import { inngest } from "@savvy/agents";
 import { getTenantId } from "./tenant";
+
+export async function searchJobsAction(q: string): Promise<SchedulableJob[]> {
+  return searchSchedulableJobs(q);
+}
 
 async function emit(
   name: "appointment/changed",
@@ -61,6 +68,37 @@ export async function reassignAction(
     throw e;
   }
   await emit("appointment/changed", { appointmentId, tenantId, reason: "reassigned" });
+  revalidatePath("/schedule");
+  return { ok: true as const };
+}
+
+export async function createAppointmentAction(input: {
+  jobId: string;
+  type: AppointmentType;
+  assigneeUserId: string | null;
+  startsAt: string;
+  endsAt: string;
+}): Promise<{ ok: true } | { error: "slot_taken" }> {
+  const tenantId = await getTenantId();
+  // Resolve the customer from the job (tenant-scoped) so reminders can look up phone/email.
+  const customerId = await withTenant(tenantId, async (tx) => {
+    const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, input.jobId));
+    return j?.customerId;
+  });
+  let appointmentId: string;
+  try {
+    const created = await bookAppointment({
+      tenantId, jobId: input.jobId, customerId,
+      type: input.type, assigneeUserId: input.assigneeUserId,
+      startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt),
+    });
+    appointmentId = created.id;
+  } catch (e) {
+    if (e instanceof SlotTakenError) return { error: "slot_taken" as const };
+    throw e;
+  }
+  try { await inngest.send({ name: "appointment/booked", data: { appointmentId, tenantId } }); }
+  catch (e) { console.error("inngest.send failed", e); }
   revalidatePath("/schedule");
   return { ok: true as const };
 }
