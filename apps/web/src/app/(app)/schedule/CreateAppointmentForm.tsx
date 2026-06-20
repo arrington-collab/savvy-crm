@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { APPOINTMENT_TYPE, type AppointmentType } from "@savvy/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createAppointmentAction, searchJobsAction, type SchedulableJob } from "@/lib/scheduling-actions";
+import { createAppointmentAction, searchJobsAction } from "@/lib/scheduling-actions";
+import type { SchedulableJob } from "@/lib/schedule-create-queries";
 
 type Crew = { id: string; name: string };
 

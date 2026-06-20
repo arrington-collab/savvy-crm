@@ -9,8 +9,6 @@ import { searchSchedulableJobs, type SchedulableJob } from "./schedule-create-qu
 import { inngest } from "@savvy/agents";
 import { getTenantId } from "./tenant";
 
-export type { SchedulableJob };
-
 export async function searchJobsAction(q: string): Promise<SchedulableJob[]> {
   return searchSchedulableJobs(q);
 }
