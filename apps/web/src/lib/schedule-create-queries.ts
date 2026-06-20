@@ -9,7 +9,7 @@ export type SchedulableJob = {
   address: string | null;
 };
 
-/** Search active jobs by customer name or property address for the create-appointment
+/** Search jobs (any stage) by customer name or property address for the create-appointment
  *  picker. Returns up to 10, most recent first. Blank/short queries return []. */
 export async function searchSchedulableJobs(q: string): Promise<SchedulableJob[]> {
   const term = q.trim();
