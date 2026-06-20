@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stripeGateway } from "@savvy/integrations";
 import { recordStripePayment } from "@savvy/db";
 import { inngest } from "@savvy/agents";
+import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const isSuccess = evt.type === "checkout.session.completed" || evt.type === "checkout.session.async_payment_succeeded";
   if (!isSuccess) return NextResponse.json({ received: true });
+  log.info("stripe webhook received", { route: "/api/stripe/webhook", event: evt.type });
 
   const session = evt.data.object as {
     id?: string; payment_intent?: string; amount_total?: number;
@@ -47,11 +49,11 @@ export async function POST(req: Request): Promise<NextResponse> {
       tenantId, invoiceId, stripePaymentId, method, amountCents: session.amount_total ?? 0,
     });
     if (r.nowPaid) {
-      try { await inngest.send({ name: "invoice/paid", data: { invoiceId, tenantId } }); } catch (e) { console.error(e); }
+      try { await inngest.send({ name: "invoice/paid", data: { invoiceId, tenantId } }); } catch (e) { log.error("invoice/paid emit failed", { route: "/api/stripe/webhook", tenantId, msg: String(e) }); }
     }
   } catch (e) {
     // 23505 race -> already recorded; other errors logged but still 200 (avoid infinite Stripe retries on a poison event).
-    console.error("reconcile failed", e);
+    log.error("stripe reconcile failed", { route: "/api/stripe/webhook", tenantId, msg: String(e) });
   }
   return NextResponse.json({ received: true });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb, estimate, markEsignBySubmission, markChangeOrderBySubmission, eq } from "@savvy/db";
 import { httpDocuseal } from "@savvy/integrations";
 import { inngest } from "@savvy/agents";
+import { log } from "@/lib/log";
 
 export const runtime = "nodejs"; // node:crypto for HMAC signature verification
 
@@ -26,6 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const ev = httpDocuseal.parseEvent(payload);
   if (!ev || ev.status !== "completed") return NextResponse.json({ ok: true });
+  log.info("docuseal webhook received", { route: "/api/docuseal/webhook", submissionId: ev.submissionId });
 
   // Estimate signing (Phase 7).
   const [est] = await adminDb
@@ -38,7 +40,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     try {
       await inngest.send({ name: "estimate/accepted", data: { tenantId: est.tenantId, estimateId: est.id } });
     } catch (e) {
-      console.error(e);
+      log.error("estimate/accepted emit failed", { route: "/api/docuseal/webhook", tenantId: est.tenantId, msg: String(e) });
     }
     return NextResponse.json({ ok: true });
   }
@@ -51,7 +53,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       try {
         await inngest.send({ name: "esign/completed", data: { requestId: esign.requestId, tenantId: esign.tenantId } });
       } catch (e) {
-        console.error(e);
+        log.error("esign/completed emit failed", { route: "/api/docuseal/webhook", tenantId: esign.tenantId, msg: String(e) });
       }
     }
     return NextResponse.json({ ok: true });
@@ -64,7 +66,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     try {
       await inngest.send({ name: "change_order/accepted", data: { changeOrderId: co.changeOrderId, tenantId: co.tenantId } });
     } catch (e) {
-      console.error(e);
+      log.error("change_order/accepted emit failed", { route: "/api/docuseal/webhook", tenantId: co.tenantId, msg: String(e) });
     }
   }
   return NextResponse.json({ ok: true });
