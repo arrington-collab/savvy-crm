@@ -186,6 +186,15 @@ export function zonedTimeToUtc(civilDate: string, minutes: number, tz: string): 
 
 function snap30(min: number): number { return Math.round(min / 30) * 30; }
 
+/** Inverse of the week grid's vertical positioning: a click offset within a day
+ *  column (height px) → minute-of-day, snapped to 30, clamped so a 30-min appt
+ *  fits inside the 6a–8p window. */
+export function minutesFromOffset(offsetY: number, height: number): number {
+  const raw = DAY_START_MIN + (offsetY / height) * SPAN_MIN;
+  const snapped = snap30(raw);
+  return Math.max(DAY_START_MIN, Math.min(snapped, DAY_END_MIN - 30));
+}
+
 /** New {startsAt,endsAt} after dragging a week block by `deltaYpx` (within a `gridHeightPx`
  *  6a-8p grid) onto `newDate`. Snaps to 30 min, preserves duration, clamps into the window. */
 export function applyDragToWeek(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, buildMonthView, buildCrewView, type ScheduleAppt } from "./schedule-view.js";
+import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, buildMonthView, buildCrewView, minutesFromOffset, type ScheduleAppt } from "./schedule-view.js";
 
 const TZ = "America/Phoenix"; // UTC-7, no DST
 
@@ -124,5 +124,25 @@ describe("applyDragToMonth", () => {
     const r = applyDragToMonth({ startsAt: "2026-06-17T16:00:00Z", endsAt: "2026-06-17T17:00:00Z" }, "2026-06-20", TZ);
     expect(r.startsAt).toBe("2026-06-20T16:00:00.000Z");
     expect(r.endsAt).toBe("2026-06-20T17:00:00.000Z");
+  });
+});
+
+describe("minutesFromOffset", () => {
+  // 6a–8p window = 360..1200 min over a 560px column.
+  it("maps the very top to 6:00 (360)", () => {
+    expect(minutesFromOffset(0, 560)).toBe(360);
+  });
+  it("snaps to the nearest 30 minutes", () => {
+    // 280/560 = 50% → 360 + 0.5*840 = 780 (1:00pm), already a multiple of 30
+    expect(minutesFromOffset(280, 560)).toBe(780);
+    // a hair above the 11:00 line should snap back to 11:00 (660)
+    expect(minutesFromOffset(205, 560)).toBe(660);
+  });
+  it("clamps the bottom so a 30-min appt still fits (max 19:30 = 1170)", () => {
+    expect(minutesFromOffset(560, 560)).toBe(1170);
+    expect(minutesFromOffset(99999, 560)).toBe(1170);
+  });
+  it("clamps negative offsets to the top", () => {
+    expect(minutesFromOffset(-50, 560)).toBe(360);
   });
 });
