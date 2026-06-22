@@ -10,6 +10,12 @@ async function main() {
   const appBase = process.env.APP_BASE_URL;
   const verificationToken = process.env.RINGCENTRAL_WEBHOOK_TOKEN ?? "";
   if (!clientId || !clientSecret || !jwt || !appBase) throw new Error("RINGCENTRAL_* and APP_BASE_URL required");
+  if (!verificationToken && process.env.NODE_ENV === "production") {
+    throw new Error("RINGCENTRAL_WEBHOOK_TOKEN must be set in production — the inbound route fails closed without it, so a tokenless subscription would silently drop every message.");
+  }
+  if (!verificationToken) {
+    console.warn("No RINGCENTRAL_WEBHOOK_TOKEN set — subscription will be unauthenticated (dev only).");
+  }
 
   const authRes = await fetch(`${serverUrl}/restapi/oauth/token`, {
     method: "POST",
@@ -37,6 +43,11 @@ async function main() {
   });
   const out = await subRes.text();
   if (!subRes.ok) throw new Error(`subscription failed: ${subRes.status} ${out}`);
-  console.log("RingCentral subscription created:", out);
+  try {
+    const sub = JSON.parse(out) as { id?: string; expirationTime?: string; expiresIn?: number };
+    console.log("RingCentral subscription created:", sub.id, "expires", sub.expirationTime ?? sub.expiresIn);
+  } catch {
+    console.log("RingCentral subscription created (id unavailable)");
+  }
 }
 main().catch((e) => { console.error(e); process.exit(1); });
