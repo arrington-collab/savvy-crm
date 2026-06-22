@@ -1,6 +1,6 @@
 import { withTenant, eq, appointment, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
-import { parseSchedulingConfig, signPayloadToken, requireSecret } from "@savvy/core";
-import { sms, smsFrom, resendEmail } from "@savvy/integrations";
+import { parseSchedulingConfig, signPayloadToken, requireSecret, parseEmailConfig } from "@savvy/core";
+import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 export function buildReminderMessage(
@@ -36,6 +36,7 @@ export const appointmentReminders = inngest.createFunction(
         phone: cust?.phone ?? null,
         email: cust?.email ?? null,
         settings: (t?.settings as { scheduling?: unknown })?.scheduling,
+        gmailConnectionId: parseEmailConfig((t?.settings as { email?: unknown } | undefined)?.email).gmailConnectionId ?? null,
       };
     }));
     if (!ctx) return { skipped: true };
@@ -74,7 +75,7 @@ export const appointmentReminders = inngest.createFunction(
           if (r.channel === "sms") {
             await sms.sendSms({ to, from: smsFrom(), body });
           } else {
-            await resendEmail.sendEmail({
+            await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({
               to,
               from: process.env.EMAIL_FROM ?? "noreply@example.com",
               subject: "Appointment reminder",
