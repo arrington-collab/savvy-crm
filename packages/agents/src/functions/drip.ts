@@ -4,7 +4,7 @@ import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { sms, resendEmail } from "@savvy/integrations";
+import { sms, smsFrom, resendEmail } from "@savvy/integrations";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -87,7 +87,7 @@ export async function sendDripStep(
     if (step.channel === "sms") {
       // to is non-null here: the suppress guard returned when the address was missing.
       ({ sid: providerId } = await deps.sms.sendSms({
-        to: to!, from: process.env.TWILIO_FROM ?? "+15555550000", body: drafted.body,
+        to: to!, from: smsFrom(), body: drafted.body,
       }));
     } else {
       ({ id: providerId } = await deps.email.sendEmail({

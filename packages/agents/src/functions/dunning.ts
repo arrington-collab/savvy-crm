@@ -14,7 +14,7 @@ import {
   communication,
   agentRun,
 } from "@savvy/db";
-import { sms, resendEmail } from "@savvy/integrations";
+import { sms, smsFrom, resendEmail } from "@savvy/integrations";
 import { inngest } from "../client";
 
 /**
@@ -145,7 +145,7 @@ export const dunningRun = inngest.createFunction(
             try {
               ({ sid } = await sms.sendSms({
                 to: phase1.phone,
-                from: process.env.TWILIO_FROM ?? "+15555550000",
+                from: smsFrom(),
                 body,
               }));
             } catch {

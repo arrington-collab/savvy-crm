@@ -3,7 +3,7 @@ import {
   withTenant, lead, customer, communication, recordAgentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { sms, type SmsSender } from "@savvy/integrations";
+import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 const qualifySchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
@@ -67,7 +67,7 @@ export const leadIntake = inngest.createFunction(
       const sender: SmsSender = sms;
       let sid = "mock";
       try {
-        ({ sid } = await sender.sendSms({ to: ctx.phone, from: process.env.TWILIO_FROM ?? "+15555550000", body }));
+        ({ sid } = await sender.sendSms({ to: ctx.phone, from: smsFrom(), body }));
       } catch {
         // No Twilio creds in dev/test — log the comm anyway with a mock sid.
       }

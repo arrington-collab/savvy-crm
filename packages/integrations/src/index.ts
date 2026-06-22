@@ -9,4 +9,4 @@ export { nangoRoofr, makeFakeRoofr, type RoofrGateway, type RoofrReport } from "
 export { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "./docuseal";
 export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway, type CompanyCamEvent } from "./companycam";
 export { ringcentralSms, makeRingCentralSms } from "./ringcentral";
-export { sms, selectSms } from "./comms";
+export { sms, selectSms, smsFrom } from "./comms";
