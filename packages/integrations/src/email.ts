@@ -34,6 +34,9 @@ export const resendEmail: EmailSender = makeResendEmail({
 
 type NangoProxy = typeof nangoProxy;
 
+// RFC822 header values must be single-line; collapse CR/LF to a space to prevent header injection.
+const headerSafe = (v: string) => v.replace(/[\r\n]+/g, " ");
+
 /** Per-tenant Gmail sender via Nango's google-mail connection. `proxyImpl` is
  *  injectable for tests; defaults to the real nangoProxy. Gmail sends from the
  *  authorized account regardless of the From header. */
@@ -44,9 +47,9 @@ export function makeGmailEmail(cfg: { connectionId: string; integrationId?: stri
     async sendEmail({ to, from, subject, html }) {
       const raw = Buffer.from(
         [
-          `To: ${to}`,
-          `From: ${from}`,
-          `Subject: ${subject}`,
+          `To: ${headerSafe(to)}`,
+          `From: ${headerSafe(from)}`,
+          `Subject: ${headerSafe(subject)}`,
           "MIME-Version: 1.0",
           'Content-Type: text/html; charset="UTF-8"',
           "",

@@ -39,6 +39,27 @@ describe("makeGmailEmail", () => {
     expect(decoded).toContain("Subject: Hi");
     expect(decoded).toContain("<p>x</p>");
   });
+
+  it("strips CRLF from header values to prevent header injection", async () => {
+    const calls: any[] = [];
+    const proxy = async (o: any) => { calls.push(o); return { id: "m" }; };
+    const g = makeGmailEmail({ connectionId: "c1", proxyImpl: proxy as never });
+    await g.sendEmail({ to: "a@b.com", from: "me@x.com", subject: "Hi\r\nBcc: evil@x.com", html: "<p>x</p>" });
+    const decoded = Buffer.from(calls[0].body.raw, "base64url").toString("utf8");
+    // the injected line must NOT appear as its own header
+    expect(decoded).not.toMatch(/^Bcc: evil@x\.com/m);
+    expect(decoded).toContain("Subject: Hi Bcc: evil@x.com"); // collapsed onto the Subject line
+  });
+  it("assembles all required headers", async () => {
+    const calls: any[] = [];
+    const proxy = async (o: any) => { calls.push(o); return { id: "m" }; };
+    const g = makeGmailEmail({ connectionId: "c1", proxyImpl: proxy as never });
+    await g.sendEmail({ to: "a@b.com", from: "me@x.com", subject: "Hi", html: "<p>x</p>" });
+    const decoded = Buffer.from(calls[0].body.raw, "base64url").toString("utf8");
+    expect(decoded).toContain("From: me@x.com");
+    expect(decoded).toContain("MIME-Version: 1.0");
+    expect(decoded).toContain('Content-Type: text/html; charset="UTF-8"');
+  });
 });
 
 describe("getEmailSender", () => {
