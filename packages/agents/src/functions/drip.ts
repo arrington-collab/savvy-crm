@@ -4,7 +4,7 @@ import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { twilioSms, resendEmail } from "@savvy/integrations";
+import { sms, resendEmail } from "@savvy/integrations";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -178,7 +178,7 @@ export const dripRun = inngest.createFunction(
         }
         return sendDripStep(
           { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId },
-          { sms: twilioSms, email: resendEmail },
+          { sms, email: resendEmail },
         );
       });
     }

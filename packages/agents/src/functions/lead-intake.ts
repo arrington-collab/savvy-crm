@@ -3,7 +3,7 @@ import {
   withTenant, lead, customer, communication, recordAgentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { twilioSms, type SmsSender } from "@savvy/integrations";
+import { sms, type SmsSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 const qualifySchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
@@ -64,7 +64,7 @@ export const leadIntake = inngest.createFunction(
       const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
       const body = buildBookingSms({ name: ctx.name, bookingUrl: `${base}/book/${token}` });
-      const sender: SmsSender = twilioSms;
+      const sender: SmsSender = sms;
       let sid = "mock";
       try {
         ({ sid } = await sender.sendSms({ to: ctx.phone, from: process.env.TWILIO_FROM ?? "+15555550000", body }));
