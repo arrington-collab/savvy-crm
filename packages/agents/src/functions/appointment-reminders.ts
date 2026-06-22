@@ -1,6 +1,6 @@
 import { withTenant, eq, appointment, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseSchedulingConfig, signPayloadToken, requireSecret } from "@savvy/core";
-import { twilioSms, resendEmail } from "@savvy/integrations";
+import { sms, smsFrom, resendEmail } from "@savvy/integrations";
 import { inngest } from "../client";
 
 export function buildReminderMessage(
@@ -72,7 +72,7 @@ export const appointmentReminders = inngest.createFunction(
         if (!to) return { sent: false };
         try {
           if (r.channel === "sms") {
-            await twilioSms.sendSms({ to, from: process.env.TWILIO_FROM ?? "+15555550000", body });
+            await sms.sendSms({ to, from: smsFrom(), body });
           } else {
             await resendEmail.sendEmail({
               to,

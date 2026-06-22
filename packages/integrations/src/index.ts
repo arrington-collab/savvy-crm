@@ -8,3 +8,5 @@ export { r2Storage, makeFakeStorage, type StorageGateway } from "./storage";
 export { nangoRoofr, makeFakeRoofr, type RoofrGateway, type RoofrReport } from "./roofr";
 export { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "./docuseal";
 export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway, type CompanyCamEvent } from "./companycam";
+export { ringcentralSms, makeRingCentralSms, parseRingCentralInboundSms, type InboundSms } from "./ringcentral";
+export { sms, selectSms, smsFrom } from "./comms";
