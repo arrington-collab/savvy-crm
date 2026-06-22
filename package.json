@@ -15,7 +15,8 @@
     "db:generate": "pnpm --filter @savvy/db db:generate",
     "db:migrate": "pnpm --filter @savvy/db db:migrate",
     "db:seed": "pnpm --filter @savvy/db db:seed",
-    "db:reset": "docker compose down -v && docker compose up -d && sleep 3 && pnpm db:migrate && pnpm db:seed"
+    "db:reset": "docker compose down -v && docker compose up -d && sleep 3 && pnpm db:migrate && pnpm db:seed",
+    "rc:subscribe": "pnpm --filter @savvy/integrations exec tsx src/scripts/rc-subscribe.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
