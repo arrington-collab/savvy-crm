@@ -70,3 +70,33 @@ describe("makeRingCentralSms", () => {
     await expect(sms.sendSms({ to: "+1", from: cfg.from, body: "x" })).rejects.toThrow(/ringcentral auth failed: 401/);
   });
 });
+
+import { parseRingCentralInboundSms } from "./ringcentral";
+
+describe("parseRingCentralInboundSms", () => {
+  const payload = {
+    event: "/restapi/v1.0/account/~/extension/~/message-store/instant?type=SMS",
+    body: {
+      changes: [{ type: "SMS" }],
+      lastUpdated: "2026-06-22T10:00:00Z",
+      from: { phoneNumber: "+15551112222" },
+      to: [{ phoneNumber: "+15555550000" }],
+      type: "SMS",
+      subject: "STOP",
+      id: 9001,
+      direction: "Inbound",
+    },
+  };
+
+  it("extracts to/from/body/messageId for an inbound SMS", () => {
+    expect(parseRingCentralInboundSms(payload)).toEqual([
+      { to: "+15555550000", from: "+15551112222", body: "STOP", messageId: "9001" },
+    ]);
+  });
+
+  it("ignores non-inbound or non-SMS payloads", () => {
+    expect(parseRingCentralInboundSms({ body: { type: "Fax", direction: "Inbound", subject: "x" } })).toEqual([]);
+    expect(parseRingCentralInboundSms({ body: { type: "SMS", direction: "Outbound", subject: "x" } })).toEqual([]);
+    expect(parseRingCentralInboundSms({})).toEqual([]);
+  });
+});

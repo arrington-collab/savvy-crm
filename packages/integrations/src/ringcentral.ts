@@ -55,6 +55,22 @@ export function makeRingCentralSms(cfg: RingCentralConfig): SmsSender {
   };
 }
 
+export type InboundSms = { to: string; from: string; body: string; messageId: string };
+
+/** Parse a RingCentral message-store notification into inbound SMS items.
+ *  RC puts the message text in `subject`; we only act on Inbound SMS. */
+export function parseRingCentralInboundSms(payload: unknown): InboundSms[] {
+  const body = (payload as { body?: Record<string, unknown> } | null)?.body;
+  if (!body) return [];
+  if (body.type !== "SMS" || body.direction !== "Inbound") return [];
+  const from = (body.from as { phoneNumber?: string } | undefined)?.phoneNumber;
+  const toArr = (body.to as Array<{ phoneNumber?: string }> | undefined) ?? [];
+  const to = toArr[0]?.phoneNumber;
+  const text = typeof body.subject === "string" ? body.subject : "";
+  if (!from || !to) return [];
+  return [{ to, from, body: text, messageId: String(body.id ?? "") }];
+}
+
 // Real instance bound to env. Feature code uses the `sms` selector (comms.ts), not this directly.
 export const ringcentralSms: SmsSender = makeRingCentralSms({
   serverUrl: process.env.RINGCENTRAL_SERVER_URL ?? "https://platform.ringcentral.com",
