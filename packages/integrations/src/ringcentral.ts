@@ -12,6 +12,7 @@ export interface RingCentralConfig {
 const JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
 /** Factory so tests inject fetch; the token cache is closure-local (per instance). */
+// No promise dedup: two concurrent cold calls each fetch a token; both are valid (RC allows multiple active tokens). One wasted auth, never a failure.
 export function makeRingCentralSms(cfg: RingCentralConfig): SmsSender {
   const doFetch = cfg.fetchImpl ?? fetch;
   let cached: { token: string; expiresAt: number } | null = null;

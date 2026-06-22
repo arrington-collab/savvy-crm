@@ -63,4 +63,10 @@ describe("makeRingCentralSms", () => {
     const sms = makeRingCentralSms({ ...cfg, fetchImpl: fn });
     await expect(sms.sendSms({ to: "+1", from: cfg.from, body: "x" })).rejects.toThrow(/ringcentral send failed: 400/);
   });
+
+  it("throws a descriptive error when JWT auth fails", async () => {
+    const { fn } = mockFetch([() => json({ message: "invalid_grant" }, 401)]);
+    const sms = makeRingCentralSms({ ...cfg, fetchImpl: fn });
+    await expect(sms.sendSms({ to: "+1", from: cfg.from, body: "x" })).rejects.toThrow(/ringcentral auth failed: 401/);
+  });
 });
