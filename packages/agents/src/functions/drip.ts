@@ -1,10 +1,10 @@
-import { renderTemplate, type DripStep } from "@savvy/core";
+import { renderTemplate, type DripStep, parseEmailConfig } from "@savvy/core";
 import * as ai from "@savvy/ai";
 import {
-  withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate,
+  withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate, tenant as tenantTbl,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { sms, smsFrom, resendEmail } from "@savvy/integrations";
+import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -152,7 +152,9 @@ export const dripRun = inngest.createFunction(
           tenantId, dripId: d.id, customerId, jobId: jobId ?? null, leadId: leadId ?? null,
           status: "active", inngestRunId: runId,
         }).returning();
-        return { enrollmentId: enr!.id, steps: d.steps };
+        const [t] = await tx.select().from(tenantTbl).where(eq(tenantTbl.id, tenantId));
+        const gmailConnectionId = parseEmailConfig((t?.settings as { email?: unknown } | undefined)?.email).gmailConnectionId ?? null;
+        return { enrollmentId: enr!.id, steps: d.steps, gmailConnectionId };
       }),
     );
     if (!setup) return { skipped: true };
@@ -178,7 +180,7 @@ export const dripRun = inngest.createFunction(
         }
         return sendDripStep(
           { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId },
-          { sms, email: resendEmail },
+          { sms, email: getEmailSender({ gmailConnectionId: setup.gmailConnectionId }) },
         );
       });
     }

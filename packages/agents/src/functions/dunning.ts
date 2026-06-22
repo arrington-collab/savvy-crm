@@ -1,5 +1,6 @@
 import {
   parseFinanceConfig,
+  parseEmailConfig,
   dunningSchedule,
   dunningEmail,
   dunningSms,
@@ -14,7 +15,7 @@ import {
   communication,
   agentRun,
 } from "@savvy/db";
-import { sms, smsFrom, resendEmail } from "@savvy/integrations";
+import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 /**
@@ -48,7 +49,8 @@ export const dunningRun = inngest.createFunction(
         if (!inv || !inv.dueAt) return null;
         const cfg = parseFinanceConfig((t?.settings as { finance?: unknown } | undefined)?.finance);
         if (!cfg.dunning.enabled) return null;
-        return { inv, cfg };
+        const gmailConnectionId = parseEmailConfig((t?.settings as { email?: unknown } | undefined)?.email).gmailConnectionId ?? null;
+        return { inv, cfg, gmailConnectionId };
       }),
     );
     if (!setup) return { skipped: true };
@@ -121,7 +123,7 @@ export const dunningRun = inngest.createFunction(
             commBody = mail.subject;
             try {
               // id is not used further — fail-soft, the comm row is always inserted.
-              await resendEmail.sendEmail({
+              await getEmailSender({ gmailConnectionId: setup.gmailConnectionId }).sendEmail({
                 to: phase1.email,
                 from: process.env.EMAIL_FROM ?? "noreply@example.com",
                 subject: mail.subject,
