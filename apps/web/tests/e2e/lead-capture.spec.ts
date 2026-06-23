@@ -12,3 +12,11 @@ test("create a lead with phone auto-format + optional roof/year", async ({ page 
   await page.getByTestId("new-lead-submit").click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
 });
+
+test("can add a new lead source inline and select it", async ({ page }) => {
+  await page.goto("/leads/new");
+  await page.getByTestId("lead-source-add-toggle").click();
+  await page.getByTestId("lead-source-new").fill("Home Show");
+  await page.getByTestId("lead-source-save").click();
+  await expect(page.getByTestId("lead-source")).toHaveValue("Home Show");
+});

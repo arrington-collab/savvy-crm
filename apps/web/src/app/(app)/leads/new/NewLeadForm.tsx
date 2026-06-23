@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AddressAutocomplete, type ParsedAddress } from "@/components/AddressAutocomplete";
+import { LeadSourceSelect } from "@/components/LeadSourceSelect";
 import { createLead } from "@/lib/lead-actions";
 
 const ROOF_TYPES = [
@@ -19,14 +20,14 @@ const ROOF_TYPES = [
   { v: "other", label: "Other" },
 ];
 
-export function NewLeadForm() {
+export function NewLeadForm({ initialCustomSources }: { initialCustomSources: string[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [parts, setParts] = useState<Partial<ParsedAddress>>({});
-  const [source, setSource] = useState("manual");
+  const [source, setSource] = useState("referral");
   const [roofType, setRoofType] = useState("");
   const [yearBuilt, setYearBuilt] = useState("");
 
@@ -94,7 +95,7 @@ export function NewLeadForm() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="source">Source</Label>
-          <Input id="source" value={source} onChange={(e) => setSource(e.target.value)} />
+          <LeadSourceSelect value={source} onChange={setSource} initialCustom={initialCustomSources} />
         </div>
         <Button type="submit" disabled={pending} data-testid="new-lead-submit">
           {pending ? "Creating…" : "Create lead"}
