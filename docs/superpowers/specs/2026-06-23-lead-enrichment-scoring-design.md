@@ -38,6 +38,8 @@ AI), and turn storm exposure into a **rep-facing install/upsell recommendation**
 6. **Phone auto-formatting**: accept any common phone format and normalize to
    E.164 at the schema layer (so the form, `/api/leads`, and Twilio inbound all
    benefit), with as-you-type display formatting in the form.
+7. **Managed lead sources**: a dropdown of common roofing lead sources with an
+   inline **"+ Add"** that persists a new source to the tenant for next time.
 
 ## Non-goals (v1)
 
@@ -151,6 +153,27 @@ E.164, rejecting everything else (the "one particular format" pain).
   with a friendly placeholder. The server transform remains the source of truth.
 - **No new dependency** (US-centric; valid international E.164 still passes).
   `libphonenumber-js` is a future option if full international parsing is needed.
+
+## Managed lead sources
+
+Today `source` is a free-text input (defaulting to "manual"). Replace it with a
+dropdown backed by a default list plus tenant-added entries.
+
+- **`DEFAULT_LEAD_SOURCES`** (pure, `@savvy/core`) — `{ value, label }[]`:
+  referral, repeat, door_knock, storm_canvass, website, google, facebook,
+  yard_sign, carrier, other. These `value`s align with the scoring weights.
+- **Tenant additions** live in `tenant.settings.leadSources: string[]` (jsonb).
+  `addLeadSource(tenantId, source)` (`@savvy/db`, adminDb, read-modify-write
+  preserving sibling settings, case-insensitive dedupe). Any authenticated user
+  may add (low-risk).
+- **`mergeLeadSources(custom)`** (pure, core) → defaults + custom (deduped) for
+  the dropdown.
+- **`LeadSourceSelect`** (web) — native `<select>` of merged options + an inline
+  **"+ Add"** affordance: reveal a small input → `addLeadSourceAction` persists +
+  selects it (also available on the next lead).
+- **Scoring alignment**: `scoreLeadBaseline` looks up the source weight
+  case-insensitively (`SCORE_WEIGHTS.source[value.toLowerCase()] ?? default`), so
+  custom sources simply score at the default weight.
 
 ## Enrichment (StormProof gateway)
 
@@ -280,9 +303,10 @@ Thresholds + product strings live in one exported config object for easy tuning.
 ## Implementation slices (for the plan)
 
 - **A — Address form + schema + intake**: migration, schema, `leadIntakeSchema`,
-  `normalizePhone`/`formatPhoneDisplay` + phone transform, `AddressAutocomplete`,
-  `NewLeadForm` (with as-you-type phone formatting), `createLeadForTenant`. (No
-  scoring change yet; structured data just lands.)
+  `normalizePhone`/`formatPhoneDisplay` + phone transform, managed lead sources
+  (`DEFAULT_LEAD_SOURCES`/`mergeLeadSources` + `addLeadSource` + `LeadSourceSelect`),
+  `AddressAutocomplete`, `NewLeadForm` (with as-you-type phone formatting),
+  `createLeadForTenant`. (No scoring change yet; structured data just lands.)
 - **B — StormProof enrichment**: `stormproof` gateway (real+fake), `enrich-property`
   step, `LeadFeatures` assembly, `stormEventId` wiring, env + `.env.example`.
 - **C — Hybrid scoring**: `scoreLeadBaseline`, AI pass, persist score/features,

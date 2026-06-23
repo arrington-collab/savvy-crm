@@ -662,6 +662,329 @@ git commit -m "test(e2e): new-lead form phone formatting + structured fields"
 
 ---
 
+### Task A8: `DEFAULT_LEAD_SOURCES` + `mergeLeadSources` (pure)
+
+**Files:**
+- Create: `packages/core/src/lead-sources.ts`
+- Test: `packages/core/src/lead-sources.test.ts`
+- Modify: `packages/core/src/index.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// packages/core/src/lead-sources.test.ts
+import { describe, it, expect } from "vitest";
+import { DEFAULT_LEAD_SOURCES, mergeLeadSources } from "./lead-sources";
+
+describe("lead sources", () => {
+  it("ships a non-empty default list including referral", () => {
+    expect(DEFAULT_LEAD_SOURCES.length).toBeGreaterThan(5);
+    expect(DEFAULT_LEAD_SOURCES.some((s) => s.value === "referral")).toBe(true);
+  });
+  it("appends custom sources, skipping case-insensitive duplicates", () => {
+    const merged = mergeLeadSources(["Home Show", "REFERRAL", "Home Show"]);
+    const values = merged.map((s) => s.value);
+    expect(values).toContain("Home Show");
+    expect(values.filter((v) => v.toLowerCase() === "home show").length).toBe(1); // deduped
+    expect(values.filter((v) => v.toLowerCase() === "referral").length).toBe(1); // not duplicated vs default
+  });
+  it("handles null/undefined custom list", () => {
+    expect(mergeLeadSources(null).length).toBe(DEFAULT_LEAD_SOURCES.length);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm vitest run packages/core/src/lead-sources.test.ts`
+Expected: FAIL (unresolved import).
+
+- [ ] **Step 3: Implement**
+
+```ts
+// packages/core/src/lead-sources.ts
+export type LeadSource = { value: string; label: string };
+
+export const DEFAULT_LEAD_SOURCES: LeadSource[] = [
+  { value: "referral", label: "Referral" },
+  { value: "repeat", label: "Repeat / past customer" },
+  { value: "door_knock", label: "Door knock" },
+  { value: "storm_canvass", label: "Storm canvassing" },
+  { value: "website", label: "Website" },
+  { value: "google", label: "Google" },
+  { value: "facebook", label: "Facebook" },
+  { value: "yard_sign", label: "Yard sign" },
+  { value: "carrier", label: "Insurance carrier" },
+  { value: "other", label: "Other" },
+];
+
+/** defaults + tenant-added sources (value=label for customs), case-insensitive dedupe. */
+export function mergeLeadSources(custom: string[] | null | undefined): LeadSource[] {
+  const seen = new Set(DEFAULT_LEAD_SOURCES.map((s) => s.value.toLowerCase()));
+  const extra: LeadSource[] = [];
+  for (const c of custom ?? []) {
+    const v = (c ?? "").trim();
+    if (!v || seen.has(v.toLowerCase())) continue;
+    seen.add(v.toLowerCase());
+    extra.push({ value: v, label: v });
+  }
+  return [...DEFAULT_LEAD_SOURCES, ...extra];
+}
+```
+
+Add `export * from "./lead-sources";` to `packages/core/src/index.ts`.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pnpm vitest run packages/core/src/lead-sources.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/core/src/lead-sources.ts packages/core/src/lead-sources.test.ts packages/core/src/index.ts
+git commit -m "feat(core): DEFAULT_LEAD_SOURCES + mergeLeadSources"
+```
+
+---
+
+### Task A9: Tenant lead-source store + `LeadSourceSelect` + form wiring
+
+**Files:**
+- Create: `packages/db/src/lifecycle/lead-sources.ts`
+- Test: `packages/db/src/__tests__/lead-sources.test.ts`
+- Modify: `packages/db/src/index.ts` (export the two helpers)
+- Create: `apps/web/src/lib/lead-source-actions.ts`
+- Create: `apps/web/src/components/LeadSourceSelect.tsx`
+- Modify: `apps/web/src/app/(app)/leads/new/page.tsx` (server-fetch sources)
+- Modify: `apps/web/src/app/(app)/leads/new/NewLeadForm.tsx` (use the select)
+
+- [ ] **Step 1: Write the failing DB integration test**
+
+```ts
+// packages/db/src/__tests__/lead-sources.test.ts
+import { describe, it, expect, beforeAll } from "vitest";
+import { adminDb, tenant, eq } from "../index";
+import { addLeadSource, getCustomLeadSources } from "../lifecycle/lead-sources";
+
+describe("tenant lead sources", () => {
+  let tenantId: string;
+  beforeAll(async () => {
+    const [t] = await adminDb.insert(tenant).values({ name: "T", clerkOrgId: `org_${Date.now()}`, settings: { onboarding: { done: true } } }).returning();
+    tenantId = t!.id;
+  });
+
+  it("appends a source and preserves sibling settings", async () => {
+    const after = await addLeadSource(tenantId, "Home Show");
+    expect(after).toContain("Home Show");
+    const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
+    expect((t!.settings as any).onboarding.done).toBe(true); // sibling preserved
+    expect(await getCustomLeadSources(tenantId)).toContain("Home Show");
+  });
+
+  it("dedupes case-insensitively", async () => {
+    await addLeadSource(tenantId, "Home Show");
+    await addLeadSource(tenantId, "HOME SHOW");
+    const list = await getCustomLeadSources(tenantId);
+    expect(list.filter((s) => s.toLowerCase() === "home show").length).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm vitest run packages/db/src/__tests__/lead-sources.test.ts`
+Expected: FAIL (unresolved import).
+
+- [ ] **Step 3: Implement the DB helpers**
+
+```ts
+// packages/db/src/lifecycle/lead-sources.ts
+import { adminDb } from "../admin-client";
+import { tenant } from "../schema/tenancy";
+import { eq } from "drizzle-orm";
+
+export async function getCustomLeadSources(tenantId: string): Promise<string[]> {
+  const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
+  const ls = (t?.settings as { leadSources?: unknown } | null)?.leadSources;
+  return Array.isArray(ls) ? (ls as string[]) : [];
+}
+
+export async function addLeadSource(tenantId: string, source: string): Promise<string[]> {
+  const clean = source.trim();
+  if (!clean) throw new Error("empty source");
+  const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
+  const settings = (t?.settings ?? {}) as Record<string, unknown>;
+  const existing = Array.isArray(settings.leadSources) ? (settings.leadSources as string[]) : [];
+  if (existing.some((s) => s.toLowerCase() === clean.toLowerCase())) return existing;
+  const updated = [...existing, clean];
+  await adminDb.update(tenant).set({ settings: { ...settings, leadSources: updated } }).where(eq(tenant.id, tenantId));
+  return updated;
+}
+```
+
+Add to `packages/db/src/index.ts`:
+
+```ts
+export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
+```
+
+(Confirm the actual import paths for `adminDb`/`tenant`/`eq` match other files in `lifecycle/` — e.g. mirror `lifecycle/onboarding.ts`.)
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pnpm vitest run packages/db/src/__tests__/lead-sources.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit the store**
+
+```bash
+git add packages/db/src/lifecycle/lead-sources.ts packages/db/src/__tests__/lead-sources.test.ts packages/db/src/index.ts
+git commit -m "feat(db): tenant lead-source store (add/get, preserves siblings)"
+```
+
+- [ ] **Step 6: Add the server action**
+
+```ts
+// apps/web/src/lib/lead-source-actions.ts
+"use server";
+import { addLeadSource } from "@savvy/db";
+import { revalidatePath } from "next/cache";
+import { getTenantId } from "./tenant";
+
+export async function addLeadSourceAction(
+  source: string,
+): Promise<{ ok: true; sources: string[] } | { error: string }> {
+  const clean = (source ?? "").trim();
+  if (!clean) return { error: "Source cannot be empty" };
+  try {
+    const tenantId = await getTenantId();
+    const sources = await addLeadSource(tenantId, clean);
+    revalidatePath("/leads/new");
+    return { ok: true, sources };
+  } catch {
+    return { error: "Could not add source" };
+  }
+}
+```
+
+- [ ] **Step 7: Build `LeadSourceSelect`**
+
+```tsx
+// apps/web/src/components/LeadSourceSelect.tsx
+"use client";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import { mergeLeadSources, type LeadSource } from "@savvy/core";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { addLeadSourceAction } from "@/lib/lead-source-actions";
+
+export function LeadSourceSelect({ value, onChange, initialCustom }: {
+  value: string; onChange: (v: string) => void; initialCustom: string[];
+}) {
+  const [custom, setCustom] = useState<string[]>(initialCustom);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [pending, start] = useTransition();
+  const options: LeadSource[] = mergeLeadSources(custom);
+
+  function add() {
+    const v = draft.trim();
+    if (!v) return;
+    start(async () => {
+      const res = await addLeadSourceAction(v);
+      if ("error" in res) { toast.error(res.error); return; }
+      setCustom(res.sources);
+      onChange(v);
+      setDraft(""); setAdding(false);
+      toast.success("Source added");
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <select data-testid="lead-source" value={value} onChange={(e) => onChange(e.target.value)}
+                className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm">
+          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <Button type="button" variant="outline" data-testid="lead-source-add-toggle"
+                onClick={() => setAdding((a) => !a)}>+ Add</Button>
+      </div>
+      {adding && (
+        <div className="flex gap-2">
+          <Input data-testid="lead-source-new" value={draft} onChange={(e) => setDraft(e.target.value)}
+                 placeholder="New source name" />
+          <Button type="button" disabled={pending} data-testid="lead-source-save" onClick={add}>
+            {pending ? "…" : "Save"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 8: Server-fetch sources in the page + pass to the form**
+
+In `apps/web/src/app/(app)/leads/new/page.tsx` (server component), fetch the custom list and pass it:
+
+```tsx
+import { getCustomLeadSources } from "@savvy/db";
+import { getTenantId } from "@/lib/tenant";
+import { NewLeadForm } from "./NewLeadForm";
+
+export default async function NewLeadPage() {
+  const tenantId = await getTenantId();
+  const initialCustomSources = await getCustomLeadSources(tenantId);
+  return <NewLeadForm initialCustomSources={initialCustomSources} />;
+}
+```
+
+(Keep any existing page heading/layout wrapper that's already there.)
+
+- [ ] **Step 9: Swap the source field in `NewLeadForm`**
+
+In `NewLeadForm.tsx`: accept the prop, default the source, and replace the source `<Input>` with the select:
+
+```tsx
+import { LeadSourceSelect } from "@/components/LeadSourceSelect";
+// signature: export function NewLeadForm({ initialCustomSources }: { initialCustomSources: string[] }) {
+// state: const [source, setSource] = useState("referral");
+// replace the Source field block with:
+//   <div className="space-y-1.5">
+//     <Label htmlFor="source">Source</Label>
+//     <LeadSourceSelect value={source} onChange={setSource} initialCustom={initialCustomSources} />
+//   </div>
+```
+
+- [ ] **Step 10: Typecheck, lint, e2e (add-source path)**
+
+Append to `apps/web/tests/e2e/lead-capture.spec.ts`:
+
+```ts
+test("can add a new lead source inline and select it", async ({ page }) => {
+  await page.goto("/leads/new");
+  await page.getByTestId("lead-source-add-toggle").click();
+  await page.getByTestId("lead-source-new").fill("Home Show");
+  await page.getByTestId("lead-source-save").click();
+  await expect(page.getByTestId("lead-source")).toHaveValue("Home Show");
+});
+```
+
+Run: `pnpm --filter @savvy/web typecheck && pnpm --filter @savvy/web lint && pnpm --filter @savvy/web exec playwright test tests/e2e/lead-capture.spec.ts`
+Expected: clean + PASS.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add apps/web/src/lib/lead-source-actions.ts apps/web/src/components/LeadSourceSelect.tsx "apps/web/src/app/(app)/leads/new/page.tsx" "apps/web/src/app/(app)/leads/new/NewLeadForm.tsx" apps/web/tests/e2e/lead-capture.spec.ts
+git commit -m "feat(web): managed lead-source dropdown with inline add"
+```
+
+---
+
 ## SLICE B — StormProof enrichment
 
 ### Task B1: StormProof gateway (interface + real + fake + env factory)
@@ -1120,7 +1443,10 @@ export type BaselineScore = { score: number; factors: ScoreFactor[] };
 
 // Tunable weights (edit freely).
 export const SCORE_WEIGHTS = {
-  source: { referral: 18, carrier: 12, web: 8, manual: 5 } as Record<string, number>,
+  // keys align with DEFAULT_LEAD_SOURCES values (Task A8); looked up case-insensitively
+  source: { referral: 18, repeat: 16, carrier: 14, storm_canvass: 14, google: 9,
+            website: 8, web: 8, facebook: 7, door_knock: 8, yard_sign: 6,
+            manual: 5, other: 5 } as Record<string, number>,
   sourceDefault: 5,
   hailMaxPoints: 30,
   windMaxPoints: 20,
@@ -1139,7 +1465,7 @@ export function scoreLeadBaseline(f: LeadFeatures): BaselineScore {
   const factors: ScoreFactor[] = [];
   const add = (label: string, points: number) => { if (points !== 0) factors.push({ label, points: Math.round(points) }); };
 
-  add(`source: ${f.source}`, SCORE_WEIGHTS.source[f.source] ?? SCORE_WEIGHTS.sourceDefault);
+  add(`source: ${f.source}`, SCORE_WEIGHTS.source[(f.source ?? "").toLowerCase()] ?? SCORE_WEIGHTS.sourceDefault);
 
   if (f.storm.maxHailInches > 0) {
     const sizeFrac = Math.min(1, f.storm.maxHailInches / 2); // 2"+ = full
@@ -1554,4 +1880,4 @@ git commit -m "test(e2e): lead enrichment card + recommendation"
 
 ## Self-review notes (spec coverage)
 
-- Address autocomplete + split → A5/A6. No default state → A6 (no default in form). Optional roof/year → A6, schema A2. Phone normalize → A1/A2/A6. StormProof year built + storms → B1/B3. Roof-type-from-assessor (opportunistic) → B3 (`roofType ?? prop.roofType`). Multi-state caveat (AZ-only year built) → B3 (only fills when `getProperty` returns data). Hybrid score + grounding → C1/C2. scoreFeatures audit → C2/C3. Install/upsell recommendation + editable config → D1/D2. Surfacing → C3/D2. Tests at every layer → each task. Env → B4. Idempotency/best-effort → B3/C2 (steps overwrite deterministically; gateway returns null/empty on failure).
+- Address autocomplete + split → A5/A6. No default state → A6 (no default in form). Optional roof/year → A6, schema A2. Phone normalize → A1/A2/A6. Managed lead sources + inline add → A8 (defaults/merge) + A9 (tenant store, action, `LeadSourceSelect`, form swap); A9 step 9 replaces A6's free-text source field. Scoring weights aligned to source values → C1. StormProof year built + storms → B1/B3. Roof-type-from-assessor (opportunistic) → B3 (`roofType ?? prop.roofType`). Multi-state caveat (AZ-only year built) → B3 (only fills when `getProperty` returns data). Hybrid score + grounding → C1/C2. scoreFeatures audit → C2/C3. Install/upsell recommendation + editable config → D1/D2. Surfacing → C3/D2. Tests at every layer → each task. Env → B4. Idempotency/best-effort → B3/C2 (steps overwrite deterministically; gateway returns null/empty on failure).
