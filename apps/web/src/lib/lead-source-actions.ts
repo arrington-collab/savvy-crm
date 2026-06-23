@@ -1,6 +1,5 @@
 "use server";
 import { addLeadSource } from "@savvy/db";
-import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 
 export async function addLeadSourceAction(
@@ -8,10 +7,10 @@ export async function addLeadSourceAction(
 ): Promise<{ ok: true; sources: string[] } | { error: string }> {
   const clean = (source ?? "").trim();
   if (!clean) return { error: "Source cannot be empty" };
+  if (clean.length > 100) return { error: "Source name is too long" };
   try {
     const tenantId = await getTenantId();
     const sources = await addLeadSource(tenantId, clean);
-    revalidatePath("/leads/new");
     return { ok: true, sources };
   } catch {
     return { error: "Could not add source" };
