@@ -63,6 +63,8 @@ export function AddressAutocomplete({
   id?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const onPickRef = useRef(onPick);
+  useEffect(() => { onPickRef.current = onPick; });
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ac: any;
@@ -75,12 +77,12 @@ export function AddressAutocomplete({
         });
         ac.addListener("place_changed", () => {
           const place = ac.getPlace();
-          if (place?.address_components) onPick(parse(place));
+          if (place?.address_components) onPickRef.current(parse(place));
         });
       })
       .catch(() => { /* no key / offline -> plain input, still works */ });
     return () => { if (ac && window.google) window.google.maps.event.clearInstanceListeners(ac); };
-  }, [onPick]);
+  }, []);
 
   return (
     <Input
