@@ -59,15 +59,28 @@ export type LeadComm = {
   createdAt: Date;
 };
 
+export type ScoreFactor = { label: string; points: number };
+
 export type LeadDetail = {
   id: string;
   status: string;
   score: number | null;
   scoreReason: string | null;
+  scoreFeatures: { factors?: ScoreFactor[]; baseline?: number } | null;
+  installRecommendation: {
+    windRating: string;
+    impactResistance: string;
+    suggestedProducts: string[];
+    rationale: string;
+  } | null;
   source: string | null;
   customerName: string | null;
   phone: string | null;
   address: string | null;
+  state: string | null;
+  county: string | null;
+  yearBuilt: number | null;
+  roofType: string | null;
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
@@ -82,11 +95,17 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         status: lead.status,
         score: lead.score,
         scoreReason: lead.scoreReason,
+        scoreFeatures: lead.scoreFeatures,
+        installRecommendation: lead.installRecommendation,
         source: lead.source,
         customerId: lead.customerId,
         customerName: customer.name,
         phone: customer.phone,
         address: property.address,
+        state: property.state,
+        county: property.county,
+        yearBuilt: property.yearBuilt,
+        roofType: property.roofType,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
       })
@@ -116,10 +135,16 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       status: row.status,
       score: row.score,
       scoreReason: row.scoreReason,
+      scoreFeatures: row.scoreFeatures as LeadDetail["scoreFeatures"],
+      installRecommendation: row.installRecommendation as LeadDetail["installRecommendation"],
       source: row.source,
       customerName: row.customerName,
       phone: row.phone,
       address: row.address,
+      state: row.state,
+      county: row.county,
+      yearBuilt: row.yearBuilt,
+      roofType: row.roofType,
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,

@@ -9,6 +9,7 @@ import { ago } from "@/lib/format";
 import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
+import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,13 @@ export default async function LeadDetailPage({
           </p>
         </Card>
       </div>
+
+      <LeadEnrichmentCard
+        scoreFeatures={detail.scoreFeatures}
+        yearBuilt={detail.yearBuilt}
+        roofType={detail.roofType}
+        county={detail.county}
+      />
 
       <LeadActions leadId={detail.id} status={detail.status} users={users} ownerId={detail.assignedUserId} />
 
