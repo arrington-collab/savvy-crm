@@ -19,3 +19,4 @@ playwright-report/
 
 # Claude Code local worktrees/state
 .claude/
+.vercel

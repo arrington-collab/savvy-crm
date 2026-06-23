@@ -123,7 +123,7 @@ export async function sendDripStep(
 export const dripRun = inngest.createFunction(
   {
     id: "drip-run",
-    concurrency: { limit: 20 },
+    concurrency: { limit: 5 },
     // cancelOn matches customerId (NOT enrollmentId — the enrollment row is created
     // inside this run, so its id doesn't exist when the trigger fires). A single
     // drip/stop therefore halts ALL of a customer's drips, which is the intended

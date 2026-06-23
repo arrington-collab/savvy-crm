@@ -71,7 +71,7 @@ export async function generateUpsells(
  * only — they are NOT added to the estimate totals.
  */
 export const generateEstimateOnMeasurement = inngest.createFunction(
-  { id: "generate-estimate-on-measurement", concurrency: { limit: 10 }, retries: 2 },
+  { id: "generate-estimate-on-measurement", concurrency: { limit: 5 }, retries: 2 },
   { event: "measurement/ready" },
   async ({ event, step }) => {
     const { tenantId, jobId, measurementId } = event.data;

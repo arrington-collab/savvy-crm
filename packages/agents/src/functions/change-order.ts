@@ -82,7 +82,7 @@ export async function autoSendSupplementalInvoice(
 }
 
 export const changeOrderAccepted = inngest.createFunction(
-  { id: "change-order-accepted", concurrency: { limit: 10 } },
+  { id: "change-order-accepted", concurrency: { limit: 5 } },
   { event: "change_order/accepted" },
   async ({ event, step }) => {
     const applied = await step.run("apply", () =>
