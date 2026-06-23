@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { qualifyLead, buildBookingSms } from "./lead-intake";
+import { qualifyLead, buildBookingSms, enrichProperty } from "./lead-intake";
+import { makeFakeStormProof } from "@savvy/integrations";
 
 describe("lead.intake pure steps", () => {
   it("qualifyLead returns score + reason + model from the gateway", async () => {
@@ -17,5 +18,27 @@ describe("lead.intake pure steps", () => {
     const body = buildBookingSms({ name: "Jane", bookingUrl: "https://x/book/123" });
     expect(body).toContain("https://x/book/123");
     expect(body).toMatch(/Jane/);
+  });
+});
+
+describe("enrichProperty", () => {
+  it("fills year built + storm summary when lat/lng present", async () => {
+    const sp = makeFakeStormProof();
+    const out = await enrichProperty(
+      { lat: 33.4, lng: -111.8, address: "1 Main St", yearBuilt: null, roofType: null },
+      sp,
+    );
+    expect(out.yearBuilt).toBe(2004);
+    expect(out.storm.maxHailInches).toBe(1.5);
+    expect(out.stormEventId).toBe("evt_fake_1");
+  });
+  it("keeps rep-entered year built (does not overwrite)", async () => {
+    const sp = makeFakeStormProof();
+    const out = await enrichProperty(
+      { lat: 33.4, lng: -111.8, address: "1 Main St", yearBuilt: 1999, roofType: "tile" },
+      sp,
+    );
+    expect(out.yearBuilt).toBe(1999);
+    expect(out.roofType).toBe("tile");
   });
 });

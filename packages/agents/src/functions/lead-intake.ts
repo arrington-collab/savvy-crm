@@ -1,9 +1,9 @@
 import { z, signPayloadToken, requireSecret } from "@savvy/core";
 import {
-  withTenant, lead, customer, communication, recordAgentRun, eq,
+  withTenant, lead, customer, property, communication, recordAgentRun, eq,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
+import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway } from "@savvy/integrations";
 import { inngest } from "../client";
 
 const qualifySchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
@@ -26,6 +26,53 @@ export function buildBookingSms(opts: { name: string; bookingUrl: string }): str
   return `Hi ${opts.name}, thanks for reaching out! Book your free roof inspection here: ${opts.bookingUrl}`;
 }
 
+// Pure, unit-testable property enrichment. `sp` (StormProof gateway) is injectable for tests.
+// Does NOT overwrite yearBuilt or roofType if the rep already entered them.
+export async function enrichProperty(
+  input: { lat: number | null; lng: number | null; address: string; yearBuilt: number | null; roofType: string | null },
+  sp: StormProofGateway = defaultStormProof,
+): Promise<{
+  yearBuilt: number | null;
+  roofType: string | null;
+  county: string | null;
+  storm: { eventCount: number; maxHailInches: number; maxWindMph: number; daysSinceWorst: number | null };
+  stormEventId: string | null;
+}> {
+  let yearBuilt = input.yearBuilt;
+  let roofType = input.roofType;
+  let county: string | null = null;
+
+  // Only call getProperty if yearBuilt is missing (don't overwrite rep-entered data)
+  if (yearBuilt == null && input.lat != null && input.lng != null) {
+    const prop = await sp.getProperty({ lat: input.lat, lng: input.lng, address: input.address });
+    if (prop) {
+      yearBuilt = prop.yearBuilt ?? yearBuilt;
+      roofType = roofType ?? prop.roofType;
+      county = prop.county;
+    }
+  }
+
+  const storms = await sp.lookupStorms({
+    lat: input.lat ?? undefined,
+    lng: input.lng ?? undefined,
+    address: input.address,
+    months: 12,
+  });
+
+  return {
+    yearBuilt,
+    roofType,
+    county,
+    storm: {
+      eventCount: storms.eventCount,
+      maxHailInches: storms.maxHailInches,
+      maxWindMph: storms.maxWindMph,
+      daysSinceWorst: storms.daysSinceWorst,
+    },
+    stormEventId: storms.worstEventId,
+  };
+}
+
 // Placeholder business-hours check (per-tenant tz comes in Phase 3). Returns
 // true outside ~8am-6pm UTC. Deterministic, non-critical for Phase 0.
 function isAfterHours(d: Date): boolean {
@@ -39,13 +86,69 @@ export const leadIntake = inngest.createFunction(
   async ({ event, step }) => {
     const { leadId, tenantId } = event.data;
 
+    // Load lead, customer, and property in one DB round-trip.
+    // property is nullable on the lead row — guard for the null case.
     const ctx = await step.run("load-lead", async () =>
       withTenant(tenantId, async (tx) => {
         const [l] = await tx.select().from(lead).where(eq(lead.id, leadId));
         const [c] = await tx.select().from(customer).where(eq(customer.id, l!.customerId!));
-        return { name: c!.name, phone: c!.phone ?? "", source: l!.source ?? "web", address: "unknown" };
+        let address = "unknown";
+        let lat: number | null = null;
+        let lng: number | null = null;
+        let yearBuilt: number | null = null;
+        let roofType: string | null = null;
+        let state: string | null = null;
+        const propertyId = l!.propertyId ?? null;
+        if (propertyId) {
+          const [p] = await tx.select().from(property).where(eq(property.id, propertyId));
+          if (p) {
+            address = p.address;
+            lat = p.lat ?? null;
+            lng = p.lng ?? null;
+            yearBuilt = p.yearBuilt ?? null;
+            roofType = p.roofType ?? null;
+            state = p.state ?? null;
+          }
+        }
+        return {
+          name: c!.name,
+          phone: c!.phone ?? "",
+          source: l!.source ?? "web",
+          address,
+          lat,
+          lng,
+          yearBuilt,
+          roofType,
+          propertyId,
+          state,
+        };
       }),
     );
+
+    // Enrich property data from StormProof (year built, county, storm history)
+    const enriched = await step.run("enrich-property", () =>
+      enrichProperty({
+        lat: ctx.lat,
+        lng: ctx.lng,
+        address: ctx.address,
+        yearBuilt: ctx.yearBuilt,
+        roofType: ctx.roofType,
+      }),
+    );
+
+    // Persist enrichment results back to the DB (outside the step closure — I/O after durable step)
+    await withTenant(tenantId, async (tx) => {
+      if (ctx.propertyId) {
+        await tx
+          .update(property)
+          .set({ yearBuilt: enriched.yearBuilt, roofType: enriched.roofType, county: enriched.county })
+          .where(eq(property.id, ctx.propertyId));
+      }
+      await tx
+        .update(lead)
+        .set({ stormEventId: enriched.stormEventId })
+        .where(eq(lead.id, leadId));
+    });
 
     const scored = await step.run("ai-qualify", async () => {
       const r = await qualifyLead({ name: ctx.name, address: ctx.address, source: ctx.source }, ai);
