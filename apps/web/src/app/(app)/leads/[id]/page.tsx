@@ -62,6 +62,7 @@ export default async function LeadDetailPage({
         yearBuilt={detail.yearBuilt}
         roofType={detail.roofType}
         county={detail.county}
+        installRecommendation={detail.installRecommendation}
       />
 
       <LeadActions leadId={detail.id} status={detail.status} users={users} ownerId={detail.assignedUserId} />

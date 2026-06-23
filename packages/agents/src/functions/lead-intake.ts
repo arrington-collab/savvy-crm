@@ -1,4 +1,4 @@
-import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, type LeadFeatures } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, type LeadFeatures } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
 } from "@savvy/db";
@@ -164,10 +164,12 @@ export const leadIntake = inngest.createFunction(
         storm: enriched.storm,
       });
       const r = await hybridScore(features);
+      const recommendation = deriveInstallRecommendation(features);
       await withTenant(tenantId, (tx) =>
         tx.update(lead).set({
           score: r.score, scoreReason: r.reason, status: "contacted",
           scoreFeatures: { features, baseline: r.baseline, factors: r.factors },
+          installRecommendation: recommendation,
         }).where(eq(lead.id, leadId)),
       );
       await recordAgentRun({

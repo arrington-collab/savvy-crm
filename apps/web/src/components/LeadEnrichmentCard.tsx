@@ -7,11 +7,13 @@ export function LeadEnrichmentCard({
   yearBuilt,
   roofType,
   county,
+  installRecommendation,
 }: {
   scoreFeatures: { factors?: Factor[]; baseline?: number } | null;
   yearBuilt: number | null;
   roofType: string | null;
   county: string | null;
+  installRecommendation: { windRating: string; impactResistance: string; suggestedProducts: string[]; rationale: string } | null;
 }) {
   const factors = scoreFeatures?.factors ?? [];
 
@@ -34,6 +36,17 @@ export function LeadEnrichmentCard({
           <li className="text-sm text-muted-foreground">No factors recorded.</li>
         )}
       </ul>
+      {installRecommendation && installRecommendation.suggestedProducts.length > 0 && (
+        <div className="space-y-1" data-testid="install-recommendation">
+          <h3 className="text-sm font-semibold">Suggested install / upsell</h3>
+          <div className="flex flex-wrap gap-1">
+            {installRecommendation.suggestedProducts.map((p, i) => (
+              <span key={i} className="rounded bg-accent-gold/15 px-2 py-0.5 text-xs">{p}</span>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{installRecommendation.rationale}</p>
+        </div>
+      )}
     </Card>
   );
 }
