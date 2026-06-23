@@ -23,6 +23,7 @@ export * from "./agent-activity";
 export * from "./crew-pin";
 export * from "./clerk-role";
 export * from "./address";
+export * from "./phone";
 export * from "./schedule-view";
 export * from "./secrets";
 export * from "./rate-limit-key";
