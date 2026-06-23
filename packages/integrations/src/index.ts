@@ -10,3 +10,4 @@ export { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "./docuseal
 export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway, type CompanyCamEvent } from "./companycam";
 export { ringcentralSms, makeRingCentralSms, parseRingCentralInboundSms, type InboundSms } from "./ringcentral";
 export { sms, selectSms, smsFrom } from "./comms";
+export { stormProof, httpStormProof, makeFakeStormProof, type StormProofGateway, type StormEvent, type PropertyData, type StormSummary } from "./stormproof";
