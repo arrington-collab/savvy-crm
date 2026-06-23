@@ -35,6 +35,9 @@ AI), and turn storm exposure into a **rep-facing install/upsell recommendation**
    grounded in the real factors so it cannot invent.
 5. **Storm-driven install/upsell recommendation** (rep-facing suggestion), seeded
    with editable default trigger→product mappings.
+6. **Phone auto-formatting**: accept any common phone format and normalize to
+   E.164 at the schema layer (so the form, `/api/leads`, and Twilio inbound all
+   benefit), with as-you-type display formatting in the form.
 
 ## Non-goals (v1)
 
@@ -81,7 +84,8 @@ NewLeadForm (Google Places autocomplete + structured fields + optional roof/year
 |---|---|---|---|
 | `AddressAutocomplete` | `apps/web` (client) | Google Places typeahead → structured fields; graceful fallback to plain inputs | Google Maps JS (Places), `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` |
 | `NewLeadForm` (edit) | `apps/web` | adds structured address + optional roofType/yearBuilt | `AddressAutocomplete`, `createLead` |
-| `leadIntakeSchema` (extend) | `packages/core` | optional structured fields (backward-compatible) | zod |
+| `normalizePhone` / `formatPhoneDisplay` | `packages/core` | **pure** any-format → E.164; E.164 → `(480) 555-1234` display | — |
+| `leadIntakeSchema` (extend) | `packages/core` | optional structured fields + phone `transform` → E.164 (backward-compatible) | zod, `normalizePhone` |
 | `property` / `lead` schema (extend) | `packages/db` | new columns + migration | drizzle |
 | `createLeadForTenant` (edit) | `apps/web/lib/intake` | persist structured + optional fields | `@savvy/db` |
 | `stormproof` gateway | `packages/integrations` | real `httpStormProof` + `makeFakeStormProof`, env-selected | `STORMPROOF_API_BASE`, optional key |
@@ -126,6 +130,27 @@ are table-level, already cover these tables).
   geocode). Rep-entered year/roof still apply.
 - Optional fields: `roofType` (`<select>`, native — repo has no shadcn Select) and
   `yearBuilt` (number). Rep-entered values are authoritative.
+
+## Phone normalization
+
+Today `leadIntakeSchema.phone` is `z.string().regex(/^\+[1-9]\d{6,14}$/)` — strict
+E.164, rejecting everything else (the "one particular format" pain).
+
+- **`normalizePhone(input): string | null`** (pure, `@savvy/core`): strip to
+  digits; **10 digits** → `+1XXXXXXXXXX`; **11 digits starting `1`** → `+1…`;
+  input already starting `+` with 7–15 digits → pass through; otherwise `null`.
+- **`formatPhoneDisplay(e164): string`** (pure): US numbers → `(480) 555-1234`,
+  else return the E.164 string.
+- The schema `phone` becomes a **transform**: accept any string, run
+  `normalizePhone`, emit E.164, and add a validation issue only when it can't be
+  normalized. Because normalization lives in the schema, **all entry paths**
+  (web form, `/api/leads`, Twilio inbound — already E.164, idempotent) are
+  covered at once.
+- **Form UX**: the phone input formats **as the rep types** (US 10-digit →
+  `(480) 555-1234`); label changes from "E.164, e.g. +14805551234" to "Phone"
+  with a friendly placeholder. The server transform remains the source of truth.
+- **No new dependency** (US-centric; valid international E.164 still passes).
+  `libphonenumber-js` is a future option if full international parsing is needed.
 
 ## Enrichment (StormProof gateway)
 
@@ -230,7 +255,8 @@ Thresholds + product strings live in one exported config object for easy tuning.
 - **Unit (pure, `@savvy/core`)**: `scoreLeadBaseline` (factor math, clamping,
   every source), `deriveInstallRecommendation` (each trigger + the else case),
   address-component mapping, StormProof feature extraction (raw response →
-  `LeadFeatures.storm`).
+  `LeadFeatures.storm`), `normalizePhone`/`formatPhoneDisplay` (10-digit, 11-digit
+  `1…`, E.164 pass-through, dashes/parens/spaces, invalid → reject).
 - **Integration (`@savvy/db` / `@savvy/agents` with the fake gateway)**:
   `createLeadForTenant` persists the new property/lead fields; `enrich-property`
   with `makeFakeStormProof` fills year built + storm; cross-tenant isolation still
@@ -254,8 +280,9 @@ Thresholds + product strings live in one exported config object for easy tuning.
 ## Implementation slices (for the plan)
 
 - **A — Address form + schema + intake**: migration, schema, `leadIntakeSchema`,
-  `AddressAutocomplete`, `NewLeadForm`, `createLeadForTenant`. (No scoring change
-  yet; structured data just lands.)
+  `normalizePhone`/`formatPhoneDisplay` + phone transform, `AddressAutocomplete`,
+  `NewLeadForm` (with as-you-type phone formatting), `createLeadForTenant`. (No
+  scoring change yet; structured data just lands.)
 - **B — StormProof enrichment**: `stormproof` gateway (real+fake), `enrich-property`
   step, `LeadFeatures` assembly, `stormEventId` wiring, env + `.env.example`.
 - **C — Hybrid scoring**: `scoreLeadBaseline`, AI pass, persist score/features,
