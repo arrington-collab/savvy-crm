@@ -126,28 +126,28 @@ export const leadIntake = inngest.createFunction(
     );
 
     // Enrich property data from StormProof (year built, county, storm history)
-    const enriched = await step.run("enrich-property", () =>
-      enrichProperty({
+    // and persist results in the same durable step so retries are idempotent.
+    const enriched = await step.run("enrich-property", async () => {
+      const result = await enrichProperty({
         lat: ctx.lat,
         lng: ctx.lng,
         address: ctx.address,
         yearBuilt: ctx.yearBuilt,
         roofType: ctx.roofType,
-      }),
-    );
-
-    // Persist enrichment results back to the DB (outside the step closure — I/O after durable step)
-    await withTenant(tenantId, async (tx) => {
-      if (ctx.propertyId) {
+      });
+      await withTenant(tenantId, async (tx) => {
+        if (ctx.propertyId) {
+          await tx
+            .update(property)
+            .set({ yearBuilt: result.yearBuilt, roofType: result.roofType, county: result.county })
+            .where(eq(property.id, ctx.propertyId));
+        }
         await tx
-          .update(property)
-          .set({ yearBuilt: enriched.yearBuilt, roofType: enriched.roofType, county: enriched.county })
-          .where(eq(property.id, ctx.propertyId));
-      }
-      await tx
-        .update(lead)
-        .set({ stormEventId: enriched.stormEventId })
-        .where(eq(lead.id, leadId));
+          .update(lead)
+          .set({ stormEventId: result.stormEventId })
+          .where(eq(lead.id, leadId));
+      });
+      return result;
     });
 
     const scored = await step.run("ai-qualify", async () => {

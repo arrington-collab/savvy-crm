@@ -41,4 +41,11 @@ describe("enrichProperty", () => {
     expect(out.yearBuilt).toBe(1999);
     expect(out.roofType).toBe("tile");
   });
+  it("skips getProperty when lat/lng are null (only looks up storms)", async () => {
+    const sp = makeFakeStormProof();
+    const out = await enrichProperty({ lat: null, lng: null, address: "unknown", yearBuilt: null, roofType: null }, sp);
+    expect(sp.calls.filter((c) => c.op === "getProperty").length).toBe(0);
+    expect(sp.calls.filter((c) => c.op === "lookupStorms").length).toBe(1);
+    expect(out.yearBuilt).toBeNull();
+  });
 });
