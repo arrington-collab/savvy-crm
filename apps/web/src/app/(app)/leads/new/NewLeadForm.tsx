@@ -2,11 +2,22 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { normalizePhone, formatPhoneDisplay } from "@savvy/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AddressAutocomplete, type ParsedAddress } from "@/components/AddressAutocomplete";
 import { createLead } from "@/lib/lead-actions";
+
+const ROOF_TYPES = [
+  { v: "", label: "— select (optional) —" },
+  { v: "asphalt_shingle", label: "Asphalt shingle" },
+  { v: "tile", label: "Tile" },
+  { v: "metal", label: "Metal" },
+  { v: "flat_foam", label: "Flat / foam" },
+  { v: "other", label: "Other" },
+];
 
 export function NewLeadForm() {
   const router = useRouter();
@@ -14,16 +25,31 @@ export function NewLeadForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [parts, setParts] = useState<Partial<ParsedAddress>>({});
   const [source, setSource] = useState("manual");
+  const [roofType, setRoofType] = useState("");
+  const [yearBuilt, setYearBuilt] = useState("");
+
+  function onPhoneChange(raw: string) {
+    const n = normalizePhone(raw);
+    setPhone(n ? formatPhoneDisplay(n) : raw);
+  }
+  function onPick(a: ParsedAddress) {
+    setAddress(a.formatted);
+    setParts(a);
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     start(async () => {
-      const res = await createLead({ name, phone, address, source });
-      if ("error" in res) {
-        toast.error(res.error);
-        return;
-      }
+      const res = await createLead({
+        name, phone, address, source,
+        line1: parts.line1, city: parts.city, state: parts.state, zip: parts.zip,
+        county: parts.county, lat: parts.lat, lng: parts.lng,
+        roofType: roofType || undefined,
+        yearBuilt: yearBuilt ? Number(yearBuilt) : undefined,
+      });
+      if ("error" in res) { toast.error(res.error); return; }
       toast.success("Lead created");
       router.push(`/leads/${res.leadId}`);
     });
@@ -34,19 +60,41 @@ export function NewLeadForm() {
       <form onSubmit={submit} className="space-y-4" data-testid="new-lead-form">
         <div className="space-y-1.5">
           <Label htmlFor="name">Customer name</Label>
-          <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phone">Phone (E.164, e.g. +14805551234)</Label>
-          <Input id="phone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1..." required />
+          <Label htmlFor="phone">Phone</Label>
+          <Input id="phone" value={phone} onChange={(e) => onPhoneChange(e.target.value)}
+                 placeholder="(480) 555-1234" required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="address">Property address</Label>
-          <Input id="address" name="address" value={address} onChange={(e) => setAddress(e.target.value)} required />
+          <AddressAutocomplete value={address} onChange={setAddress} onPick={onPick} />
+        </div>
+        {(parts.city || parts.state) && (
+          <p className="text-xs text-muted-foreground" data-testid="address-parts">
+            {[parts.city, parts.state, parts.zip].filter(Boolean).join(", ")}
+            {parts.county ? ` · ${parts.county} County` : ""}
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="roofType">Roof type (optional)</Label>
+            <select id="roofType" data-testid="roof-type"
+                    className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                    value={roofType} onChange={(e) => setRoofType(e.target.value)}>
+              {ROOF_TYPES.map((r) => <option key={r.v} value={r.v}>{r.label}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="yearBuilt">Year built (optional)</Label>
+            <Input id="yearBuilt" data-testid="year-built" type="number" inputMode="numeric"
+                   value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} placeholder="e.g. 2004" />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="source">Source</Label>
-          <Input id="source" name="source" value={source} onChange={(e) => setSource(e.target.value)} />
+          <Input id="source" value={source} onChange={(e) => setSource(e.target.value)} />
         </div>
         <Button type="submit" disabled={pending} data-testid="new-lead-submit">
           {pending ? "Creating…" : "Create lead"}
