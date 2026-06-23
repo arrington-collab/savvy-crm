@@ -34,7 +34,7 @@ function isAfterHours(d: Date): boolean {
 }
 
 export const leadIntake = inngest.createFunction(
-  { id: "lead-intake", concurrency: { limit: 20 } },
+  { id: "lead-intake", concurrency: { limit: 5 } },
   { event: "lead/created" },
   async ({ event, step }) => {
     const { leadId, tenantId } = event.data;

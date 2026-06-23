@@ -61,7 +61,7 @@ export async function finalizeEsign(
 }
 
 export const esignFinalize = inngest.createFunction(
-  { id: "esign-finalize", concurrency: { limit: 10 } },
+  { id: "esign-finalize", concurrency: { limit: 5 } },
   { event: "esign/completed" },
   async ({ event, step }) =>
     step.run("finalize", () =>

@@ -52,7 +52,7 @@ export async function orderAndPersistMeasurement(
  * measurement row, and emit `measurement/ready`. Idempotent on retry.
  */
 export const roofrOrderMeasurement = inngest.createFunction(
-  { id: "roofr-order-measurement", concurrency: { limit: 10 }, retries: 3 },
+  { id: "roofr-order-measurement", concurrency: { limit: 5 }, retries: 3 },
   { event: "roofr/order.requested" },
   async ({ event, step }) => {
     const { tenantId, jobId, propertyId } = event.data;

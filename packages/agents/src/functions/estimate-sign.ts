@@ -55,14 +55,14 @@ export async function advanceJobForAcceptedEstimate(
 }
 
 export const sendEstimateForSignature = inngest.createFunction(
-  { id: "send-estimate-for-signature", concurrency: { limit: 10 }, retries: 3 },
+  { id: "send-estimate-for-signature", concurrency: { limit: 5 }, retries: 3 },
   { event: "estimate/send.requested" },
   async ({ event, step }) =>
     step.run("create-submission", () => createEstimateSubmission(event.data.tenantId, event.data.estimateId)),
 );
 
 export const estimateAcceptedAdvanceJob = inngest.createFunction(
-  { id: "estimate-accepted-advance-job", concurrency: { limit: 10 } },
+  { id: "estimate-accepted-advance-job", concurrency: { limit: 5 } },
   { event: "estimate/accepted" },
   async ({ event, step }) =>
     step.run("advance", () => advanceJobForAcceptedEstimate(event.data.tenantId, event.data.estimateId)),

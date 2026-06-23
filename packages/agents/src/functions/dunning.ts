@@ -31,7 +31,7 @@ import { inngest } from "../client";
 export const dunningRun = inngest.createFunction(
   {
     id: "dunning-run",
-    concurrency: { limit: 20 },
+    concurrency: { limit: 5 },
     cancelOn: [
       { event: "invoice/paid", match: "data.invoiceId" },
       { event: "invoice/void", match: "data.invoiceId" },

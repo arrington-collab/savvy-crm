@@ -14,7 +14,7 @@ import { inngest } from "../client";
  * skipped cases. The return value captures whether commission was actually written.
  */
 export const commissionOnPaid = inngest.createFunction(
-  { id: "commission-on-paid", concurrency: { limit: 20 } },
+  { id: "commission-on-paid", concurrency: { limit: 5 } },
   { event: "invoice/paid" },
   async ({ event, step }) => {
     const { tenantId, invoiceId } = event.data;

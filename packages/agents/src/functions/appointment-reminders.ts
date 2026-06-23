@@ -14,7 +14,7 @@ export function buildReminderMessage(
 export const appointmentReminders = inngest.createFunction(
   {
     id: "appointment-reminders",
-    concurrency: { limit: 20 },
+    concurrency: { limit: 5 },
     cancelOn: [{ event: "appointment/changed", match: "data.appointmentId" }],
   },
   [{ event: "appointment/booked" }, { event: "appointment/changed" }],

@@ -101,7 +101,7 @@ export async function pushPaymentToQbo(
  * (3 retries with exponential back-off) applies.
  */
 export const qboPushInvoice = inngest.createFunction(
-  { id: "qbo-push-invoice", concurrency: { limit: 10 } },
+  { id: "qbo-push-invoice", concurrency: { limit: 5 } },
   { event: "invoice/sent" },
   async ({ event, step }) =>
     step.run("push", () =>
@@ -114,7 +114,7 @@ export const qboPushInvoice = inngest.createFunction(
  * Two discrete step.run calls so Inngest can memo each independently on retry.
  */
 export const qboPushPayment = inngest.createFunction(
-  { id: "qbo-push-payment", concurrency: { limit: 10 } },
+  { id: "qbo-push-payment", concurrency: { limit: 5 } },
   { event: "invoice/paid" },
   async ({ event, step }) => {
     const { tenantId, invoiceId } = event.data;

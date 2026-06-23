@@ -28,7 +28,7 @@ export async function syncCalendarForAppointment(
 }
 
 export const appointmentCalendarSync = inngest.createFunction(
-  { id: "appointment-calendar-sync", concurrency: { limit: 10 } },
+  { id: "appointment-calendar-sync", concurrency: { limit: 5 } },
   [{ event: "appointment/booked" }, { event: "appointment/changed" }],
   async ({ event, step }) => {
     const { appointmentId, tenantId } = event.data as { appointmentId: string; tenantId: string };
