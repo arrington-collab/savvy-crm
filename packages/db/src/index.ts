@@ -34,3 +34,4 @@ export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
+export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
