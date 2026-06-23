@@ -1,23 +1,25 @@
-import { describe, it, expect, vi } from "vitest";
-import { qualifyLead, buildBookingSms, enrichProperty } from "./lead-intake";
+import { describe, it, expect } from "vitest";
+import { hybridScore, buildBookingSms, enrichProperty } from "./lead-intake";
+import { buildLeadFeatures } from "@savvy/core";
 import { makeFakeStormProof } from "@savvy/integrations";
 
 describe("lead.intake pure steps", () => {
-  it("qualifyLead returns score + reason + model from the gateway", async () => {
-    const fakeAi = {
-      completeObject: vi.fn().mockResolvedValue({ object: { score: 82, reason: "storm zone, owner" }, model: "gemini-flash" }),
-    };
-    const res = await qualifyLead({ name: "Jane", address: "123 Main", source: "web" }, fakeAi as never);
-    expect(res.score).toBe(82);
-    expect(res.reason).toBe("storm zone, owner");
-    expect(res.model).toBe("gemini-flash");
-    expect(fakeAi.completeObject).toHaveBeenCalledOnce();
-  });
-
   it("buildBookingSms includes the booking link and name", () => {
     const body = buildBookingSms({ name: "Jane", bookingUrl: "https://x/book/123" });
     expect(body).toContain("https://x/book/123");
     expect(body).toMatch(/Jane/);
+  });
+});
+
+describe("hybridScore", () => {
+  it("stays within ±10 of baseline and returns a reason", async () => {
+    const features = buildLeadFeatures({ source: "referral", state: "AZ", phone: "+14805551234",
+      roofType: "tile", yearBuilt: 2004, storm: { eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 5 } });
+    const fakeAi = { completeObject: async () => ({ object: { score: 999, reason: "Referral + recent hail" }, model: "fake" }) };
+    const r = await hybridScore(features, fakeAi as any);
+    expect(r.reason).toContain("hail");
+    expect(Math.abs(r.score - r.baseline)).toBeLessThanOrEqual(10);
+    expect(r.factors.length).toBeGreaterThan(0);
   });
 });
 

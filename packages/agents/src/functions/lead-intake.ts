@@ -1,4 +1,4 @@
-import { z, signPayloadToken, requireSecret } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, type LeadFeatures } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
 } from "@savvy/db";
@@ -6,20 +6,24 @@ import * as ai from "@savvy/ai";
 import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway } from "@savvy/integrations";
 import { inngest } from "../client";
 
-const qualifySchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
+const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
 
-// Pure, unit-testable AI qualification. `aiClient` is injectable for tests.
-export async function qualifyLead(
-  input: { name: string; address: string; source: string },
+export async function hybridScore(
+  features: LeadFeatures,
   aiClient: Pick<typeof ai, "completeObject"> = ai,
-): Promise<{ score: number; reason: string; model: string }> {
+): Promise<{ score: number; reason: string; baseline: number; factors: { label: string; points: number }[]; model: string }> {
+  const { score: baseline, factors } = scoreLeadBaseline(features);
+  const factorText = factors.map((f) => `${f.label} (+${f.points})`).join("; ") || "no strong signals";
   const { object, model } = await aiClient.completeObject({
-    capability: "reflex",
-    schema: qualifySchema,
-    system: "You score roofing leads 0-100 by likelihood to close. Be terse.",
-    prompt: `Lead: ${input.name}, ${input.address}, source=${input.source}. Score it.`,
+    capability: "reasoning",
+    schema: scoreSchema,
+    system: "You refine a roofing lead score. A deterministic baseline and its factors are given. " +
+      "Adjust the score only slightly (stay close to the baseline) and write a terse reason citing the factors. Do not invent facts.",
+    prompt: `Baseline ${baseline}/100. Factors: ${factorText}. Source=${features.source}. ` +
+      `Roof age=${features.roofAgeYears ?? "unknown"}. Return {score, reason}.`,
   });
-  return { score: object.score, reason: object.reason, model };
+  const score = Math.max(0, Math.min(100, Math.max(baseline - 10, Math.min(baseline + 10, object.score))));
+  return { score, reason: object.reason, baseline, factors, model };
 }
 
 export function buildBookingSms(opts: { name: string; bookingUrl: string }): string {
@@ -151,9 +155,20 @@ export const leadIntake = inngest.createFunction(
     });
 
     const scored = await step.run("ai-qualify", async () => {
-      const r = await qualifyLead({ name: ctx.name, address: ctx.address, source: ctx.source }, ai);
+      const features = buildLeadFeatures({
+        source: ctx.source,
+        state: ctx.state,
+        phone: ctx.phone,
+        roofType: enriched.roofType,
+        yearBuilt: enriched.yearBuilt,
+        storm: enriched.storm,
+      });
+      const r = await hybridScore(features);
       await withTenant(tenantId, (tx) =>
-        tx.update(lead).set({ score: r.score, scoreReason: r.reason, status: "contacted" }).where(eq(lead.id, leadId)),
+        tx.update(lead).set({
+          score: r.score, scoreReason: r.reason, status: "contacted",
+          scoreFeatures: { features, baseline: r.baseline, factors: r.factors },
+        }).where(eq(lead.id, leadId)),
       );
       await recordAgentRun({
         tenantId, agent: "comms", taskKey: "lead.qualify", status: "ok",
