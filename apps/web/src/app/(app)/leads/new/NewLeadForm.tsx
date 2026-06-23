@@ -61,11 +61,11 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
       <form onSubmit={submit} className="space-y-4" data-testid="new-lead-form">
         <div className="space-y-1.5">
           <Label htmlFor="name">Customer name</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" value={phone} onChange={(e) => onPhoneChange(e.target.value)}
+          <Input id="phone" name="phone" value={phone} onChange={(e) => onPhoneChange(e.target.value)}
                  placeholder="(480) 555-1234" required />
         </div>
         <div className="space-y-1.5">
