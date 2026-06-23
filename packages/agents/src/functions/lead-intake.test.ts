@@ -50,4 +50,13 @@ describe("enrichProperty", () => {
     expect(sp.calls.filter((c) => c.op === "lookupStorms").length).toBe(1);
     expect(out.yearBuilt).toBeNull();
   });
+  it("preserves a form-supplied county when getProperty is skipped", async () => {
+    const sp = makeFakeStormProof();
+    const out = await enrichProperty(
+      { lat: 33.4, lng: -111.8, address: "1 Main St", yearBuilt: 1999, roofType: "tile", county: "Maricopa" },
+      sp,
+    );
+    expect(out.county).toBe("Maricopa"); // getProperty skipped (yearBuilt present) — county not nulled
+    expect(sp.calls.filter((c) => c.op === "getProperty").length).toBe(0);
+  });
 });

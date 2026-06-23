@@ -33,7 +33,7 @@ export function buildBookingSms(opts: { name: string; bookingUrl: string }): str
 // Pure, unit-testable property enrichment. `sp` (StormProof gateway) is injectable for tests.
 // Does NOT overwrite yearBuilt or roofType if the rep already entered them.
 export async function enrichProperty(
-  input: { lat: number | null; lng: number | null; address: string; yearBuilt: number | null; roofType: string | null },
+  input: { lat: number | null; lng: number | null; address: string; yearBuilt: number | null; roofType: string | null; county?: string | null },
   sp: StormProofGateway = defaultStormProof,
 ): Promise<{
   yearBuilt: number | null;
@@ -44,7 +44,7 @@ export async function enrichProperty(
 }> {
   let yearBuilt = input.yearBuilt;
   let roofType = input.roofType;
-  let county: string | null = null;
+  let county = input.county ?? null;
 
   // Only call getProperty if yearBuilt is missing (don't overwrite rep-entered data)
   if (yearBuilt == null && input.lat != null && input.lng != null) {
@@ -52,7 +52,7 @@ export async function enrichProperty(
     if (prop) {
       yearBuilt = prop.yearBuilt ?? yearBuilt;
       roofType = roofType ?? prop.roofType;
-      county = prop.county;
+      county = prop.county ?? county;
     }
   }
 
@@ -102,6 +102,7 @@ export const leadIntake = inngest.createFunction(
         let yearBuilt: number | null = null;
         let roofType: string | null = null;
         let state: string | null = null;
+        let county: string | null = null;
         const propertyId = l!.propertyId ?? null;
         if (propertyId) {
           const [p] = await tx.select().from(property).where(eq(property.id, propertyId));
@@ -112,6 +113,7 @@ export const leadIntake = inngest.createFunction(
             yearBuilt = p.yearBuilt ?? null;
             roofType = p.roofType ?? null;
             state = p.state ?? null;
+            county = p.county ?? null;
           }
         }
         return {
@@ -125,6 +127,7 @@ export const leadIntake = inngest.createFunction(
           roofType,
           propertyId,
           state,
+          county,
         };
       }),
     );
@@ -138,6 +141,7 @@ export const leadIntake = inngest.createFunction(
         address: ctx.address,
         yearBuilt: ctx.yearBuilt,
         roofType: ctx.roofType,
+        county: ctx.county,
       });
       await withTenant(tenantId, async (tx) => {
         if (ctx.propertyId) {
@@ -168,7 +172,7 @@ export const leadIntake = inngest.createFunction(
       await withTenant(tenantId, (tx) =>
         tx.update(lead).set({
           score: r.score, scoreReason: r.reason, status: "contacted",
-          scoreFeatures: { features, baseline: r.baseline, factors: r.factors },
+          scoreFeatures: { features, baseline: r.baseline, factors: r.factors, aiAdjustment: r.score - r.baseline },
           installRecommendation: recommendation,
         }).where(eq(lead.id, leadId)),
       );
