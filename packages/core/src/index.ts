@@ -33,3 +33,4 @@ export { parseEmailConfig, type EmailConfig } from "./email-config";
 export * from "./lead-sources";
 export * from "./lead-features";
 export * from "./lead-scoring";
+export * from "./install-recommendation";
