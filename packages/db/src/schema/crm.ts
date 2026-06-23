@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, doublePrecision, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { leadStatusEnum } from "./enums";
@@ -22,6 +22,11 @@ export const property = pgTable("property", {
   customerId: uuid("customer_id").references(() => customer.id),
   address: text("address").notNull(),
   city: text("city"),
+  line1: text("line1"),
+  state: text("state"),
+  zip: text("zip"),
+  county: text("county"),
+  roofType: text("roof_type"),
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   parcelId: text("parcel_id"),
@@ -42,6 +47,8 @@ export const lead = pgTable("lead", {
   status: leadStatusEnum("status").notNull().default("new"),
   score: integer("score"),
   scoreReason: text("score_reason"),
+  scoreFeatures: jsonb("score_features"),
+  installRecommendation: jsonb("install_recommendation"),
   stormEventId: text("storm_event_id"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),
   createdAt: createdAt(),
