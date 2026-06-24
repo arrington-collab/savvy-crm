@@ -42,6 +42,7 @@ describe("runStormCert", () => {
     const d = fakeDeps({ gateway: { generateCertificate: async () => ({ verified: false, checkedMonths: 24 }) } as any });
     const out = await runStormCert(d as any);
     expect(out.status).toBe("none");
+    expect(d._updates.at(-1)).toMatchObject({ stormCertStatus: "none" });
   });
 
   it("idempotent: existing cert doc id → does not create a second doc", async () => {
@@ -49,5 +50,6 @@ describe("runStormCert", () => {
     const out = await runStormCert(d as any);
     expect(out.status).toBe("verified");
     expect(d._docs.length).toBe(0);
+    expect(d._updates.at(-1)).toMatchObject({ stormCertStatus: "verified", stormCertDocumentId: "docPrev" });
   });
 });

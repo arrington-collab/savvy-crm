@@ -37,7 +37,9 @@ export async function runStormCert(d: StormCertDeps): Promise<{ status: "verifie
   }
 
   if (ctx.existingDocId) {
-    // Idempotent replay: cert already recorded — skip storage + doc creation.
+    // Idempotent replay: cert doc already exists. Reconcile lead status in case a
+    // prior attempt crashed after creating the doc but before updating the lead.
+    await d.updateLead({ stormCertStatus: "verified", stormCheckedAt: new Date(), stormCertDocumentId: ctx.existingDocId });
     return { status: "verified", certId: result.certId, documentId: ctx.existingDocId };
   }
 
