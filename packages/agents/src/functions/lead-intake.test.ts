@@ -21,6 +21,18 @@ describe("hybridScore", () => {
     expect(Math.abs(r.score - r.baseline)).toBeLessThanOrEqual(10);
     expect(r.factors.length).toBeGreaterThan(0);
   });
+
+  it("falls back to the deterministic baseline when the AI call fails", async () => {
+    const features = buildLeadFeatures({ source: "referral", state: "AZ", phone: "+14805551234",
+      roofType: "asphalt_shingle", yearBuilt: 1968, storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null } });
+    const throwingAi = { completeObject: async () => { throw new Error("credit balance too low"); } };
+    const r = await hybridScore(features, throwingAi as any);
+    // AI outage must NOT crash scoring — return the deterministic baseline as-is.
+    expect(r.score).toBe(r.baseline);
+    expect(r.score).toBeGreaterThan(0);
+    expect(r.factors.length).toBeGreaterThan(0);
+    expect(r.reason.length).toBeGreaterThan(0);
+  });
 });
 
 describe("enrichProperty", () => {
