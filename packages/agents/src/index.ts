@@ -14,6 +14,7 @@ import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 import { meterUsageMonthly } from "./functions/meter-usage";
 import { coldArchiveDocuments } from "./functions/cold-archive";
 import { changeOrderAccepted } from "./functions/change-order";
+import { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -33,4 +34,5 @@ export { meterUsageMonthly } from "./functions/meter-usage";
 export { coldArchiveDocuments } from "./functions/cold-archive";
 export { changeOrderAccepted } from "./functions/change-order";
 export { draftChangeOrderScope } from "./functions/change-order-draft";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted];
+export { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure];
