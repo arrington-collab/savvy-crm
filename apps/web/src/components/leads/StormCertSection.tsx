@@ -44,7 +44,7 @@ export function StormCertSection({
     return (
       <div className="rounded-md border p-3 space-y-2">
         <div className="flex items-center gap-2">
-          <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-white">
+          <Badge variant="outline" className="border-green-600 text-green-700 dark:border-green-400 dark:text-green-400">
             Storm Certified
           </Badge>
           {checkedLabel && (
@@ -70,11 +70,13 @@ export function StormCertSection({
 
   if (stormCertStatus === "none") {
     return (
-      <div className="flex items-center gap-2">
-        <Badge variant="secondary">No storm data</Badge>
-        {checkedLabel && (
-          <span className="text-xs text-muted-foreground">{checkedLabel}</span>
-        )}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">No storm data</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          No verified storm in the last 24 months{checkedLabel ? ` (${checkedLabel.toLowerCase()})` : ""}.
+        </p>
       </div>
     );
   }
