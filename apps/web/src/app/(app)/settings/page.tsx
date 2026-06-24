@@ -8,6 +8,7 @@ const SECTIONS: { href: string; label: string; desc: string }[] = [
   { href: "/settings/crew", label: "Crew & CompanyCam", desc: "Crew PINs and CompanyCam photo sync." },
   { href: "/settings/scheduling", label: "Scheduling", desc: "Business hours and appointment defaults." },
   { href: "/settings/price-book", label: "Price Book", desc: "Estimate line items and pricing rules." },
+  { href: "/settings/assignment", label: "Lead Assignment", desc: "Auto-route new leads to reps by round-robin, load, territory, or score." },
 ];
 
 export default function SettingsPage() {
