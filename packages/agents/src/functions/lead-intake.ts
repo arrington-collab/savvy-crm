@@ -1,6 +1,7 @@
-import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, type LeadFeatures } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, type LeadFeatures } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
+  getAssignmentCandidates, getAssignmentSettings, setLeadOwner,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway } from "@savvy/integrations";
@@ -77,6 +78,30 @@ export async function enrichProperty(
   };
 }
 
+// Opt-in lead assignment. Never overrides a rep who already owns the lead.
+// Returns { assigned: userId, reason: "assigned" } on success or a null/reason pair on skip.
+export async function runLeadAssignment(
+  tenantId: string,
+  leadId: string,
+  leadCtx: { state: string | null; city: string | null },
+): Promise<{ assigned: string | null; reason: string }> {
+  const config = parseAssignmentConfig(await getAssignmentSettings(tenantId));
+  if (config.strategy === "off") return { assigned: null, reason: "off" };
+  return withTenant(tenantId, async (tx) => {
+    const [l] = await tx.select({ assignedUserId: lead.assignedUserId, score: lead.score }).from(lead).where(eq(lead.id, leadId));
+    if (!l) return { assigned: null, reason: "no-lead" };
+    if (l.assignedUserId) return { assigned: null, reason: "already-assigned" };
+    const candidates = await getAssignmentCandidates(tx, tenantId);
+    const userId = pickAssignee({
+      strategy: config.strategy, config, candidates,
+      lead: { state: leadCtx.state, city: leadCtx.city, score: l.score },
+    });
+    if (!userId) return { assigned: null, reason: "no-candidate" };
+    await setLeadOwner(tx, { tenantId, leadId, userId });
+    return { assigned: userId, reason: "assigned" };
+  });
+}
+
 // Placeholder business-hours check (per-tenant tz comes in Phase 3). Returns
 // true outside ~8am-6pm UTC. Deterministic, non-critical for Phase 0.
 function isAfterHours(d: Date): boolean {
@@ -103,6 +128,7 @@ export const leadIntake = inngest.createFunction(
         let roofType: string | null = null;
         let state: string | null = null;
         let county: string | null = null;
+        let city: string | null = null;
         const propertyId = l!.propertyId ?? null;
         if (propertyId) {
           const [p] = await tx.select().from(property).where(eq(property.id, propertyId));
@@ -114,6 +140,7 @@ export const leadIntake = inngest.createFunction(
             roofType = p.roofType ?? null;
             state = p.state ?? null;
             county = p.county ?? null;
+            city = p.city ?? null;
           }
         }
         return {
@@ -128,6 +155,7 @@ export const leadIntake = inngest.createFunction(
           propertyId,
           state,
           county,
+          city,
         };
       }),
     );
@@ -179,6 +207,15 @@ export const leadIntake = inngest.createFunction(
       await recordAgentRun({
         tenantId, agent: "comms", taskKey: "lead.qualify", status: "ok",
         modelUsed: r.model, inngestRunId: event.id ?? null,
+      });
+      return r;
+    });
+
+    await step.run("assign-lead", async () => {
+      const r = await runLeadAssignment(tenantId, leadId, { state: ctx.state, city: ctx.city ?? null });
+      await recordAgentRun({
+        tenantId, agent: "orchestrator", taskKey: "lead.assign",
+        status: r.assigned ? "ok" : "skipped", error: r.assigned ? null : r.reason,
       });
       return r;
     });
