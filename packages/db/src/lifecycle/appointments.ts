@@ -2,7 +2,8 @@ import { withTenant } from "../tenant";
 import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
-import { eq, and } from "drizzle-orm";
+import { document } from "../schema/ops";
+import { eq, and, isNull } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
 import { recordStageChange } from "./record-stage-change";
@@ -118,9 +119,28 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
   return withTenant(args.tenantId, async (tx) => {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
     if (!l) throw new Error("lead not found");
+
+    // Stamp un-linked cert documents onto a job within the same transaction.
+    // Idempotent: only updates docs where jobId IS NULL.
+    async function stampCerts(jobId: string): Promise<void> {
+      await tx
+        .update(document)
+        .set({ jobId })
+        .where(
+          and(
+            eq(document.customerId, l!.customerId!),
+            eq(document.kind, "cert"),
+            isNull(document.jobId),
+          ),
+        );
+    }
+
     if (l.status === "booked") {
       const [existing] = await tx.select().from(job).where(eq(job.leadId, l.id));
-      if (existing) return { jobId: existing.id, customerId: l.customerId! };
+      if (existing) {
+        await stampCerts(existing.id);
+        return { jobId: existing.id, customerId: l.customerId! };
+      }
     }
     const [newJob] = await tx.insert(job).values({
       tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
@@ -130,6 +150,7 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
     await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, l.id));
     await stopDripEnrollments(tx, { tenantId: args.tenantId, customerId: l.customerId!, reason: "converted" });
+    await stampCerts(newJob!.id);
     return { jobId: newJob!.id, customerId: l.customerId! };
   });
 }
