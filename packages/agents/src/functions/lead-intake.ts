@@ -15,16 +15,24 @@ export async function hybridScore(
 ): Promise<{ score: number; reason: string; baseline: number; factors: { label: string; points: number }[]; model: string }> {
   const { score: baseline, factors } = scoreLeadBaseline(features);
   const factorText = factors.map((f) => `${f.label} (+${f.points})`).join("; ") || "no strong signals";
-  const { object, model } = await aiClient.completeObject({
-    capability: "reasoning",
-    schema: scoreSchema,
-    system: "You refine a roofing lead score. A deterministic baseline and its factors are given. " +
-      "Adjust the score only slightly (stay close to the baseline) and write a terse reason citing the factors. Do not invent facts.",
-    prompt: `Baseline ${baseline}/100. Factors: ${factorText}. Source=${features.source}. ` +
-      `Roof age=${features.roofAgeYears ?? "unknown"}. Return {score, reason}.`,
-  });
-  const score = Math.max(0, Math.min(100, Math.max(baseline - 10, Math.min(baseline + 10, object.score))));
-  return { score, reason: object.reason, baseline, factors, model };
+  try {
+    const { object, model } = await aiClient.completeObject({
+      capability: "reasoning",
+      schema: scoreSchema,
+      system: "You refine a roofing lead score. A deterministic baseline and its factors are given. " +
+        "Adjust the score only slightly (stay close to the baseline) and write a terse reason citing the factors. Do not invent facts.",
+      prompt: `Baseline ${baseline}/100. Factors: ${factorText}. Source=${features.source}. ` +
+        `Roof age=${features.roofAgeYears ?? "unknown"}. Return {score, reason}.`,
+    });
+    const score = Math.max(0, Math.min(100, Math.max(baseline - 10, Math.min(baseline + 10, object.score))));
+    return { score, reason: object.reason, baseline, factors, model };
+  } catch (err) {
+    // AI refinement is best-effort. If the gateway/model is unavailable (no credits,
+    // timeout, outage), keep the deterministic baseline so the lead still gets scored,
+    // recommended, assigned, and texted instead of failing the whole intake workflow.
+    console.error("hybridScore: AI refine failed, using deterministic baseline:", err instanceof Error ? err.message : err);
+    return { score: baseline, reason: factorText, baseline, factors, model: "baseline-fallback" };
+  }
 }
 
 export function buildBookingSms(opts: { name: string; bookingUrl: string }): string {
