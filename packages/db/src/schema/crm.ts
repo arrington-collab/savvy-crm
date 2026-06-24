@@ -1,7 +1,7 @@
-import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
-import { leadStatusEnum } from "./enums";
+import { leadStatusEnum, stormCertStatusEnum } from "./enums";
 
 export const customer = pgTable("customer", {
   id: idCol(),
@@ -45,6 +45,9 @@ export const lead = pgTable("lead", {
   propertyId: uuid("property_id").references(() => property.id),
   source: text("source"),
   status: leadStatusEnum("status").notNull().default("new"),
+  stormCertStatus: stormCertStatusEnum("storm_cert_status").notNull().default("pending"),
+  stormCheckedAt: timestamp("storm_checked_at", { withTimezone: true }),
+  stormCertDocumentId: uuid("storm_cert_document_id"),
   score: integer("score"),
   scoreReason: text("score_reason"),
   scoreFeatures: jsonb("score_features"),
