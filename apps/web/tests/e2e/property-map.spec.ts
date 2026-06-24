@@ -41,3 +41,25 @@ test("property map renders on lead detail with coords", async ({ page }) => {
     /^https:\/\/www\.google\.com\/maps\/search\//,
   );
 });
+
+test("property map is absent when the lead has no coordinates", async ({ page }) => {
+  const leadId = await withTenant(tenantId, async (tx) => {
+    const [c] = await tx
+      .insert(customer)
+      .values({ tenantId, name: "No Coords Lead", phone: "+15555550001" })
+      .returning();
+    const [p] = await tx
+      .insert(property)
+      .values({ tenantId, customerId: c!.id, address: "", lat: null, lng: null })
+      .returning();
+    const [l] = await tx
+      .insert(lead)
+      .values({ tenantId, customerId: c!.id, propertyId: p!.id, status: "new", source: "seed" })
+      .returning();
+    return l!.id;
+  });
+
+  await page.goto(`/leads/${leadId}`);
+  await expect(page.getByTestId("lead-detail")).toBeVisible();
+  await expect(page.getByTestId("property-map-img")).toHaveCount(0);
+});

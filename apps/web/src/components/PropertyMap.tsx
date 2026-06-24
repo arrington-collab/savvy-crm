@@ -1,5 +1,7 @@
 import { staticMapImageUrl, mapsPlaceLinkUrl } from "@savvy/core";
 
+const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+
 interface PropertyMapProps {
   address: string | null;
   lat: number | null;
@@ -10,8 +12,7 @@ interface PropertyMapProps {
 /** Aerial static-map thumbnail (server component). Links out to Google Maps.
  *  Renders nothing when there is no API key or no location. */
 export function PropertyMap({ address, lat, lng, className }: PropertyMapProps) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-  const img = staticMapImageUrl({ apiKey, lat, lng, address });
+  const img = staticMapImageUrl({ apiKey: KEY, lat, lng, address });
   const link = mapsPlaceLinkUrl({ lat, lng, address });
   if (!img || !link) return null;
   return (

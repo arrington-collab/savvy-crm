@@ -31,6 +31,12 @@ describe("staticMapImageUrl", () => {
     const url = staticMapImageUrl({ apiKey: "K", lat: 33.5, lng: null, address: "Phoenix" });
     expect(url).toContain("center=Phoenix");
   });
+
+  it("treats lat=0, lng=0 as valid (equator/prime meridian)", () => {
+    const url = staticMapImageUrl({ apiKey: "K", lat: 0, lng: 0 });
+    expect(url).toContain("center=0%2C0");
+    expect(url).toContain("markers=color%3Ared%7C0%2C0");
+  });
 });
 
 describe("mapsPlaceLinkUrl", () => {
