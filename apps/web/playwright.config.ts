@@ -36,6 +36,7 @@ export default defineConfig({
       DOCUSEAL_TEMPLATE_CERT: "2",
       DOCUSEAL_TEMPLATE_CHANGE_ORDER: "3",
       NEXT_TELEMETRY_DISABLED: "1",
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "test-maps-key",
     },
   },
 });
