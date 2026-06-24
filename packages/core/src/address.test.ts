@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityFromAddress } from "./address.js";
+import { parseCityFromAddress, formatCountyLabel } from "./address.js";
 
 describe("parseCityFromAddress", () => {
   it("extracts the city before STATE ZIP", () => {
@@ -22,5 +22,25 @@ describe("parseCityFromAddress", () => {
   });
   it("returns null when the segment has no state/zip tail", () => {
     expect(parseCityFromAddress("123 Main St, Apt 4")).toBeNull();
+  });
+});
+
+describe("formatCountyLabel", () => {
+  it("appends 'County' when the value lacks it (StormProof style)", () => {
+    expect(formatCountyLabel("Maricopa")).toBe("Maricopa County");
+  });
+  it("does NOT double up when the value already ends with 'County' (Google style)", () => {
+    expect(formatCountyLabel("Maricopa County")).toBe("Maricopa County");
+  });
+  it("detects an existing suffix case-insensitively and preserves the original", () => {
+    expect(formatCountyLabel("maricopa county")).toBe("maricopa county");
+  });
+  it("trims surrounding whitespace", () => {
+    expect(formatCountyLabel("  Pima  ")).toBe("Pima County");
+  });
+  it("returns null for null/empty/whitespace", () => {
+    expect(formatCountyLabel(null)).toBeNull();
+    expect(formatCountyLabel("")).toBeNull();
+    expect(formatCountyLabel("   ")).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { formatCountyLabel } from "@savvy/core";
 
 type Factor = { label: string; points: number };
 
@@ -21,7 +22,7 @@ export function LeadEnrichmentCard({
     <Card className="p-4 space-y-3" data-testid="lead-enrichment-card">
       <h3 className="text-sm font-semibold">Why this score</h3>
       <div className="text-xs text-muted-foreground">
-        {[yearBuilt && `Built ${yearBuilt}`, roofType, county && `${county} County`]
+        {[yearBuilt && `Built ${yearBuilt}`, roofType, formatCountyLabel(county)]
           .filter(Boolean)
           .join(" · ") || "No enrichment yet"}
       </div>
