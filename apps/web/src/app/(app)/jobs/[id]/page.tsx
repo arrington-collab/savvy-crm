@@ -35,6 +35,7 @@ import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
+import { PropertyMap } from "@/components/PropertyMap";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,8 @@ export default async function JobDetailPage({
         customerEmail: customer.email,
         customerPhone: customer.phone,
         address: property.address,
+        lat: property.lat,
+        lng: property.lng,
       })
       .from(job)
       .leftJoin(customer, eq(customer.id, job.customerId))
@@ -294,6 +297,12 @@ export default async function JobDetailPage({
                   .join(" · ")}
               </p>
             )}
+            <PropertyMap
+              address={jobRow.address}
+              lat={jobRow.lat}
+              lng={jobRow.lng}
+              className="mt-3 block max-w-md"
+            />
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <Badge variant="outline" className="capitalize">
                 {jobRow.type}
