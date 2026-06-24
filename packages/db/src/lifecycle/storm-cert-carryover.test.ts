@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../admin-client.js";
 import { pool } from "../client.js";
-import { tenant, customer, property, lead, job, jobTask, jobStageEvent } from "../schema/index.js";
+import { tenant, customer, property, lead, job, jobTask, jobStageEvent, auditLog } from "../schema/index.js";
 import { document } from "../schema/ops.js";
 import { convertLeadToJob } from "./appointments.js";
 
@@ -43,10 +43,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await adminDb.delete(document).where(eq(document.tenantId, tId));
-  // convertLeadToJob seeds job_task rows and records a job_stage_event;
-  // delete those job children before the job to satisfy FK constraints.
+  // convertLeadToJob seeds job_task rows and (via recordStageChange) writes a
+  // job_stage_event + an audit_log row; delete those children before their
+  // parents (job / tenant) to satisfy FK constraints.
   await adminDb.delete(jobTask).where(eq(jobTask.tenantId, tId));
   await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tId));
+  await adminDb.delete(auditLog).where(eq(auditLog.tenantId, tId));
   await adminDb.delete(job).where(eq(job.tenantId, tId));
   await adminDb.delete(lead).where(eq(lead.tenantId, tId));
   await adminDb.delete(property).where(eq(property.tenantId, tId));
