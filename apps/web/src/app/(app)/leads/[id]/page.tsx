@@ -72,6 +72,7 @@ export default async function LeadDetailPage({
           stormCertStatus={detail.stormCertStatus}
           stormCheckedAt={detail.stormCheckedAt}
           stormCertDocumentId={detail.stormCertDocumentId}
+          leadId={detail.id}
         />
       </Card>
 

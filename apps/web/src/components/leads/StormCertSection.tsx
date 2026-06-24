@@ -9,13 +9,17 @@ type StormCertStatus = "pending" | "verified" | "none" | "error";
 interface StormCertSectionProps {
   stormCertStatus: StormCertStatus;
   stormCheckedAt: Date | null;
+  /** Whether the lead has a cert document attached (controls download button visibility). */
   stormCertDocumentId: string | null;
+  /** The lead's own id — passed to the server action so it resolves the doc server-side (IDOR fix). */
+  leadId: string;
 }
 
 export function StormCertSection({
   stormCertStatus,
   stormCheckedAt,
   stormCertDocumentId,
+  leadId,
 }: StormCertSectionProps) {
   const [downloading, setDownloading] = useState(false);
 
@@ -23,7 +27,7 @@ export function StormCertSection({
     if (!stormCertDocumentId) return;
     setDownloading(true);
     try {
-      const url = await getStormCertDownloadUrl(stormCertDocumentId);
+      const url = await getStormCertDownloadUrl(leadId);
       if (url) {
         window.open(url, "_blank", "noopener,noreferrer");
       }
