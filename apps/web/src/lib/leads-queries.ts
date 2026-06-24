@@ -77,6 +77,8 @@ export type LeadDetail = {
   customerName: string | null;
   phone: string | null;
   address: string | null;
+  lat: number | null;
+  lng: number | null;
   state: string | null;
   county: string | null;
   yearBuilt: number | null;
@@ -105,6 +107,8 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         customerName: customer.name,
         phone: customer.phone,
         address: property.address,
+        lat: property.lat,
+        lng: property.lng,
         state: property.state,
         county: property.county,
         yearBuilt: property.yearBuilt,
@@ -147,6 +151,8 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       customerName: row.customerName,
       phone: row.phone,
       address: row.address,
+      lat: row.lat,
+      lng: row.lng,
       state: row.state,
       county: row.county,
       yearBuilt: row.yearBuilt,

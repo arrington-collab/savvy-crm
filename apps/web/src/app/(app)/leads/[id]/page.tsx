@@ -11,6 +11,7 @@ import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 import { StormCertSection } from "@/components/leads/StormCertSection";
+import { PropertyMap } from "@/components/PropertyMap";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,12 @@ export default async function LeadDetailPage({
           <p className="text-sm" style={{ color: "var(--text-body)" }}>{detail.address ?? "—"}</p>
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }} data-testid="lead-phone">{detail.phone ?? "no phone"}</p>
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }}>source: {detail.source ?? "—"}</p>
+          <PropertyMap
+            address={detail.address}
+            lat={detail.lat}
+            lng={detail.lng}
+            className="mt-3 block"
+          />
         </Card>
         <Card className="p-4">
           <div className="eyebrow mb-1">Owner</div>
