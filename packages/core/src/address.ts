@@ -24,3 +24,15 @@ export function parseCityFromAddress(address: string): string | null {
   }
   return null;
 }
+
+/**
+ * Normalize a county value into a display label, appending "County" only when
+ * it isn't already there. Google Places returns "Maricopa County" while the
+ * StormProof assessor returns "Maricopa" — this avoids a doubled "County County".
+ * Returns null for an empty/whitespace value.
+ */
+export function formatCountyLabel(county: string | null | undefined): string | null {
+  const c = county?.trim();
+  if (!c) return null;
+  return /county$/i.test(c) ? c : `${c} County`;
+}
