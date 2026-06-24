@@ -10,6 +10,7 @@ import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
+import { StormCertSection } from "@/components/leads/StormCertSection";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,15 @@ export default async function LeadDetailPage({
         county={detail.county}
         installRecommendation={detail.installRecommendation}
       />
+
+      <Card className="p-4">
+        <div className="eyebrow mb-3">Storm Certification</div>
+        <StormCertSection
+          stormCertStatus={detail.stormCertStatus}
+          stormCheckedAt={detail.stormCheckedAt}
+          stormCertDocumentId={detail.stormCertDocumentId}
+        />
+      </Card>
 
       <LeadActions leadId={detail.id} status={detail.status} users={users} ownerId={detail.assignedUserId} />
 

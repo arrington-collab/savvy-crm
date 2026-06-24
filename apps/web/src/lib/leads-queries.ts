@@ -84,6 +84,9 @@ export type LeadDetail = {
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
+  stormCertStatus: "pending" | "verified" | "none" | "error";
+  stormCheckedAt: Date | null;
+  stormCertDocumentId: string | null;
 };
 
 export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
@@ -108,6 +111,9 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         roofType: property.roofType,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
+        stormCertStatus: lead.stormCertStatus,
+        stormCheckedAt: lead.stormCheckedAt,
+        stormCertDocumentId: lead.stormCertDocumentId,
       })
       .from(lead)
       .leftJoin(customer, eq(customer.id, lead.customerId))
@@ -148,6 +154,9 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,
+      stormCertStatus: row.stormCertStatus,
+      stormCheckedAt: row.stormCheckedAt,
+      stormCertDocumentId: row.stormCertDocumentId,
     };
   });
 }
