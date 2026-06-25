@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickAssignee, type AssignmentCandidate } from "./pick-assignee";
+import { pickAssignee, pickReassignee, type AssignmentCandidate } from "./pick-assignee";
 import type { AssignmentConfig } from "./lead-assignment";
 
 const c = (userId: string, openLeadCount: number, lastAssignedAt: string | null): AssignmentCandidate =>
@@ -69,5 +69,16 @@ describe("pickAssignee proximity", () => {
     const tileLead = { ...proximityLead, lane: "tile" };
     const cands = [cand({ userId: "a", driveMinutes: 5, skills: [] }), cand({ userId: "b", driveMinutes: 30, skills: [] })];
     expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: tileLead })).toBe("a");
+  });
+});
+
+describe("pickReassignee", () => {
+  const c = (userId: string, lastAssignedAt: string | null = null) => ({ userId, openLeadCount: 0, lastAssignedAt });
+  it("excludes the current owner and picks the least-recently-assigned other", () => {
+    const cands = [c("owner", "2026-01-01"), c("a", "2026-02-01"), c("b", null)];
+    expect(pickReassignee(cands, "owner")).toBe("b"); // null = never assigned = oldest
+  });
+  it("returns null when no other candidate exists", () => {
+    expect(pickReassignee([c("owner")], "owner")).toBeNull();
   });
 });
