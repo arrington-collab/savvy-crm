@@ -20,8 +20,8 @@ describe("makeFakeDistance", () => {
     const m = await d.driveMinutesMatrix([mesa, tempe], [far]);
     expect(m).not.toBeNull();
     expect(m!.length).toBe(2);
-    expect(m![0].length).toBe(1);
-    expect(typeof m![0][0]).toBe("number");
+    expect(m![0]!.length).toBe(1);
+    expect(typeof m![0]![0]).toBe("number");
   });
   it("returns null for an empty origin or dest list", async () => {
     const d = makeFakeDistance();
