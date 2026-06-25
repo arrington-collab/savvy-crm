@@ -12,6 +12,7 @@ import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
+import { LogContactButton } from "@/components/leads/LogContactButton";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,12 @@ export default async function LeadDetailPage({
             lng={detail.lng}
             className="mt-3 block"
           />
+          <div className="mt-3">
+            <LogContactButton
+              leadId={detail.id}
+              firstRepContactAt={detail.firstRepContactAt}
+            />
+          </div>
         </Card>
         <Card className="p-4">
           <div className="eyebrow mb-1">Owner</div>
