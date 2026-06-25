@@ -37,3 +37,4 @@ export * from "./pick-assignee";
 export * from "./lead-scoring";
 export * from "./install-recommendation";
 export * from "./maps";
+export * from "./rep-origin";
