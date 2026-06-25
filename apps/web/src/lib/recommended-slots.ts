@@ -40,10 +40,14 @@ export async function getRecommendedSlots(
     .filter((r) => r.startsAt >= new Date() && r.startsAt < horizonEnd)
     .map((r) => ({ startsAt: r.startsAt, endsAt: r.endsAt, lat: r.lat == null ? undefined : Number(r.lat), lng: r.lng == null ? undefined : Number(r.lng) }));
 
+  // computeOpenSlots sorts by cluster score; take the SOONEST 12 as the ranking pool so a
+  // sooner slot on a busy day isn't dropped before rankSlots weighs soonest + drive + cluster.
   const slots = computeOpenSlots({
     config: cfg, type, existingAppts: busy, fromDate: new Date(), now: new Date(),
     clusterAround: destPoint ?? undefined,
-  }).slice(0, 12);
+  })
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+    .slice(0, 12);
 
   // Rep base + tenant office for the origin fallback chain.
   const [u] = await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(and(eq(user.id, l.assignedUserId), eq(user.tenantId, l.tenantId)));

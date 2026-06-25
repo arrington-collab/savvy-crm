@@ -17,10 +17,8 @@ beforeAll(async () => {
       clerkOrgId: `org_slots_${Date.now()}`,
       settings: {
         scheduling: {
-          workdays: [1, 2, 3, 4, 5],
-          startHour: 8,
-          endHour: 17,
-          slotMinutes: 60,
+          hours: { mon: [8, 17], tue: [8, 17], wed: [8, 17], thu: [8, 17], fri: [8, 17], sat: [], sun: [] },
+          slotGranularityMin: 30,
           bookingHorizonDays: 14,
           office: { lat: 33.4484, lng: -112.074 },
         },

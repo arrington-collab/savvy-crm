@@ -92,14 +92,15 @@ getRecommendedSlots(
 ```jsonc
 {
   "assignment": {
-    "strategy": "proximity"  // "off" | "round_robin" | "least_loaded" | "proximity"
+    "strategy": "proximity"  // "off" | "round_robin" | "least_loaded" | "territory" | "score" | "proximity"
   },
   "scheduling": {
     "office": { "lat": 33.4484, "lng": -112.074 },  // fallback origin for all reps
-    "workdays": [1, 2, 3, 4, 5],   // 0=Sun … 6=Sat
-    "startHour": 8,                 // slots start at 8am tenant-local
-    "endHour": 17,                  // slots end by 5pm
-    "slotMinutes": 60,              // slot duration
+    "hours": {                      // per-weekday [openHour, closeHour] (UTC); [] = closed
+      "mon": [8, 17], "tue": [8, 17], "wed": [8, 17], "thu": [8, 17], "fri": [8, 17],
+      "sat": [], "sun": []
+    },
+    "slotGranularityMin": 30,       // slot step size in minutes
     "bookingHorizonDays": 14,       // how far ahead to offer slots
     "driveTime": {
       // Ranking weights (passed to rankSlots). Slot score =
