@@ -83,3 +83,18 @@ test("leads: create via form + assign owner", async ({ page }) => {
   await page.getByTestId("assign-owner").selectOption(userId);
   await expect(page.getByTestId("lead-owner")).toContainText("Rep Robin");
 });
+
+test("leads: create an email-only lead (no phone) shows a mailto link", async ({ page }) => {
+  await page.goto("/leads/new");
+  await page.fill('input[name="name"]', "Emailing Ed");
+  await page.fill('input[name="email"]', "ed@example.com");
+  await page.fill('input[name="address"]', "9 Email Way, Mesa AZ");
+  await page.getByTestId("new-lead-submit").click();
+  await page.waitForURL(/\/leads\/[0-9a-f-]+$/);
+  await expect(page.getByTestId("lead-detail")).toBeVisible();
+
+  const link = page.getByTestId("lead-email");
+  await expect(link).toHaveText("ed@example.com");
+  await expect(link).toHaveAttribute("href", "mailto:ed@example.com");
+  // Phone-only is still valid: the existing "create via form + assign owner" test covers it.
+});
