@@ -1,14 +1,21 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { hybridScore, buildBookingSms, enrichProperty, runLeadAssignment } from "./lead-intake";
+import { hybridScore, buildAckSms, buildAckEmail, enrichProperty, runLeadAssignment } from "./lead-intake";
 import { buildLeadFeatures, parseScoringConfig } from "@savvy/core";
 import { makeFakeStormProof } from "@savvy/integrations";
 import { adminDb, withTenant, tenant, user, customer, lead, property, saveAssignmentConfig, eq } from "@savvy/db";
 
 describe("lead.intake pure steps", () => {
-  it("buildBookingSms includes the booking link and name", () => {
-    const body = buildBookingSms({ name: "Jane", bookingUrl: "https://x/book/123" });
+  it("buildAckSms includes the booking link and name", () => {
+    const body = buildAckSms({ name: "Jane", bookingUrl: "https://x/book/123" });
     expect(body).toContain("https://x/book/123");
     expect(body).toMatch(/Jane/);
+  });
+
+  it("buildAckEmail subject contains 'inspection' and html contains booking URL", () => {
+    const { subject, html } = buildAckEmail({ name: "Jane", bookingUrl: "https://x/book/abc" });
+    expect(subject).toContain("inspection");
+    expect(html).toContain("https://x/book/abc");
+    expect(html).toContain("Jane");
   });
 });
 
