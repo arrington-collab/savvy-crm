@@ -1,6 +1,12 @@
 import type { AssignmentConfig } from "./lead-assignment";
 
-export type AssignmentCandidate = { userId: string; openLeadCount: number; lastAssignedAt: string | null };
+export type AssignmentCandidate = {
+  userId: string;
+  openLeadCount: number;
+  lastAssignedAt: string | null;
+  driveMinutes?: number | null;
+  skills?: string[];
+};
 
 const ts = (s: string | null): number => (s ? Date.parse(s) : 0);
 
@@ -20,7 +26,7 @@ export function pickAssignee(opts: {
   strategy: AssignmentConfig["strategy"];
   config: AssignmentConfig;
   candidates: AssignmentCandidate[];
-  lead: { state: string | null; city: string | null; score: number | null };
+  lead: { state: string | null; city: string | null; score: number | null; lane?: string | null };
 }): string | null {
   const { strategy, config, candidates, lead } = opts;
   if (strategy === "off" || candidates.length === 0) return null;
@@ -48,6 +54,19 @@ export function pickAssignee(opts: {
     const top = tiers[0];
     const matched = top ? inPool(top.userIds) : [];
     return leastLoaded(matched) ?? leastLoaded(candidates);
+  }
+  if (strategy === "proximity") {
+    let pool = candidates;
+    if (lead.lane) {
+      const skilled = candidates.filter((c) => (c.skills ?? []).includes(lead.lane!));
+      if (skilled.length > 0) pool = skilled;
+    }
+    const ranked = [...pool].sort((a, b) => {
+      const da = a.driveMinutes ?? Number.POSITIVE_INFINITY;
+      const db = b.driveMinutes ?? Number.POSITIVE_INFINITY;
+      return da - db || a.openLeadCount - b.openLeadCount || ts(a.lastAssignedAt) - ts(b.lastAssignedAt);
+    });
+    return ranked[0]?.userId ?? null;
   }
   return null;
 }

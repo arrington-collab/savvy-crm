@@ -1,6 +1,6 @@
 import { z } from "./schemas";
 
-export const ASSIGNMENT_STRATEGY = ["off", "round_robin", "least_loaded", "territory", "score"] as const;
+export const ASSIGNMENT_STRATEGY = ["off", "round_robin", "least_loaded", "territory", "score", "proximity"] as const;
 export type AssignmentStrategy = (typeof ASSIGNMENT_STRATEGY)[number];
 
 export type AssignmentConfig = {

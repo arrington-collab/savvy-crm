@@ -11,3 +11,4 @@ export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway,
 export { ringcentralSms, makeRingCentralSms, parseRingCentralInboundSms, type InboundSms } from "./ringcentral";
 export { sms, selectSms, smsFrom } from "./comms";
 export { stormProof, httpStormProof, makeFakeStormProof, type StormProofGateway, type StormEvent, type PropertyData, type StormSummary } from "./stormproof";
+export { distance, httpDistance, makeFakeDistance, fakeDriveMinutes, type DistanceGateway, type LatLng } from "./distance";

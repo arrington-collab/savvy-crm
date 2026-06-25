@@ -120,6 +120,13 @@
       "when": 1782275887897,
       "tag": "0016_curved_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782352176186,
+      "tag": "0017_chunky_photon",
+      "breakpoints": true
     }
   ]
 }

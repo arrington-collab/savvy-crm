@@ -39,3 +39,35 @@ describe("pickAssignee", () => {
     expect(hot).toBe("a");
   });
 });
+
+describe("pickAssignee proximity", () => {
+  const proximityLead = { state: "AZ", city: "Mesa", score: 70, lane: null as string | null };
+  const cfg = { strategy: "proximity" as const };
+
+  const cand = (over: Partial<AssignmentCandidate>): AssignmentCandidate => ({
+    userId: "u", openLeadCount: 0, lastAssignedAt: null, ...over,
+  });
+
+  it("chooses the rep with the smallest drive time", () => {
+    const cands = [cand({ userId: "near", driveMinutes: 8 }), cand({ userId: "far", driveMinutes: 40 })];
+    expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: proximityLead })).toBe("near");
+  });
+  it("breaks a drive-time tie by least open leads", () => {
+    const cands = [cand({ userId: "busy", driveMinutes: 10, openLeadCount: 5 }), cand({ userId: "free", driveMinutes: 10, openLeadCount: 1 })];
+    expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: proximityLead })).toBe("free");
+  });
+  it("ranks reps with a known drive time ahead of reps with none", () => {
+    const cands = [cand({ userId: "unknown", driveMinutes: null }), cand({ userId: "known", driveMinutes: 25 })];
+    expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: proximityLead })).toBe("known");
+  });
+  it("restricts to skilled reps when the lane needs a skill and one exists", () => {
+    const tileLead = { ...proximityLead, lane: "tile" };
+    const cands = [cand({ userId: "generalist", driveMinutes: 5, skills: [] }), cand({ userId: "tiler", driveMinutes: 30, skills: ["tile"] })];
+    expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: tileLead })).toBe("tiler");
+  });
+  it("ignores the skill filter when no rep has the skill", () => {
+    const tileLead = { ...proximityLead, lane: "tile" };
+    const cands = [cand({ userId: "a", driveMinutes: 5, skills: [] }), cand({ userId: "b", driveMinutes: 30, skills: [] })];
+    expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: tileLead })).toBe("a");
+  });
+});

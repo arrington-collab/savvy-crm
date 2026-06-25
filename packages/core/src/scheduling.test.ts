@@ -71,3 +71,52 @@ test("proximity scoring ranks near-cluster slots higher", () => {
   expect(slots.length).toBeGreaterThan(0);
   for (let i = 1; i < slots.length; i++) expect(slots[i - 1]!.score).toBeGreaterThanOrEqual(slots[i]!.score);
 });
+
+import { describe, it } from "vitest";
+import { rankSlots } from "./scheduling";
+import type { Slot } from "./scheduling";
+
+const mk = (iso: string, score = 0): Slot => ({ startsAt: new Date(iso), endsAt: new Date(iso), score });
+
+describe("parseSchedulingConfig drive-time defaults", () => {
+  it("defaults driveTime weights and leaves office undefined", () => {
+    const c = parseSchedulingConfig({});
+    expect(c.driveTime).toEqual({ wSoon: 0.5, wDrive: 0.3, wCluster: 0.2, driveHalfMin: 20 });
+    expect(c.office).toBeUndefined();
+  });
+  it("accepts a configured office and weight overrides", () => {
+    const c = parseSchedulingConfig({ office: { lat: 33.4, lng: -111.9 }, driveTime: { wDrive: 0.6 } });
+    expect(c.office).toEqual({ lat: 33.4, lng: -111.9 });
+    expect(c.driveTime.wDrive).toBe(0.6);
+    expect(c.driveTime.driveHalfMin).toBe(20); // untouched default
+  });
+});
+
+describe("rankSlots", () => {
+  const weights = { wSoon: 0.5, wDrive: 0.3, wCluster: 0.2, driveHalfMin: 20 };
+  const a = mk("2026-07-01T15:00:00Z");
+  const b = mk("2026-07-01T17:00:00Z");
+
+  it("prefers the soonest slot when drive time is equal", () => {
+    const r = rankSlots({ slots: [b, a], driveMinutesBySlotIndex: [10, 10], weights });
+    expect(r[0]!.startsAt.toISOString()).toBe("2026-07-01T15:00:00.000Z");
+  });
+  it("prefers the nearer slot when start times are equal", () => {
+    const a2 = mk("2026-07-01T15:00:00Z");
+    const r = rankSlots({ slots: [a, a2], driveMinutesBySlotIndex: [40, 5], weights });
+    expect(r[0]!.driveMinutes).toBe(5);
+  });
+  it("ranks on soon+cluster only when drive time is unknown (null)", () => {
+    const near = mk("2026-07-01T17:00:00Z", 1); // later but high cluster score
+    const r = rankSlots({ slots: [a, near], driveMinutesBySlotIndex: [null, null], weights });
+    expect(r[0]!.driveMinutes).toBeNull();
+    expect(r).toHaveLength(2);
+  });
+  it("attaches driveMinutes to each ranked slot", () => {
+    const r = rankSlots({ slots: [a], driveMinutesBySlotIndex: [12], weights });
+    expect(r[0]!.driveMinutes).toBe(12);
+  });
+  it("returns [] for no slots", () => {
+    expect(rankSlots({ slots: [], driveMinutesBySlotIndex: [], weights })).toEqual([]);
+  });
+});

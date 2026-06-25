@@ -1,10 +1,10 @@
-import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, type LeadFeatures } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, type LeadFeatures } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
-  getAssignmentCandidates, getAssignmentSettings, setLeadOwner,
+  getAssignmentCandidates, getAssignmentSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway } from "@savvy/integrations";
+import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
 import { inngest } from "../client";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
@@ -96,13 +96,51 @@ export async function runLeadAssignment(
   const config = parseAssignmentConfig(await getAssignmentSettings(tenantId));
   if (config.strategy === "off") return { assigned: null, reason: "off" };
   return withTenant(tenantId, async (tx) => {
-    const [l] = await tx.select({ assignedUserId: lead.assignedUserId, score: lead.score }).from(lead).where(eq(lead.id, leadId));
+    const [l] = await tx
+      .select({ assignedUserId: lead.assignedUserId, score: lead.score, propertyId: lead.propertyId })
+      .from(lead)
+      .where(eq(lead.id, leadId));
     if (!l) return { assigned: null, reason: "no-lead" };
     if (l.assignedUserId) return { assigned: null, reason: "already-assigned" };
-    const candidates = await getAssignmentCandidates(tx, tenantId);
+
+    let candidates = await getAssignmentCandidates(tx, tenantId);
+    let lane: string | null = null;
+
+    if (config.strategy === "proximity") {
+      // Destination = the lead's property; lane derives from roof type until Phase B models it.
+      const dest = l.propertyId
+        ? (await tx.select({ lat: property.lat, lng: property.lng, roofType: property.roofType }).from(property).where(eq(property.id, l.propertyId)))[0]
+        : undefined;
+      const destPoint: LatLng | null =
+        dest && dest.lat != null && dest.lng != null ? { lat: Number(dest.lat), lng: Number(dest.lng) } : null;
+      lane = dest?.roofType === "tile" ? "tile" : null;
+
+      if (destPoint) {
+        const now = new Date();
+        const office = await getSchedulingOffice(tenantId);
+        const apptsByUser = await getRepSameDayAppts(tx, tenantId, now);
+        const resolved = candidates.map((c) => ({
+          c,
+          origin: resolveRepOrigin({
+            sameDayAppts: apptsByUser.get(c.userId) ?? [],
+            reference: now,
+            repBase: c.baseLat != null && c.baseLng != null ? { lat: c.baseLat, lng: c.baseLng } : null,
+            tenantOffice: office,
+          }),
+        }));
+        const withOrigin = resolved.filter((r): r is { c: typeof r.c; origin: LatLng } => r.origin != null);
+        const matrix = await distance.driveMinutesMatrix(withOrigin.map((r) => r.origin), [destPoint]);
+        const dmByUser = new Map<string, number | null>();
+        withOrigin.forEach((r, i) => dmByUser.set(r.c.userId, matrix ? (matrix[i]?.[0] ?? null) : null));
+        candidates = candidates.map((c) => ({ ...c, driveMinutes: dmByUser.get(c.userId) ?? null }));
+      }
+    }
+
     const userId = pickAssignee({
-      strategy: config.strategy, config, candidates,
-      lead: { state: leadCtx.state, city: leadCtx.city, score: l.score },
+      strategy: config.strategy,
+      config,
+      candidates,
+      lead: { state: leadCtx.state, city: leadCtx.city, score: l.score, lane },
     });
     if (!userId) return { assigned: null, reason: "no-candidate" };
     await setLeadOwner(tx, { tenantId, leadId, userId });

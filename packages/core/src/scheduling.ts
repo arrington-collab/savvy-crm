@@ -10,6 +10,15 @@ type Weekday = (typeof WEEKDAYS)[number];
 const typeCfg = z.object({ durationMin: z.number().int().positive(), bufferMin: z.number().int().min(0) });
 const reminderCfg = z.object({ offsetH: z.number().positive(), channel: z.enum([...MESSAGE_CHANNEL]) });
 
+const latLngCfg = z.object({ lat: z.number(), lng: z.number() });
+const driveTimeCfg = z.object({
+  wSoon: z.number().default(0.5),
+  wDrive: z.number().default(0.3),
+  wCluster: z.number().default(0.2),
+  driveHalfMin: z.number().positive().default(20),
+});
+const DRIVE_DEFAULTS = { wSoon: 0.5, wDrive: 0.3, wCluster: 0.2, driveHalfMin: 20 } as const;
+
 const DEFAULTS = {
   hours: { mon: [8, 17], tue: [8, 17], wed: [8, 17], thu: [8, 17], fri: [8, 17], sat: [], sun: [] },
   slotGranularityMin: 30,
@@ -31,6 +40,8 @@ const schema = z.object({
   bookingHorizonDays: z.number().int().positive().default(DEFAULTS.bookingHorizonDays),
   types: z.record(z.enum([...APPOINTMENT_TYPE]), typeCfg).default({}),
   reminders: z.array(reminderCfg).default([...DEFAULTS.reminders]),
+  office: latLngCfg.optional(),
+  driveTime: driveTimeCfg.default({}),
 });
 
 export type SchedulingConfig = {
@@ -39,6 +50,8 @@ export type SchedulingConfig = {
   bookingHorizonDays: number;
   types: Record<AppointmentType, { durationMin: number; bufferMin: number }>;
   reminders: { offsetH: number; channel: "sms" | "email" }[];
+  office?: { lat: number; lng: number };
+  driveTime: { wSoon: number; wDrive: number; wCluster: number; driveHalfMin: number };
 };
 
 export function parseSchedulingConfig(raw: unknown): SchedulingConfig {
@@ -49,6 +62,8 @@ export function parseSchedulingConfig(raw: unknown): SchedulingConfig {
     bookingHorizonDays: p.bookingHorizonDays,
     types: { ...DEFAULTS.types, ...p.types } as SchedulingConfig["types"],
     reminders: p.reminders,
+    office: p.office,
+    driveTime: { ...DRIVE_DEFAULTS, ...p.driveTime },
   };
 }
 
@@ -129,4 +144,32 @@ export function computeOpenSlots(input: {
   }
 
   return out.sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
+}
+
+export type RankedSlot = Slot & { driveMinutes: number | null };
+
+// Blend the existing slot score (clustering) with soonest-feasible + drive-time, deterministically.
+// When a slot's driveMinutes is null, its drive weight is dropped and the remaining weights renormalize.
+export function rankSlots(args: {
+  slots: Slot[];
+  driveMinutesBySlotIndex: (number | null)[];
+  weights: SchedulingConfig["driveTime"];
+}): RankedSlot[] {
+  const { slots, driveMinutesBySlotIndex, weights } = args;
+  if (slots.length === 0) return [];
+  const times = slots.map((s) => s.startsAt.getTime());
+  const earliest = Math.min(...times);
+  const span = Math.max(1, Math.max(...times) - earliest);
+
+  return slots
+    .map((s, i) => {
+      const soonScore = 1 - (s.startsAt.getTime() - earliest) / span; // 1 (soonest) .. 0
+      const dm = driveMinutesBySlotIndex[i] ?? null;
+      const driveScore = dm == null ? 0 : 1 / (1 + dm / weights.driveHalfMin);
+      const wDrive = dm == null ? 0 : weights.wDrive;
+      const norm = weights.wSoon + weights.wCluster + wDrive;
+      const final = (weights.wSoon * soonScore + weights.wCluster * s.score + wDrive * driveScore) / norm;
+      return { startsAt: s.startsAt, endsAt: s.endsAt, score: final, driveMinutes: dm };
+    })
+    .sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
 }
