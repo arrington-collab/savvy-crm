@@ -8,7 +8,7 @@ const OPEN = ["new", "contacted", "qualified", "booked"] as const;
 // Re-score one tenant's open leads; returns how many were upgraded to a higher band.
 export async function rescoreTenant(tenantId: string): Promise<number> {
   const cfg = parseScoringConfig(await getScoringSettings(tenantId));
-  return withTenant(tenantId, async (tx) => {
+  const upgraded = await withTenant(tenantId, async (tx) => {
     const rows = await tx
       .select({
         id: lead.id, band: lead.scoreBand, source: lead.source, state: property.state,
@@ -18,7 +18,7 @@ export async function rescoreTenant(tenantId: string): Promise<number> {
       .leftJoin(property, eq(lead.propertyId, property.id))
       .where(and(eq(lead.tenantId, tenantId), inArray(lead.status, [...OPEN])));
 
-    let upgraded = 0;
+    let upgradedCount = 0;
     for (const r of rows) {
       if (r.lat == null || r.lng == null) continue;
       let storm;
@@ -36,14 +36,16 @@ export async function rescoreTenant(tenantId: string): Promise<number> {
       const lane = deriveLane(features, cfg);
       const improved = bandRank(scored.band) > bandRank(r.band);
       await tx.update(lead).set({ score: scored.score, scoreBand: scored.band, scoreReason: scored.reasons.join("; "), lane }).where(eq(lead.id, r.id));
-      if (improved) upgraded++;
+      if (improved) upgradedCount++;
     }
-    // Audit the sweep (no per-user push channel exists yet; band lives on the lead for the UI).
-    if (upgraded > 0) {
-      await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.rescore.upgraded", status: "ok" });
-    }
-    return upgraded;
+    return upgradedCount;
   });
+  // Audit the sweep AFTER the rescore tx closes — recordAgentRun opens its own
+  // withTenant, so calling it inside would hold a second pooled connection (see lead-intake.ts).
+  if (upgraded > 0) {
+    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.rescore.upgraded", status: "ok" });
+  }
+  return upgraded;
 }
 
 function bandRank(b: string | null): number {
