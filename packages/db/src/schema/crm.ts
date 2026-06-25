@@ -55,6 +55,7 @@ export const lead = pgTable("lead", {
   scoreBand: text("score_band"),
   lane: text("lane"),
   firstRepContactAt: timestamp("first_rep_contact_at", { withTimezone: true }),
+  voiceOutcome: text("voice_outcome"),
   installRecommendation: jsonb("install_recommendation"),
   stormEventId: text("storm_event_id"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),

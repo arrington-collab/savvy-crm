@@ -1,0 +1,1 @@
+ALTER TABLE "lead" ADD COLUMN "voice_outcome" text;
