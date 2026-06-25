@@ -30,7 +30,7 @@ const touchSchema = z.object({
 const cadenceSchema = z.object({
   steps: z.array(touchSchema).default([...DEFAULT_CADENCE]),
   quietHours: z
-    .object({ startHour: z.number().int(), endHour: z.number().int() })
+    .object({ startHour: z.number().int().min(0).max(23), endHour: z.number().int().min(0).max(23) })
     .default({ startHour: 21, endHour: 8 }),
 });
 export function parseLeadCadenceConfig(raw: unknown): LeadCadenceConfig {

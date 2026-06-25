@@ -16,6 +16,18 @@ describe("parseLeadCadenceConfig", () => {
     expect(c.steps.map((s) => s.dayOffset)).toEqual([0, 0, 1, 3, 5, 7, 14]);
     expect(c.quietHours).toEqual({ startHour: 21, endHour: 8 });
   });
+  it("falls back to the default cadence when given an empty steps array", () => {
+    expect(parseLeadCadenceConfig({ steps: [] }).steps.map((s) => s.dayOffset)).toEqual([0, 0, 1, 3, 5, 7, 14]);
+  });
+  it("rejects an out-of-range quiet hour", () => {
+    expect(() => parseLeadCadenceConfig({ quietHours: { startHour: 24, endHour: 8 } })).toThrow();
+  });
+});
+
+describe("parseSpeedToLeadConfig escalateMin", () => {
+  it("defaults escalateMin to 10", () => {
+    expect(parseSpeedToLeadConfig({}).escalateMin).toBe(10);
+  });
 });
 
 describe("shouldSendChannel", () => {
