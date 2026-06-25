@@ -35,7 +35,10 @@ export async function rescoreTenant(tenantId: string): Promise<number> {
       const scored = scoreLead(features, cfg);
       const lane = deriveLane(features, cfg);
       const improved = bandRank(scored.band) > bandRank(r.band);
-      await tx.update(lead).set({ score: scored.score, scoreBand: scored.band, scoreReason: scored.reasons.join("; "), lane }).where(eq(lead.id, r.id));
+      await tx.update(lead).set({
+        score: scored.score, scoreBand: scored.band, scoreReason: scored.reasons.join("; "), lane,
+        scoreFeatures: { reasons: scored.reasons, components: scored.components },
+      }).where(eq(lead.id, r.id));
       if (improved) upgradedCount++;
     }
     return upgradedCount;

@@ -118,30 +118,34 @@ Lane is stored on `lead.lane` and drives which Inngest workflow handles the lead
 
 ## 4. Nightly re-score cron
 
-An Inngest cron (`lead-rescore-daily`) fires at **02:00 UTC** every night. It:
+An Inngest cron (`lead-rescore`) fires nightly at **03:00 America/Phoenix**. Per tenant it:
 
-1. Pages through all `active` leads (not `closed` / `lost`) in batches of 50.
-2. Re-fetches storm data for each property (storm events update continuously).
-3. Re-runs `scoreLead()` with the tenant's current `parseScoringConfig`.
-4. Writes updated `score`, `scoreBand`, `scoreFeatures`, `lane`, `scoredAt`.
+1. Loads all **open** leads (status `new` / `contacted` / `qualified` / `booked` — i.e. not `won` / `lost`) that have property coordinates.
+2. Re-fetches storm data for each property (storm events update continuously); a StormProof failure for one lead is logged and skipped (fail-open).
+3. Re-runs `scoreLead()` + `deriveLane()` with the tenant's current `parseScoringConfig`.
+4. Writes updated `score`, `scoreBand`, `scoreReason`, `scoreFeatures`, `lane`.
+5. Records an `agentRun` audit (`lead.rescore.upgraded`) when any lead's band improved — the band itself lives on the lead row for the UI (there is no per-user push channel yet).
 
-This means band changes surface automatically as storms age out of recency
-windows without any manual trigger.
+This means band changes surface automatically as fresh storms hit (or age out of
+recency windows) without any manual trigger.
 
 ---
 
 ## 5. Dedupe rule
 
-On lead intake, Atlas checks for an existing **active** lead with the same
-tenant that matches either:
+On lead intake (`createLeadForTenant`), Savvy checks for an existing **customer**
+in the same tenant whose contact exactly matches either:
 
-- Exact phone (E.164) — OR —
-- Exact email (lowercased)
+- Exact normalized phone (E.164) — OR —
+- Exact normalized email (lowercased)
 
-If a match is found the new intake is **attached** to the existing lead
-(communications, notes, updated fields) rather than creating a duplicate.
-The operation is non-destructive: existing data is never overwritten, only
-enriched.
+If a customer matches, the new intake **reuses that customer** (the oldest, if
+several match) and reuses one of their properties only when the normalized
+address matches exactly; otherwise a new property is inserted under that
+customer. A **new lead is always created** and linked to the resolved
+customer/property. The operation is strictly non-destructive: existing customer
+and property rows are never updated or deleted. Address-only matches (no
+phone/email match) are **not** deduped, to avoid false merges.
 
 ---
 

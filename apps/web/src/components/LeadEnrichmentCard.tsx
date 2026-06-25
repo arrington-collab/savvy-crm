@@ -10,13 +10,14 @@ export function LeadEnrichmentCard({
   county,
   installRecommendation,
 }: {
-  scoreFeatures: { factors?: Factor[]; baseline?: number } | null;
+  scoreFeatures: { factors?: Factor[]; reasons?: string[]; baseline?: number } | null;
   yearBuilt: number | null;
   roofType: string | null;
   county: string | null;
   installRecommendation: { windRating: string; impactResistance: string; suggestedProducts: string[]; rationale: string } | null;
 }) {
-  const factors = scoreFeatures?.factors ?? [];
+  // New scoring model emits human-readable `reasons`; older leads still carry weighted `factors`.
+  const reasons: string[] = scoreFeatures?.reasons ?? (scoreFeatures?.factors ?? []).map((f) => `${f.label} (+${f.points})`);
 
   return (
     <Card className="p-4 space-y-3" data-testid="lead-enrichment-card">
@@ -27,13 +28,10 @@ export function LeadEnrichmentCard({
           .join(" · ") || "No enrichment yet"}
       </div>
       <ul className="space-y-1">
-        {factors.map((f, i) => (
-          <li key={i} className="flex justify-between text-sm">
-            <span>{f.label}</span>
-            <span className="tabular-nums text-accent-gold">+{f.points}</span>
-          </li>
+        {reasons.map((r, i) => (
+          <li key={i} className="text-sm">{r}</li>
         ))}
-        {factors.length === 0 && (
+        {reasons.length === 0 && (
           <li className="text-sm text-muted-foreground">No factors recorded.</li>
         )}
       </ul>
