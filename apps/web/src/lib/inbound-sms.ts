@@ -1,5 +1,5 @@
 import {
-  withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments,
+  withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
 } from "@savvy/db";
 import { isStopKeyword, isCancelKeyword } from "@savvy/core";
 import { inngest } from "@savvy/agents";
@@ -57,5 +57,14 @@ export async function handleInboundSms(
   try {
     await inngest.send({ name: "drip/stop", data: { tenantId, customerId: c.id, reason } });
   } catch (e) { console.error("inngest.send failed", e); }
+
+  // A customer reply counts as first contact — record it + cancel SLA/cadence.
+  if (reason === "reply") {
+    const leadIds = await withTenant(tenantId, (tx) => markCustomerLeadsContacted(tx, { tenantId, customerId: c.id }));
+    for (const leadId of leadIds) {
+      try { await inngest.send({ name: "lead/contacted", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
+    }
+  }
+
   return { matched: true, stopped: reason };
 }
