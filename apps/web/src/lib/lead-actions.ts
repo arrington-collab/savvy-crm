@@ -1,9 +1,10 @@
 "use server";
-import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost } from "@savvy/db";
+import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted } from "@savvy/db";
 import { leadIntakeSchema } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { createLeadForTenant } from "./intake";
+import { inngest } from "@savvy/agents";
 
 export async function createLead(
   input: unknown,
@@ -57,10 +58,25 @@ export async function markLeadLost(
   const tenantId = await getTenantId();
   try {
     await withTenant(tenantId, (tx) => setLeadLost(tx, { tenantId, leadId }));
+    try { await inngest.send({ name: "lead/disqualified", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/leads");
     return { ok: true };
   } catch {
     return { error: "could not mark lead lost" };
+  }
+}
+
+export async function logLeadContact(leadId: string): Promise<{ ok: true } | { error: string }> {
+  try {
+    const tenantId = await getTenantId();
+    const set = await withTenant(tenantId, (tx) => markLeadContacted(tx, { tenantId, leadId }));
+    if (set) {
+      try { await inngest.send({ name: "lead/contacted", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
+    }
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not log contact" };
   }
 }

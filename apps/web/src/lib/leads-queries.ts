@@ -91,6 +91,7 @@ export type LeadDetail = {
   stormCertStatus: "pending" | "verified" | "none" | "error";
   stormCheckedAt: Date | null;
   stormCertDocumentId: string | null;
+  firstRepContactAt: Date | null;
 };
 
 export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
@@ -122,6 +123,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         stormCertStatus: lead.stormCertStatus,
         stormCheckedAt: lead.stormCheckedAt,
         stormCertDocumentId: lead.stormCertDocumentId,
+        firstRepContactAt: lead.firstRepContactAt,
       })
       .from(lead)
       .leftJoin(customer, eq(customer.id, lead.customerId))
@@ -169,6 +171,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       stormCertStatus: row.stormCertStatus,
       stormCheckedAt: row.stormCheckedAt,
       stormCertDocumentId: row.stormCertDocumentId,
+      firstRepContactAt: row.firstRepContactAt,
     };
   });
 }

@@ -1,10 +1,11 @@
-import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, type LeadFeatures, type ScoringConfig } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, shouldSendChannel, renderTemplate, type LeadFeatures, type ScoringConfig } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
   getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
+  tenant as tenantTbl,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
+import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng, getEmailSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
@@ -37,8 +38,14 @@ export async function hybridScore(
   }
 }
 
-export function buildBookingSms(opts: { name: string; bookingUrl: string }): string {
-  return `Hi ${opts.name}, thanks for reaching out! Book your free roof inspection here: ${opts.bookingUrl}`;
+export function buildAckSms(v: { name: string; bookingUrl: string }): string {
+  return renderTemplate("Hi {{name}}, thanks for reaching out! Book your free roof inspection here: {{bookingUrl}}", v);
+}
+export function buildAckEmail(v: { name: string; bookingUrl: string }): { subject: string; html: string } {
+  return {
+    subject: "Your free roof inspection",
+    html: renderTemplate("<p>Hi {{name}},</p><p>Thanks for reaching out. Book your free roof inspection any time:</p><p><a href=\"{{bookingUrl}}\">{{bookingUrl}}</a></p>", v),
+  };
 }
 
 // Pure, unit-testable property enrichment. `sp` (StormProof gateway) is injectable for tests.
@@ -151,12 +158,6 @@ export async function runLeadAssignment(
   });
 }
 
-// Placeholder business-hours check (per-tenant tz comes in Phase 3). Returns
-// true outside ~8am-6pm UTC. Deterministic, non-critical for Phase 0.
-function isAfterHours(d: Date): boolean {
-  const h = d.getUTCHours();
-  return h < 8 || h >= 18;
-}
 
 export const leadIntake = inngest.createFunction(
   { id: "lead-intake", concurrency: { limit: 5 } },
@@ -195,6 +196,7 @@ export const leadIntake = inngest.createFunction(
         return {
           name: c!.name,
           phone: c!.phone ?? "",
+          customerId: l!.customerId!,
           source: l!.source ?? "web",
           address,
           lat,
@@ -275,27 +277,40 @@ export const leadIntake = inngest.createFunction(
       }
     });
 
-    await step.run("send-sms", async () => {
-      // Email-only leads have no phone — skip the welcome SMS (no send, no comm row).
-      if (!ctx.phone) return { skipped: "no-phone" };
+    await step.run("send-ack", async () => {
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
       const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
-      const body = buildBookingSms({ name: ctx.name, bookingUrl: `${base}/book/${token}` });
-      const sender: SmsSender = sms;
-      let sid = "mock";
-      try {
-        ({ sid } = await sender.sendSms({ to: ctx.phone, from: smsFrom(), body }));
-      } catch {
-        // No Twilio creds in dev/test — log the comm anyway with a mock sid.
+      const bookingUrl = `${base}/book/${token}`;
+      const vars = { name: ctx.name, bookingUrl };
+
+      const cust = await withTenant(tenantId, async (tx) => {
+        const [row] = await tx.select({
+          email: customer.email, smsOptOut: customer.smsOptOut, emailOptOut: customer.emailOptOut, smsConsentAt: customer.smsConsentAt,
+          gmail: tenantTbl.settings,
+        }).from(customer).leftJoin(tenantTbl, eq(tenantTbl.id, customer.tenantId)).where(eq(customer.id, ctx.customerId));
+        return row ?? null;
+      });
+      if (!cust) return { skipped: "no-customer" };
+
+      // SMS ack (transactional — quiet-hours EXEMPT), gated by consent + opt-out.
+      if (ctx.phone && shouldSendChannel("sms", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {
+        let sid = "mock";
+        try { ({ sid } = await (sms as SmsSender).sendSms({ to: ctx.phone, from: smsFrom(), body: buildAckSms(vars) })); } catch { /* dev: no creds */ }
+        await withTenant(tenantId, (tx) => tx.insert(communication).values({
+          tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
+        }));
       }
-      await withTenant(tenantId, (tx) =>
-        tx.insert(communication).values({
-          tenantId, channel: "sms", direction: "outbound", to: ctx.phone, body,
-          twilioSid: sid, aiHandled: isAfterHours(new Date()),
-        }),
-      );
-      return { sid };
+      // Email ack, gated by opt-out.
+      if (cust.email && shouldSendChannel("email", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {
+        const sender = getEmailSender({ gmailConnectionId: null });
+        const { subject, html } = buildAckEmail(vars);
+        try { await sender.sendEmail({ to: cust.email, from: process.env.RESEND_FROM ?? "noreply@savvy.app", subject, html }); } catch { /* dev: no creds */ }
+        await withTenant(tenantId, (tx) => tx.insert(communication).values({
+          tenantId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: cust.email, body: subject, aiHandled: false,
+        }));
+      }
+      return { ok: true };
     });
 
     return { leadId, score: scored.score };

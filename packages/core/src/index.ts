@@ -39,3 +39,4 @@ export * from "./lane";
 export * from "./install-recommendation";
 export * from "./maps";
 export * from "./rep-origin";
+export * from "./lead-followup";

@@ -5,6 +5,7 @@ export { seedJobTasks } from "./lifecycle/seed-job-tasks";
 export { recordStageChange, IncompletePhotosError } from "./lifecycle/record-stage-change";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
+export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/contact";
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, convertLeadToJob, SlotTakenError, NoAssigneeError,

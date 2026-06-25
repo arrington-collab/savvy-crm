@@ -134,6 +134,13 @@
       "when": 1782356122889,
       "tag": "0018_bumpy_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782359200189,
+      "tag": "0019_luxuriant_malice",
+      "breakpoints": true
     }
   ]
 }

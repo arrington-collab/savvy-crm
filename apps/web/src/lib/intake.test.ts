@@ -109,3 +109,104 @@ describe("createLeadForTenant — non-destructive dedupe", () => {
     expect(allCustomers).toHaveLength(3);
   });
 });
+
+describe("createLeadForTenant — sms_consent_at capture", () => {
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({ name: "ConsentTest", clerkOrgId: `org_consent_${Date.now()}` })
+      .returning();
+    tenantId = t!.id;
+  });
+
+  it("sets sms_consent_at when a phone is provided", async () => {
+    await createLeadForTenant(tenantId, {
+      name: "Dave Phone",
+      phone: "+16025551111",
+      address: "10 Phone St, Phoenix AZ 85001",
+      state: "AZ",
+      source: "web",
+    });
+
+    const customers = await withTenant(tenantId, (tx) =>
+      tx.select({ id: customer.id, smsConsentAt: customer.smsConsentAt }).from(customer),
+    );
+    expect(customers).toHaveLength(1);
+    expect(customers[0]!.smsConsentAt).not.toBeNull();
+  });
+
+  it("leaves sms_consent_at null for email-only lead", async () => {
+    await createLeadForTenant(tenantId, {
+      name: "Eve EmailOnly",
+      email: "eve@example.com",
+      address: "20 Email Ave, Phoenix AZ 85001",
+      state: "AZ",
+      source: "web",
+    });
+
+    // Find Eve's customer (no phone match, email match)
+    const allCustomers = await withTenant(tenantId, (tx) =>
+      tx.select({ id: customer.id, smsConsentAt: customer.smsConsentAt }).from(customer),
+    );
+    // Eve is the 2nd customer (Dave is 1st)
+    const eve = allCustomers.find((c) => c.smsConsentAt === null);
+    expect(eve).toBeDefined();
+    expect(eve!.smsConsentAt).toBeNull();
+  });
+
+  it("updates sms_consent_at on reused customer who had no consent", async () => {
+    // Create a customer via email-only first (no consent)
+    await createLeadForTenant(tenantId, {
+      name: "Frank Updatable",
+      email: "frank@example.com",
+      address: "30 Frank Ln, Phoenix AZ 85001",
+      state: "AZ",
+      source: "web",
+    });
+
+    // Now re-submit with same email but add a phone
+    await createLeadForTenant(tenantId, {
+      name: "Frank Updatable",
+      email: "frank@example.com",
+      phone: "+16025552222",
+      address: "40 New Addr, Phoenix AZ 85001",
+      state: "AZ",
+      source: "referral",
+    });
+
+    // Frank's customer should now have smsConsentAt set
+    const allCustomers = await withTenant(tenantId, (tx) =>
+      tx.select({ id: customer.id, smsConsentAt: customer.smsConsentAt, email: customer.email }).from(customer),
+    );
+    const frank = allCustomers.find((c) => c.email === "frank@example.com");
+    expect(frank).toBeDefined();
+    expect(frank!.smsConsentAt).not.toBeNull();
+  });
+
+  it("preserves the earliest sms_consent_at on a reused customer (no overwrite)", async () => {
+    // First submit with a phone records consent at T1.
+    await createLeadForTenant(tenantId, {
+      name: "Gina Consented", phone: "+16025553333", email: "gina@example.com",
+      address: "50 Gina Way, Phoenix AZ 85001", state: "AZ", source: "web",
+    });
+    const after1 = await withTenant(tenantId, (tx) =>
+      tx.select({ smsConsentAt: customer.smsConsentAt, email: customer.email }).from(customer),
+    );
+    const t1 = after1.find((c) => c.email === "gina@example.com")!.smsConsentAt;
+    expect(t1).not.toBeNull();
+
+    // Re-submit with the same phone — consent must NOT be reset/overwritten.
+    await createLeadForTenant(tenantId, {
+      name: "Gina Consented", phone: "+16025553333", email: "gina@example.com",
+      address: "60 Gina Way, Phoenix AZ 85001", state: "AZ", source: "referral",
+    });
+    const after2 = await withTenant(tenantId, (tx) =>
+      tx.select({ smsConsentAt: customer.smsConsentAt, email: customer.email }).from(customer),
+    );
+    const ginas = after2.filter((c) => c.email === "gina@example.com");
+    expect(ginas).toHaveLength(1); // deduped to one customer
+    expect(ginas[0]!.smsConsentAt!.getTime()).toBe(t1!.getTime()); // unchanged
+  });
+});

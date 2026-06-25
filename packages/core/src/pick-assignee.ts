@@ -70,3 +70,9 @@ export function pickAssignee(opts: {
   }
   return null;
 }
+
+// Pick a DIFFERENT owner for SLA escalation: least-recently-assigned among the others.
+export function pickReassignee(candidates: AssignmentCandidate[], currentOwnerId: string | null): string | null {
+  const others = candidates.filter((c) => c.userId !== currentOwnerId);
+  return roundRobin(others);
+}

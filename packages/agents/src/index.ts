@@ -16,6 +16,8 @@ import { coldArchiveDocuments } from "./functions/cold-archive";
 import { changeOrderAccepted } from "./functions/change-order";
 import { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
 import { leadRescore } from "./functions/lead-rescore";
+import { leadSpeedToLead } from "./functions/lead-speed-to-lead";
+import { leadCadence } from "./functions/lead-cadence";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -37,4 +39,6 @@ export { changeOrderAccepted } from "./functions/change-order";
 export { draftChangeOrderScope } from "./functions/change-order-draft";
 export { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
 export { leadRescore } from "./functions/lead-rescore";
-export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore];
+export { leadSpeedToLead } from "./functions/lead-speed-to-lead";
+export { leadCadence } from "./functions/lead-cadence";
+export const functions = [examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence];
