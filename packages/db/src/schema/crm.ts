@@ -12,6 +12,7 @@ export const customer = pgTable("customer", {
   billingAddress: text("billing_address"),
   smsOptOut: boolean("sms_opt_out").default(false).notNull(),
   emailOptOut: boolean("email_opt_out").default(false).notNull(),
+  smsConsentAt: timestamp("sms_consent_at", { withTimezone: true }),
   qboId: text("qbo_id"),
   createdAt: createdAt(),
 }, (t) => [index("customer_tenant_idx").on(t.tenantId), tenantIsolation()]);
@@ -53,6 +54,7 @@ export const lead = pgTable("lead", {
   scoreFeatures: jsonb("score_features"),
   scoreBand: text("score_band"),
   lane: text("lane"),
+  firstRepContactAt: timestamp("first_rep_contact_at", { withTimezone: true }),
   installRecommendation: jsonb("install_recommendation"),
   stormEventId: text("storm_event_id"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),
