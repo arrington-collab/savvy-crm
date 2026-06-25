@@ -184,4 +184,29 @@ describe("createLeadForTenant — sms_consent_at capture", () => {
     expect(frank).toBeDefined();
     expect(frank!.smsConsentAt).not.toBeNull();
   });
+
+  it("preserves the earliest sms_consent_at on a reused customer (no overwrite)", async () => {
+    // First submit with a phone records consent at T1.
+    await createLeadForTenant(tenantId, {
+      name: "Gina Consented", phone: "+16025553333", email: "gina@example.com",
+      address: "50 Gina Way, Phoenix AZ 85001", state: "AZ", source: "web",
+    });
+    const after1 = await withTenant(tenantId, (tx) =>
+      tx.select({ smsConsentAt: customer.smsConsentAt, email: customer.email }).from(customer),
+    );
+    const t1 = after1.find((c) => c.email === "gina@example.com")!.smsConsentAt;
+    expect(t1).not.toBeNull();
+
+    // Re-submit with the same phone — consent must NOT be reset/overwritten.
+    await createLeadForTenant(tenantId, {
+      name: "Gina Consented", phone: "+16025553333", email: "gina@example.com",
+      address: "60 Gina Way, Phoenix AZ 85001", state: "AZ", source: "referral",
+    });
+    const after2 = await withTenant(tenantId, (tx) =>
+      tx.select({ smsConsentAt: customer.smsConsentAt, email: customer.email }).from(customer),
+    );
+    const ginas = after2.filter((c) => c.email === "gina@example.com");
+    expect(ginas).toHaveLength(1); // deduped to one customer
+    expect(ginas[0]!.smsConsentAt!.getTime()).toBe(t1!.getTime()); // unchanged
+  });
 });
