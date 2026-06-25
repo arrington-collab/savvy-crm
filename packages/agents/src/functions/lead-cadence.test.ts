@@ -54,8 +54,8 @@ describe("leadCadence — cadence stop on contacted", () => {
     expect(stopped).toBe(false);
   });
 
-  it("stopped when status is disqualified (not in OPEN)", () => {
-    const row = { contacted: null, status: "disqualified" };
+  it("stopped when status is lost (terminal, not in OPEN)", () => {
+    const row = { contacted: null, status: "lost" }; // "lost" is the real terminal status (no "disqualified" enum value)
     const stopped = row.contacted != null || !OPEN.includes(row.status);
     expect(stopped).toBe(true);
   });

@@ -4,8 +4,9 @@ export type SpeedToLeadConfig = { firstTouchSlaMin: number; escalateMin: number 
 export type CadenceTouch = { dayOffset: number; hourOffset: number; channel: "sms" | "email" };
 export type LeadCadenceConfig = { steps: CadenceTouch[]; quietHours: { startHour: number; endHour: number } };
 
+// The intake ack SMS owns t=0 (Day-0 touch #1); the cadence covers the rest.
+// "Day 0×2" = ack (t=0) + the +4h email below; no duplicate t=0 SMS.
 export const DEFAULT_CADENCE: CadenceTouch[] = [
-  { dayOffset: 0, hourOffset: 0, channel: "sms" },
   { dayOffset: 0, hourOffset: 4, channel: "email" },
   { dayOffset: 1, hourOffset: 0, channel: "sms" },
   { dayOffset: 3, hourOffset: 0, channel: "email" },

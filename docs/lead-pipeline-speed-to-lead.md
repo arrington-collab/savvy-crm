@@ -33,19 +33,18 @@ The `lead/contact-overdue` event is emitted by the `lead-speed-to-lead` Inngest 
 
 ## 3. Follow-up Cadence
 
-After the ack, Savvy schedules a drip sequence. Steps run relative to lead creation time, offset by `dayOffset` days + `hourOffset` hours, subject to quiet-hours.
+After the ack, Savvy schedules a drip sequence. Steps run relative to lead creation time, offset by `dayOffset` days + `hourOffset` hours, subject to quiet-hours. The **ack SMS owns t=0** (it is the first Day-0 touch), so the cadence does NOT fire a second SMS at t=0 — its first step is the +4h email. "Day 0×2" = ack (t=0) + the +4h email.
 
 ### Default schedule (from `packages/core/src/lead-followup.ts`)
 
 | Step | Day | Hour offset | Channel |
 |------|-----|-------------|---------|
-| 1 | 0 | +0 h | SMS |
-| 2 | 0 | +4 h | email |
-| 3 | 1 | +0 h | SMS |
-| 4 | 3 | +0 h | email |
-| 5 | 5 | +0 h | SMS |
-| 6 | 7 | +0 h | email |
-| 7 | 14 | +0 h | SMS |
+| 1 | 0 | +4 h | email |
+| 2 | 1 | +0 h | SMS |
+| 3 | 3 | +0 h | email |
+| 4 | 5 | +0 h | SMS |
+| 5 | 7 | +0 h | email |
+| 6 | 14 | +0 h | SMS |
 
 Cadence stops automatically when `lead/contacted` or `lead/disqualified` is received (see section 5).
 
@@ -74,7 +73,6 @@ All values are stored on `tenant.settings` (JSONB). Savvy reads them at workflow
 ```json
 {
   "steps": [
-    { "dayOffset": 0, "hourOffset": 0, "channel": "sms" },
     { "dayOffset": 0, "hourOffset": 4, "channel": "email" },
     { "dayOffset": 1, "hourOffset": 0, "channel": "sms" },
     { "dayOffset": 3, "hourOffset": 0, "channel": "email" },

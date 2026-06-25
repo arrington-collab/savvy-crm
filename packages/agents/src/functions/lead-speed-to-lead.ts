@@ -2,13 +2,22 @@ import { adminDb, withTenant, lead, tenant, eq, getAssignmentCandidates, setLead
 import { parseSpeedToLeadConfig, pickReassignee } from "@savvy/core";
 import { inngest } from "../client";
 
+// Open (non-terminal) lead statuses — a lost/won lead is never escalated or reassigned.
+const OPEN: string[] = ["new", "contacted", "qualified", "booked"];
+
 async function loadSla(tenantId: string): Promise<{ firstTouchSlaMin: number; escalateMin: number }> {
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
   return parseSpeedToLeadConfig((t?.settings as { speedToLead?: unknown } | null)?.speedToLead);
 }
 
 export const leadSpeedToLead = inngest.createFunction(
-  { id: "lead-speed-to-lead", concurrency: { limit: 10 }, cancelOn: [{ event: "lead/contacted", match: "data.leadId" }] },
+  {
+    id: "lead-speed-to-lead", concurrency: { limit: 10 },
+    cancelOn: [
+      { event: "lead/contacted", match: "data.leadId" },
+      { event: "lead/disqualified", match: "data.leadId" },
+    ],
+  },
   { event: "lead/created" },
   async ({ event, step }) => {
     const { leadId, tenantId } = event.data;
@@ -17,8 +26,8 @@ export const leadSpeedToLead = inngest.createFunction(
     await step.sleep("first-touch-sla", `${cfg.firstTouchSlaMin}m`);
     const overdue = await step.run("check-overdue", async () =>
       withTenant(tenantId, async (tx) => {
-        const [l] = await tx.select({ contacted: lead.firstRepContactAt, owner: lead.assignedUserId }).from(lead).where(eq(lead.id, leadId));
-        return l && l.contacted == null && l.owner != null ? { owner: l.owner } : null;
+        const [l] = await tx.select({ contacted: lead.firstRepContactAt, owner: lead.assignedUserId, status: lead.status }).from(lead).where(eq(lead.id, leadId));
+        return l && l.contacted == null && l.owner != null && OPEN.includes(l.status) ? { owner: l.owner } : null;
       }),
     );
     if (!overdue) return { status: "contacted-or-unassigned" };
@@ -33,8 +42,8 @@ export const leadSpeedToLead = inngest.createFunction(
     await step.sleep("escalate-window", `${Math.max(1, cfg.escalateMin - cfg.firstTouchSlaMin)}m`);
     const stillOpen = await step.run("check-escalate", async () =>
       withTenant(tenantId, async (tx) => {
-        const [l] = await tx.select({ contacted: lead.firstRepContactAt, owner: lead.assignedUserId }).from(lead).where(eq(lead.id, leadId));
-        return l && l.contacted == null ? { owner: l.owner } : null;
+        const [l] = await tx.select({ contacted: lead.firstRepContactAt, owner: lead.assignedUserId, status: lead.status }).from(lead).where(eq(lead.id, leadId));
+        return l && l.contacted == null && OPEN.includes(l.status) ? { owner: l.owner } : null;
       }),
     );
     if (!stillOpen) return { status: "contacted-after-overdue" };
