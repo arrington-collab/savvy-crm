@@ -36,3 +36,14 @@ export function formatCountyLabel(county: string | null | undefined): string | n
   if (!c) return null;
   return /county$/i.test(c) ? c : `${c} County`;
 }
+
+// Canonical form for duplicate matching: lowercase, drop punctuation, collapse whitespace.
+export function normalizeAddress(addr: string | null | undefined): string {
+  if (!addr) return "";
+  return addr
+    .toLowerCase()
+    .replace(/[.,#]/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}

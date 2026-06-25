@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityFromAddress, formatCountyLabel } from "./address.js";
+import { parseCityFromAddress, formatCountyLabel, normalizeAddress } from "./address.js";
 
 describe("parseCityFromAddress", () => {
   it("extracts the city before STATE ZIP", () => {
@@ -42,5 +42,18 @@ describe("formatCountyLabel", () => {
     expect(formatCountyLabel(null)).toBeNull();
     expect(formatCountyLabel("")).toBeNull();
     expect(formatCountyLabel("   ")).toBeNull();
+  });
+});
+
+describe("normalizeAddress", () => {
+  it("lowercases, strips punctuation, and collapses whitespace", () => {
+    expect(normalizeAddress("123 Main St., Mesa, AZ  85201")).toBe("123 main st mesa az 85201");
+  });
+  it("treats casing/spacing variants as equal", () => {
+    expect(normalizeAddress("123  MAIN st")).toBe(normalizeAddress("123 Main St"));
+  });
+  it("returns empty string for null/undefined", () => {
+    expect(normalizeAddress(null)).toBe("");
+    expect(normalizeAddress(undefined)).toBe("");
   });
 });
