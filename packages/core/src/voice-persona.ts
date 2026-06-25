@@ -2,6 +2,9 @@
 // Lives in @savvy/core so packages/integrations can import the AssistantOverrides
 // type (correct dependency direction: integrations -> core).
 
+import { isWithinQuietHours } from "./quiet-hours";
+import { shouldSendChannel } from "./lead-followup";
+
 export type VoiceToolDef = {
   type: "function";
   function: {
@@ -99,4 +102,29 @@ export function parseVoiceOutcome(raw: string | null | undefined): VoiceOutcome 
   if (!raw) return null;
   const v = raw.trim().toLowerCase();
   return (VOICE_OUTCOMES as readonly string[]).includes(v) ? (v as VoiceOutcome) : null;
+}
+
+const VOICE_OPEN_STATUSES = ["new", "contacted", "qualified", "booked"];
+
+export type VoiceGuardInput = {
+  status: string;
+  firstRepContactAt: Date | null;
+  phone: string | null;
+  smsOptOut: boolean;
+  emailOptOut: boolean;
+  smsConsentAt: Date | null;
+  now: Date;
+  tz: string;
+  quietHours: { startHour: number; endHour: number };
+};
+
+export function shouldPlaceVoiceCall(i: VoiceGuardInput): { ok: true } | { ok: false; reason: string } {
+  if (!VOICE_OPEN_STATUSES.includes(i.status)) return { ok: false, reason: "closed" };
+  if (i.firstRepContactAt != null) return { ok: false, reason: "contacted" };
+  if (!i.phone) return { ok: false, reason: "no-phone" };
+  // SMS-grade consent stands in for call consent/DNC (we have no separate voice-consent column).
+  if (!shouldSendChannel("sms", { smsOptOut: i.smsOptOut, emailOptOut: i.emailOptOut, smsConsentAt: i.smsConsentAt }))
+    return { ok: false, reason: "no-consent" };
+  if (isWithinQuietHours(i.now, i.tz, i.quietHours)) return { ok: false, reason: "quiet-hours" };
+  return { ok: true };
 }

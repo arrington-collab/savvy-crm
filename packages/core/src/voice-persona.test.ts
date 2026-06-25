@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAssistantOverrides, type VoiceLeadContext, parseVoiceOutcome } from "./voice-persona";
+import { buildAssistantOverrides, type VoiceLeadContext, parseVoiceOutcome, shouldPlaceVoiceCall } from "./voice-persona";
 
 const baseCtx: VoiceLeadContext = {
   tenantName: "Acme Roofing",
@@ -69,5 +69,43 @@ describe("parseVoiceOutcome", () => {
     expect(parseVoiceOutcome("")).toBeNull();
     expect(parseVoiceOutcome(null)).toBeNull();
     expect(parseVoiceOutcome(undefined)).toBeNull();
+  });
+});
+
+const guardBase = {
+  status: "new",
+  firstRepContactAt: null as Date | null,
+  phone: "+16025551234",
+  smsOptOut: false,
+  emailOptOut: false,
+  smsConsentAt: new Date("2026-06-01T00:00:00Z"),
+  // 2026-06-24 19:00 UTC = 12:00 in America/Phoenix (UTC-7) — outside 21–8 quiet hours
+  now: new Date("2026-06-24T19:00:00Z"),
+  tz: "America/Phoenix",
+  quietHours: { startHour: 21, endHour: 8 },
+};
+
+describe("shouldPlaceVoiceCall", () => {
+  it("allows an open, uncontacted, consented lead during business hours", () => {
+    expect(shouldPlaceVoiceCall(guardBase)).toEqual({ ok: true });
+  });
+  it("skips a closed/terminal lead", () => {
+    expect(shouldPlaceVoiceCall({ ...guardBase, status: "lost" })).toEqual({ ok: false, reason: "closed" });
+    expect(shouldPlaceVoiceCall({ ...guardBase, status: "won" })).toEqual({ ok: false, reason: "closed" });
+  });
+  it("skips an already-contacted lead", () => {
+    expect(shouldPlaceVoiceCall({ ...guardBase, firstRepContactAt: new Date() })).toEqual({ ok: false, reason: "contacted" });
+  });
+  it("skips when there is no phone", () => {
+    expect(shouldPlaceVoiceCall({ ...guardBase, phone: null })).toEqual({ ok: false, reason: "no-phone" });
+  });
+  it("skips when consent is missing or opted out", () => {
+    expect(shouldPlaceVoiceCall({ ...guardBase, smsConsentAt: null })).toEqual({ ok: false, reason: "no-consent" });
+    expect(shouldPlaceVoiceCall({ ...guardBase, smsOptOut: true })).toEqual({ ok: false, reason: "no-consent" });
+  });
+  it("skips inside quiet hours (2am Phoenix)", () => {
+    // 2026-06-24 09:00 UTC = 02:00 America/Phoenix — inside 21–8 quiet window
+    const quiet = { ...guardBase, now: new Date("2026-06-24T09:00:00Z") };
+    expect(shouldPlaceVoiceCall(quiet)).toEqual({ ok: false, reason: "quiet-hours" });
   });
 });
