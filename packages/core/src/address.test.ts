@@ -56,4 +56,7 @@ describe("normalizeAddress", () => {
     expect(normalizeAddress(null)).toBe("");
     expect(normalizeAddress(undefined)).toBe("");
   });
+  it("Unicode-folds accented characters to ASCII (e.g. Cañon → canon)", () => {
+    expect(normalizeAddress("Cañon Rd")).toContain("canon");
+  });
 });
