@@ -23,8 +23,12 @@ export const leadSpeedToLead = inngest.createFunction(
     );
     if (!overdue) return { status: "contacted-or-unassigned" };
 
-    try { await inngest.send({ name: "lead/contact-overdue", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
-    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.overdue", status: "ok" });
+    // Emit + audit inside a memoized step so a downstream retry can't double-fire (idempotency).
+    await step.run("emit-overdue", async () => {
+      await inngest.send({ name: "lead/contact-overdue", data: { leadId, tenantId } });
+      await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.overdue", status: "ok" });
+      return { emitted: true };
+    });
 
     await step.sleep("escalate-window", `${Math.max(1, cfg.escalateMin - cfg.firstTouchSlaMin)}m`);
     const stillOpen = await step.run("check-escalate", async () =>
@@ -35,16 +39,18 @@ export const leadSpeedToLead = inngest.createFunction(
     );
     if (!stillOpen) return { status: "contacted-after-overdue" };
 
-    const reassigned = await step.run("reassign", async () =>
-      withTenant(tenantId, async (tx) => {
+    const reassigned = await step.run("reassign", async () => {
+      const next = await withTenant(tenantId, async (tx) => {
         const candidates = await getAssignmentCandidates(tx, tenantId);
-        const next = pickReassignee(candidates, stillOpen.owner);
-        if (!next) return null;
-        await setLeadOwner(tx, { tenantId, leadId, userId: next });
-        return next;
-      }),
-    );
-    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.escalated", status: reassigned ? "ok" : "skipped", error: reassigned ? null : "no-candidate" });
+        const picked = pickReassignee(candidates, stillOpen.owner);
+        if (!picked) return null;
+        await setLeadOwner(tx, { tenantId, leadId, userId: picked });
+        return picked;
+      });
+      // Audit inside the same step so it's memoized with the reassign decision.
+      await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.escalated", status: next ? "ok" : "skipped", error: next ? null : "no-candidate" });
+      return next;
+    });
     return { status: "escalated", reassigned };
   },
 );
