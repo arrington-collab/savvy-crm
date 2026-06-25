@@ -51,6 +51,8 @@ export const lead = pgTable("lead", {
   score: integer("score"),
   scoreReason: text("score_reason"),
   scoreFeatures: jsonb("score_features"),
+  scoreBand: text("score_band"),
+  lane: text("lane"),
   installRecommendation: jsonb("install_recommendation"),
   stormEventId: text("storm_event_id"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),

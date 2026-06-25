@@ -127,6 +127,13 @@
       "when": 1782352176186,
       "tag": "0017_chunky_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782356122889,
+      "tag": "0018_bumpy_clea",
+      "breakpoints": true
     }
   ]
 }
