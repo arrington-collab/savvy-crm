@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or } from "@savvy/db";
+import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or, sql } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { parseCityFromAddress, normalizeAddress } from "@savvy/core";
 import type { LeadIntakeInput } from "@savvy/core";
@@ -23,16 +23,20 @@ export async function createLeadForTenant(tenantId: string, input: LeadIntakeInp
     const conds = [] as ReturnType<typeof eq>[];
     if (input.phone) conds.push(eq(customer.phone, input.phone));
     if (input.email) conds.push(eq(customer.email, input.email));
-    let existing: { id: string; createdAt: Date } | undefined;
+    let existing: { id: string; createdAt: Date; smsConsentAt: Date | null } | undefined;
     if (conds.length) {
-      const matches = await tx.select({ id: customer.id, createdAt: customer.createdAt }).from(customer)
+      const matches = await tx.select({ id: customer.id, createdAt: customer.createdAt, smsConsentAt: customer.smsConsentAt }).from(customer)
         .where(and(eq(customer.tenantId, tenantId), conds.length === 1 ? conds[0] : or(...conds)));
       existing = matches.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0]; // oldest, deterministic
     }
 
     const c = existing ?? (await tx.insert(customer)
-      .values({ tenantId, name: input.name, phone: input.phone ?? null, email: input.email ?? null })
+      .values({ tenantId, name: input.name, phone: input.phone ?? null, email: input.email ?? null,
+                smsConsentAt: input.phone ? sql`now()` : null })
       .returning())[0]!;
+    if (existing && input.phone && existing.smsConsentAt == null) {
+      await tx.update(customer).set({ smsConsentAt: sql`now()` }).where(eq(customer.id, c.id));
+    }
 
     // Reuse the customer's property only on an exact normalized-address match; else insert.
     let propertyId: string | undefined;
