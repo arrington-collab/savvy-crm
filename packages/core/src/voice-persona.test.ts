@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAssistantOverrides, type VoiceLeadContext } from "./voice-persona";
+import { buildAssistantOverrides, type VoiceLeadContext, parseVoiceOutcome } from "./voice-persona";
 
 const baseCtx: VoiceLeadContext = {
   tenantName: "Acme Roofing",
@@ -49,5 +49,25 @@ describe("buildAssistantOverrides", () => {
   it("passes leadId + tenantId through variableValues for the webhook to read", () => {
     const o = buildAssistantOverrides(baseCtx);
     expect(o.variableValues).toMatchObject({ leadId: "lead-1", tenantId: "tenant-1" });
+  });
+});
+
+describe("parseVoiceOutcome", () => {
+  it("maps each known Vapi outcome string to the enum", () => {
+    expect(parseVoiceOutcome("booked")).toBe("booked");
+    expect(parseVoiceOutcome("no_answer")).toBe("no_answer");
+    expect(parseVoiceOutcome("callback")).toBe("callback");
+    expect(parseVoiceOutcome("dnc")).toBe("dnc");
+    expect(parseVoiceOutcome("needs_human")).toBe("needs_human");
+  });
+  it("is case/whitespace tolerant", () => {
+    expect(parseVoiceOutcome("  Booked ")).toBe("booked");
+    expect(parseVoiceOutcome("NO_ANSWER")).toBe("no_answer");
+  });
+  it("returns null for unknown, empty, null, or undefined", () => {
+    expect(parseVoiceOutcome("voicemail")).toBeNull();
+    expect(parseVoiceOutcome("")).toBeNull();
+    expect(parseVoiceOutcome(null)).toBeNull();
+    expect(parseVoiceOutcome(undefined)).toBeNull();
   });
 });

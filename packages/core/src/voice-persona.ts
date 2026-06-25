@@ -90,3 +90,13 @@ export function buildAssistantOverrides(ctx: VoiceLeadContext): AssistantOverrid
     variableValues: { leadId: ctx.leadId, tenantId: ctx.tenantId },
   };
 }
+
+export type VoiceOutcome = "booked" | "no_answer" | "callback" | "dnc" | "needs_human";
+
+const VOICE_OUTCOMES: readonly VoiceOutcome[] = ["booked", "no_answer", "callback", "dnc", "needs_human"];
+
+export function parseVoiceOutcome(raw: string | null | undefined): VoiceOutcome | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  return (VOICE_OUTCOMES as readonly string[]).includes(v) ? (v as VoiceOutcome) : null;
+}
