@@ -37,3 +37,4 @@ export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifec
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
 export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, type DbAssignmentCandidate } from "./lifecycle/assignment";
+export { bookLeadSlot } from "./lifecycle/booking";
