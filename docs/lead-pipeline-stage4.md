@@ -102,10 +102,12 @@ getRecommendedSlots(
     "slotMinutes": 60,              // slot duration
     "bookingHorizonDays": 14,       // how far ahead to offer slots
     "driveTime": {
-      // Drive-time ranking weights (passed to rankSlots).
-      // Defaults: weight 1.0, cap 60 min. Tune to taste.
-      "weight": 1.0,
-      "capMinutes": 60
+      // Ranking weights (passed to rankSlots). Slot score =
+      // (wSoon*soonest + wDrive*proximity + wCluster*clustering), renormalized.
+      "wSoon": 0.5,        // weight on the soonest-feasible slot
+      "wDrive": 0.3,       // weight on drive-time proximity (dropped when drive-time unknown)
+      "wCluster": 0.2,     // weight on same-day clustering with the rep's existing jobs
+      "driveHalfMin": 20   // minutes at which the drive-time score is 0.5
     }
   }
 }

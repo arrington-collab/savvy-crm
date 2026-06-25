@@ -46,7 +46,7 @@ export async function getRecommendedSlots(
   }).slice(0, 12);
 
   // Rep base + tenant office for the origin fallback chain.
-  const [u] = await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(eq(user.id, l.assignedUserId));
+  const [u] = await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(and(eq(user.id, l.assignedUserId), eq(user.tenantId, l.tenantId)));
   const repBase: LatLng | null = u?.baseLat != null && u?.baseLng != null ? { lat: Number(u.baseLat), lng: Number(u.baseLng) } : null;
   const officeRaw = (t?.settings as { scheduling?: { office?: { lat?: number; lng?: number } } } | null)?.scheduling?.office;
   const tenantOffice: LatLng | null = officeRaw && typeof officeRaw.lat === "number" && typeof officeRaw.lng === "number" ? { lat: officeRaw.lat, lng: officeRaw.lng } : null;
