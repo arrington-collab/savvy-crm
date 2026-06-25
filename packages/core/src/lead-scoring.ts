@@ -73,10 +73,10 @@ function recencyFactor(daysSinceWorst: number | null): number {
   if (daysSinceWorst == null) return 0.5; // storm present but undated → neutral
   const months = daysSinceWorst / 30.44;
   if (months <= 6) return 1.0;
-  if (months <= 9) return 0.85;
-  if (months <= 12) return 0.55;
-  if (months <= 15) return 0.3;
-  return 0; // >~15 months (500+ days) → no meaningful recency
+  if (months <= 12) return 0.85;
+  if (months <= 18) return 0.55;
+  if (months <= 24) return 0.3;
+  return 0; // >24 months → no meaningful recency (per product spec)
 }
 
 // 0..1 storm exposure: max(severity)·recency, +bump for repeat events, capped.

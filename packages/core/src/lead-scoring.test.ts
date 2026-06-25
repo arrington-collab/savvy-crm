@@ -16,9 +16,14 @@ describe("stormSubScore", () => {
   });
   it("recency tiers reduce the score", () => {
     const recent = stormSubScore({ eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 30 }, cfg);
-    const old = stormSubScore({ eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 500 }, cfg);
+    const old = stormSubScore({ eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 800 }, cfg);
     expect(old).toBeLessThan(recent);
-    expect(old).toBe(0); // >24 months => factor 0
+    expect(old).toBe(0); // 800 days ≈ 26 months => >24 months => factor 0
+  });
+  it("keeps a storm in the 18–24 month window at the spec's 0.30 factor (not zero)", () => {
+    // 610 days ≈ 20 months → recency 0.30; severe hail base 1.0 → sub-score 0.30
+    const s = stormSubScore({ eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 610 }, cfg);
+    expect(s).toBeCloseTo(0.3, 5);
   });
   it("hail size thresholds step down (1.5 vs 1.0 vs 0.75)", () => {
     const big = stormSubScore({ eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 30 }, cfg);
