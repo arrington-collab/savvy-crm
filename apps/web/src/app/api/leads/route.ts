@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { leadIntakeSchema, z } from "@savvy/core";
+import { leadIntakeObject, hasContactMethod, contactMethodIssue, z } from "@savvy/core";
 import { createLeadForTenant, tenantByKey } from "@/lib/intake";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
-const bodySchema = leadIntakeSchema.extend({ key: z.string().min(1) });
+const bodySchema = leadIntakeObject
+  .extend({ key: z.string().min(1) })
+  .refine(hasContactMethod, contactMethodIssue);
 
 export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json());

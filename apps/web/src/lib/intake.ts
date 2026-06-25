@@ -19,7 +19,10 @@ export async function tenantByPhone(phone: string) {
  */
 export async function createLeadForTenant(tenantId: string, input: LeadIntakeInput): Promise<string> {
   const leadId = await withTenant(tenantId, async (tx) => {
-    const [c] = await tx.insert(customer).values({ tenantId, name: input.name, phone: input.phone }).returning();
+    const [c] = await tx
+      .insert(customer)
+      .values({ tenantId, name: input.name, phone: input.phone ?? null, email: input.email ?? null })
+      .returning();
     const [p] = await tx.insert(property).values({
       tenantId,
       customerId: c!.id,

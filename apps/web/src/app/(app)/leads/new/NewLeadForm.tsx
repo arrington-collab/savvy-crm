@@ -25,6 +25,8 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
   const [pending, start] = useTransition();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [formError, setFormError] = useState("");
   const [address, setAddress] = useState("");
   const [parts, setParts] = useState<Partial<ParsedAddress>>({});
   const [source, setSource] = useState("referral");
@@ -42,9 +44,14 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!phone.trim() && !email.trim()) {
+      setFormError("Add a phone or email");
+      return;
+    }
+    setFormError("");
     start(async () => {
       const res = await createLead({
-        name, phone, address, source,
+        name, phone, email, address, source,
         line1: parts.line1, city: parts.city, state: parts.state, zip: parts.zip,
         county: parts.county, lat: parts.lat, lng: parts.lng,
         roofType: roofType || undefined,
@@ -66,8 +73,16 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
         <div className="space-y-1.5">
           <Label htmlFor="phone">Phone</Label>
           <Input id="phone" name="phone" value={phone} onChange={(e) => onPhoneChange(e.target.value)}
-                 placeholder="(480) 555-1234" required />
+                 placeholder="(480) 555-1234" />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" name="email" type="email" value={email}
+                 onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
+        </div>
+        {formError && (
+          <p className="text-sm text-destructive" data-testid="new-lead-error">{formError}</p>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="address">Property address</Label>
           <AddressAutocomplete value={address} onChange={setAddress} onPick={onPick} />
