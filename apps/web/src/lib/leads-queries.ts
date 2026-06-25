@@ -65,8 +65,9 @@ export type LeadDetail = {
   id: string;
   status: string;
   score: number | null;
+  scoreBand: string | null;
   scoreReason: string | null;
-  scoreFeatures: { factors?: ScoreFactor[]; baseline?: number } | null;
+  scoreFeatures: { factors?: ScoreFactor[]; baseline?: number; reasons?: string[] } | null;
   installRecommendation: {
     windRating: string;
     impactResistance: string;
@@ -100,6 +101,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         id: lead.id,
         status: lead.status,
         score: lead.score,
+        scoreBand: lead.scoreBand,
         scoreReason: lead.scoreReason,
         scoreFeatures: lead.scoreFeatures,
         installRecommendation: lead.installRecommendation,
@@ -146,6 +148,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       id: row.id,
       status: row.status,
       score: row.score,
+      scoreBand: row.scoreBand,
       scoreReason: row.scoreReason,
       scoreFeatures: row.scoreFeatures as LeadDetail["scoreFeatures"],
       installRecommendation: row.installRecommendation as LeadDetail["installRecommendation"],

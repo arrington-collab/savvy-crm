@@ -38,12 +38,30 @@ export default async function LeadDetailPage({
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-4">
           <div className="eyebrow mb-1">AI score · ATLAS</div>
-          <div className="text-3xl font-semibold" style={{ color: "var(--text-primary)" }} data-testid="lead-score">
-            {detail.score ?? "—"}
+          <div className="flex items-center gap-2">
+            <div className="text-3xl font-semibold" style={{ color: "var(--text-primary)" }} data-testid="lead-score">
+              {detail.score ?? "—"}
+            </div>
+            {detail.scoreBand && (
+              <span
+                data-testid="lead-band"
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+              >
+                {detail.scoreBand}
+              </span>
+            )}
           </div>
           <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
             {detail.scoreReason ?? "Not yet qualified."}
           </p>
+          {Array.isArray(detail.scoreFeatures?.reasons) && (
+            <ul className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              {detail.scoreFeatures.reasons.map((r, i) => (
+                <li key={i}>• {r}</li>
+              ))}
+            </ul>
+          )}
         </Card>
         <Card className="p-4">
           <div className="eyebrow mb-1">Contact</div>
