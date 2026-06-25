@@ -94,6 +94,11 @@ export async function getRepSameDayAppts(
   return out;
 }
 
+export async function getScoringSettings(tenantId: string): Promise<unknown> {
+  const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
+  return (t?.settings as { scoring?: unknown } | null)?.scoring ?? null;
+}
+
 // Tenant office origin from settings.scheduling.office (jsonb), if configured.
 export async function getSchedulingOffice(tenantId: string): Promise<{ lat: number; lng: number } | null> {
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));

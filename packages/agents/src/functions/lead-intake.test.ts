@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { hybridScore, buildBookingSms, enrichProperty, runLeadAssignment } from "./lead-intake";
-import { buildLeadFeatures } from "@savvy/core";
+import { buildLeadFeatures, parseScoringConfig } from "@savvy/core";
 import { makeFakeStormProof } from "@savvy/integrations";
-import { adminDb, withTenant, tenant, user, customer, lead, property, saveAssignmentConfig } from "@savvy/db";
+import { adminDb, withTenant, tenant, user, customer, lead, property, saveAssignmentConfig, eq } from "@savvy/db";
 
 describe("lead.intake pure steps", () => {
   it("buildBookingSms includes the booking link and name", () => {
@@ -13,25 +13,29 @@ describe("lead.intake pure steps", () => {
 });
 
 describe("hybridScore", () => {
+  const defaultCfg = parseScoringConfig(null);
+
   it("stays within ±10 of baseline and returns a reason", async () => {
     const features = buildLeadFeatures({ source: "referral", state: "AZ", phone: "+14805551234",
       roofType: "tile", yearBuilt: 2004, storm: { eventCount: 1, maxHailInches: 1.5, maxWindMph: 0, daysSinceWorst: 5 } });
     const fakeAi = { completeObject: async () => ({ object: { score: 999, reason: "Referral + recent hail" }, model: "fake" }) };
-    const r = await hybridScore(features, fakeAi as any);
+    const r = await hybridScore(features, defaultCfg, fakeAi as any);
     expect(r.reason).toContain("hail");
     expect(Math.abs(r.score - r.baseline)).toBeLessThanOrEqual(10);
-    expect(r.factors.length).toBeGreaterThan(0);
+    expect(r.band).toBeDefined();
+    expect(r.reasons.length).toBeGreaterThan(0);
   });
 
   it("falls back to the deterministic baseline when the AI call fails", async () => {
     const features = buildLeadFeatures({ source: "referral", state: "AZ", phone: "+14805551234",
       roofType: "asphalt_shingle", yearBuilt: 1968, storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null } });
     const throwingAi = { completeObject: async () => { throw new Error("credit balance too low"); } };
-    const r = await hybridScore(features, throwingAi as any);
+    const r = await hybridScore(features, defaultCfg, throwingAi as any);
     // AI outage must NOT crash scoring — return the deterministic baseline as-is.
     expect(r.score).toBe(r.baseline);
     expect(r.score).toBeGreaterThan(0);
-    expect(r.factors.length).toBeGreaterThan(0);
+    expect(r.band).toBeDefined();
+    expect(r.reasons.length).toBeGreaterThan(0);
     expect(r.reason.length).toBeGreaterThan(0);
   });
 });
@@ -138,5 +142,59 @@ describe("runLeadAssignment — proximity strategy (DB-backed)", () => {
     const r = await runLeadAssignment(tenantId, leadId, { state: "AZ", city: "Phoenix" });
     expect(r.assigned).toBe(repNear);
     expect(r.reason).toBe("assigned");
+  });
+});
+
+// CI-gated: requires Postgres. Verifies that scoreBand + lane columns round-trip correctly.
+describe("scoreBand + lane — DB-backed persist check", () => {
+  let tenantId: string;
+  let leadId: string;
+
+  beforeAll(async () => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({ name: "ScoreBandTest", clerkOrgId: `org_sb_${Date.now()}` })
+      .returning();
+    tenantId = t!.id;
+
+    await withTenant(tenantId, async (tx) => {
+      const [c] = await tx.insert(customer).values({ tenantId, name: "Score Test Cust" }).returning();
+      const [p] = await tx
+        .insert(property)
+        .values({
+          tenantId, customerId: c!.id, address: "200 Storm Ave, Phoenix AZ 85001",
+          state: "AZ", lat: 33.4, lng: -112.0, roofType: "asphalt_shingle", yearBuilt: 2001,
+        })
+        .returning();
+      const [l] = await tx
+        .insert(lead)
+        .values({ tenantId, customerId: c!.id, propertyId: p!.id, status: "new" })
+        .returning();
+      leadId = l!.id;
+    });
+  });
+
+  it("persists a non-null scoreBand and a valid lane after write then read", async () => {
+    const cfg = parseScoringConfig(null);
+    const features = buildLeadFeatures({
+      source: "web", state: "AZ",
+      roofType: "asphalt_shingle", yearBuilt: 2001,
+      storm: { eventCount: 3, maxHailInches: 1.75, maxWindMph: 55, daysSinceWorst: 10 },
+    });
+    // Use the deterministic scorer directly (no AI call needed)
+    const { scoreLead: sl, deriveLane: dl } = await import("@savvy/core");
+    const scored = sl(features, cfg);
+    const lane = dl(features, cfg);
+
+    await withTenant(tenantId, (tx) =>
+      tx.update(lead).set({ scoreBand: scored.band, lane }).where(eq(lead.id, leadId)),
+    );
+
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select({ scoreBand: lead.scoreBand, lane: lead.lane }).from(lead).where(eq(lead.id, leadId)),
+    );
+
+    expect(row?.scoreBand).not.toBeNull();
+    expect(["storm", "tile", "standard"]).toContain(row?.lane);
   });
 });
