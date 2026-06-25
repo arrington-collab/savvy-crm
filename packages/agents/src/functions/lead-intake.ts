@@ -1,7 +1,7 @@
-import { z, signPayloadToken, requireSecret, scoreLeadBaseline, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, type LeadFeatures } from "@savvy/core";
+import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, type LeadFeatures, type ScoringConfig } from "@savvy/core";
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, eq,
-  getAssignmentCandidates, getAssignmentSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
+  getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
@@ -11,27 +11,29 @@ const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.stri
 
 export async function hybridScore(
   features: LeadFeatures,
+  cfg: ScoringConfig,
   aiClient: Pick<typeof ai, "completeObject"> = ai,
-): Promise<{ score: number; reason: string; baseline: number; factors: { label: string; points: number }[]; model: string }> {
-  const { score: baseline, factors } = scoreLeadBaseline(features);
-  const factorText = factors.map((f) => `${f.label} (+${f.points})`).join("; ") || "no strong signals";
+): Promise<{ score: number; reason: string; baseline: number; band: string; reasons: string[]; model: string }> {
+  const scored = scoreLead(features, cfg);
+  const baseline = scored.score;
+  const factorText = scored.reasons.join("; ") || "no strong signals";
   try {
     const { object, model } = await aiClient.completeObject({
       capability: "reasoning",
       schema: scoreSchema,
-      system: "You refine a roofing lead score. A deterministic baseline and its factors are given. " +
+      system: "You refine a roofing lead score. A deterministic baseline and its reasons are given. " +
         "Adjust the score only slightly (stay close to the baseline) and write a terse reason citing the factors. Do not invent facts.",
-      prompt: `Baseline ${baseline}/100. Factors: ${factorText}. Source=${features.source}. ` +
+      prompt: `Baseline ${baseline}/100. Reasons: ${factorText}. Source=${features.source}. ` +
         `Roof age=${features.roofAgeYears ?? "unknown"}. Return {score, reason}.`,
     });
     const score = Math.max(0, Math.min(100, Math.max(baseline - 10, Math.min(baseline + 10, object.score))));
-    return { score, reason: object.reason, baseline, factors, model };
+    return { score, reason: object.reason, baseline, band: scored.band, reasons: scored.reasons, model };
   } catch (err) {
     // AI refinement is best-effort. If the gateway/model is unavailable (no credits,
     // timeout, outage), keep the deterministic baseline so the lead still gets scored,
     // recommended, assigned, and texted instead of failing the whole intake workflow.
     console.error("hybridScore: AI refine failed, using deterministic baseline:", err instanceof Error ? err.message : err);
-    return { score: baseline, reason: factorText, baseline, factors, model: "baseline-fallback" };
+    return { score: baseline, reason: factorText, baseline, band: scored.band, reasons: scored.reasons, model: "baseline-fallback" };
   }
 }
 
@@ -97,7 +99,7 @@ export async function runLeadAssignment(
   if (config.strategy === "off") return { assigned: null, reason: "off" };
   return withTenant(tenantId, async (tx) => {
     const [l] = await tx
-      .select({ assignedUserId: lead.assignedUserId, score: lead.score, propertyId: lead.propertyId })
+      .select({ assignedUserId: lead.assignedUserId, score: lead.score, propertyId: lead.propertyId, lane: lead.lane })
       .from(lead)
       .where(eq(lead.id, leadId));
     if (!l) return { assigned: null, reason: "no-lead" };
@@ -107,13 +109,14 @@ export async function runLeadAssignment(
     let lane: string | null = null;
 
     if (config.strategy === "proximity") {
-      // Destination = the lead's property; lane derives from roof type until Phase B models it.
+      // Destination = the lead's property; prefer the persisted lane (set during scoring),
+      // fall back to the old inline rule for older leads that predate Phase B.
       const dest = l.propertyId
         ? (await tx.select({ lat: property.lat, lng: property.lng, roofType: property.roofType }).from(property).where(eq(property.id, l.propertyId)))[0]
         : undefined;
       const destPoint: LatLng | null =
         dest && dest.lat != null && dest.lng != null ? { lat: Number(dest.lat), lng: Number(dest.lng) } : null;
-      lane = dest?.roofType === "tile" ? "tile" : null;
+      lane = l.lane ?? (dest?.roofType === "tile" ? "tile" : null);
 
       if (destPoint) {
         const now = new Date();
@@ -234,19 +237,17 @@ export const leadIntake = inngest.createFunction(
 
     const scored = await step.run("ai-qualify", async () => {
       const features = buildLeadFeatures({
-        source: ctx.source,
-        state: ctx.state,
-        phone: ctx.phone,
-        roofType: enriched.roofType,
-        yearBuilt: enriched.yearBuilt,
-        storm: enriched.storm,
+        source: ctx.source, state: ctx.state, phone: ctx.phone,
+        roofType: enriched.roofType, yearBuilt: enriched.yearBuilt, storm: enriched.storm,
       });
-      const r = await hybridScore(features);
+      const cfg = parseScoringConfig(await getScoringSettings(tenantId));
+      const r = await hybridScore(features, cfg);
+      const lane = deriveLane(features, cfg);
       const recommendation = deriveInstallRecommendation(features);
       await withTenant(tenantId, (tx) =>
         tx.update(lead).set({
-          score: r.score, scoreReason: r.reason, status: "contacted",
-          scoreFeatures: { features, baseline: r.baseline, factors: r.factors, aiAdjustment: r.score - r.baseline },
+          score: r.score, scoreReason: r.reason, scoreBand: r.band, lane, status: "contacted",
+          scoreFeatures: { features, baseline: r.baseline, reasons: r.reasons, aiAdjustment: r.score - r.baseline },
           installRecommendation: recommendation,
         }).where(eq(lead.id, leadId)),
       );
