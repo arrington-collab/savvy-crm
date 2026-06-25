@@ -237,6 +237,8 @@ export const leadIntake = inngest.createFunction(
     });
 
     await step.run("send-sms", async () => {
+      // Email-only leads have no phone — skip the welcome SMS (no send, no comm row).
+      if (!ctx.phone) return { skipped: "no-phone" };
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
       const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
