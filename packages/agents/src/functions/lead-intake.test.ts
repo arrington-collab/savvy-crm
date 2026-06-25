@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { hybridScore, buildBookingSms, enrichProperty } from "./lead-intake";
+import { describe, it, expect, beforeAll } from "vitest";
+import { hybridScore, buildBookingSms, enrichProperty, runLeadAssignment } from "./lead-intake";
 import { buildLeadFeatures } from "@savvy/core";
 import { makeFakeStormProof } from "@savvy/integrations";
+import { adminDb, withTenant, tenant, user, customer, lead, property, saveAssignmentConfig } from "@savvy/db";
 
 describe("lead.intake pure steps", () => {
   it("buildBookingSms includes the booking link and name", () => {
@@ -70,5 +71,72 @@ describe("enrichProperty", () => {
     );
     expect(out.county).toBe("Maricopa"); // getProperty skipped (yearBuilt present) — county not nulled
     expect(sp.calls.filter((c) => c.op === "getProperty").length).toBe(0);
+  });
+});
+
+// CI-gated: requires Postgres. If ECONNREFUSED locally, rely on CI.
+describe("runLeadAssignment — proximity strategy (DB-backed)", () => {
+  let tenantId: string;
+  let repNear: string;
+  let repFar: string;
+  let leadId: string;
+
+  beforeAll(async () => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({ name: "ProxTest", clerkOrgId: `org_prox_${Date.now()}` })
+      .returning();
+    tenantId = t!.id;
+
+    await withTenant(tenantId, async (tx) => {
+      // Rep near the property (Phoenix area — lat 33.4, lng -112.0)
+      const [near] = await tx
+        .insert(user)
+        .values({
+          tenantId,
+          name: "Near Rep",
+          email: `near-${Date.now()}@x.com`,
+          role: "rep",
+          baseLat: 33.4,   // close to property
+          baseLng: -112.0,
+        })
+        .returning();
+      repNear = near!.id;
+
+      // Rep far from the property (Tucson area — lat 32.2, lng -110.9)
+      const [far] = await tx
+        .insert(user)
+        .values({
+          tenantId,
+          name: "Far Rep",
+          email: `far-${Date.now()}@x.com`,
+          role: "rep",
+          baseLat: 32.2,
+          baseLng: -110.9,
+        })
+        .returning();
+      repFar = far!.id;
+
+      const [c] = await tx.insert(customer).values({ tenantId, name: "Prox Cust" }).returning();
+      const [p] = await tx
+        .insert(property)
+        .values({ tenantId, customerId: c!.id, address: "100 Prox Ave", lat: 33.45, lng: -112.07 })
+        .returning();
+      const [l] = await tx
+        .insert(lead)
+        .values({ tenantId, customerId: c!.id, propertyId: p!.id, status: "new", score: 50 })
+        .returning();
+      leadId = l!.id;
+    });
+
+    await saveAssignmentConfig(tenantId, { strategy: "proximity" });
+  });
+
+  it("assigns the nearer rep (fake drive-time is active, GOOGLE_MAPS_SERVER_KEY unset)", async () => {
+    // makeFakeDistance computes straight-line-proportional minutes, so repNear (33.4, -112.0)
+    // is closer to the property (33.45, -112.07) than repFar (32.2, -110.9).
+    const r = await runLeadAssignment(tenantId, leadId, { state: "AZ", city: "Phoenix" });
+    expect(r.assigned).toBe(repNear);
+    expect(r.reason).toBe("assigned");
   });
 });
