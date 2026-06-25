@@ -1,7 +1,7 @@
 import { and, eq, isNull, inArray, sql } from "drizzle-orm";
-import { lead } from "../schema/index.js";
+import { lead } from "../schema/index";
 
-type Tx = Parameters<Parameters<typeof import("../client.js").db.transaction>[0]>[0];
+type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
 const OPEN = ["new", "contacted", "qualified", "booked"] as const;
 
 // Sets first_rep_contact_at = now() if currently null. Returns true iff it set it this call.
