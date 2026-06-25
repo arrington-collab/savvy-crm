@@ -6,21 +6,37 @@ import { normalizePhone } from "./phone";
 // produce a duplicate-instance type mismatch (same pattern as @savvy/db operators).
 export { z };
 
-// Accept any common format; normalize to E.164. Adds an issue if unparseable.
-const phone = z.string().transform((v, ctx) => {
-  const n = normalizePhone(v);
-  if (!n) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid phone number" });
-    return z.NEVER;
-  }
-  return n;
-});
+// phone: optional now (was required). Normalizes to E.164 when present; blank -> undefined.
+const phoneOptional = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v, ctx) => {
+    if (!v) return undefined;
+    const n = normalizePhone(v);
+    if (!n) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid phone number" });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+// email: optional, trimmed + lowercased, format-validated; blank -> undefined.
+// preprocess normalizes first so an empty string isn't treated as an invalid email.
+const emailOptional = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() ? v.trim().toLowerCase() : undefined),
+  z.string().email("Enter a valid email").optional(),
+);
 
 const roofType = z.enum(["asphalt_shingle", "tile", "metal", "flat_foam", "other"]);
 
-export const leadIntakeSchema = z.object({
+// The plain object (no refinement). A refined schema is a ZodEffects and loses
+// `.extend()`, which /api/leads needs to add its `key`. Export the object so
+// consumers can extend it, then re-apply the refinement themselves.
+export const leadIntakeObject = z.object({
   name: z.string().min(1).max(120),
-  phone,
+  phone: phoneOptional,
+  email: emailOptional,
   address: z.string().min(3).max(240),
   source: z.string().min(1).max(60).default("web"),
   // optional structured address (Google Places) + optional roof/year
@@ -34,4 +50,16 @@ export const leadIntakeSchema = z.object({
   roofType: roofType.optional(),
   yearBuilt: z.number().int().min(1850).max(new Date().getFullYear()).optional(),
 });
+
+// Require at least one contact method. Exported so consumers that .extend()
+// leadIntakeObject (e.g. /api/leads) can re-apply the same rule.
+export const hasContactMethod = (d: { phone?: string; email?: string }): boolean =>
+  Boolean(d.phone || d.email);
+
+export const contactMethodIssue: { message: string; path: (string | number)[] } = {
+  message: "Add a phone or email",
+  path: ["phone"],
+};
+
+export const leadIntakeSchema = leadIntakeObject.refine(hasContactMethod, contactMethodIssue);
 export type LeadIntakeInput = z.infer<typeof leadIntakeSchema>;
