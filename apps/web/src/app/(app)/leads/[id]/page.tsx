@@ -49,6 +49,13 @@ export default async function LeadDetailPage({
           <div className="eyebrow mb-1">Contact</div>
           <p className="text-sm" style={{ color: "var(--text-body)" }}>{detail.address ?? "—"}</p>
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }} data-testid="lead-phone">{detail.phone ?? "no phone"}</p>
+          {detail.email && (
+            <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              <a href={`mailto:${detail.email}`} data-testid="lead-email" className="underline underline-offset-2">
+                {detail.email}
+              </a>
+            </p>
+          )}
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }}>source: {detail.source ?? "—"}</p>
           <PropertyMap
             address={detail.address}
