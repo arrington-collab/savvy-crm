@@ -41,7 +41,7 @@ const mon = new Date("2026-06-15T00:00:00Z"); // 2026-06-15 is a Monday
 test("generates slots inside working hours, excludes past", () => {
   const slots = computeOpenSlots({
     config: cfg, type: "inspection",
-    existingAppts: [], fromDate: mon, now: mon,
+    existingAppts: [], fromDate: mon, now: mon, tz: "UTC",
   });
   // inspection 60m + 30m buffer; 8-10 window -> only 8:00 fits (ends 9:00, +buffer 9:30 < 10) ; 9:00 ends 10:00 +buffer exceeds 10
   expect(slots.length).toBe(1);
@@ -52,7 +52,7 @@ test("removes slots overlapping an existing appt (incl. buffer)", () => {
   const slots = computeOpenSlots({
     config: cfg, type: "inspection",
     existingAppts: [{ startsAt: new Date("2026-06-15T08:00:00Z"), endsAt: new Date("2026-06-15T09:00:00Z") }],
-    fromDate: mon, now: mon,
+    fromDate: mon, now: mon, tz: "UTC",
   });
   expect(slots.length).toBe(0);
 });
@@ -64,7 +64,7 @@ test("proximity scoring ranks near-cluster slots higher", () => {
   const slots = computeOpenSlots({
     config: wideCfg, type: "cm", // 60m + 15m buffer
     existingAppts: [{ startsAt: new Date("2026-06-15T11:00:00Z"), endsAt: new Date("2026-06-15T11:30:00Z"), lat: 33.4, lng: -112.0 }],
-    fromDate: mon, now: mon,
+    fromDate: mon, now: mon, tz: "UTC",
     clusterAround: { lat: 33.4, lng: -112.0 },
   });
   // All returned slots carry a score; highest score first.
@@ -145,4 +145,18 @@ describe("rankSlots — today-first", () => {
     });
     expect(ranked[0]!.startsAt.toISOString()).toBe("2026-06-26T16:00:00.000Z");
   });
+});
+
+test("computeOpenSlots builds slots at tenant-local hours, not UTC", () => {
+  const config = parseSchedulingConfig({ hours: { mon: [8, 17] }, slotGranularityMin: 60 });
+  const slots = computeOpenSlots({
+    config,
+    type: "inspection",
+    existingAppts: [],
+    fromDate: new Date("2026-06-29T12:00:00Z"), // a Monday; ~5 AM Phoenix
+    now: new Date("2026-06-01T00:00:00Z"),
+    tz: "America/Phoenix",
+  });
+  // 8 AM Phoenix is 15:00 UTC (UTC-7) — NOT 08:00 UTC (the old setUTCHours bug).
+  expect(slots[0]!.startsAt.toISOString()).toBe("2026-06-29T15:00:00.000Z");
 });

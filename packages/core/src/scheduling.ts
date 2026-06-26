@@ -1,4 +1,5 @@
 import { z } from "./schemas";
+import { toCivilDate, addDays, zonedTimeToUtc } from "./schedule-view";
 import { APPOINTMENT_TYPE, type AppointmentType } from "./enums";
 import { MESSAGE_CHANNEL } from "./enums";
 
@@ -93,24 +94,26 @@ export function computeOpenSlots(input: {
   fromDate: Date;
   now: Date;
   clusterAround?: { lat: number; lng: number };
+  tz: string;
 }): Slot[] {
-  const { config, type, existingAppts, fromDate, now, clusterAround } = input;
+  const { config, type, existingAppts, fromDate, now, clusterAround, tz } = input;
   const t = config.types[type];
   const slotMs = config.slotGranularityMin * 60_000;
   const durMs = t.durationMin * 60_000;
   const bufMs = t.bufferMin * 60_000;
   const out: Slot[] = [];
 
+  const startCivil = toCivilDate(fromDate.toISOString(), tz); // fromDate's local calendar date
   for (let day = 0; day < config.bookingHorizonDays; day++) {
-    const base = new Date(fromDate);
-    base.setUTCDate(base.getUTCDate() + day);
-    const wd = WD_INDEX[base.getUTCDay()]!;
+    const civil = addDays(startCivil, day); // "YYYY-MM-DD" local calendar date in tenant tz
+    const wd = WD_INDEX[new Date(`${civil}T00:00:00Z`).getUTCDay()]!;
     const hours = config.hours[wd];
     if (!hours || hours.length === 0) continue;
     const [openH, closeH] = hours as [number, number];
 
-    const dayOpen = new Date(base); dayOpen.setUTCHours(openH, 0, 0, 0);
-    const dayClose = new Date(base); dayClose.setUTCHours(closeH, 0, 0, 0);
+    // Build the day's window from tenant-LOCAL hours, converted to the correct UTC instants.
+    const dayOpen = new Date(zonedTimeToUtc(civil, openH * 60, tz));
+    const dayClose = new Date(zonedTimeToUtc(civil, closeH * 60, tz));
 
     // A slot is only bookable if the appointment + its buffer fits inside the window.
     for (let start = dayOpen.getTime(); start + durMs + bufMs <= dayClose.getTime(); start += slotMs) {
@@ -130,8 +133,8 @@ export function computeOpenSlots(input: {
   if (clusterAround) {
     for (const slot of out) {
       const sameDay = existingAppts.filter(
-        // UTC date key to match the UTC slot generation above (avoids TZ-dependent misgrouping).
-        (a) => a.lat != null && a.lng != null && a.startsAt.toISOString().slice(0, 10) === slot.startsAt.toISOString().slice(0, 10),
+        // Group by the appointment's local calendar date in the tenant tz.
+        (a) => a.lat != null && a.lng != null && toCivilDate(a.startsAt.toISOString(), tz) === toCivilDate(slot.startsAt.toISOString(), tz),
       );
       const anchor = sameDay.length
         ? sameDay

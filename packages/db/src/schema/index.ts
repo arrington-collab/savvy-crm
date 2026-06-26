@@ -9,3 +9,4 @@ export * from "./agents";
 export * from "./pricing";
 export * from "./billing";
 export * from "./scheduling";
+export * from "./booking-link";

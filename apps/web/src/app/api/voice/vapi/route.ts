@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { requireSecret, parseVoiceOutcome, signPayloadToken, parseVapiMessage, toolResult } from "@savvy/core";
-import { recordVoiceCallReport, bookLeadSlot } from "@savvy/db";
+import { recordVoiceCallReport, bookLeadSlot, createBookingLink } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
 import { getRecommendedSlots } from "@/lib/recommended-slots";
@@ -122,7 +122,9 @@ export async function POST(req: Request): Promise<NextResponse> {
         try {
           const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
           const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-          const bookingUrl = `${base}/book/${signPayloadToken({ leadId, tenantId, type: "inspection" }, secret)}`;
+          const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
+          const code = await createBookingLink({ tenantId, token, expiresAt: new Date(Date.now() + 14 * 86400000) });
+          const bookingUrl = `${base}/b/${code}`;
           // outbound stamps toPhone in metadata; inbound uses caller's number
           const to = msg.metadata.toPhone ?? msg.fromNumber;
           if (to) {

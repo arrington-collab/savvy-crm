@@ -77,6 +77,7 @@ export const voiceFallback = inngest.createFunction(
         address: row.address ?? "",
         phone: row.phone!,
         stormContext,
+        tz,
       };
     });
 
@@ -91,7 +92,7 @@ export const voiceFallback = inngest.createFunction(
     await step.run("place-call", async () => {
       const overrides = buildAssistantOverrides({
         tenantName: decision.tenantName, leadName: decision.leadName, address: decision.address,
-        stormContext: decision.stormContext, leadId, tenantId,
+        stormContext: decision.stormContext, leadId, tenantId, tz: decision.tz,
       });
       const result = await voice.placeOutboundCall({
         toPhone: decision.phone,

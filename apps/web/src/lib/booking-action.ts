@@ -4,7 +4,7 @@ import {
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
   bookLeadSlot,
 } from "@savvy/db";
-import { verifyPayloadToken, parseSchedulingConfig, computeOpenSlots, requireSecret } from "@savvy/core";
+import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 
 const SECRET = () => requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
@@ -21,13 +21,14 @@ export async function getSlotsForToken(token: string) {
   const p = verifyPayloadToken<TokenPayload>(token, SECRET());
   if (!p) return { error: "invalid" as const };
   const cfg = parseSchedulingConfig(await loadSchedulingSettings(p.tenantId));
+  const tz = parseFinanceConfig(await loadFinanceSettings(p.tenantId)).timezone;
   const assignee = await resolveAssignee(p);
   if (!assignee) return { error: "no_assignee" as const };
   const busy = await loadBusy(p.tenantId, assignee.id, cfg.bookingHorizonDays);
   const cluster = await loadClusterPoint(p);
   const slots = computeOpenSlots({
     config: cfg, type: p.type, existingAppts: busy,
-    fromDate: new Date(), now: new Date(), clusterAround: cluster ?? undefined,
+    fromDate: new Date(), now: new Date(), tz, clusterAround: cluster ?? undefined,
   }).slice(0, 12);
   return { slots: slots.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() })) };
 }
@@ -87,6 +88,11 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
 async function loadSchedulingSettings(tenantId: string) {
   const [t] = await adminDb.select().from(tenant).where(eq(tenant.id, tenantId));
   return (t?.settings as { scheduling?: unknown } | null)?.scheduling;
+}
+
+async function loadFinanceSettings(tenantId: string) {
+  const [t] = await adminDb.select().from(tenant).where(eq(tenant.id, tenantId));
+  return (t?.settings as { finance?: unknown } | null)?.finance;
 }
 
 async function resolveAssignee(p: TokenPayload): Promise<{ id: string } | null> {

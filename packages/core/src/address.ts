@@ -37,6 +37,33 @@ export function formatCountyLabel(county: string | null | undefined): string | n
   return /county$/i.test(c) ? c : `${c} County`;
 }
 
+const SPEECH_SUFFIXES: Record<string, string> = {
+  ST: "Street", AVE: "Avenue", RD: "Road", BLVD: "Boulevard", DR: "Drive",
+  LN: "Lane", CT: "Court", PL: "Place", CIR: "Circle", TER: "Terrace",
+  TRL: "Trail", PKWY: "Parkway", HWY: "Highway", SQ: "Square", WAY: "Way", PT: "Point",
+};
+const SPEECH_DIRECTIONALS: Record<string, string> = {
+  N: "North", S: "South", E: "East", W: "West",
+  NE: "Northeast", NW: "Northwest", SE: "Southeast", SW: "Southwest",
+};
+
+/**
+ * Expand common USPS street abbreviations so a TTS voice reads an address
+ * naturally — "1542 E Mountain View Rd" → "1542 East Mountain View Road"
+ * instead of spelling out "E ... R-D". Token-based: only standalone tokens
+ * are expanded (a trailing period is tolerated); numbers/other words pass through.
+ */
+export function expandAddressForSpeech(address: string | null | undefined): string {
+  if (!address) return "";
+  return address
+    .split(/(\s+|,)/) // keep whitespace + commas as tokens so join restores spacing
+    .map((tok) => {
+      const key = tok.replace(/\./g, "").toUpperCase();
+      return SPEECH_DIRECTIONALS[key] ?? SPEECH_SUFFIXES[key] ?? tok;
+    })
+    .join("");
+}
+
 // Canonical form for duplicate matching: Unicode-fold accented chars to ASCII, lowercase,
 // drop punctuation, collapse whitespace. E.g. "Cañon Rd" → "canon rd".
 export function normalizeAddress(addr: string | null | undefined): string {
