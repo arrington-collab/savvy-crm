@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, test, expect } from "vitest";
 import { parseAssignmentConfig, assignmentConfigSchema } from "./lead-assignment";
 
 describe("parseAssignmentConfig", () => {
-  it("defaults to off for null/garbage", () => {
-    expect(parseAssignmentConfig(null).strategy).toBe("off");
-    expect(parseAssignmentConfig({ strategy: "nonsense" }).strategy).toBe("off");
-    expect(parseAssignmentConfig(undefined).strategy).toBe("off");
+  it("defaults to territory for null/garbage", () => {
+    expect(parseAssignmentConfig(null).strategy).toBe("territory");
+    expect(parseAssignmentConfig({ strategy: "nonsense" }).strategy).toBe("territory");
+    expect(parseAssignmentConfig(undefined).strategy).toBe("territory");
   });
   it("accepts a valid territory config", () => {
     const c = parseAssignmentConfig({ strategy: "territory", territoryRules: [{ state: "AZ", city: "Mesa", userId: "u1" }] });
@@ -22,4 +22,9 @@ describe("assignmentConfigSchema", () => {
   it("rejects an out-of-range minScore", () => {
     expect(assignmentConfigSchema.safeParse({ strategy: "score", scoreTiers: [{ minScore: 200, userIds: ["u1"] }] }).success).toBe(false);
   });
+});
+
+test("defaults to territory strategy (zip→round-robin live booking)", () => {
+  expect(parseAssignmentConfig(undefined).strategy).toBe("territory");
+  expect(parseAssignmentConfig({ bogus: true }).strategy).toBe("territory");
 });

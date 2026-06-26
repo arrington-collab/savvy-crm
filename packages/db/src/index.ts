@@ -36,7 +36,7 @@ export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
-export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, type DbAssignmentCandidate } from "./lifecycle/assignment";
+export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, recommendAssignee, type DbAssignmentCandidate } from "./lifecycle/assignment";
 export { bookLeadSlot } from "./lifecycle/booking";
 export { getRepBlocks } from "./lifecycle/availability";
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";

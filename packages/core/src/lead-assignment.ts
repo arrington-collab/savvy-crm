@@ -32,5 +32,5 @@ export const assignmentConfigSchema = z.object({
 
 export function parseAssignmentConfig(raw: unknown): AssignmentConfig {
   const parsed = assignmentConfigSchema.safeParse(raw);
-  return parsed.success ? parsed.data : { strategy: "off" };
+  return parsed.success ? parsed.data : { strategy: "territory" };
 }
