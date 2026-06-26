@@ -174,8 +174,11 @@ export function rankSlots(args: {
       const norm = weights.wSoon + weights.wCluster + wDrive;
       const base = (weights.wSoon * soonScore + weights.wCluster * s.score + wDrive * driveScore) / norm;
       const todayBump = todayCutoff && s.startsAt.getTime() <= todayCutoff.getTime() ? TODAY_BONUS : 0;
-      const eff = base + todayBump;
-      return { startsAt: s.startsAt, endsAt: s.endsAt, score: eff, driveMinutes: dm };
+      // todayBump steers SORT ORDER only — the returned score stays the true ranking score
+      // (without the bonus), so downstream consumers of `score` see the same value with or
+      // without a cutoff.
+      return { startsAt: s.startsAt, endsAt: s.endsAt, score: base, driveMinutes: dm, sortKey: base + todayBump };
     })
-    .sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
+    .sort((a, b) => b.sortKey - a.sortKey || a.startsAt.getTime() - b.startsAt.getTime())
+    .map(({ sortKey, ...rest }) => rest);
 }
