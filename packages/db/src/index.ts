@@ -38,4 +38,5 @@ export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding 
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
 export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, type DbAssignmentCandidate } from "./lifecycle/assignment";
 export { bookLeadSlot } from "./lifecycle/booking";
+export { getRepBlocks } from "./lifecycle/availability";
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";

@@ -149,6 +149,9 @@ export function computeOpenSlots(input: {
   return out.sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
 }
 
+// A same-day slot must always outrank any future slot (speed-to-lead).
+const TODAY_BONUS = 1000;
+
 export type RankedSlot = Slot & { driveMinutes: number | null };
 
 // Blend the existing slot score (clustering) with soonest-feasible + drive-time, deterministically.
@@ -157,8 +160,9 @@ export function rankSlots(args: {
   slots: Slot[];
   driveMinutesBySlotIndex: (number | null)[];
   weights: SchedulingConfig["driveTime"];
+  todayCutoff?: Date;
 }): RankedSlot[] {
-  const { slots, driveMinutesBySlotIndex, weights } = args;
+  const { slots, driveMinutesBySlotIndex, weights, todayCutoff } = args;
   if (slots.length === 0) return [];
   const times = slots.map((s) => s.startsAt.getTime());
   const earliest = Math.min(...times);
@@ -171,8 +175,13 @@ export function rankSlots(args: {
       const driveScore = dm == null ? 0 : 1 / (1 + dm / weights.driveHalfMin);
       const wDrive = dm == null ? 0 : weights.wDrive;
       const norm = weights.wSoon + weights.wCluster + wDrive;
-      const final = (weights.wSoon * soonScore + weights.wCluster * s.score + wDrive * driveScore) / norm;
-      return { startsAt: s.startsAt, endsAt: s.endsAt, score: final, driveMinutes: dm };
+      const base = (weights.wSoon * soonScore + weights.wCluster * s.score + wDrive * driveScore) / norm;
+      const todayBump = todayCutoff && s.startsAt.getTime() <= todayCutoff.getTime() ? TODAY_BONUS : 0;
+      // todayBump steers SORT ORDER only — the returned score stays the true ranking score
+      // (without the bonus), so downstream consumers of `score` see the same value with or
+      // without a cutoff.
+      return { startsAt: s.startsAt, endsAt: s.endsAt, score: base, driveMinutes: dm, sortKey: base + todayBump };
     })
-    .sort((a, b) => b.score - a.score || a.startsAt.getTime() - b.startsAt.getTime());
+    .sort((a, b) => b.sortKey - a.sortKey || a.startsAt.getTime() - b.startsAt.getTime())
+    .map(({ sortKey, ...rest }) => rest);
 }
