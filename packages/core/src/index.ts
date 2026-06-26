@@ -40,3 +40,5 @@ export * from "./install-recommendation";
 export * from "./maps";
 export * from "./rep-origin";
 export * from "./lead-followup";
+export * from "./voice-persona";
+export * from "./voice-webhook";

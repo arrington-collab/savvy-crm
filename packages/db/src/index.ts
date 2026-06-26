@@ -29,7 +29,7 @@ export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt
 export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
-export { setCallDuration } from "./lifecycle/voice";
+export { setCallDuration, recordVoiceCallReport } from "./lifecycle/voice";
 export { recordAgentRun, type AgentRunStatus } from "./lifecycle/agent-run";
 export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
@@ -37,3 +37,4 @@ export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifec
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
 export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, type DbAssignmentCandidate } from "./lifecycle/assignment";
+export { bookLeadSlot } from "./lifecycle/booking";

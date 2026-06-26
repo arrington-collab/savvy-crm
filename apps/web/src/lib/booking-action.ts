@@ -2,6 +2,7 @@
 import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
+  bookLeadSlot,
 } from "@savvy/db";
 import { verifyPayloadToken, parseSchedulingConfig, computeOpenSlots, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
@@ -44,6 +45,18 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
         await inngest.send({ name: "appointment/changed", data: { appointmentId: p.appointmentId, tenantId: p.tenantId, reason: "rescheduled" } });
       } catch (e) { console.error(e); }
       return { ok: true as const };
+    }
+    // Lead-only token (no jobId/appointmentId): reuse the shared engine booking.
+    if (p.leadId && !p.jobId) {
+      const r = await bookLeadSlot({ leadId: p.leadId, startsAt, endsAt });
+      if ("appointmentId" in r) {
+        try {
+          await inngest.send({ name: "appointment/booked", data: { appointmentId: r.appointmentId, tenantId: r.tenantId } });
+        } catch (e) { console.error(e); }
+        return { ok: true as const };
+      }
+      if (r.error === "slot_taken") return { error: "slot_taken" as const };
+      return { error: "no_assignee" as const }; // no_assignee or no_lead -> no_assignee for the token caller
     }
     const assignee = await resolveAssignee(p);
     if (!assignee) return { error: "no_assignee" as const };
