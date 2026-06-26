@@ -28,15 +28,15 @@ test("lead intake: form -> workflow -> booking SMS logged with slot-picker link"
   await expect(page.getByTestId("intake-success")).toBeVisible();
 
   // 2. The lead.intake workflow runs (AI qualify + SMS) -> communication logged
-  //    with the signed slot-picker booking link (/book/<token>).
+  //    with the SHORT booking link (/b/<code>) that redirects to the signed /book/<token>.
   const sms = await waitFor(async () => {
     const rows = await adminDb.select().from(communication).where(eq(communication.tenantId, tenantId));
-    return rows.find((r) => r.channel === "sms" && (r.body ?? "").includes("/book/"));
+    return rows.find((r) => r.channel === "sms" && (r.body ?? "").includes("/b/"));
   });
-  expect(sms.body ?? "").toContain("/book/");
+  expect(sms.body ?? "").toContain("/b/");
 
-  // 3. The booking link is a signed token URL pointing at the slot picker.
-  const bookUrl = (sms.body ?? "").match(/https?:\/\/[^\s]+\/book\/[^\s]+/)?.[0];
+  // 3. The booking link is a short /b/<code> URL (keeps the SMS to one segment).
+  const bookUrl = (sms.body ?? "").match(/https?:\/\/[^\s]+\/b\/[A-Za-z0-9]+/)?.[0];
   expect(bookUrl).toBeTruthy();
 
   // full slot-pick -> appointment booking covered by scheduling.spec.ts (Task 20);
