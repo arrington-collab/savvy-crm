@@ -57,7 +57,8 @@ DB/route/workflow tests (`packages/db`, `packages/agents`, `apps/web` Playwright
 | `packages/core/src/voice-webhook.ts` | **new** | Pure: `parseVapiMessage`/`toolResult`. In **core** (NOT apps/web) so vitest runs it. |
 | `packages/core/src/voice-webhook.test.ts` | **new** | Unit tests for the parser (Wave 2, local — no DB). |
 | `apps/web/src/app/api/voice/vapi/route.ts` | **new** | Shared webhook: `x-vapi-secret` auth; `tool-calls` (getRecommendedSlots/bookSlot) + `end-of-call-report` (transcript + outcome, inbound lead-from-call, no-answer SMS). Emits `appointment/booked` after a tool booking. |
-| `apps/web/tests/e2e/voice-webhook.spec.ts` | **new** | Playwright e2e: bad secret → 401, dev secret + unknown type → 200. (apps/web has NO vitest project — `vitest.workspace.ts = ["packages/*"]`; a `.test.ts` under `apps/web/src` is silently never run. e2e is the only route-level gate.) |
+| `apps/web/tests/e2e/voice-webhook.spec.ts` | **new** | Playwright e2e: wrong/missing secret → 401, correct secret + unknown type → 200. (apps/web has NO vitest project — `vitest.workspace.ts = ["packages/*"]`; a `.test.ts` under `apps/web/src` is silently never run. e2e is the only route-level gate.) |
+| `apps/web/playwright.config.ts` | mod | Add `VAPI_WEBHOOK_SECRET: "test-vapi-secret"` to `webServer.env` so the e2e can exercise the 401 path (dev allows all when the secret is unset). |
 | `apps/web/middleware.ts` | mod | Add `/api/voice/vapi` to PUBLIC (Clerk must not 401 it). |
 | `packages/agents/src/functions/voice-fallback.ts` | **new** | Inngest fn on `lead/contact-overdue`, `cancelOn lead/contacted`; guard → `voice.placeOutboundCall` → log attempt + `recordAgentRun`. |
 | `packages/agents/src/index.ts` | mod | Register `voiceFallback`. |
@@ -1112,10 +1113,15 @@ import { tenantByPhone, createLeadForTenant } from "@/lib/intake";
 
 export const runtime = "nodejs"; // node:crypto + DB
 
-function secretOk(header: string | null): boolean {
-  const expected = requireSecret("VAPI_WEBHOOK_SECRET", { devFallback: "dev-vapi-webhook-secret" });
-  if (!header) return false;
-  const a = Buffer.from(header);
+// Repo webhook posture (mirrors /api/ringcentral/inbound + lib/svix.ts): no secret
+// configured => allow in dev/test, FAIL CLOSED in production. A clean 401, never a 500.
+// (Do NOT use requireSecret here — it THROWS in prod when unset, which would 500 every
+// webhook call and contradict "inert but deployable".)
+function secretOk(provided: string | null): boolean {
+  const expected = process.env.VAPI_WEBHOOK_SECRET;
+  if (!expected) return process.env.NODE_ENV !== "production";
+  if (!provided) return false;
+  const a = Buffer.from(provided);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
@@ -1218,7 +1224,15 @@ export async function POST(req: Request): Promise<NextResponse> {
 
 In `apps/web/middleware.ts`, add `/api/voice/vapi` to the PUBLIC matcher array (mirror how `/api/companycam/webhook` and `/api/ringcentral/inbound` are listed — a webhook must not hit Clerk auth). Match the exact regex/string style already used.
 
-- [ ] **Step 7: Write a Playwright e2e for the route (the only apps/web gate)**
+- [ ] **Step 7: Set the webhook secret in the Playwright webServer env**
+
+The e2e runs under `next dev` (NODE_ENV≠production), where `secretOk` allows everything when `VAPI_WEBHOOK_SECRET` is UNSET — so the 401-on-bad-secret case can only be exercised if the secret IS set for the test server. In `apps/web/playwright.config.ts`, add to the existing `webServer.env` block (alongside `TEST_MODE: "1"`):
+
+```ts
+      VAPI_WEBHOOK_SECRET: "test-vapi-secret",
+```
+
+- [ ] **Step 8: Write the Playwright e2e for the route (the only apps/web gate)**
 
 `apps/web` has no vitest project, so the route is gated by Playwright. Create `apps/web/tests/e2e/voice-webhook.spec.ts` (match the style of a sibling spec, e.g. `tests/e2e/leads.spec.ts`, for the `request` fixture + base URL):
 
@@ -1226,8 +1240,9 @@ In `apps/web/middleware.ts`, add `/api/voice/vapi` to the PUBLIC matcher array (
 import { test, expect } from "@playwright/test";
 
 // The webhook is in middleware PUBLIC, so Clerk does not intercept it.
+// VAPI_WEBHOOK_SECRET is set to "test-vapi-secret" in playwright.config.ts webServer.env.
 test.describe("POST /api/voice/vapi", () => {
-  test("401s a missing/bad secret", async ({ request }) => {
+  test("401s a wrong secret", async ({ request }) => {
     const res = await request.post("/api/voice/vapi", {
       headers: { "x-vapi-secret": "wrong-secret" },
       data: { message: { type: "end-of-call-report" } },
@@ -1235,10 +1250,16 @@ test.describe("POST /api/voice/vapi", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("acks an unknown message type with a valid dev secret", async ({ request }) => {
-    // In e2e/dev (NODE_ENV !== production) requireSecret returns the dev fallback.
+  test("401s a missing secret header", async ({ request }) => {
     const res = await request.post("/api/voice/vapi", {
-      headers: { "x-vapi-secret": "dev-vapi-webhook-secret" },
+      data: { message: { type: "end-of-call-report" } },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test("acks an unknown message type with the correct secret", async ({ request }) => {
+    const res = await request.post("/api/voice/vapi", {
+      headers: { "x-vapi-secret": "test-vapi-secret" },
       data: { message: { type: "status-update" } },
     });
     expect(res.status()).toBe(200);
@@ -1246,18 +1267,18 @@ test.describe("POST /api/voice/vapi", () => {
 });
 ```
 
-> Verify the dev-fallback string matches `requireSecret("VAPI_WEBHOOK_SECRET", { devFallback: "dev-vapi-webhook-secret" })` in the route. The deeper booking/logging/inbound paths are covered by Tasks 6–7's CI integration tests (`bookLeadSlot`, `recordVoiceCallReport`) — don't duplicate DB assertions here.
+> The valid secret string MUST match the value set in `playwright.config.ts` (Step 7). The deeper booking/logging/inbound paths are covered by Tasks 6–7's CI integration tests (`bookLeadSlot`, `recordVoiceCallReport`) — don't duplicate DB assertions here.
 
-- [ ] **Step 8: Typecheck + lint**
+- [ ] **Step 9: Typecheck + lint**
 
 Run: `pnpm typecheck && pnpm lint`
 Expected: clean.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add packages/core/src/voice-webhook.ts packages/core/src/voice-webhook.test.ts packages/core/src/index.ts \
-  apps/web/src/app/api/voice/vapi/route.ts apps/web/tests/e2e/voice-webhook.spec.ts apps/web/middleware.ts
+  apps/web/src/app/api/voice/vapi/route.ts apps/web/tests/e2e/voice-webhook.spec.ts apps/web/middleware.ts apps/web/playwright.config.ts
 git commit -m "feat(web): shared Vapi webhook (tool-calls dispatch + end-of-call report + inbound lead-from-call)"
 ```
 
