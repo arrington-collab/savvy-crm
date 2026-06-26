@@ -117,6 +117,16 @@ describe("pickAssignee — zip territory", () => {
     });
     expect(got).toBe("b");
   });
+
+  it("ignores zip rules and uses state/round-robin when the lead has no zip (production lead-intake path)", () => {
+    const got = pickAssignee({
+      strategy: "territory",
+      config: { strategy: "territory", territoryRules: [{ zip: "85203", userId: "a" }, { state: "AZ", userId: "b" }] },
+      candidates: [cand("a", { lastAssignedAt: "2026-06-25T10:00:00Z" }), cand("b", { lastAssignedAt: null })],
+      lead: { state: "AZ", city: "Mesa", score: null }, // no zip key — mirrors how lead-intake.ts calls pickAssignee
+    });
+    expect(got).toBe("b"); // zip rule skipped (lead has no zip); AZ state rule wins -> b
+  });
 });
 
 describe("pickReassignee", () => {
