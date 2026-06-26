@@ -148,6 +148,13 @@
       "when": 1782430265408,
       "tag": "0020_flashy_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782447582041,
+      "tag": "0021_marvelous_emma_frost",
+      "breakpoints": true
     }
   ]
 }
