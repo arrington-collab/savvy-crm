@@ -1,5 +1,5 @@
 import { and, eq, lt, gt, asc } from "drizzle-orm";
-import { repAvailabilityBlock } from "../schema/index.js";
+import { repAvailabilityBlock } from "../schema/index";
 
 type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
 
