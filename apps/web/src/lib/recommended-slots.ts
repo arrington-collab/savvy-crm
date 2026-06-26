@@ -1,6 +1,6 @@
 "use server";
 import { adminDb, lead, user, property, appointment, job, tenant, eq, and } from "@savvy/db";
-import { parseSchedulingConfig, computeOpenSlots, rankSlots, resolveRepOrigin, type LatLng } from "@savvy/core";
+import { parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, rankSlots, resolveRepOrigin, type LatLng } from "@savvy/core";
 import { distance } from "@savvy/integrations";
 
 type RecommendedSlot = { startsAt: string; endsAt: string; driveMinutes: number | null };
@@ -21,6 +21,7 @@ export async function getRecommendedSlots(
 
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, l.tenantId));
   const cfg = parseSchedulingConfig((t?.settings as { scheduling?: unknown } | null)?.scheduling);
+  const tz = parseFinanceConfig((t?.settings as { finance?: unknown } | null)?.finance).timezone;
 
   // Destination + cluster point = the lead's property.
   const dest = l.propertyId
@@ -43,7 +44,7 @@ export async function getRecommendedSlots(
   // computeOpenSlots sorts by cluster score; take the SOONEST 12 as the ranking pool so a
   // sooner slot on a busy day isn't dropped before rankSlots weighs soonest + drive + cluster.
   const slots = computeOpenSlots({
-    config: cfg, type, existingAppts: busy, fromDate: new Date(), now: new Date(),
+    config: cfg, type, existingAppts: busy, fromDate: new Date(), now: new Date(), tz,
     clusterAround: destPoint ?? undefined,
   })
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
