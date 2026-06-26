@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, buildMonthView, buildCrewView, minutesFromOffset, type ScheduleAppt } from "./schedule-view.js";
+import { toCivilDate, addDays, addWeeks, addMonths, weekDays, buildWeekView, buildMonthView, buildCrewView, minutesFromOffset, spokenSlotLabel, type ScheduleAppt } from "./schedule-view.js";
 
 const TZ = "America/Phoenix"; // UTC-7, no DST
 
@@ -151,5 +151,19 @@ describe("minutesFromOffset", () => {
   });
   it("falls back to the window start when height is 0 (unmeasured column)", () => {
     expect(minutesFromOffset(100, 0)).toBe(360);
+  });
+});
+
+describe("spokenSlotLabel", () => {
+  const tz = "America/Phoenix";
+  const now = "2026-06-25T20:00:00Z"; // 1 PM Phoenix on 2026-06-25 (a Thursday)
+  it("says 'today' for a same-day slot", () => {
+    expect(spokenSlotLabel("2026-06-25T23:00:00Z", tz, now)).toBe("today at 4:00 PM");
+  });
+  it("says 'tomorrow' for the next day", () => {
+    expect(spokenSlotLabel("2026-06-26T16:00:00Z", tz, now)).toBe("tomorrow at 9:00 AM");
+  });
+  it("uses the weekday name further out", () => {
+    expect(spokenSlotLabel("2026-06-27T17:00:00Z", tz, now)).toBe("Saturday at 10:00 AM");
   });
 });

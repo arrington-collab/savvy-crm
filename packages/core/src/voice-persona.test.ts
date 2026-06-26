@@ -8,6 +8,7 @@ const baseCtx: VoiceLeadContext = {
   stormContext: "1.5\" hail on 2026-05-01",
   leadId: "lead-1",
   tenantId: "tenant-1",
+  tz: "America/Phoenix",
 };
 
 describe("buildAssistantOverrides", () => {
@@ -17,7 +18,7 @@ describe("buildAssistantOverrides", () => {
     const sys = o.model.messages.find((m) => m.role === "system")!.content;
     expect(sys).toContain("Acme Roofing");
     expect(sys).toContain("Jane Homeowner");
-    expect(sys).toContain("123 Main St, Phoenix, AZ");
+    expect(sys).toContain("123 Main Street, Phoenix, AZ"); // expanded for natural TTS
   });
 
   it("embeds every guardrail phrase verbatim", () => {
@@ -44,6 +45,15 @@ describe("buildAssistantOverrides", () => {
     expect(names).toContain("bookSlot");
     const book = tools.find((t) => t.function.name === "bookSlot")!;
     expect(book.function.parameters.required).toEqual(expect.arrayContaining(["startsAt", "endsAt"]));
+  });
+
+  it("sets a faster voice speed, expands the address for speech, and instructs relative date labels", () => {
+    const o = buildAssistantOverrides(baseCtx);
+    expect(o.voice.speed).toBeGreaterThan(1);
+    const sys = o.model.messages[0]!.content;
+    expect(sys).toContain("123 Main Street"); // St -> Street so TTS doesn't spell it out
+    expect(sys).toMatch(/today is/i); // current date available to the agent
+    expect(sys).toMatch(/label/i); // told to read the spoken label, not a raw timestamp
   });
 
   it("passes leadId + tenantId through variableValues for the webhook to read", () => {

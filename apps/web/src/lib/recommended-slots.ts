@@ -1,9 +1,9 @@
 "use server";
 import { adminDb, lead, user, property, appointment, job, tenant, eq, and } from "@savvy/db";
-import { parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, rankSlots, resolveRepOrigin, type LatLng } from "@savvy/core";
+import { parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, rankSlots, resolveRepOrigin, spokenSlotLabel, type LatLng } from "@savvy/core";
 import { distance } from "@savvy/integrations";
 
-type RecommendedSlot = { startsAt: string; endsAt: string; driveMinutes: number | null };
+type RecommendedSlot = { startsAt: string; endsAt: string; driveMinutes: number | null; label: string };
 
 export async function getRecommendedSlots(
   leadId: string,
@@ -68,5 +68,13 @@ export async function getRecommendedSlots(
   idxWithOrigin.forEach((x, k) => { driveBySlot[x.i] = matrix ? (matrix[k]?.[0] ?? null) : null; });
 
   const ranked = rankSlots({ slots, driveMinutesBySlotIndex: driveBySlot, weights: cfg.driveTime }).slice(0, limit);
-  return { slots: ranked.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString(), driveMinutes: s.driveMinutes })) };
+  const nowIso = new Date().toISOString();
+  return {
+    slots: ranked.map((s) => ({
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+      driveMinutes: s.driveMinutes,
+      label: spokenSlotLabel(s.startsAt.toISOString(), tz, nowIso),
+    })),
+  };
 }
