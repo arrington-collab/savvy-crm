@@ -27,6 +27,7 @@ export const user = pgTable("user", {
   clerkUserId: text("clerk_user_id"),
   name: text("name").notNull(),
   email: text("email").notNull(),
+  phone: text("phone"),
   role: userRoleEnum("role").notNull().default("rep"),
   gcalConnectionId: text("gcal_connection_id"),
   baseLat: doublePrecision("base_lat"),
