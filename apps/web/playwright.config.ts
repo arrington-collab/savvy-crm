@@ -20,6 +20,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       TEST_MODE: "1",
+      VAPI_WEBHOOK_SECRET: "test-vapi-secret",
       TEST_TENANT_ID: process.env.TEST_TENANT_ID ?? "",
       INNGEST_DEV: "1",
       LITELLM_BASE_URL: `http://localhost:${process.env.AI_STUB_PORT ?? "4010"}/v1`,
