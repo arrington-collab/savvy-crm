@@ -74,8 +74,8 @@ async function seedScheduledAppt(
 
 afterAll(async () => {
   if (tenantIds.length) {
-    // Clean up in FK-safe order: appointments → jobs → customers → repAvailabilityBlock → users → tenants
-    // Use adminDb so RLS doesn't interfere. Property is cascade-deleted with customer.
+    // Clean up in FK-safe order: appointments → jobs → properties → customers → repAvailabilityBlock → users → tenants
+    // Use adminDb so RLS doesn't interfere.
     await adminDb.delete(appointment).where(inArray(appointment.tenantId, tenantIds));
     await adminDb.delete(job).where(inArray(job.tenantId, tenantIds));
     await adminDb.delete(property).where(inArray(property.tenantId, tenantIds));

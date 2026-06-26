@@ -55,7 +55,13 @@ export async function repsAvailableAt(
         const appts = await tx
           .select({ startsAt: appointment.startsAt, endsAt: appointment.endsAt })
           .from(appointment)
-          .where(and(eq(appointment.assigneeUserId, c.userId), eq(appointment.status, "scheduled")));
+          .where(and(
+            eq(appointment.tenantId, tenantId),
+            eq(appointment.assigneeUserId, c.userId),
+            eq(appointment.status, "scheduled"),
+            lt(appointment.startsAt, endsAt),
+            gt(appointment.endsAt, startsAt),
+          ));
         const blocks = await getRepBlocks(tx, { tenantId, userId: c.userId, from: startsAt, to: endsAt });
         return { userId: c.userId, busy: [...appts, ...blocks] };
       }),
