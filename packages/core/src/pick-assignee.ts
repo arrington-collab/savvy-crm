@@ -26,7 +26,7 @@ export function pickAssignee(opts: {
   strategy: AssignmentConfig["strategy"];
   config: AssignmentConfig;
   candidates: AssignmentCandidate[];
-  lead: { state: string | null; city: string | null; score: number | null; lane?: string | null };
+  lead: { state: string | null; city: string | null; zip?: string | null; score: number | null; lane?: string | null };
 }): string | null {
   const { strategy, config, candidates, lead } = opts;
   if (strategy === "off" || candidates.length === 0) return null;
@@ -39,12 +39,18 @@ export function pickAssignee(opts: {
   if (strategy === "least_loaded") return leastLoaded(candidates);
 
   if (strategy === "territory") {
-    const matches = (config.territoryRules ?? []).filter(
-      (r) => r.state === lead.state && (r.city == null || r.city === lead.city),
-    );
-    const cityMatches = matches.filter((r) => r.city != null && r.city === lead.city);
-    const chosen = cityMatches.length > 0 ? cityMatches : matches;
-    return leastLoaded(inPool(chosen.map((r) => r.userId))) ?? leastLoaded(candidates);
+    const rules = config.territoryRules ?? [];
+    // 1) exact zip match wins
+    const zipRules = lead.zip ? rules.filter((r) => r.zip != null && r.zip === lead.zip) : [];
+    if (zipRules.length > 0) {
+      return roundRobin(inPool(zipRules.map((r) => r.userId))) ?? roundRobin(candidates);
+    }
+    // 2) state (+ optional city) rules
+    const stateRules = rules.filter((r) => r.zip == null && r.state === lead.state && (r.city == null || r.city === lead.city));
+    const cityRules = stateRules.filter((r) => r.city != null && r.city === lead.city);
+    const chosen = cityRules.length > 0 ? cityRules : stateRules;
+    // 3) round-robin tiebreak within the matched pool, else across everyone
+    return roundRobin(inPool(chosen.map((r) => r.userId))) ?? roundRobin(candidates);
   }
 
   if (strategy === "score") {

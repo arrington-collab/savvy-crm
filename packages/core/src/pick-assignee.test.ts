@@ -20,14 +20,14 @@ describe("pickAssignee", () => {
     const withNever = [c("a", 9, "2026-03-01"), c("z", 0, null)];
     expect(pickAssignee({ strategy: "round_robin", config: { strategy: "round_robin" }, candidates: withNever, lead })).toBe("z");
   });
-  it("territory: city+state rule beats state-only; falls back to least_loaded on no match", () => {
+  it("territory: city+state rule beats state-only; falls back to round-robin on no match", () => {
     const config: AssignmentConfig = { strategy: "territory", territoryRules: [
       { state: "AZ", userId: "a" },
       { state: "AZ", city: "Mesa", userId: "b" },
     ] };
     expect(pickAssignee({ strategy: "territory", config, candidates: cands, lead })).toBe("b");
     const noMatch = pickAssignee({ strategy: "territory", config, candidates: cands, lead: { state: "TX", city: "Austin", score: 50 } });
-    expect(noMatch).toBe("d");
+    expect(noMatch).toBe("a"); // round-robin picks least-recently-assigned (oldest timestamp)
   });
   it("score: highest tier the lead meets; within tier least_loaded; fallback when no tier", () => {
     const config: AssignmentConfig = { strategy: "score", scoreTiers: [
@@ -69,6 +69,53 @@ describe("pickAssignee proximity", () => {
     const tileLead = { ...proximityLead, lane: "tile" };
     const cands = [cand({ userId: "a", driveMinutes: 5, skills: [] }), cand({ userId: "b", driveMinutes: 30, skills: [] })];
     expect(pickAssignee({ strategy: "proximity", config: cfg, candidates: cands, lead: tileLead })).toBe("a");
+  });
+});
+
+describe("pickAssignee — zip territory", () => {
+  const cand = (userId: string, over: Partial<AssignmentCandidate> = {}): AssignmentCandidate => ({
+    userId, openLeadCount: 0, lastAssignedAt: null, ...over,
+  });
+  const candidates = [cand("a"), cand("b"), cand("c")];
+
+  it("routes by exact zip when a zip rule matches", () => {
+    const got = pickAssignee({
+      strategy: "territory",
+      config: { strategy: "territory", territoryRules: [{ zip: "85203", userId: "b" }] },
+      candidates,
+      lead: { state: "AZ", city: "Mesa", zip: "85203", score: null },
+    });
+    expect(got).toBe("b");
+  });
+
+  it("breaks a multi-rep zip tie by round-robin (least recently assigned)", () => {
+    const got = pickAssignee({
+      strategy: "territory",
+      config: {
+        strategy: "territory",
+        territoryRules: [{ zip: "85203", userId: "a" }, { zip: "85203", userId: "b" }],
+      },
+      candidates: [
+        cand("a", { lastAssignedAt: "2026-06-25T10:00:00Z" }),
+        cand("b", { lastAssignedAt: null }), // never assigned -> wins round-robin
+      ],
+      lead: { state: "AZ", city: "Mesa", zip: "85203", score: null },
+    });
+    expect(got).toBe("b");
+  });
+
+  it("falls back to round-robin across all when no zip/state rule matches", () => {
+    const got = pickAssignee({
+      strategy: "territory",
+      config: { strategy: "territory", territoryRules: [{ zip: "99999", userId: "a" }] },
+      candidates: [
+        cand("a", { lastAssignedAt: "2026-06-25T10:00:00Z" }),
+        cand("b", { lastAssignedAt: "2026-06-24T10:00:00Z" }), // older -> wins
+        cand("c", { lastAssignedAt: "2026-06-25T11:00:00Z" }),
+      ],
+      lead: { state: "CA", city: "LA", zip: "90001", score: null },
+    });
+    expect(got).toBe("b");
   });
 });
 
