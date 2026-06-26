@@ -34,6 +34,52 @@ describe("parseVapiMessage", () => {
     expect(msg.toNumber).toBe("+16025559999");
   });
 
+  it("extracts callId from call.id", () => {
+    const msg = parseVapiMessage({
+      message: {
+        type: "tool-calls",
+        call: { id: "vapi-call-xyz", metadata: { leadId: "lead-1", tenantId: "tenant-1" } },
+      },
+    });
+    expect(msg.callId).toBe("vapi-call-xyz");
+  });
+
+  it("returns null callId when call.id is missing", () => {
+    const msg = parseVapiMessage({
+      message: {
+        type: "end-of-call-report",
+        call: { metadata: { leadId: "lead-1" } },
+      },
+    });
+    expect(msg.callId).toBeNull();
+  });
+
+  it("does not throw on hostile input and returns sane defaults", () => {
+    // null input
+    const fromNull = parseVapiMessage(null);
+    expect(fromNull.type).toBe("");
+    expect(Array.isArray(fromNull.toolCalls)).toBe(true);
+    expect(fromNull.metadata).toEqual({});
+    expect(fromNull.callId).toBeNull();
+
+    // empty object
+    const fromEmpty = parseVapiMessage({});
+    expect(fromEmpty.type).toBe("");
+    expect(Array.isArray(fromEmpty.toolCalls)).toBe(true);
+    expect(fromEmpty.metadata).toEqual({});
+
+    // non-JSON string as toolCalls[0].function.arguments
+    const fromBadArgs = parseVapiMessage({
+      message: {
+        type: "tool-calls",
+        toolCalls: [{ id: "tc1", function: { name: "doThing", arguments: "NOT JSON {{{{" } }],
+        call: { metadata: {} },
+      },
+    });
+    expect(fromBadArgs.type).toBe("tool-calls");
+    expect(fromBadArgs.toolCalls[0]?.args).toEqual({});
+  });
+
   it("toolResult wraps a result in Vapi's results shape", () => {
     expect(toolResult("tc1", { slots: [] })).toEqual({ results: [{ toolCallId: "tc1", result: { slots: [] } }] });
   });

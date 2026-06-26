@@ -12,7 +12,6 @@ export async function bookLeadSlot(input: {
   leadId: string;
   startsAt: string;
   endsAt: string;
-  tenantId?: string;
 }): Promise<{ appointmentId: string; jobId: string; tenantId: string } | { error: "no_lead" | "no_assignee" | "slot_taken" }> {
   const [l] = await adminDb
     .select({ tenantId: lead.tenantId, assignedUserId: lead.assignedUserId })

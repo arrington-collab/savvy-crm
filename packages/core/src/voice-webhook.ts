@@ -1,6 +1,7 @@
 type ParsedTool = { id: string; name: string; args: Record<string, unknown> };
 export type ParsedVapiMessage = {
   type: string;
+  callId: string | null;
   metadata: Record<string, string>;
   toolCalls: ParsedTool[];
   transcript: string | null;
@@ -52,6 +53,7 @@ export function parseVapiMessage(body: unknown): ParsedVapiMessage {
 
   return {
     type: String(message.type ?? ""),
+    callId: typeof call.id === "string" ? call.id : null,
     metadata,
     toolCalls,
     transcript: typeof artifact.transcript === "string" ? artifact.transcript : null,

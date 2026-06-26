@@ -110,7 +110,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           transcript: msg.transcript,
           recordingUrl: msg.recordingUrl,
           durationSeconds: msg.durationSeconds,
-          providerCallId: msg.metadata.callId ?? null,
+          providerCallId: msg.callId,
           outcome,
         });
       } catch (e) {

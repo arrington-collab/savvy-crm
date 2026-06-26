@@ -98,7 +98,7 @@ export const voiceFallback = inngest.createFunction(
         assistantOverrides: overrides,
         metadata: { leadId, tenantId, direction: "outbound", toPhone: decision.phone },
       });
-      const outcome = voiceRunOutcome(result?.callId ? result as { callId: string } : null);
+      const outcome = voiceRunOutcome(result);
       await recordAgentRun({
         tenantId, agent: "comms", taskKey: "lead.voice.fallback",
         status: outcome.status, error: outcome.error,
