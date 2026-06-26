@@ -1,6 +1,6 @@
 import { eq, and, isNull, gte, or } from "drizzle-orm";
-import { adminDb } from "../admin-client.js";
-import { bookingLink } from "../schema/index.js";
+import { adminDb } from "../admin-client";
+import { bookingLink } from "../schema/index";
 import { randomShortCode } from "@savvy/core";
 
 /**
