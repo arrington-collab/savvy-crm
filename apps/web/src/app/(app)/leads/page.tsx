@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { NewCallButton } from "./NewCallButton";
 import { ago } from "@/lib/format";
 import { leadStatusPersona } from "@/lib/agents";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
@@ -32,9 +33,12 @@ export default async function LeadsPage({
         eyebrow="Funnel"
         title="Leads"
         right={
-          <Link href="/leads/new">
-            <Button data-testid="new-lead">+ New Lead</Button>
-          </Link>
+          <div className="flex gap-2">
+            <NewCallButton />
+            <Link href="/leads/new">
+              <Button data-testid="new-lead">+ New Lead</Button>
+            </Link>
+          </div>
         }
       />
 

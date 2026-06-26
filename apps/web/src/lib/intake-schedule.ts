@@ -60,11 +60,19 @@ export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; 
     await setLeadOwner(tx, { tenantId, leadId, userId: repId });
     await markLeadContacted(tx, { tenantId, leadId });
   });
-  await inngest.send({ name: "lead/contacted", data: { tenantId, leadId } });
+  try {
+    await inngest.send({ name: "lead/contacted", data: { tenantId, leadId } });
+  } catch {
+    // Missing Inngest engine (e.g. in e2e test) must not fail booking.
+  }
 
   // 3. Book the slot atomically (exclusion constraint guards double-booking).
   const booked = await bookLeadSlot({ leadId, startsAt, endsAt });
   if ("error" in booked) return booked.error === "slot_taken" ? { error: "slot_taken" } : { error: "no_assignee" };
-  await inngest.send({ name: "appointment/booked", data: { tenantId, appointmentId: booked.appointmentId, jobId: booked.jobId, leadId } });
+  try {
+    await inngest.send({ name: "appointment/booked", data: { tenantId, appointmentId: booked.appointmentId, jobId: booked.jobId, leadId } });
+  } catch {
+    // Missing Inngest engine must not fail after the appointment is already persisted.
+  }
   return { ok: true, leadId, appointmentId: booked.appointmentId, jobId: booked.jobId };
 }

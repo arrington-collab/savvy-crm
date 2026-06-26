@@ -40,4 +40,4 @@ export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, g
 export { bookLeadSlot } from "./lifecycle/booking";
 export { getRepBlocks, repsAvailableAt } from "./lifecycle/availability";
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";
-export { listAssignableReps } from "./lifecycle/team.js";
+export { listAssignableReps } from "./lifecycle/team";
