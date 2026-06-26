@@ -3,6 +3,29 @@ import { buildAssistantOverrides, shouldPlaceVoiceCall, parseFinanceConfig, pars
 import { voice } from "@savvy/integrations";
 import { inngest } from "../client";
 
+/**
+ * Builds the storm-context string from a lead's scoreFeatures jsonb field.
+ * Returns null when no storm data is present.
+ * Pure / no DB — exported for unit testing.
+ */
+export function formatVoiceStormContext(scoreFeatures: unknown): string | null {
+  const sf = scoreFeatures as { storm?: { maxHailInches?: number; maxWindMph?: number } } | null;
+  const storm = sf?.storm;
+  if (!storm || (!storm.maxHailInches && !storm.maxWindMph)) return null;
+  const parts: string[] = [];
+  if (storm.maxHailInches) parts.push(`${storm.maxHailInches}" hail`);
+  if (storm.maxWindMph) parts.push(`${storm.maxWindMph} mph wind`);
+  return parts.join(", ");
+}
+
+/**
+ * Maps the place-call result to a run-status pair.
+ * Pure / no DB — exported for unit testing.
+ */
+export function voiceRunOutcome(result: { callId: string } | null): { status: "ok" | "skipped"; error: string | null } {
+  return result ? { status: "ok", error: null } : { status: "skipped", error: "no-vapi-key" };
+}
+
 export const voiceFallback = inngest.createFunction(
   {
     id: "voice-fallback",
@@ -45,11 +68,7 @@ export const voiceFallback = inngest.createFunction(
       });
       if (!verdict.ok) return { ok: false as const, reason: verdict.reason };
 
-      const sf = row.scoreFeatures as { storm?: { maxHailInches?: number; maxWindMph?: number } } | null;
-      const storm = sf?.storm;
-      const stormContext = storm && (storm.maxHailInches || storm.maxWindMph)
-        ? `${storm.maxHailInches ? `${storm.maxHailInches}" hail` : ""}${storm.maxHailInches && storm.maxWindMph ? ", " : ""}${storm.maxWindMph ? `${storm.maxWindMph} mph wind` : ""}`.trim()
-        : null;
+      const stormContext = formatVoiceStormContext(row.scoreFeatures);
 
       return {
         ok: true as const,
@@ -79,9 +98,10 @@ export const voiceFallback = inngest.createFunction(
         assistantOverrides: overrides,
         metadata: { leadId, tenantId, direction: "outbound", toPhone: decision.phone },
       });
+      const outcome = voiceRunOutcome(result?.callId ? result as { callId: string } : null);
       await recordAgentRun({
         tenantId, agent: "comms", taskKey: "lead.voice.fallback",
-        status: result ? "ok" : "skipped", error: result ? null : "no-vapi-key",
+        status: outcome.status, error: outcome.error,
       });
       return { callId: result?.callId ?? null };
     });
