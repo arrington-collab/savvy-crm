@@ -4,6 +4,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { isOrgAdmin } from "./authz";
+import { normalizePhone } from "@savvy/core";
 import type { UserRole } from "@savvy/core";
 
 /** Returns the Clerk orgId, or null in TEST_MODE (no Clerk session). */
@@ -71,6 +72,19 @@ export async function removeMember(userId: string): Promise<{ ok: true } | { err
   } catch {
     return { error: "could not remove member" };
   }
+}
+
+/** Admin-set a member's mobile number (used for rep speed-to-lead alerts).
+ *  Empty input clears the number; non-empty input that can't be normalized errors. */
+export async function setMemberPhone(userId: string, phone: string): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  const trimmed = phone.trim();
+  const normalized = trimmed ? normalizePhone(trimmed) : null;
+  if (trimmed && !normalized) return { error: "invalid phone number" };
+  const tenantId = await getTenantId();
+  await withTenant(tenantId, (tx) => tx.update(user).set({ phone: normalized }).where(eq(user.id, userId)));
+  revalidatePath("/settings/team");
+  return { ok: true };
 }
 
 export async function addCrewMember(name: string): Promise<{ ok: true; id: string } | { error: string }> {

@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { inviteMember, changeUserRole, removeMember, addCrewMember } from "@/lib/team-actions";
+import { inviteMember, changeUserRole, removeMember, addCrewMember, setMemberPhone } from "@/lib/team-actions";
 import { setCrewPin } from "@/lib/crew-admin-actions";
 import type { UserRole } from "@savvy/core";
 
-type Member = { id: string; name: string; email: string; role: string; isClerkBacked: boolean; deactivated: boolean; hasPin: boolean };
+type Member = { id: string; name: string; email: string; role: string; phone: string | null; isClerkBacked: boolean; deactivated: boolean; hasPin: boolean };
 const ROLES = ["owner", "admin", "rep", "office", "crew"] as const;
 
 export function TeamManager({ team }: { team: Member[] }) {
@@ -19,6 +19,7 @@ export function TeamManager({ team }: { team: Member[] }) {
   const [inviteRole, setInviteRole] = useState("rep");
   const [crewName, setCrewName] = useState("");
   const [pins, setPins] = useState<Record<string, string>>({});
+  const [phones, setPhones] = useState<Record<string, string>>({});
 
   function run(fn: () => Promise<{ ok: true } | { ok: true; id: string } | { error: string }>, okMsg: string) {
     start(async () => {
@@ -71,6 +72,10 @@ export function TeamManager({ team }: { team: Member[] }) {
                   className="mono rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-sm">
                   {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
+                <Input type="tel" placeholder="mobile (for alerts)" data-testid="member-phone"
+                  value={phones[m.id] ?? m.phone ?? ""}
+                  onChange={(e) => setPhones((p) => ({ ...p, [m.id]: e.target.value }))} className="w-44"
+                  onBlur={() => { const next = phones[m.id]; if (next !== undefined && next !== (m.phone ?? "")) run(() => setMemberPhone(m.id, next), "Phone saved"); }} />
                 {!m.isClerkBacked && (
                   <Input placeholder={m.hasPin ? "reset PIN" : "set PIN"} value={pins[m.id] ?? ""}
                     onChange={(e) => setPins((p) => ({ ...p, [m.id]: e.target.value }))} className="w-24"
