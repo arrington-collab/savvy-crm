@@ -1,5 +1,6 @@
-import { adminDb, withTenant, lead, tenant, eq, getAssignmentCandidates, setLeadOwner, recordAgentRun } from "@savvy/db";
-import { parseSpeedToLeadConfig, pickReassignee } from "@savvy/core";
+import { adminDb, withTenant, lead, tenant, customer, property, user, eq, getAssignmentCandidates, setLeadOwner, recordAgentRun } from "@savvy/db";
+import { parseSpeedToLeadConfig, pickReassignee, buildRepAlertSms } from "@savvy/core";
+import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
 import { inngest } from "../client";
 
 // Open (non-terminal) lead statuses — a lost/won lead is never escalated or reassigned.
@@ -8,6 +9,29 @@ const OPEN: string[] = ["new", "contacted", "qualified", "booked"];
 async function loadSla(tenantId: string): Promise<{ firstTouchSlaMin: number; escalateMin: number }> {
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
   return parseSpeedToLeadConfig((t?.settings as { speedToLead?: unknown } | null)?.speedToLead);
+}
+
+export type RepAlertCtx = {
+  source: string | null;
+  ownerPhone: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  city: string | null;
+};
+
+/** Best-effort: text the assigned rep a tap-to-call alert for a fresh non-call lead.
+ *  Returns a reason string. Pure except for the injected SMS sender (defaults to the gateway). */
+export async function runRepAlert(ctx: RepAlertCtx, sender: SmsSender = sms): Promise<string> {
+  if (ctx.source === "inbound-call") return "skip-inbound";
+  if (!ctx.ownerPhone) return "skip-no-rep-phone";
+  if (!ctx.customerPhone) return "skip-no-lead-phone";
+  const body = buildRepAlertSms({ name: ctx.customerName ?? "a new lead", city: ctx.city, leadPhone: ctx.customerPhone });
+  try {
+    await sender.sendSms({ to: ctx.ownerPhone, from: smsFrom(), body });
+    return "sent";
+  } catch {
+    return "send-failed";
+  }
 }
 
 export const leadSpeedToLead = inngest.createFunction(
@@ -22,6 +46,28 @@ export const leadSpeedToLead = inngest.createFunction(
   async ({ event, step }) => {
     const { leadId, tenantId } = event.data;
     const cfg = await step.run("load-sla", () => loadSla(tenantId));
+
+    await step.run("alert-rep", async () => {
+      const ctx = await withTenant(tenantId, async (tx) => {
+        const [row] = await tx
+          .select({
+            source: lead.source,
+            ownerPhone: user.phone,
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            city: property.city,
+          })
+          .from(lead)
+          .leftJoin(user, eq(lead.assignedUserId, user.id))
+          .leftJoin(customer, eq(lead.customerId, customer.id))
+          .leftJoin(property, eq(lead.propertyId, property.id))
+          .where(eq(lead.id, leadId));
+        return row ?? null;
+      });
+      const reason = ctx ? await runRepAlert(ctx) : "no-lead";
+      await recordAgentRun({ tenantId, agent: "comms", taskKey: "lead.rep.alert", status: reason === "sent" ? "ok" : "skipped", error: reason === "sent" ? null : reason });
+      return { reason };
+    });
 
     await step.sleep("first-touch-sla", `${cfg.firstTouchSlaMin}m`);
     const overdue = await step.run("check-overdue", async () =>
