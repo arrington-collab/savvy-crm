@@ -32,6 +32,14 @@ test("team: add crew member, change role, remove → deactivated", async ({ page
     expect(r?.role).toBe("office");
   }).toPass({ timeout: 8000 });
 
+  // Admin sets the member's mobile (for rep speed-to-lead alerts) → normalized to E.164.
+  await row.getByTestId("member-phone").fill("(480) 555-0142");
+  await row.getByTestId("member-phone").blur();
+  await expect(async () => {
+    const [r] = await withTenant(tenantId, (tx) => tx.select().from(user).where(eq(user.id, userId)));
+    expect(r?.phone).toBe("+14805550142");
+  }).toPass({ timeout: 8000 });
+
   await row.getByTestId("remove-member").click();
   await expect(async () => {
     const [r] = await withTenant(tenantId, (tx) => tx.select().from(user).where(eq(user.id, userId)));

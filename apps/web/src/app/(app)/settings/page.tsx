@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 
 const SECTIONS: { href: string; label: string; desc: string }[] = [
+  { href: "/settings/profile", label: "Your profile", desc: "Set your mobile number for instant new-lead text alerts." },
   { href: "/settings/team", label: "Team", desc: "Invite teammates, manage roles, add crew." },
   { href: "/settings/payments", label: "Payments", desc: "Connect Stripe to collect payments." },
   { href: "/settings/quickbooks", label: "QuickBooks", desc: "Sync invoices and payments." },

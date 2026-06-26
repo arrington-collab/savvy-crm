@@ -5,8 +5,9 @@
  * We test the extractable decision predicates here with real assertions so
  * CI will catch regressions on the pick-reassignee path and check-overdue logic.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { pickReassignee, type AssignmentCandidate } from "@savvy/core";
+import { runRepAlert } from "./lead-speed-to-lead";
 
 // Simulate the check-overdue predicate: uncontacted+assigned lead yields { owner }
 function checkOverduePredicate(row: { contacted: Date | null; owner: string | null } | null) {
@@ -68,5 +69,46 @@ describe("leadSpeedToLead — reassign via pickReassignee", () => {
   it("returns null when only the current owner is a candidate", () => {
     const next = pickReassignee([makeCandidate("owner")], "owner");
     expect(next).toBeNull();
+  });
+});
+
+describe("runRepAlert", () => {
+  const fakeSender = () => {
+    const calls: { to: string; body: string }[] = [];
+    return {
+      calls,
+      sendSms: vi.fn(async (m: { to: string; from: string; body: string }) => {
+        calls.push({ to: m.to, body: m.body });
+        return { sid: "x" };
+      }),
+    };
+  };
+
+  it("texts the rep with a tel: link for a non-call lead with a rep phone", async () => {
+    const s = fakeSender();
+    const r = await runRepAlert(
+      { source: "web", ownerPhone: "+16025550001", customerName: "Dale Homeowner", customerPhone: "+16025550142", city: "Mesa" },
+      s as never,
+    );
+    expect(r).toBe("sent");
+    expect(s.sendSms).toHaveBeenCalledTimes(1);
+    expect(s.calls[0]!.to).toBe("+16025550001");
+    expect(s.calls[0]!.body).toContain("tel:+16025550142");
+    expect(s.calls[0]!.body).toContain("Dale");
+  });
+  it("skips inbound-call leads", async () => {
+    const s = fakeSender();
+    expect(await runRepAlert({ source: "inbound-call", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-inbound");
+    expect(s.sendSms).not.toHaveBeenCalled();
+  });
+  it("skips when the rep has no phone", async () => {
+    const s = fakeSender();
+    expect(await runRepAlert({ source: "web", ownerPhone: null, customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-no-rep-phone");
+    expect(s.sendSms).not.toHaveBeenCalled();
+  });
+  it("skips when there is no customer phone to dial", async () => {
+    const s = fakeSender();
+    expect(await runRepAlert({ source: "web", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: null, city: null }, s as never)).toBe("skip-no-lead-phone");
+    expect(s.sendSms).not.toHaveBeenCalled();
   });
 });

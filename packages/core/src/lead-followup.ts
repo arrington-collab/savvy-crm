@@ -16,7 +16,7 @@ export const DEFAULT_CADENCE: CadenceTouch[] = [
 ];
 
 const speedSchema = z.object({
-  firstTouchSlaMin: z.number().positive().default(3),
+  firstTouchSlaMin: z.number().positive().default(1),
   escalateMin: z.number().positive().default(10),
 });
 export function parseSpeedToLeadConfig(raw: unknown): SpeedToLeadConfig {
@@ -46,4 +46,12 @@ export function shouldSendChannel(
 ): boolean {
   if (channel === "sms") return !c.smsOptOut && c.smsConsentAt != null;
   return !c.emailOptOut;
+}
+
+/** SMS to the assigned rep on a fresh non-call lead. `leadPhone` becomes a tap-to-call
+ *  link to the homeowner. First name only; city clause only when known. One segment. */
+export function buildRepAlertSms(v: { name: string; city?: string | null; leadPhone: string }): string {
+  const first = v.name.trim().split(/\s+/)[0] || "a new lead";
+  const where = v.city ? ` in ${v.city}` : "";
+  return `New lead: ${first}${where} — call now, speed to lead matters. Tap to call: tel:${v.leadPhone}`;
 }
