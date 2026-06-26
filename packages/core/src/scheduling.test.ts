@@ -120,3 +120,29 @@ describe("rankSlots", () => {
     expect(rankSlots({ slots: [], driveMinutesBySlotIndex: [], weights })).toEqual([]);
   });
 });
+
+describe("rankSlots — today-first", () => {
+  const slots = [
+    { startsAt: new Date("2026-06-26T16:00:00Z"), endsAt: new Date("2026-06-26T17:00:00Z"), score: 0.9 }, // tomorrow, great cluster
+    { startsAt: new Date("2026-06-25T22:00:00Z"), endsAt: new Date("2026-06-25T23:00:00Z"), score: 0.1 }, // today, poor cluster
+  ];
+
+  it("puts a same-day slot first even with a worse base score", () => {
+    const ranked = rankSlots({
+      slots,
+      driveMinutesBySlotIndex: [5, 300],
+      weights: { wSoon: 0.2, wDrive: 0.3, wCluster: 0.5, driveHalfMin: 20 },
+      todayCutoff: new Date("2026-06-25T23:59:59Z"),
+    });
+    expect(ranked[0]!.startsAt.toISOString()).toBe("2026-06-25T22:00:00.000Z");
+  });
+
+  it("ranks normally when no cutoff is given", () => {
+    const ranked = rankSlots({
+      slots,
+      driveMinutesBySlotIndex: [5, 300],
+      weights: { wSoon: 0.2, wDrive: 0.3, wCluster: 0.5, driveHalfMin: 20 },
+    });
+    expect(ranked[0]!.startsAt.toISOString()).toBe("2026-06-26T16:00:00.000Z");
+  });
+});
