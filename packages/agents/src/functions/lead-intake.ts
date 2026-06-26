@@ -1,6 +1,6 @@
 import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, shouldSendChannel, renderTemplate, type LeadFeatures, type ScoringConfig } from "@savvy/core";
 import {
-  withTenant, lead, customer, property, communication, recordAgentRun, eq,
+  withTenant, lead, customer, property, communication, recordAgentRun, eq, createBookingLink,
   getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
   tenant as tenantTbl,
 } from "@savvy/db";
@@ -281,7 +281,8 @@ export const leadIntake = inngest.createFunction(
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
       const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
-      const bookingUrl = `${base}/book/${token}`;
+      const code = await createBookingLink({ tenantId, token, expiresAt: new Date(Date.now() + 14 * 86400000) });
+      const bookingUrl = `${base}/b/${code}`;
       const vars = { name: ctx.name, bookingUrl };
 
       const cust = await withTenant(tenantId, async (tx) => {

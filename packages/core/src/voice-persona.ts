@@ -4,6 +4,7 @@
 
 import { isWithinQuietHours } from "./quiet-hours";
 import { shouldSendChannel } from "./lead-followup";
+import { expandAddressForSpeech } from "./address";
 
 export type VoiceToolDef = {
   type: "function";
@@ -22,6 +23,7 @@ export type AssistantOverrides = {
     messages: { role: "system"; content: string }[];
     tools: VoiceToolDef[];
   };
+  voice: { speed: number };
   variableValues: Record<string, string>;
 };
 
@@ -32,6 +34,7 @@ export type VoiceLeadContext = {
   stormContext: string | null;
   leadId: string;
   tenantId: string;
+  tz: string;
 };
 
 const VOICE_TOOLS: VoiceToolDef[] = [
@@ -67,12 +70,21 @@ export function buildAssistantOverrides(ctx: VoiceLeadContext): AssistantOverrid
     ? `Recent storm context for this property: ${ctx.stormContext}. You may mention it as the reason for the free inspection.`
     : "";
 
+  const todaySpoken = new Intl.DateTimeFormat("en-US", {
+    timeZone: ctx.tz,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+
   const systemPrompt = [
-    `You are the scheduling assistant for ${ctx.tenantName}, a roofing company. You always identify yourself as calling from ${ctx.tenantName}.`,
-    `You are speaking with ${ctx.leadName} about the property at ${ctx.address}.`,
-    `Your goal: book a free roof inspection, or warmly hand the caller to a human representative if they prefer or the conversation gets complex.`,
+    `You're the scheduling assistant for ${ctx.tenantName}, a roofing company, and you always say you're calling from ${ctx.tenantName}.`,
+    `You're speaking with ${ctx.leadName} about the property at ${expandAddressForSpeech(ctx.address)}.`,
+    `Keep it warm, natural, and brief — talk like a friendly neighbor, not a call center. Use short sentences and don't over-explain.`,
+    `Today is ${todaySpoken}. If the caller asks the date or day, answer naturally from that.`,
+    `Your goal: book a free roof inspection, or warmly hand the caller to a human if they prefer or it gets complex.`,
     stormLine,
-    `To offer times, call the getRecommendedSlots tool, read back the options, and when the caller picks one call bookSlot with that exact startsAt/endsAt. Never invent or estimate an appointment time.`,
+    `To offer times, call getRecommendedSlots, then read back each option's spoken "label" field (for example "tomorrow at 9 AM") — never read a raw timestamp or the year. When the caller picks one, call bookSlot with that option's exact startsAt and endsAt. Never invent or estimate a time.`,
     `Guardrails (follow exactly):`,
     `- Do not quote pricing or prices, and do not give cost estimates.`,
     `- Do not discuss the homeowner's insurance deductible, and never suggest anything resembling insurance fraud (e.g. covering a deductible).`,
@@ -83,13 +95,14 @@ export function buildAssistantOverrides(ctx: VoiceLeadContext): AssistantOverrid
     .join("\n");
 
   return {
-    firstMessage: `Hi, this is the scheduling assistant for ${ctx.tenantName}. Is now a good time to set up your free roof inspection?`,
+    firstMessage: `Hi, it's ${ctx.tenantName} calling — is now an okay time to get your free roof inspection set up?`,
     model: {
       provider: "openai",
       model: "gpt-4o",
       messages: [{ role: "system", content: systemPrompt }],
       tools: VOICE_TOOLS,
     },
+    voice: { speed: 1.15 },
     variableValues: { leadId: ctx.leadId, tenantId: ctx.tenantId },
   };
 }

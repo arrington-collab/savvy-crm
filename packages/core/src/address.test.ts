@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityFromAddress, formatCountyLabel, normalizeAddress } from "./address.js";
+import { parseCityFromAddress, formatCountyLabel, normalizeAddress, expandAddressForSpeech } from "./address.js";
 
 describe("parseCityFromAddress", () => {
   it("extracts the city before STATE ZIP", () => {
@@ -58,5 +58,20 @@ describe("normalizeAddress", () => {
   });
   it("Unicode-folds accented characters to ASCII (e.g. Cañon → canon)", () => {
     expect(normalizeAddress("Cañon Rd")).toContain("canon");
+  });
+});
+
+describe("expandAddressForSpeech", () => {
+  it("expands directionals and street suffixes for TTS", () => {
+    expect(expandAddressForSpeech("1542 E Mountain View Rd")).toBe("1542 East Mountain View Road");
+  });
+  it("handles a trailing period and other suffixes", () => {
+    expect(expandAddressForSpeech("45 N Oak Ave., Phoenix AZ")).toBe("45 North Oak Avenue, Phoenix AZ");
+  });
+  it("leaves numbers and ordinary words untouched", () => {
+    expect(expandAddressForSpeech("100 Main Boulevard")).toBe("100 Main Boulevard");
+  });
+  it("returns empty string for nullish input", () => {
+    expect(expandAddressForSpeech(null)).toBe("");
   });
 });

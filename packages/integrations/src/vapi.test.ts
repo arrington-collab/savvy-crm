@@ -5,6 +5,7 @@ import type { AssistantOverrides } from "@savvy/core";
 const overrides: AssistantOverrides = {
   firstMessage: "hi",
   model: { provider: "openai", model: "gpt-4o", messages: [{ role: "system", content: "x" }], tools: [] },
+  voice: { speed: 1.15 },
   variableValues: { leadId: "lead-1", tenantId: "tenant-1" },
 };
 

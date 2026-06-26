@@ -238,3 +238,17 @@ export function buildCrewView(appts: ScheduleAppt[], anchor: string, tz: string,
   if (inWeek.some((a) => a.assigneeUserId === null)) columns.push(mkColumn(null, "Unassigned"));
   return { dates, columns };
 }
+
+/** A spoken, relative label for an instant in `tz` — e.g. "today at 9:00 AM",
+ *  "tomorrow at 2:30 PM", "Saturday at 10:00 AM" (no year). For the voice agent
+ *  to read times naturally instead of a raw ISO timestamp. */
+export function spokenSlotLabel(iso: string, tz: string, nowIso: string): string {
+  const day = toCivilDate(iso, tz);
+  const today = toCivilDate(nowIso, tz);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
+  let dayLabel: string;
+  if (day === today) dayLabel = "today";
+  else if (day === addDays(today, 1)) dayLabel = "tomorrow";
+  else dayLabel = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(iso));
+  return `${dayLabel} at ${time}`;
+}
