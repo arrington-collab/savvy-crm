@@ -12,7 +12,7 @@ async function loadSla(tenantId: string): Promise<{ firstTouchSlaMin: number; es
 
 export const leadSpeedToLead = inngest.createFunction(
   {
-    id: "lead-speed-to-lead", concurrency: { limit: 10 },
+    id: "lead-speed-to-lead", concurrency: { limit: 5 },
     cancelOn: [
       { event: "lead/contacted", match: "data.leadId" },
       { event: "lead/disqualified", match: "data.leadId" },

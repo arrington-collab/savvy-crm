@@ -8,7 +8,7 @@ const OPEN = ["new", "contacted", "qualified", "booked"];
 
 export const leadCadence = inngest.createFunction(
   {
-    id: "lead-cadence", concurrency: { limit: 10 },
+    id: "lead-cadence", concurrency: { limit: 5 },
     cancelOn: [
       { event: "lead/contacted", match: "data.leadId" },
       { event: "lead/disqualified", match: "data.leadId" },
