@@ -280,9 +280,11 @@ surfaces how much gross pipeline is currently unhealthy, regardless of stage.
 ### 7d. Average cycle time
 
 `computeVelocity(stageEvents)` walks each job's `job_stage_event` log and returns
-`cycleTimeDays` — the median days from first `lead` entry to `complete`. Only jobs
-that have actually reached `complete` contribute to the average; in-progress jobs
-are excluded so the metric reflects real historical throughput.
+`cycleTimeDays` — the **mean** days between a job's **first and last recorded stage
+transition**, averaged across all jobs that have at least two transitions. It is an
+arithmetic mean (not a median), and it counts any job with movement — including
+in-flight or stalled jobs — not only those that reached `complete`. So it reflects
+how long jobs have been moving through stages, not completed-deal throughput alone.
 
 ### 7e. Week-over-week trend
 
