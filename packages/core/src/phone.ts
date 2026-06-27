@@ -24,3 +24,8 @@ export function formatPhoneDisplay(e164: string): string {
   const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164);
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : e164;
 }
+
+/** True only for a US 5-digit ZIP (zip drives territory assignment). */
+export function isValidZip(raw: string | null | undefined): boolean {
+  return typeof raw === "string" && /^\d{5}$/.test(raw.trim());
+}
