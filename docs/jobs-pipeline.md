@@ -307,3 +307,22 @@ reconstruction is its *current* value, not the value it held seven days ago. The
 WoW figure is therefore **directional** — it reliably shows whether the pipeline
 is growing or shrinking, but it is not penny-accurate for jobs whose estimate value
 changed during the window.
+
+## Materials (D2a — material ordering)
+
+When an estimate is **accepted**, a `material_order` (bill of materials) is
+generated from its `category:"material"` line items — automatically via the
+`create-material-order-on-accepted` Inngest function, or manually with the
+**Generate from estimate** button on the job cockpit's Materials card.
+
+- **One order per estimate** (`estimate_id` is unique; re-generating returns the
+  existing order).
+- The order subtotal is a **list-price BOM** (price-book unit price, what the
+  homeowner is charged) — it is deliberately **not** written to `job.costCents`,
+  so the cockpit margin stays honest. True supplier cost is D2c.
+- **`neededByAt`** = the crew install date − `DELIVERY_BUFFER_DAYS` (2). The
+  install date is the earliest `appointment` with `type='crew'` and
+  `status='scheduled'`. The cockpit shows a delivery flag: *no install
+  scheduled* or *delivery after install*.
+- Status lifecycle: `draft → ordered → delivered` (or `canceled`), advanced
+  from the cockpit.
