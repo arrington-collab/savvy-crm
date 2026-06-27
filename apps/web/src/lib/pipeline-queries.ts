@@ -1,5 +1,5 @@
-import { withTenant, job, customer, property, invoice, tenant, eq, and, desc, sql } from "@savvy/db";
-import { JOB_STAGE, parseJobsConfig, deriveJobHealth, type JobHealth, type JobStage, type JobType } from "@savvy/core";
+import { withTenant, job, jobStageEvent, customer, property, invoice, tenant, eq, and, desc, sql } from "@savvy/db";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 export type BoardCard = {
@@ -92,4 +92,63 @@ export async function getStageVelocity(): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const r of rows) out[r.stage] = Math.round(Number(r.avg_days) * 10) / 10;
   return out;
+}
+
+export type PipelineSummary = {
+  stages: { stage: JobStage; grossCents: number; expectedCents: number; probability: number; grossLastWeekCents: number; wowPct: number | null }[];
+  totals: { grossCents: number; expectedCents: number; grossLastWeekCents: number; wowPct: number | null; atRiskCents: number; avgCycleDays: number };
+};
+
+const OPEN_STAGES = JOB_STAGE.filter((s) => s !== "complete" && s !== "lost");
+
+/** Weighted-pipeline rollup for the Command Center. Reuses getBoard for current
+ *  gross + at-risk; reconstructs last-week gross from stage events. Read-only. */
+export async function getPipelineSummary(): Promise<PipelineSummary> {
+  const tenantId = await getTenantId();
+  const board = await getBoard();
+
+  const [t] = await withTenant(tenantId, (tx) =>
+    tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId)),
+  );
+  const config = parsePipelineConfig((t?.settings as { pipeline?: unknown } | undefined)?.pipeline);
+
+  const perStage = OPEN_STAGES.map((stage) => ({ stage, grossCents: sumCardValues(board[stage] ?? []) }));
+  const weighted = weightedPipeline(perStage, config);
+  const atRiskCents = sumCardValues(Object.values(board).flat().filter((c) => c.health.stuck || c.health.late));
+
+  const { jobs, events } = await withTenant(tenantId, async (tx) => {
+    const jobs = await tx.select({ id: job.id, valueEstimate: job.valueEstimate, openedAt: job.openedAt }).from(job).where(eq(job.tenantId, tenantId));
+    const events = await tx
+      .select({ jobId: jobStageEvent.jobId, toStage: jobStageEvent.toStage, enteredAt: jobStageEvent.enteredAt })
+      .from(jobStageEvent)
+      .where(eq(jobStageEvent.tenantId, tenantId));
+    return { jobs, events };
+  });
+
+  const avgCycleDays = Math.round(computeVelocity(events.map((e) => ({ jobId: e.jobId, toStage: e.toStage as string, enteredAt: e.enteredAt }))).cycleTimeDays);
+
+  const now = new Date();
+  const lastWeek = pipelineGrossAsOf(
+    jobs.map((j) => ({ id: j.id, valueEstimate: j.valueEstimate, openedAt: j.openedAt })),
+    events.map((e) => ({ jobId: e.jobId, toStage: e.toStage as JobStage, enteredAt: e.enteredAt })),
+    new Date(now.getTime() - 7 * 86_400_000),
+  );
+
+  const stages = weighted.stages.map((s) => {
+    const grossLastWeekCents = lastWeek[s.stage] ?? 0;
+    return { ...s, grossLastWeekCents, wowPct: wowPct(s.grossCents, grossLastWeekCents) };
+  });
+  const grossLastWeekCents = OPEN_STAGES.reduce((a, st) => a + (lastWeek[st] ?? 0), 0);
+
+  return {
+    stages,
+    totals: {
+      grossCents: weighted.grossCents,
+      expectedCents: weighted.expectedCents,
+      grossLastWeekCents,
+      wowPct: wowPct(weighted.grossCents, grossLastWeekCents),
+      atRiskCents,
+      avgCycleDays,
+    },
+  };
 }
