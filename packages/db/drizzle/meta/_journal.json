@@ -176,6 +176,13 @@
       "when": 1782537473260,
       "tag": "0024_broad_umar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782602860584,
+      "tag": "0025_wide_the_stranger",
+      "breakpoints": true
     }
   ]
 }
