@@ -214,3 +214,94 @@ because health is computed on read.
 - **No stored health column:** Do not add a `health` column to the `job` table.
   Derived-on-read keeps the schema simple and ensures health responds to config
   changes immediately without a migration or a backfill job.
+
+---
+
+## 7. Weighted pipeline (Command Center)
+
+The Command Center's Pipeline panel shows **probability-weighted pipeline value**
+alongside gross pipeline, at-risk dollars, average cycle time, and a week-over-week
+trend. All math is computed on read in `@savvy/core` — no new columns or tables.
+
+### 7a. Win-probability config
+
+Win probabilities live in `tenant.settings.pipeline.stageWinProbability`. Each open
+stage maps to the percentage chance of reaching `complete`. Terminal stages
+(`complete`, `lost`) are not configured — closed deals are real.
+
+```json
+{
+  "pipeline": {
+    "stageWinProbability": {
+      "lead":       5,
+      "inspected":  15,
+      "estimate":   30,
+      "approved":   70,
+      "production": 90,
+      "closeout":   95,
+      "billing":    98
+    }
+  }
+}
+```
+
+Parsed by `parsePipelineConfig` in `@savvy/core`. Omitted stages fall back to the
+compiled defaults above — partial overrides are safe.
+
+**Tuning guidance:**
+
+| Stage        | Default | When to adjust                                                          |
+|--------------|---------|-------------------------------------------------------------------------|
+| `lead`       | 5 %     | Raise for high-intent inbound leads; lower for cold-canvass markets     |
+| `inspected`  | 15 %    | Raise if inspection → estimate conversion is strong                     |
+| `estimate`   | 30 %    | Raise if carriers routinely approve; lower for competitive retail bids  |
+| `approved`   | 70 %    | Rarely needs changing — approval is a strong buy signal                 |
+| `production` | 90 %    | Lower slightly if your market has frequent mid-production cancellations |
+| `closeout`   | 95 %    | Almost never needs changing                                             |
+| `billing`    | 98 %    | Almost never needs changing                                             |
+
+### 7b. Expected value
+
+For each open stage, `weightedPipeline` computes:
+
+```
+expected = grossValue × stageWinProbability / 100
+```
+
+The **shrinkage** shown in the Command Center panel is `gross − expected` — the
+expected revenue that will not close. Totals are sums across all open stages.
+
+### 7c. At-risk dollars
+
+At-risk dollar total = sum of `valueEstimate` for all jobs where
+`stuck === true || late === true` (derived by `deriveJobHealth` — see §3). This
+surfaces how much gross pipeline is currently unhealthy, regardless of stage.
+
+### 7d. Average cycle time
+
+`computeVelocity(stageEvents)` walks each job's `job_stage_event` log and returns
+`cycleTimeDays` — the median days from first `lead` entry to `complete`. Only jobs
+that have actually reached `complete` contribute to the average; in-progress jobs
+are excluded so the metric reflects real historical throughput.
+
+### 7e. Week-over-week trend
+
+`pipelineGrossAsOf(date)` reconstructs the open pipeline gross as of any past date
+without storing snapshots. For each job it finds the latest `job_stage_event` row
+whose `enteredAt ≤ date`; if no event exists the job is treated as still in `lead`.
+Jobs in terminal stages (`complete` / `lost`) as of that date are excluded.
+
+The WoW percentage shown in the UI is:
+
+```
+wowPct = (currentGross − grossSevenDaysAgo) / grossSevenDaysAgo × 100
+```
+
+`wowPct` is `null` when there is no prior basis (e.g. the tenant has no stage
+events older than seven days).
+
+**Current-value caveat:** each job's `valueEstimate` used for the historical
+reconstruction is its *current* value, not the value it held seven days ago. The
+WoW figure is therefore **directional** — it reliably shows whether the pipeline
+is growing or shrinking, but it is not penny-accurate for jobs whose estimate value
+changed during the window.
