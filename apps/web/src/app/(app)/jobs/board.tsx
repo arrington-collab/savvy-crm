@@ -85,6 +85,16 @@ function JobCard({ card }: { card: BoardCard }) {
               {daysInStage(card.stageEnteredAt)}d
             </span>
           </div>
+          {(card.health.stuck || card.health.late) && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {card.health.stuck && (
+                <span title={card.health.reasons.join("; ")} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">At risk</span>
+              )}
+              {card.health.late && (
+                <span title={card.health.reasons.join("; ")} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-200">Late</span>
+              )}
+            </div>
+          )}
           <div className="mt-2 flex min-w-0 items-center gap-1.5" style={{ borderTop: "1px solid var(--border-panel)", paddingTop: 8 }}>
             <AgentAvatar persona={persona} size="sm" />
             <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
@@ -140,8 +150,11 @@ function Column({ stage, cards, focused }: { stage: JobStage; cards: BoardCard[]
 
 export function Board({ initialBoard, focusStage }: { initialBoard: Record<string, BoardCard[]>; focusStage?: string }) {
   const [board, setBoard] = useState<Record<string, BoardCard[]>>(initialBoard);
+  const [onlyAttention, setOnlyAttention] = useState(false);
   const [, startTransition] = useTransition();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const needsAttention = Object.values(board).flat().filter((c) => c.health.stuck || c.health.late);
 
   function handleDragEnd(event: DragEndEvent) {
     const jobId = String(event.active.id);
@@ -185,10 +198,24 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="mb-3 flex items-center gap-3">
+        <button
+          onClick={() => setOnlyAttention((v) => !v)}
+          className={cn(
+            "text-sm font-medium underline-offset-2 hover:underline",
+            onlyAttention && "underline",
+          )}
+          style={{ color: onlyAttention ? "var(--accent-gold)" : "var(--text-body)" }}
+        >
+          Needs attention ({needsAttention.length})
+        </button>
+      </div>
       <div data-testid="board" className="flex gap-3 overflow-x-auto pb-4">
-        {ALL_STAGES.map((stage) => (
-          <Column key={stage} stage={stage} cards={board[stage] ?? []} focused={stage === focusStage} />
-        ))}
+        {ALL_STAGES.map((stage) => {
+          const cards = board[stage] ?? [];
+          const visible = onlyAttention ? cards.filter((c) => c.health.stuck || c.health.late) : cards;
+          return <Column key={stage} stage={stage} cards={visible} focused={stage === focusStage} />;
+        })}
       </div>
     </DndContext>
   );

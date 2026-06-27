@@ -5,6 +5,7 @@ import { property, lead } from "../schema/crm";
 import { document } from "../schema/ops";
 import { eq, and, isNull } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
+import { leadToJobType } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
 import { recordStageChange } from "./record-stage-change";
 import { stopDripEnrollments } from "./stop-drip";
@@ -142,11 +143,12 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
         return { jobId: existing.id, customerId: l.customerId! };
       }
     }
+    const jobType = leadToJobType(l.lane ?? null);
     const [newJob] = await tx.insert(job).values({
       tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
-      type: "retail", stage: "lead", leadId: l.id,
+      type: jobType, stage: "lead", leadId: l.id,
     }).returning();
-    await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: "retail" });
+    await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
     await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, l.id));
     await stopDripEnrollments(tx, { tenantId: args.tenantId, customerId: l.customerId!, reason: "converted" });

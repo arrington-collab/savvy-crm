@@ -19,6 +19,7 @@ import { leadRescore } from "./functions/lead-rescore";
 import { leadSpeedToLead } from "./functions/lead-speed-to-lead";
 import { leadCadence } from "./functions/lead-cadence";
 import { voiceFallback } from "./functions/voice-fallback";
+import { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -43,4 +44,5 @@ export { leadRescore } from "./functions/lead-rescore";
 export { leadSpeedToLead } from "./functions/lead-speed-to-lead";
 export { leadCadence } from "./functions/lead-cadence";
 export { voiceFallback } from "./functions/voice-fallback";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence];
+export { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete];
