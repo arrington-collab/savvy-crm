@@ -5,7 +5,7 @@ import { pool } from "../client.js";
 import { withTenant } from "../tenant.js";
 import { tenant, user, customer, property, job, appointment, repAvailabilityBlock } from "../schema/index.js";
 import { getRepBlocks } from "./availability.js";
-import { repsAvailableAt } from "./availability.js";
+import { repsAvailableAt, createRepBlock, listRepBlocks, deleteRepBlock } from "./availability.js";
 
 const tenantIds: string[] = [];
 
@@ -153,5 +153,48 @@ describe("repsAvailableAt", () => {
     const foreign = await mkRep(t2, "Foreign");
     const free = await repsAvailableAt(t1, { startsAt: at, type: "inspection" });
     expect(free).not.toContain(foreign);
+  });
+});
+
+describe("rep block create / list / delete", () => {
+  const startsAt = new Date("2026-10-05T18:00:00Z");
+  const endsAt = new Date("2026-10-05T20:00:00Z");
+
+  it("creates a block and lists it for its owner only", async () => {
+    const tid = await mkTenant("blk-crud");
+    const owner = await mkRep(tid, "Owner");
+    const other = await mkRep(tid, "Other");
+    const { id } = await createRepBlock(tid, { userId: owner, startsAt, endsAt, reason: "Dentist" });
+    expect(id).toBeTruthy();
+    const mine = await listRepBlocks(tid, owner);
+    expect(mine.map((b) => b.id)).toContain(id);
+    expect(mine.find((b) => b.id === id)?.reason).toBe("Dentist");
+    expect((await listRepBlocks(tid, other)).map((b) => b.id)).not.toContain(id);
+  });
+
+  it("deletes only the owner's own block", async () => {
+    const tid = await mkTenant("blk-del");
+    const owner = await mkRep(tid, "Owner");
+    const other = await mkRep(tid, "Other");
+    const { id } = await createRepBlock(tid, { userId: owner, startsAt, endsAt, reason: null });
+    await deleteRepBlock(tid, { userId: other, blockId: id }); // wrong owner — no-op
+    expect((await listRepBlocks(tid, owner)).map((b) => b.id)).toContain(id);
+    await deleteRepBlock(tid, { userId: owner, blockId: id }); // owner deletes
+    expect((await listRepBlocks(tid, owner)).map((b) => b.id)).not.toContain(id);
+  });
+
+  it("does not list another tenant's blocks (RLS)", async () => {
+    const t1 = await mkTenant("blk-iso1");
+    const t2 = await mkTenant("blk-iso2");
+    const u2 = await mkRep(t2, "Foreign");
+    await createRepBlock(t2, { userId: u2, startsAt, endsAt, reason: null });
+    expect(await listRepBlocks(t1, u2)).toEqual([]);
+  });
+
+  it("omits already-ended blocks from the list", async () => {
+    const tid = await mkTenant("blk-past");
+    const owner = await mkRep(tid, "Owner");
+    await createRepBlock(tid, { userId: owner, startsAt: new Date("2020-01-01T10:00:00Z"), endsAt: new Date("2020-01-01T11:00:00Z"), reason: null });
+    expect(await listRepBlocks(tid, owner)).toEqual([]);
   });
 });

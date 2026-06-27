@@ -11,3 +11,13 @@ test("profile: self-service phone field renders", async ({ page }) => {
   await expect(page.getByTestId("profile-phone")).toBeVisible();
   await expect(page.getByTestId("profile-phone-save")).toBeVisible();
 });
+
+// Block-time CRUD is asserted at the DB layer (availability.test.ts: create/list/delete +
+// ownership + RLS). TEST_MODE's synthetic user can't persist via the UI, so here we only
+// guard the section's Turbopack compile + that the controls render.
+test("profile: block-time section renders", async ({ page }) => {
+  await page.goto("/settings/profile");
+  await expect(page.getByTestId("block-start")).toBeVisible();
+  await expect(page.getByTestId("block-end")).toBeVisible();
+  await expect(page.getByTestId("block-add")).toBeVisible();
+});

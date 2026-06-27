@@ -1,4 +1,4 @@
-import { and, eq, lt, gt, asc } from "drizzle-orm";
+import { and, eq, lt, gt, gte, asc } from "drizzle-orm";
 import { repAvailabilityBlock, appointment } from "../schema/index";
 import { tenant } from "../schema/tenancy";
 import { adminDb } from "../admin-client";
@@ -68,4 +68,56 @@ export async function repsAvailableAt(
     );
     return repsFreeAt({ requested: { startsAt, endsAt }, reps });
   });
+}
+
+/** Create a rep availability block (rep carves out unavailable time). RLS-scoped. */
+export async function createRepBlock(
+  tenantId: string,
+  args: { userId: string; startsAt: Date; endsAt: Date; reason: string | null },
+): Promise<{ id: string }> {
+  return withTenant(tenantId, async (tx) => {
+    const [row] = await tx
+      .insert(repAvailabilityBlock)
+      .values({ tenantId, userId: args.userId, startsAt: args.startsAt, endsAt: args.endsAt, reason: args.reason })
+      .returning({ id: repAvailabilityBlock.id });
+    return { id: row!.id };
+  });
+}
+
+/** A rep's upcoming (not-yet-ended) blocks, soonest first. Scoped to the one user. RLS-scoped. */
+export async function listRepBlocks(
+  tenantId: string,
+  userId: string,
+): Promise<{ id: string; startsAt: Date; endsAt: Date; reason: string | null }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        id: repAvailabilityBlock.id,
+        startsAt: repAvailabilityBlock.startsAt,
+        endsAt: repAvailabilityBlock.endsAt,
+        reason: repAvailabilityBlock.reason,
+      })
+      .from(repAvailabilityBlock)
+      .where(and(
+        eq(repAvailabilityBlock.tenantId, tenantId),
+        eq(repAvailabilityBlock.userId, userId),
+        gte(repAvailabilityBlock.endsAt, new Date()),
+      ))
+      .orderBy(asc(repAvailabilityBlock.startsAt)),
+  );
+}
+
+/** Delete a block — only if it belongs to this user (ownership-scoped, so a rep
+ *  can't remove another rep's block). RLS-scoped. No-op when not owned. */
+export async function deleteRepBlock(
+  tenantId: string,
+  args: { userId: string; blockId: string },
+): Promise<void> {
+  await withTenant(tenantId, (tx) =>
+    tx.delete(repAvailabilityBlock).where(and(
+      eq(repAvailabilityBlock.tenantId, tenantId),
+      eq(repAvailabilityBlock.userId, args.userId),
+      eq(repAvailabilityBlock.id, args.blockId),
+    )),
+  );
 }
