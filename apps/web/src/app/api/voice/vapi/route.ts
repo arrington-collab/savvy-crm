@@ -160,14 +160,14 @@ export async function POST(req: Request): Promise<NextResponse> {
     // Inbound: no lead context — resolve tenant by the dialed number. The tool calls
     // may have already created+correlated the lead by call.id; find that before creating.
     if (!leadId && msg.toNumber) {
-      const t = await tenantByPhone(msg.toNumber);
-      if (t) {
-        tenantId = t.id;
-        const existing = msg.callId ? await getLeadByVoiceCallId(t.id, msg.callId) : null;
-        if (existing) {
-          leadId = existing.id;
-        } else if (msg.fromNumber) {
-          try {
+      try {
+        const t = await tenantByPhone(msg.toNumber);
+        if (t) {
+          tenantId = t.id;
+          const existing = msg.callId ? await getLeadByVoiceCallId(t.id, msg.callId) : null;
+          if (existing) {
+            leadId = existing.id;
+          } else if (msg.fromNumber) {
             // Satisfy leadIntakeSchema's phone-or-email refine with the caller's number.
             // address must be min(3) per the schema; use a placeholder for inbound callers.
             leadId = await createLeadForTenant(t.id, {
@@ -176,10 +176,10 @@ export async function POST(req: Request): Promise<NextResponse> {
               address: "Unknown",
               source: "inbound-call",
             });
-          } catch (e) {
-            console.error("inbound lead-from-call failed", e);
           }
         }
+      } catch (e) {
+        console.error("inbound lead-from-call failed", e);
       }
     }
 
