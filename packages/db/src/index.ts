@@ -38,6 +38,6 @@ export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding 
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
 export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, recommendAssignee, type DbAssignmentCandidate } from "./lifecycle/assignment";
 export { bookLeadSlot } from "./lifecycle/booking";
-export { getRepBlocks, repsAvailableAt } from "./lifecycle/availability";
+export { getRepBlocks, repsAvailableAt, createRepBlock, listRepBlocks, deleteRepBlock } from "./lifecycle/availability";
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";
 export { listAssignableReps } from "./lifecycle/team";
