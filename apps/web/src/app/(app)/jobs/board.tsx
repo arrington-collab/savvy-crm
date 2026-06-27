@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { BoardCard } from "@/lib/pipeline-queries";
-import type { JobStage } from "@savvy/core";
+import { sumCardValues, type JobStage } from "@savvy/core";
 import { moveJobToStage } from "@/lib/job-actions";
 import { resolveAgent, resolveAgentForStage, personaLine } from "@/lib/agents";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -137,7 +137,9 @@ function Column({ stage, cards, focused }: { stage: JobStage; cards: BoardCard[]
           <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
           {stage}
         </span>
-        <span className="mono text-[12px]" style={{ color: "var(--text-faint)" }}>{cards.length}</span>
+        <span className="mono text-[12px]" style={{ color: "var(--text-faint)" }} data-testid={`col-${stage}-meta`}>
+          {cards.length} · {formatValue(sumCardValues(cards))}
+        </span>
       </div>
       <div className="flex flex-col gap-2">
         {cards.map((c) => (
@@ -155,6 +157,10 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const needsAttention = Object.values(board).flat().filter((c) => c.health.stuck || c.health.late);
+  // Gross pipeline = value of all open (non-terminal) jobs. Weighted/expected view is piece H.2.
+  const pipelineTotal = sumCardValues(
+    ALL_STAGES.filter((s) => s !== "complete" && s !== "lost").flatMap((s) => board[s] ?? []),
+  );
 
   function handleDragEnd(event: DragEndEvent) {
     const jobId = String(event.active.id);
@@ -209,6 +215,9 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
         >
           Needs attention ({needsAttention.length})
         </button>
+        <span className="mono text-sm" style={{ color: "var(--text-faint)" }} data-testid="pipeline-total">
+          Pipeline: {formatValue(pipelineTotal)}
+        </span>
       </div>
       <div data-testid="board" className="flex gap-3 overflow-x-auto pb-4">
         {ALL_STAGES.map((stage) => {

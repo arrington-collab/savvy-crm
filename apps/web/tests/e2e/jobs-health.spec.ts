@@ -38,3 +38,23 @@ test("a long-idle job shows an At-risk badge on the board", async ({ page }) => 
   await expect(page.getByText(/At risk/i).first()).toBeVisible();
   await expect(page.getByText(/Needs attention/i)).toBeVisible();
 });
+
+test("the board shows dollars-in-stage per column and a gross pipeline total", async ({ page }) => {
+  // Seed a valued job in an open stage so its column + the pipeline total are non-zero.
+  await withTenant(tenantId, async (tx) => {
+    const [c] = await tx.insert(customer).values({ tenantId, name: "Valued Vic" }).returning({ id: customer.id });
+    const [p] = await tx
+      .insert(property)
+      .values({ tenantId, customerId: c!.id, address: "7 Money Rd" })
+      .returning({ id: property.id });
+    await tx
+      .insert(job)
+      .values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "approved", valueEstimate: 7_500_000 });
+  });
+
+  await page.goto("/jobs");
+  // The approved column header shows "count · $<dollars>" (a real dollar figure, not "—").
+  await expect(page.getByTestId("col-approved-meta")).toHaveText(/·\s*\$[\d,]+/);
+  // The board header shows a gross pipeline total.
+  await expect(page.getByTestId("pipeline-total")).toHaveText(/Pipeline:\s*\$[\d,]+/);
+});
