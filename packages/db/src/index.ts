@@ -41,3 +41,4 @@ export { bookLeadSlot } from "./lifecycle/booking";
 export { getRepBlocks, repsAvailableAt, createRepBlock, listRepBlocks, deleteRepBlock } from "./lifecycle/availability";
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";
 export { listAssignableReps } from "./lifecycle/team";
+export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate, type MaterialOrderRow } from "./lifecycle/material-order";
