@@ -6,6 +6,7 @@ import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { SageCore } from "@/components/cockpit/SageCore";
 import { MetricCard } from "@/components/cockpit/MetricCard";
 import { CommandCenterAskSage } from "@/components/cockpit/CommandCenterAskSage";
+import { PipelineSummaryPanel } from "./PipelineSummaryPanel";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -51,6 +52,8 @@ export default async function CommandCenterPage() {
 
   return (
     <div className="space-y-6">
+      {/* Pipeline (weighted) — async server component */}
+      <PipelineSummaryPanel />
       <CommandCenterAskSage activity={activity} coverage={coverage} spendCents={stats.spendCents} />
       <div>
         <div className="eyebrow">Telemetry</div>
