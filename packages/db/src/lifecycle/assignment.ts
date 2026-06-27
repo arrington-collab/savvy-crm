@@ -2,6 +2,8 @@ import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { adminDb } from "../admin-client";
 import { tenant } from "../schema/tenancy";
 import { user, lead, job, property, appointment } from "../schema/index";
+import { parseAssignmentConfig, pickAssignee, type AssignmentCandidate } from "@savvy/core";
+import { withTenant } from "../tenant";
 
 type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
 
@@ -15,7 +17,7 @@ export type DbAssignmentCandidate = {
   skills: string[];
 };
 
-const SALES_ROLES = ["owner", "admin", "rep"] as const;
+export const SALES_ROLES = ["owner", "admin", "rep"] as const;
 
 export async function getAssignmentCandidates(tx: Tx, tenantId: string): Promise<DbAssignmentCandidate[]> {
   const users = await tx
@@ -108,4 +110,26 @@ export async function getSchedulingOffice(tenantId: string): Promise<{ lat: numb
   return office && typeof office.lat === "number" && typeof office.lng === "number"
     ? { lat: office.lat, lng: office.lng }
     : null;
+}
+
+/** Preview the recommended rep for a lead's geo, per the tenant's strategy
+ *  (default territory: zip → round-robin). RLS-scoped read, no write. */
+export async function recommendAssignee(
+  tenantId: string,
+  geo: { zip?: string | null; city?: string | null; state?: string | null },
+): Promise<string | null> {
+  const config = parseAssignmentConfig(await getAssignmentSettings(tenantId));
+  const candidates = await withTenant(tenantId, (tx) => getAssignmentCandidates(tx, tenantId));
+  const pool: AssignmentCandidate[] = candidates.map((c) => ({
+    userId: c.userId,
+    openLeadCount: c.openLeadCount,
+    lastAssignedAt: c.lastAssignedAt,
+    skills: c.skills,
+  }));
+  return pickAssignee({
+    strategy: config.strategy,
+    config,
+    candidates: pool,
+    lead: { state: geo.state ?? null, city: geo.city ?? null, zip: geo.zip ?? null, score: null, lane: null },
+  });
 }
