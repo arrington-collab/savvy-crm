@@ -44,4 +44,10 @@ describe("deriveJobHealth", () => {
     const r = deriveJobHealth({ ...base, stageEnteredAt: daysAgo(9), approvedAt: daysAgo(30) }, cfg, now);
     expect(r).toMatchObject({ stuck: true, late: true });
   });
+  it("suppresses ALL flags for terminal stages (complete/lost are done)", () => {
+    // would otherwise be late (past SLA) AND have a past-due invoice
+    const sig = { ...base, stage: "complete" as const, approvedAt: daysAgo(90), hasPastDueInvoice: true };
+    expect(deriveJobHealth(sig, cfg, now)).toEqual({ stuck: false, late: false, reasons: [] });
+    expect(deriveJobHealth({ ...sig, stage: "lost" as const }, cfg, now)).toEqual({ stuck: false, late: false, reasons: [] });
+  });
 });

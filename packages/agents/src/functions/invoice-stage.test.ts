@@ -31,4 +31,10 @@ describe("syncInvoiceStage", () => {
     const [j] = await adminDb.select({ stage: job.stage }).from(job).where(eq(job.id, jid));
     expect(j!.stage).toBe("complete");
   });
+  it("returns skipped: no_invoice when the invoice does not exist", async () => {
+    const [t] = await adminDb.insert(tenant).values({ name: "no-inv", publicKey: `k-${Date.now()}-${Math.random()}`, clerkOrgId: `o-${Date.now()}-${Math.random()}` }).returning();
+    const tid = t!.id;
+    const r = await syncInvoiceStage(tid, "00000000-0000-0000-0000-000000000000", "billing");
+    expect(r).toEqual({ skipped: "no_invoice" });
+  });
 });

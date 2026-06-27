@@ -14,6 +14,11 @@ export type JobHealthSignals = {
 export type JobHealth = { stuck: boolean; late: boolean; reasons: string[] };
 
 export function deriveJobHealth(s: JobHealthSignals, config: JobsConfig, now: Date): JobHealth {
+  // Terminal stages are done — never carry health flags
+  if (s.stage === "complete" || s.stage === "lost") {
+    return { stuck: false, late: false, reasons: [] };
+  }
+
   const reasons: string[] = [];
 
   // stuck: only for stages with a configured threshold (terminal stages omitted)

@@ -206,10 +206,11 @@ because health is computed on read.
   can move a job from `production` directly to `complete`, skipping `closeout` and
   `billing`, if no invoice was sent first. The photo gate still fires on any move
   to `complete` regardless of how far the jump spans.
-- **Health on terminal stages:** `complete` and `lost` jobs have no threshold, so
-  `stuck` is always false. `late` can still be true if `approvedAt` is set and the
-  SLA elapsed before the job closed — this surfaces in historical reporting but
-  not on the active board (terminal jobs are filtered out of the board view).
+- **Health on terminal stages:** `complete` and `lost` jobs DO appear on the board
+  (in their own columns — `getBoard` does not filter them out). However,
+  `deriveJobHealth` returns `{ stuck: false, late: false, reasons: [] }` immediately
+  for any terminal stage, so they carry NO health flags, show no "At-risk" or "Late"
+  badge, and are excluded from every column's "Needs attention" count.
 - **No stored health column:** Do not add a `health` column to the `job` table.
   Derived-on-read keeps the schema simple and ensures health responds to config
   changes immediately without a migration or a backfill job.

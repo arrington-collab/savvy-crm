@@ -13,9 +13,9 @@ export async function syncInvoiceStage(
   toStage: JobStage,
 ): Promise<{ jobId: string; toStage: JobStage } | { skipped: string }> {
   return withTenant(tenantId, async (tx) => {
-    const [inv] = await tx.select().from(invoice).where(eq(invoice.id, invoiceId));
+    const [inv] = await tx.select({ jobId: invoice.jobId }).from(invoice).where(eq(invoice.id, invoiceId));
     if (!inv) return { skipped: "no_invoice" };
-    const [j] = await tx.select().from(job).where(eq(job.id, inv.jobId));
+    const [j] = await tx.select({ id: job.id, stage: job.stage }).from(job).where(eq(job.id, inv.jobId));
     if (!j) return { skipped: "no_job" };
 
     // forward-only: target must be strictly ahead of the current stage
