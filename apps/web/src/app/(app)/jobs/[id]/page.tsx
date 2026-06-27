@@ -30,6 +30,9 @@ import {
 } from "@/lib/estimate-queries";
 import { listChangeOrdersForJob } from "@/lib/change-order-queries";
 import { ChangeOrdersSection } from "./ChangeOrdersSection";
+import { listMaterialOrdersForJob, getJobInstallDateForJob } from "@/lib/material-queries";
+import { MaterialsPanel, type MaterialsPanelOrder } from "./MaterialsPanel";
+import { materialDeliveryFlag } from "@savvy/core";
 import { fmtUsd } from "@/lib/format";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -258,12 +261,14 @@ export default async function JobDetailPage({
   const margin = computeJobMargin({ revenueCents: jobRow.valueFinal ?? jobRow.valueEstimate, costCents: jobRow.costCents });
   const dollars = (cents: number) => `$${(cents / 100).toLocaleString()}`;
 
-  // Fetch estimate, measurement, change orders, and crew check-ins in parallel.
-  const [estimates, measurement, changeOrders, checkins] = await Promise.all([
+  // Fetch estimate, measurement, change orders, crew check-ins, and material orders in parallel.
+  const [estimates, measurement, changeOrders, checkins, materialOrders, installDate] = await Promise.all([
     listEstimatesForJob(id),
     getLatestMeasurementForJob(id),
     listChangeOrdersForJob(id),
     getJobCheckins(tenantId, id),
+    listMaterialOrdersForJob(id),
+    getJobInstallDateForJob(id),
   ]);
 
   // Serialize checkin dates to ISO strings for client props.
@@ -272,6 +277,16 @@ export default async function JobDetailPage({
     crewName: c.crewName,
     checkedInAt: c.checkedInAt.toISOString(),
     checkedOutAt: c.checkedOutAt ? c.checkedOutAt.toISOString() : null,
+  }));
+
+  // Serialize material orders + compute delivery flag server-side (no Date objects to client).
+  const materialOrdersForClient: MaterialsPanelOrder[] = materialOrders.map((o) => ({
+    id: o.id,
+    status: o.status,
+    subtotalCents: o.subtotalCents,
+    neededByISO: o.neededByAt ? o.neededByAt.toISOString() : null,
+    lines: o.lineItems.map((l) => ({ key: l.key, name: l.name, quantity: l.quantity, unit: l.unit, amountCents: l.amountCents })),
+    flag: materialDeliveryFlag({ neededByAt: o.neededByAt ?? null, installAt: installDate }),
   }));
 
   // Serialize measurement areas for client component (jsonb -> plain object).
@@ -413,6 +428,14 @@ export default async function JobDetailPage({
           {estimates.length === 0 && (
             <p className="text-sm" style={{ color: "var(--text-faint)" }}>{personaLine(PERSONAS.VERA)}</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Materials section */}
+      <Card>
+        <CardHeader><CardTitle>Materials</CardTitle></CardHeader>
+        <CardContent>
+          <MaterialsPanel jobId={id} orders={materialOrdersForClient} />
         </CardContent>
       </Card>
 
