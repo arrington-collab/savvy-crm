@@ -50,3 +50,4 @@ export * from "./pipeline-metrics";
 export * from "./job-margin";
 export * from "./pipeline-config";
 export * from "./weighted-pipeline";
+export * from "./pipeline-asof";
