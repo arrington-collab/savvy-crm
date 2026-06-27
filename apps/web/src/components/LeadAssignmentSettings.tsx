@@ -13,7 +13,7 @@ const STRATEGIES = [
   { v: "off", label: "Off (assign manually)" },
   { v: "round_robin", label: "Round-robin" },
   { v: "least_loaded", label: "Least-loaded" },
-  { v: "territory", label: "By territory (state/city)" },
+  { v: "territory", label: "By territory (zip → city → state)" },
   { v: "score", label: "By lead score" },
 ];
 
@@ -25,9 +25,18 @@ export function LeadAssignmentSettings({ reps, initial }: { reps: Rep[]; initial
   const repName = (id: string) => reps.find((r) => r.id === id)?.name ?? id;
 
   function save() {
+    // Drop blank fields so a zip-only (or state-only) rule passes the schema's
+    // "zip or state required" refine and the .min(1) checks — empty inputs must
+    // not be persisted as "".
+    const cleanedTerritory = territory.map((r) => ({
+      userId: r.userId,
+      ...(r.zip?.trim() ? { zip: r.zip.trim() } : {}),
+      ...(r.state?.trim() ? { state: r.state.trim() } : {}),
+      ...(r.city?.trim() ? { city: r.city.trim() } : {}),
+    }));
     const config: AssignmentConfig = {
       strategy,
-      ...(strategy === "territory" ? { territoryRules: territory } : {}),
+      ...(strategy === "territory" ? { territoryRules: cleanedTerritory } : {}),
       ...(strategy === "score" ? { scoreTiers: tiers } : {}),
     };
     start(async () => {
@@ -58,12 +67,22 @@ export function LeadAssignmentSettings({ reps, initial }: { reps: Rep[]; initial
 
       {strategy === "territory" && (
         <div className="space-y-2" data-testid="territory-editor">
-          <Label>Territory rules (most specific wins)</Label>
+          <Label>Territory rules (zip matches first, then city, then state; ties broken by round-robin)</Label>
           {territory.map((r, i) => (
             <div key={i} className="flex gap-2">
               <Input
+                placeholder="ZIP (85203)"
+                data-testid={`territory-zip-${i}`}
+                value={r.zip ?? ""}
+                onChange={(e) =>
+                  setTerritory(territory.map((x, j) => (j === i ? { ...x, zip: e.target.value } : x)))
+                }
+                className="w-32"
+              />
+              <Input
                 placeholder="State (AZ)"
-                value={r.state}
+                data-testid={`territory-state-${i}`}
+                value={r.state ?? ""}
                 onChange={(e) =>
                   setTerritory(territory.map((x, j) => (j === i ? { ...x, state: e.target.value } : x)))
                 }
@@ -105,7 +124,7 @@ export function LeadAssignmentSettings({ reps, initial }: { reps: Rep[]; initial
             type="button"
             variant="outline"
             data-testid="add-territory"
-            onClick={() => setTerritory([...territory, { state: "", userId: "" }])}
+            onClick={() => setTerritory([...territory, { zip: "", state: "", userId: "" }])}
           >
             + Add rule
           </Button>
