@@ -78,8 +78,9 @@ Rules:
 Pure function — **the caller assembles `signals`**, keeping it trivially testable and free of DB coupling.
 
 ### 3.3 `job.type` carryover — `packages/core` + `packages/db`
-- New `leadLaneToJobType(lane: string | null): JobType` in core — `"insurance" → "insurance"`, otherwise `"retail"` (extensible to repair/commercial as lane vocabulary grows; exact `lead.lane` values confirmed at implementation).
-- `convertLeadToJob()` uses it for **both** the `job` insert **and** `seedJobTasks(...)`, so an insurance lead opens an `insurance` job *and* seeds insurance task templates. The idempotent "already booked → return existing job" path is unchanged.
+**Reality check:** there is no retail-vs-insurance flag on the lead. `lead.lane` is `"storm" | "tile" | "standard"` (roof/damage character), and `job.type` is never set to `insurance` anywhere today — every job is created `retail`. We therefore use a **best-effort heuristic**, correctable later (piece G / editable type).
+- New `leadToJobType(lane: string | null): JobType` in core — `lane === "storm" → "insurance"`, otherwise `"retail"`. Storm-damage leads are usually insurance claims; the mapping is intentionally simple and tunable.
+- `convertLeadToJob()` uses it for **both** the `job` insert **and** `seedJobTasks(...)`, so a storm lead opens an `insurance` job *and* seeds insurance task templates. The idempotent "already booked → return existing job" path is unchanged.
 
 ### 3.4 invoice → stage — `packages/agents` (orchestrator domain)
 New Inngest function `invoiceStageSync` (orchestrator owns status/handoffs):
