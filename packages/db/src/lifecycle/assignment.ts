@@ -17,7 +17,7 @@ export type DbAssignmentCandidate = {
   skills: string[];
 };
 
-const SALES_ROLES = ["owner", "admin", "rep"] as const;
+export const SALES_ROLES = ["owner", "admin", "rep"] as const;
 
 export async function getAssignmentCandidates(tx: Tx, tenantId: string): Promise<DbAssignmentCandidate[]> {
   const users = await tx

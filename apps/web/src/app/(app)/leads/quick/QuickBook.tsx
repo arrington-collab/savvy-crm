@@ -40,6 +40,8 @@ export function QuickBook({ reps }: { reps: Rep[] }) {
 
   const [whosFreeTime, setWhosFreeTime] = useState("");
   const [freeReps, setFreeReps] = useState<Rep[]>([]);
+  // Tracks the lead created on the first attempt so slot_taken retries reuse it (no duplicate leads).
+  const [pendingLeadId, setPendingLeadId] = useState<string | null>(null);
 
   function onPhoneChange(raw: string) {
     const n = normalizePhone(raw);
@@ -124,14 +126,17 @@ export function QuickBook({ reps }: { reps: Rep[] }) {
         repId,
         startsAt: chosen.startsAt,
         endsAt: chosen.endsAt,
+        leadId: pendingLeadId ?? undefined,
       });
       if ("ok" in res) {
         toast.success("Booked — inspection scheduled.");
+        setPendingLeadId(null);
         router.push(`/leads/${res.leadId}`);
         return;
       }
       if (res.error === "slot_taken") {
         toast.error("That slot was just taken — pick another.");
+        setPendingLeadId(res.leadId);
         await loadSlots(repId);
         return;
       }

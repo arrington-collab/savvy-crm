@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 
 export function NewCallButton() {
   return (
-    <Link href="/leads/quick">
-      <Button data-testid="new-call">📞 New Call</Button>
-    </Link>
+    <Button asChild data-testid="new-call">
+      <Link href="/leads/quick">📞 New Call</Link>
+    </Button>
   );
 }

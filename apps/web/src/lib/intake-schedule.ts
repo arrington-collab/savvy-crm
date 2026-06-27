@@ -37,15 +37,18 @@ const confirmSchema = z.object({
   repId: z.string().min(1),
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
+  leadId: z.string().optional(),
 });
 
-export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; leadId: string; appointmentId: string; jobId: string } | { error: "slot_taken" | "no_assignee" | "invalid" }> {
+export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; leadId: string; appointmentId: string; jobId: string } | { error: "slot_taken"; leadId: string } | { error: "no_assignee" | "invalid" }> {
   const parsed = confirmSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const { contact, address, repId, startsAt, endsAt } = parsed.data;
   const tenantId = await getTenantId();
 
   // 1. Create/dedupe customer+property+lead (source inbound-call → rep-alert skips). Emits lead/created.
+  //    On slot_taken retry the caller passes the leadId from the first attempt — reuse it to avoid
+  //    creating a duplicate lead for the same prospect.
   const intake = leadIntakeObject.safeParse({
     name: contact.name, phone: contact.phone || undefined, email: contact.email || undefined,
     address: address.address, source: "inbound-call",
@@ -53,7 +56,7 @@ export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; 
     lat: address.lat, lng: address.lng,
   });
   if (!intake.success) return { error: "invalid" };
-  const leadId = await createLeadForTenant(tenantId, intake.data);
+  const leadId = parsed.data.leadId ?? await createLeadForTenant(tenantId, intake.data);
 
   // 2. Assign the chosen rep + mark contacted (the human IS the first touch → cancels speed-to-lead).
   await withTenant(tenantId, async (tx) => {
@@ -68,7 +71,7 @@ export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; 
 
   // 3. Book the slot atomically (exclusion constraint guards double-booking).
   const booked = await bookLeadSlot({ leadId, startsAt, endsAt });
-  if ("error" in booked) return booked.error === "slot_taken" ? { error: "slot_taken" } : { error: "no_assignee" };
+  if ("error" in booked) return booked.error === "slot_taken" ? { error: "slot_taken", leadId } : { error: "no_assignee" };
   try {
     await inngest.send({ name: "appointment/booked", data: { tenantId, appointmentId: booked.appointmentId, jobId: booked.jobId, leadId } });
   } catch {
