@@ -18,7 +18,7 @@ import {
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
-import { parseProductionConfig } from "@savvy/core";
+import { parseProductionConfig, computeJobMargin } from "@savvy/core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
@@ -59,6 +59,8 @@ export default async function JobDetailPage({
         type: job.type,
         stage: job.stage,
         valueEstimate: job.valueEstimate,
+        valueFinal: job.valueFinal,
+        costCents: job.costCents,
         stageEnteredAt: job.stageEnteredAt,
         propertyId: job.propertyId,
         companycamProjectId: job.companycamProjectId,
@@ -252,6 +254,9 @@ export default async function JobDetailPage({
     [];
 
   const value = (jobRow.valueEstimate ?? 0) / 100;
+  // Real-time margin: revenue (final or estimate) minus cost recorded so far.
+  const margin = computeJobMargin({ revenueCents: jobRow.valueFinal ?? jobRow.valueEstimate, costCents: jobRow.costCents });
+  const dollars = (cents: number) => `$${(cents / 100).toLocaleString()}`;
 
   // Fetch estimate, measurement, change orders, and crew check-ins in parallel.
   const [estimates, measurement, changeOrders, checkins] = await Promise.all([
@@ -322,6 +327,36 @@ export default async function JobDetailPage({
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card data-testid="job-margin" className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="text-sm font-medium">Money &amp; margin</div>
+          <div className="flex flex-wrap items-center gap-8">
+            <div>
+              <div className="text-xs text-muted-foreground">Revenue</div>
+              <div className="mono text-lg font-semibold">{dollars(margin.revenueCents)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Cost{margin.costKnown ? "" : " (none recorded)"}</div>
+              <div className="mono text-lg font-semibold">{dollars(margin.costCents)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Margin{margin.marginPct != null ? ` (${margin.marginPct}%)` : ""}</div>
+              <div
+                data-testid="job-margin-amount"
+                className={`mono text-lg font-semibold ${margin.marginCents >= 0 ? "text-accent-gold" : "text-destructive"}`}
+              >
+                {dollars(margin.marginCents)}
+              </div>
+            </div>
+          </div>
+        </div>
+        {!margin.costKnown ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Margin reflects costs recorded so far; it sharpens as materials and labor are tracked.
+          </p>
+        ) : null}
       </Card>
 
       <JobTabs
