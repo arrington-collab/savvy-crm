@@ -1,5 +1,5 @@
-import { withTenant, job, customer, property, invoice, eq, and, desc, sql } from "@savvy/db";
-import { JOB_STAGE } from "@savvy/core";
+import { withTenant, job, customer, property, invoice, tenant, eq, and, desc, sql } from "@savvy/db";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 export type BoardCard = {
@@ -7,6 +7,7 @@ export type BoardCard = {
   valueEstimate: number | null; stageEnteredAt: string;
   // Real owning agent = the most recent agent_run on this job (null if none yet).
   agent: string | null; taskKey: string | null;
+  type: string; health: JobHealth;
 };
 
 export async function getBoard(): Promise<Record<string, BoardCard[]>> {
@@ -14,20 +15,42 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
   const rows = await withTenant(tenantId, (tx) =>
     tx.select({
       id: job.id, stage: job.stage, valueEstimate: job.valueEstimate,
-      stageEnteredAt: job.stageEnteredAt, customerName: customer.name, address: property.address,
+      stageEnteredAt: job.stageEnteredAt, type: job.type,
+      customerName: customer.name, address: property.address,
       agent: sql<string | null>`(select agent from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
       taskKey: sql<string | null>`(select task_key from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
+      approvedAt: sql<string | null>`(select entered_at from job_stage_event where job_id = ${job.id} and to_stage = 'approved' order by entered_at asc limit 1)`,
+      pastDue: sql<boolean>`exists (select 1 from invoice where job_id = ${job.id} and status in ('sent','overdue') and due_at is not null and due_at < now() and coalesce(amount_paid,0) < coalesce(amount_due,0))`,
     }).from(job)
       .leftJoin(customer, eq(customer.id, job.customerId))
       .leftJoin(property, eq(property.id, job.propertyId))
       .orderBy(desc(job.stageEnteredAt)),
   );
+
+  const [t] = await withTenant(tenantId, (tx) =>
+    tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId)),
+  );
+  const config = parseJobsConfig((t?.settings as { jobs?: unknown } | undefined)?.jobs);
+  const now = new Date();
+
   const byStage: Record<string, BoardCard[]> = Object.fromEntries(JOB_STAGE.map((s) => [s, []]));
   for (const r of rows) {
+    const health = deriveJobHealth(
+      {
+        stage: r.stage as JobStage,
+        stageEnteredAt: new Date(r.stageEnteredAt as unknown as string),
+        type: r.type as JobType,
+        approvedAt: r.approvedAt ? new Date(r.approvedAt) : null,
+        hasPastDueInvoice: !!r.pastDue,
+      },
+      config,
+      now,
+    );
     (byStage[r.stage] ??= []).push({
       id: r.id, stage: r.stage, customerName: r.customerName ?? "—", address: r.address ?? "—",
       valueEstimate: r.valueEstimate, stageEnteredAt: (r.stageEnteredAt as Date).toISOString(),
       agent: r.agent ?? null, taskKey: r.taskKey ?? null,
+      type: r.type, health,
     });
   }
   return byStage;
