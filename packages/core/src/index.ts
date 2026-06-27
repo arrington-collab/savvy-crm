@@ -49,3 +49,4 @@ export * from "./job-health";
 export * from "./pipeline-metrics";
 export * from "./job-margin";
 export * from "./pipeline-config";
+export * from "./weighted-pipeline";
