@@ -44,7 +44,8 @@ export async function createMaterialOrderFromEstimate(input: {
     const [est] = await tx.select().from(estimate).where(eq(estimate.id, input.estimateId));
     if (!est) return null;
 
-    const [existing] = await tx.select().from(materialOrder).where(eq(materialOrder.estimateId, input.estimateId));
+    // Fix 2: explicit tenant scoping for defense-in-depth (not relying solely on RLS)
+    const [existing] = await tx.select().from(materialOrder).where(and(eq(materialOrder.estimateId, input.estimateId), eq(materialOrder.tenantId, input.tenantId)));
     if (existing) return existing;
 
     const lines = materialLinesFromEstimate((est.lineItems ?? []) as EstimateLineItem[]);
@@ -52,6 +53,9 @@ export async function createMaterialOrderFromEstimate(input: {
     const installAt = await earliestCrewInstallAt(tx, est.jobId);
     const neededByAt = neededByFromInstall(installAt);
 
+    // Fix 1: onConflictDoNothing makes concurrent inserts idempotent — if this
+    // transaction loses a race against another concurrent insert, no 23505 violation
+    // is thrown; instead we re-select to return the winner's row.
     const [row] = await tx.insert(materialOrder).values({
       tenantId: input.tenantId,
       jobId: est.jobId,
@@ -60,8 +64,11 @@ export async function createMaterialOrderFromEstimate(input: {
       lineItems: lines,
       subtotalCents,
       neededByAt,
-    }).returning();
-    return row!;
+    }).onConflictDoNothing({ target: materialOrder.estimateId }).returning();
+    if (row) return row;
+    // Lost the concurrent insert race — the unique index rejected ours; return the winner.
+    const [winner] = await tx.select().from(materialOrder).where(and(eq(materialOrder.estimateId, input.estimateId), eq(materialOrder.tenantId, input.tenantId)));
+    return winner!;
   });
 }
 
@@ -74,6 +81,8 @@ export async function setMaterialOrderStatus(input: {
     if (input.status === "ordered") patch.orderedAt = sql`now()`;
     if (input.status === "delivered") patch.deliveredAt = sql`now()`;
     const [row] = await tx.update(materialOrder).set(patch).where(eq(materialOrder.id, input.materialOrderId)).returning();
-    return row!;
+    // Fix 3: explicit not-found guard instead of non-null assertion
+    if (!row) throw new Error(`material order ${input.materialOrderId} not found`);
+    return row;
   });
 }

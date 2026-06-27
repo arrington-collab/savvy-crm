@@ -75,6 +75,24 @@ describe("createMaterialOrderFromEstimate", () => {
   it("returns null for a missing estimate", async () => {
     expect(await createMaterialOrderFromEstimate({ tenantId: tId, estimateId: "00000000-0000-0000-0000-000000000000" })).toBeNull();
   });
+
+  it("is race-safe: concurrent calls for the same estimate collapse to one row", async () => {
+    const e = await newEstimate();
+    // Fire two concurrent inserts for the same estimate — only one should win the unique index,
+    // the other should gracefully fall back to re-selecting and return the same row.
+    const [a, b] = await Promise.all([
+      createMaterialOrderFromEstimate({ tenantId: tId, estimateId: e.id }),
+      createMaterialOrderFromEstimate({ tenantId: tId, estimateId: e.id }),
+    ]);
+    // Both calls must resolve successfully (no 23505 crash)
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    // Both must return the same winning row
+    expect(a!.id).toBe(b!.id);
+    // Exactly one row in the DB for this estimate
+    const rows = await adminDb.select().from(materialOrder).where(eq(materialOrder.estimateId, e.id));
+    expect(rows.length).toBe(1);
+  });
 });
 
 describe("setMaterialOrderStatus", () => {

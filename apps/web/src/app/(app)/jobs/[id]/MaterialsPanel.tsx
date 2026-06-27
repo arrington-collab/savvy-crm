@@ -1,5 +1,5 @@
 "use client";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
@@ -32,11 +32,21 @@ const NEXT_STATUS: Record<string, "ordered" | "delivered" | null> = {
 export function MaterialsPanel({ jobId, orders }: { jobId: string; orders: MaterialsPanelOrder[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   function handleGenerate() {
     start(async () => {
-      await generateMaterialOrderAction({ jobId });
-      router.refresh();
+      const r = await generateMaterialOrderAction({ jobId });
+      if ("error" in r) {
+        if (r.error === "no_accepted_estimate") {
+          setGenerateError("Accept an estimate first to generate a material order.");
+        } else {
+          setGenerateError("Failed to generate material order. Please try again.");
+        }
+      } else {
+        setGenerateError(null);
+        router.refresh();
+      }
     });
   }
   function handleAdvance(materialOrderId: string, status: "ordered" | "delivered") {
@@ -51,6 +61,11 @@ export function MaterialsPanel({ jobId, orders }: { jobId: string; orders: Mater
       <Button size="sm" variant="outline" disabled={pending} onClick={handleGenerate} data-testid="generate-material-order-btn">
         {pending ? "Working…" : "Generate from estimate"}
       </Button>
+      {generateError && (
+        <p className="text-xs" data-testid="material-generate-error" style={{ color: "var(--text-faint)" }}>
+          {generateError}
+        </p>
+      )}
 
       {orders.length === 0 && (
         <p className="text-sm" style={{ color: "var(--text-faint)" }}>
