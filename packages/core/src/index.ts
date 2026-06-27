@@ -46,3 +46,4 @@ export * from "./availability";
 export * from "./short-code";
 export * from "./jobs-config";
 export * from "./job-health";
+export * from "./pipeline-metrics";
