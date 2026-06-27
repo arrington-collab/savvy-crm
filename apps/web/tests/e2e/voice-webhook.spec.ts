@@ -31,6 +31,40 @@ test.describe("POST /api/voice/vapi", () => {
   });
 });
 
+test("inbound assistant-request returns a tenant-branded live-booking assistant", async ({ request }) => {
+  const inboundPhone = `+1480556${String(Math.floor(Math.random() * 9000) + 1000)}`;
+  await adminDb.update(tenant).set({ inboundPhone }).where(eq(tenant.id, tenantId));
+  const [{ name: tenantName }] = await adminDb
+    .select({ name: tenant.name })
+    .from(tenant)
+    .where(eq(tenant.id, tenantId));
+
+  const res = await request.post("/api/voice/vapi", {
+    headers: { "x-vapi-secret": SECRET },
+    data: {
+      message: {
+        type: "assistant-request",
+        call: { id: `call_${Date.now()}`, metadata: {} },
+        phoneNumber: { number: inboundPhone },
+        customer: { number: "+14805550123" },
+      },
+    },
+  });
+  expect(res.status()).toBe(200);
+  const json = (await res.json()) as {
+    assistantOverrides?: {
+      firstMessage?: string;
+      model?: { tools?: { function: { name: string } }[]; messages?: { content: string }[] };
+    };
+  };
+  const ov = json.assistantOverrides!;
+  expect(ov.firstMessage).toContain(tenantName);
+  const toolNames = ov.model!.tools!.map((t) => t.function.name);
+  expect(toolNames).toContain("setCallDetails");
+  expect(toolNames).toContain("bookSlot");
+  expect(ov.model!.messages![0]!.content).toMatch(/spell/i);
+});
+
 const { id: tenantId } = JSON.parse(
   readFileSync("/tmp/savvy-e2e-tenant.json", "utf8"),
 ) as { id: string };

@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { requireSecret, parseVoiceOutcome, signPayloadToken, parseVapiMessage, toolResult, isValidZip } from "@savvy/core";
+import {
+  requireSecret,
+  parseVoiceOutcome,
+  signPayloadToken,
+  parseVapiMessage,
+  toolResult,
+  isValidZip,
+  buildInboundAssistant,
+  parseFinanceConfig,
+} from "@savvy/core";
 import {
   recordVoiceCallReport,
   bookLeadSlot,
@@ -44,6 +53,19 @@ export async function POST(req: Request): Promise<NextResponse> {
     return new NextResponse("bad payload", { status: 400 });
   }
   const msg = parseVapiMessage(body);
+
+  // --- Inbound assistant-request: hand Vapi a tenant-branded, live-booking Riley.
+  // The Vapi phone number is in Server-URL mode (no static assistant), so Vapi asks
+  // us per call which assistant to use. We resolve the tenant by the dialed number
+  // and return the inbound persona (collect details -> setCallDetails -> bookSlot).
+  if (msg.type === "assistant-request") {
+    const t = msg.toNumber ? await tenantByPhone(msg.toNumber) : null;
+    if (!t) return NextResponse.json({ error: "No assistant is configured for this number." });
+    const tz = parseFinanceConfig((t.settings as { finance?: unknown } | null)?.finance).timezone;
+    const assistantOverrides = buildInboundAssistant({ tenantName: t.name, tenantId: t.id, tz });
+    // assistantId is undefined when Vapi isn't fully configured (dev/test) -> JSON omits it.
+    return NextResponse.json({ assistantId: process.env.VAPI_ASSISTANT_ID, assistantOverrides });
+  }
 
   // --- Mid-call tool dispatch -------------------------------------------------
   if (msg.type === "tool-calls" || msg.type === "function-call") {

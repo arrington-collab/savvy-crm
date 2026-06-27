@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildAssistantOverrides, type VoiceLeadContext, parseVoiceOutcome, shouldPlaceVoiceCall } from "./voice-persona";
+import {
+  buildAssistantOverrides,
+  buildInboundAssistant,
+  type VoiceLeadContext,
+  type VoiceInboundContext,
+  parseVoiceOutcome,
+  shouldPlaceVoiceCall,
+} from "./voice-persona";
 
 const baseCtx: VoiceLeadContext = {
   tenantName: "Acme Roofing",
@@ -59,6 +66,70 @@ describe("buildAssistantOverrides", () => {
   it("passes leadId + tenantId through variableValues for the webhook to read", () => {
     const o = buildAssistantOverrides(baseCtx);
     expect(o.variableValues).toMatchObject({ leadId: "lead-1", tenantId: "tenant-1" });
+  });
+
+  it("instructs an upbeat, confident tone with no hedging filler", () => {
+    const sys = buildAssistantOverrides(baseCtx).model.messages[0]!.content;
+    expect(sys).toMatch(/upbeat|cheerful|confident/i);
+    expect(sys).toMatch(/\bum\b|filler|hedg/i); // told to avoid um/uh/hedging
+  });
+
+  it("tells the agent to confirm spelling of any uncommon name", () => {
+    const sys = buildAssistantOverrides(baseCtx).model.messages[0]!.content;
+    expect(sys).toMatch(/spell/i);
+  });
+
+  it("mandates booking live on the call and forbids punting to a callback", () => {
+    const sys = buildAssistantOverrides(baseCtx).model.messages[0]!.content;
+    expect(sys).toMatch(/never.*(call|reach).*(back|out)|book.*(this|the) call/i);
+  });
+});
+
+const inboundCtx: VoiceInboundContext = {
+  tenantName: "Acme Roofing",
+  tz: "America/Phoenix",
+  tenantId: "tenant-1",
+};
+
+describe("buildInboundAssistant", () => {
+  it("greets the caller upbeat and identifies as the tenant", () => {
+    const o = buildInboundAssistant(inboundCtx);
+    expect(o.firstMessage).toContain("Acme Roofing");
+    const sys = o.model.messages.find((m) => m.role === "system")!.content;
+    expect(sys).toContain("Acme Roofing");
+  });
+
+  it("exposes setCallDetails, getRecommendedSlots, and bookSlot tools", () => {
+    const names = buildInboundAssistant(inboundCtx).model.tools.map((t) => t.function.name);
+    expect(names).toContain("setCallDetails");
+    expect(names).toContain("getRecommendedSlots");
+    expect(names).toContain("bookSlot");
+  });
+
+  it("requires zip on setCallDetails so territory routing works", () => {
+    const tool = buildInboundAssistant(inboundCtx).model.tools.find((t) => t.function.name === "setCallDetails")!;
+    expect(tool.function.parameters.required).toContain("zip");
+  });
+
+  it("instructs collecting+confirming name, address, city, zip then calling setCallDetails", () => {
+    const sys = buildInboundAssistant(inboundCtx).model.messages[0]!.content;
+    expect(sys).toMatch(/setCallDetails/);
+    expect(sys).toMatch(/address/i);
+    expect(sys).toMatch(/zip/i);
+    expect(sys).toMatch(/spell/i); // spelling rule carries into inbound
+  });
+
+  it("mandates live booking and keeps the safety guardrails", () => {
+    const sys = buildInboundAssistant(inboundCtx).model.messages[0]!.content;
+    expect(sys).toMatch(/never.*(call|reach).*(back|out)|book.*(this|the) call/i);
+    expect(sys).toMatch(/deductible/i);
+    expect(sys).toMatch(/TCPA/);
+  });
+
+  it("carries tenantId in variableValues (no leadId yet — lead is created mid-call)", () => {
+    const o = buildInboundAssistant(inboundCtx);
+    expect(o.variableValues).toMatchObject({ tenantId: "tenant-1" });
+    expect(o.variableValues.leadId).toBeUndefined();
   });
 });
 
