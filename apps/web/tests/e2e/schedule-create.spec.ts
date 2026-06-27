@@ -164,6 +164,52 @@ test("create: assigned crew that is busy shows an inline conflict and does not c
   await expect(page.getByTestId("create-appt-form")).toBeVisible();
 });
 
+test("create: crew install surfaces recommended slots and books the chosen one", async ({ page }) => {
+  const uniq = `Crewslot ${Date.now()}`;
+  const { jobId } = await seedJob(uniq, "44 Crew Way");
+  const crewId = await withTenant(tenantId, async (tx) => {
+    const [u] = await tx
+      .insert(user)
+      .values({ tenantId, name: `Installer ${Date.now()}`, email: `installer-${Date.now()}@e2e.test`, role: "crew" })
+      .returning();
+    return u!.id;
+  });
+
+  await page.goto(`/schedule?view=week&anchor=${ANCHOR}`);
+  await clickWeekCol(page, "2026-08-04", 200);
+  await page.getByTestId("create-appt-form").waitFor();
+
+  await page.getByTestId("create-job-search").fill(uniq);
+  await expect(page.getByTestId("create-job-option").first()).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("create-job-option").first().click();
+
+  // Choose a crew install → recommended crew slots should appear.
+  await page.getByTestId("create-type").selectOption("crew");
+  await page.getByTestId("create-crew").selectOption(crewId);
+
+  const firstSlot = page.getByTestId("crew-slot-option").first();
+  await expect(firstSlot).toBeVisible({ timeout: 10_000 });
+  await firstSlot.click();
+
+  await page.getByTestId("create-submit").click();
+
+  // Form closes on success; a scheduled crew appointment for this job now exists.
+  await expect(page.getByTestId("create-appt-form")).toBeHidden({ timeout: 10_000 });
+  const start = Date.now();
+  let booked = false;
+  while (Date.now() - start < 10_000) {
+    const rows = await withTenant(tenantId, (tx) =>
+      tx
+        .select()
+        .from(appointment)
+        .where(and(eq(appointment.jobId, jobId), eq(appointment.type, "crew"), eq(appointment.status, "scheduled"))),
+    );
+    if (rows.length > 0) { booked = true; break; }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  expect(booked).toBe(true);
+});
+
 test("create: unassigned appointment always succeeds", async ({ page }) => {
   const uniq = `Unassigned ${Date.now()}`;
   await seedJob(uniq, "33 Open Way");

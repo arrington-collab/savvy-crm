@@ -94,3 +94,36 @@ export async function getRecommendedSlots(
 
   return slotsForRep({ tenantId: l.tenantId, repId: l.assignedUserId, type: opts?.type, limit: opts?.limit ?? 3, todayFirst: true, clusterAround });
 }
+
+/** Job-keyed crew-slot recommendations for the install booking flow. Resolves the
+ *  job's tenant + property cluster point, then delegates to slotsForRep(type="crew").
+ *  Each slot carries `startLocal` ("YYYY-MM-DDTHH:mm" in tenant tz) so the booking
+ *  form can prefill its datetime-local input directly. */
+export async function getRecommendedCrewSlots(
+  jobId: string,
+  crewUserId: string,
+  opts?: { limit?: number },
+): Promise<{ error: "no_job" } | { slots: (RecommendedSlot & { startLocal: string })[] }> {
+  const [j] = await adminDb
+    .select({ tenantId: job.tenantId, propertyId: job.propertyId })
+    .from(job)
+    .where(eq(job.id, jobId));
+  if (!j) return { error: "no_job" };
+
+  const dest = j.propertyId
+    ? (await adminDb.select({ lat: property.lat, lng: property.lng }).from(property).where(eq(property.id, j.propertyId)))[0]
+    : undefined;
+  const clusterAround: LatLng | null =
+    dest && dest.lat != null && dest.lng != null ? { lat: Number(dest.lat), lng: Number(dest.lng) } : null;
+
+  const { slots } = await slotsForRep({
+    tenantId: j.tenantId, repId: crewUserId, type: "crew", limit: opts?.limit ?? 5, todayFirst: true, clusterAround,
+  });
+
+  const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, j.tenantId));
+  const tz = parseFinanceConfig((t?.settings as { finance?: unknown } | null)?.finance).timezone;
+  const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+  return {
+    slots: slots.map((s) => ({ ...s, startLocal: `${toCivilDate(s.startsAt, tz)}T${timeFmt.format(new Date(s.startsAt))}` })),
+  };
+}

@@ -1,14 +1,16 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { APPOINTMENT_TYPE, type AppointmentType } from "@savvy/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createAppointmentAction, searchJobsAction } from "@/lib/scheduling-actions";
+import { getRecommendedCrewSlots } from "@/lib/recommended-slots";
 import type { SchedulableJob } from "@/lib/schedule-create-queries";
 
 type Crew = { id: string; name: string };
+type CrewSlot = { startsAt: string; endsAt: string; driveMinutes: number | null; label: string; startLocal: string };
 
 const DURATIONS = [30, 60, 90, 120, 480];
 // Per-type default duration (matches parseSchedulingConfig DEFAULTS.types).
@@ -30,7 +32,22 @@ export function CreateAppointmentForm(props: {
   const [picked, setPicked] = useState<SchedulableJob | null>(null);
   const [slotTaken, setSlotTaken] = useState(false);
   const [searching, startSearch] = useTransition();
+  const [crewSlots, setCrewSlots] = useState<CrewSlot[]>([]);
   const searchSeq = useRef(0);
+
+  // For a crew install with a chosen crew, surface drive-time-aware recommended times.
+  // Only fetch here (no synchronous setState); the render gates on live conditions so
+  // stale suggestions never show when type/crew change.
+  useEffect(() => {
+    if (type !== "crew" || !assignee || !picked) return;
+    let active = true;
+    void (async () => {
+      const r = await getRecommendedCrewSlots(picked.jobId, assignee);
+      if (active) setCrewSlots("error" in r ? [] : r.slots);
+    })();
+    return () => { active = false; };
+  }, [type, assignee, picked]);
+  const showCrewSlots = type === "crew" && !!assignee && !!picked && crewSlots.length > 0;
 
   function onType(next: AppointmentType) {
     setType(next);
@@ -105,6 +122,26 @@ export function CreateAppointmentForm(props: {
             </select>
           </label>
         </div>
+
+        {showCrewSlots ? (
+          <div className="space-y-1">
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>Recommended times</div>
+            <div data-testid="crew-slots" className="flex flex-wrap gap-1">
+              {crewSlots.map((s) => (
+                <button
+                  key={s.startsAt}
+                  type="button"
+                  data-testid="crew-slot-option"
+                  onClick={() => { setStartVal(s.startLocal); setDurationMin(480); setSlotTaken(false); }}
+                  className="rounded-md border px-2 py-1 text-xs hover:bg-[var(--surface-panel)]"
+                  style={{ borderColor: "var(--border-panel)", color: "var(--text-body)" }}
+                >
+                  {s.label}{s.driveMinutes != null ? ` · ${s.driveMinutes}m drive` : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex gap-2">
           <label className="flex-1 text-xs" style={{ color: "var(--text-muted)" }}>Start
