@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { requireSecret, parseVoiceOutcome, signPayloadToken, parseVapiMessage, toolResult } from "@savvy/core";
-import { recordVoiceCallReport, bookLeadSlot, createBookingLink } from "@savvy/db";
+import { requireSecret, parseVoiceOutcome, signPayloadToken, parseVapiMessage, toolResult, isValidZip } from "@savvy/core";
+import {
+  recordVoiceCallReport,
+  bookLeadSlot,
+  createBookingLink,
+  recommendAssignee,
+  setLeadOwner,
+  markLeadContacted,
+  withTenant,
+  getLeadByVoiceCallId,
+  setLeadVoiceCallId,
+} from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
-import { getRecommendedSlots } from "@/lib/recommended-slots";
+import { getRecommendedSlots, slotsForRep } from "@/lib/recommended-slots";
 import { tenantByPhone, createLeadForTenant } from "@/lib/intake";
 
 export const runtime = "nodejs"; // node:crypto + DB
@@ -37,39 +47,107 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // --- Mid-call tool dispatch -------------------------------------------------
   if (msg.type === "tool-calls" || msg.type === "function-call") {
-    const leadId = msg.metadata.leadId;
     const tc = msg.toolCalls[0];
     if (!tc) return NextResponse.json(toolResult("", { error: "no tool call" }));
-    if (!leadId) return NextResponse.json(toolResult(tc.id, { error: "no lead context" }));
 
-    if (tc.name === "getRecommendedSlots") {
-      const r = await getRecommendedSlots(leadId);
-      if ("error" in r)
-        return NextResponse.json(toolResult(tc.id, { slots: [], message: "No times available right now." }));
-      return NextResponse.json(toolResult(tc.id, { slots: r.slots }));
-    }
-    if (tc.name === "bookSlot") {
-      const startsAt = String(tc.args.startsAt ?? "");
-      const endsAt = String(tc.args.endsAt ?? "");
-      const r = await bookLeadSlot({ leadId, startsAt, endsAt });
-      if ("appointmentId" in r) {
+    try {
+      // Outbound injects tenantId+leadId in metadata; inbound resolves tenant by the dialed number.
+      const tenantId =
+        msg.metadata.tenantId ?? (msg.toNumber ? ((await tenantByPhone(msg.toNumber))?.id ?? null) : null);
+
+      // --- setCallDetails: capture address+zip, create/find the call's lead, assign rep, offer slots
+      if (tc.name === "setCallDetails") {
+        if (!tenantId)
+          return NextResponse.json(
+            toolResult(tc.id, { saved: false, message: "I'll have a specialist call you right back." }),
+          );
+        const zip = String(tc.args.zip ?? "").trim();
+        if (!isValidZip(zip))
+          return NextResponse.json(
+            toolResult(tc.id, { needZip: true, message: "Please ask the caller to confirm their 5-digit ZIP code." }),
+          );
+        const name = String(tc.args.name ?? "Inbound caller");
+        const address = String(tc.args.address ?? "").trim();
+        const city = String(tc.args.city ?? "").trim();
         try {
-          await inngest.send({
-            name: "appointment/booked",
-            data: { appointmentId: r.appointmentId, tenantId: r.tenantId },
-          });
+          const existing = msg.callId ? await getLeadByVoiceCallId(tenantId, msg.callId) : null;
+          let leadId = existing?.id;
+          if (!leadId) {
+            leadId = await createLeadForTenant(tenantId, {
+              name,
+              phone: msg.fromNumber ?? undefined,
+              address: address.length >= 3 ? address : "Unknown",
+              source: "inbound-call",
+              city: city || undefined,
+              zip,
+            });
+            if (msg.callId)
+              await withTenant(tenantId, (tx) =>
+                setLeadVoiceCallId(tx, { tenantId, leadId: leadId!, callId: msg.callId! }),
+              );
+          }
+          const repId = await recommendAssignee(tenantId, { zip, city: city || null, state: null });
+          if (!repId)
+            return NextResponse.json(
+              toolResult(tc.id, { saved: true, slots: [], message: "I'll have a specialist call you right back." }),
+            );
+          await withTenant(tenantId, (tx) => setLeadOwner(tx, { tenantId, leadId: leadId!, userId: repId }));
+          const { slots } = await slotsForRep({ tenantId, repId, todayFirst: true, limit: 2 });
+          return NextResponse.json(toolResult(tc.id, { saved: true, slots }));
         } catch (e) {
-          console.error(e);
+          console.error("setCallDetails failed", e);
+          return NextResponse.json(
+            toolResult(tc.id, { saved: false, message: "I'll have a specialist call you right back." }),
+          );
         }
-        return NextResponse.json(toolResult(tc.id, { booked: true }));
       }
-      const message =
-        r.error === "slot_taken"
-          ? "That time was just taken — offer another."
-          : "Could not book — offer to have a rep follow up.";
-      return NextResponse.json(toolResult(tc.id, { booked: false, message }));
+
+      // --- getRecommendedSlots / bookSlot: resolve leadId (outbound metadata, else by call.id)
+      const leadId =
+        msg.metadata.leadId ??
+        (tenantId && msg.callId ? ((await getLeadByVoiceCallId(tenantId, msg.callId))?.id ?? null) : null);
+      if (!leadId)
+        return NextResponse.json(
+          toolResult(tc.id, { error: "no lead context", message: "Let's get your address and ZIP first." }),
+        );
+
+      if (tc.name === "getRecommendedSlots") {
+        const r = await getRecommendedSlots(leadId);
+        if ("error" in r)
+          return NextResponse.json(toolResult(tc.id, { slots: [], message: "No times available right now." }));
+        return NextResponse.json(toolResult(tc.id, { slots: r.slots }));
+      }
+      if (tc.name === "bookSlot") {
+        const startsAt = String(tc.args.startsAt ?? "");
+        const endsAt = String(tc.args.endsAt ?? "");
+        const r = await bookLeadSlot({ leadId, startsAt, endsAt });
+        if ("appointmentId" in r) {
+          try {
+            await withTenant(r.tenantId, (tx) => markLeadContacted(tx, { tenantId: r.tenantId, leadId }));
+          } catch (e) {
+            console.error(e);
+          }
+          try {
+            await inngest.send({
+              name: "appointment/booked",
+              data: { appointmentId: r.appointmentId, tenantId: r.tenantId },
+            });
+          } catch (e) {
+            console.error(e);
+          }
+          return NextResponse.json(toolResult(tc.id, { booked: true }));
+        }
+        const message =
+          r.error === "slot_taken"
+            ? "That time was just taken — offer another."
+            : "Could not book — offer to have a rep follow up.";
+        return NextResponse.json(toolResult(tc.id, { booked: false, message }));
+      }
+      return NextResponse.json(toolResult(tc.id, { error: "unknown tool" }));
+    } catch (e) {
+      console.error("voice tool-call failed", e);
+      return NextResponse.json(toolResult(tc.id, { error: "temporary issue", message: "I'll have a specialist call you right back." }));
     }
-    return NextResponse.json(toolResult(tc.id, { error: "unknown tool" }));
   }
 
   // --- End-of-call report -----------------------------------------------------
@@ -79,15 +157,19 @@ export async function POST(req: Request): Promise<NextResponse> {
     let tenantId = msg.metadata.tenantId;
     const direction: "inbound" | "outbound" = leadId ? "outbound" : "inbound";
 
-    // Inbound: no lead context — resolve tenant by the dialed number, create a lead-from-call.
+    // Inbound: no lead context — resolve tenant by the dialed number. The tool calls
+    // may have already created+correlated the lead by call.id; find that before creating.
     if (!leadId && msg.toNumber) {
-      const t = await tenantByPhone(msg.toNumber);
-      if (t) {
-        tenantId = t.id;
-        try {
-          // Satisfy leadIntakeSchema's phone-or-email refine with the caller's number.
-          // address must be min(3) per the schema; use a placeholder for inbound callers.
-          if (msg.fromNumber) {
+      try {
+        const t = await tenantByPhone(msg.toNumber);
+        if (t) {
+          tenantId = t.id;
+          const existing = msg.callId ? await getLeadByVoiceCallId(t.id, msg.callId) : null;
+          if (existing) {
+            leadId = existing.id;
+          } else if (msg.fromNumber) {
+            // Satisfy leadIntakeSchema's phone-or-email refine with the caller's number.
+            // address must be min(3) per the schema; use a placeholder for inbound callers.
             leadId = await createLeadForTenant(t.id, {
               name: "Inbound caller",
               phone: msg.fromNumber,
@@ -95,9 +177,9 @@ export async function POST(req: Request): Promise<NextResponse> {
               source: "inbound-call",
             });
           }
-        } catch (e) {
-          console.error("inbound lead-from-call failed", e);
         }
+      } catch (e) {
+        console.error("inbound lead-from-call failed", e);
       }
     }
 

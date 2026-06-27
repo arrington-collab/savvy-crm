@@ -56,11 +56,13 @@ export const lead = pgTable("lead", {
   lane: text("lane"),
   firstRepContactAt: timestamp("first_rep_contact_at", { withTimezone: true }),
   voiceOutcome: text("voice_outcome"),
+  voiceCallId: text("voice_call_id"),
   installRecommendation: jsonb("install_recommendation"),
   stormEventId: text("storm_event_id"),
   assignedUserId: uuid("assigned_user_id").references(() => user.id),
   createdAt: createdAt(),
 }, (t) => [
   index("lead_tenant_status_idx").on(t.tenantId, t.status),
+  index("lead_voice_call_id_idx").on(t.tenantId, t.voiceCallId),
   tenantIsolation(),
 ]);

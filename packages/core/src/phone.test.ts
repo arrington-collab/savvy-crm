@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePhone, formatPhoneDisplay } from "./phone";
+import { normalizePhone, formatPhoneDisplay, isValidZip } from "./phone";
 
 describe("normalizePhone", () => {
   it("normalizes a 10-digit US number", () => {
@@ -35,5 +35,17 @@ describe("formatPhoneDisplay", () => {
   });
   it("returns empty string for empty input", () => {
     expect(formatPhoneDisplay("")).toBe("");
+  });
+});
+
+describe("isValidZip", () => {
+  it("accepts a 5-digit zip", () => {
+    expect(isValidZip("85203")).toBe(true);
+    expect(isValidZip(" 85203 ")).toBe(true);
+  });
+  it("rejects wrong length / non-numeric / empty", () => {
+    for (const v of ["8520", "852033", "8520a", "", null, undefined]) {
+      expect(isValidZip(v)).toBe(false);
+    }
   });
 });

@@ -1,8 +1,27 @@
 import { withTenant } from "../tenant";
 import { communication } from "../schema/comms";
 import { lead } from "../schema/crm";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { VoiceOutcome } from "@savvy/core";
+
+type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
+
+export async function setLeadVoiceCallId(tx: Tx, args: { tenantId: string; leadId: string; callId: string }): Promise<void> {
+  await tx.update(lead).set({ voiceCallId: args.callId }).where(and(eq(lead.tenantId, args.tenantId), eq(lead.id, args.leadId)));
+}
+
+export async function getLeadByVoiceCallId(
+  tenantId: string,
+  callId: string,
+): Promise<{ id: string; assignedUserId: string | null; propertyId: string | null } | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [row] = await tx
+      .select({ id: lead.id, assignedUserId: lead.assignedUserId, propertyId: lead.propertyId })
+      .from(lead)
+      .where(and(eq(lead.tenantId, tenantId), eq(lead.voiceCallId, callId)));
+    return row ?? null;
+  });
+}
 
 /**
  * One tenant-scoped tx: log the call transcript as a communication (channel 'call')
