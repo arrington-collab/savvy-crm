@@ -31,3 +31,18 @@ test("switching to territory reveals the rule editor", async ({ page }) => {
   await page.getByTestId("add-territory").click();
   await expect(page.getByTestId("territory-rep-0")).toBeVisible();
 });
+
+test("a zip-only territory rule saves and round-trips on reload", async ({ page }) => {
+  await page.goto("/settings/assignment");
+  await page.getByTestId("assignment-strategy").selectOption("territory");
+  await page.getByTestId("add-territory").click();
+  // A zip-only rule (no state) must be valid — zip is the most-specific key.
+  await page.getByTestId("territory-zip-0").fill("85203");
+  await page.getByTestId("territory-rep-0").selectOption({ label: "Assign Rep One" });
+  await page.getByTestId("save-assignment").click();
+  await expect(page.getByText("Saved")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId("assignment-strategy")).toHaveValue("territory");
+  await expect(page.getByTestId("territory-zip-0")).toHaveValue("85203");
+});
