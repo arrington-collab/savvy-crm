@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildExceptionQueue, type ExceptionQueueInput } from "./exception-queue";
 
-const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [] };
+const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
 
 describe("buildExceptionQueue", () => {
   it("normalizes each vector into an item with the right kind/severity/href", () => {
@@ -11,9 +11,10 @@ describe("buildExceptionQueue", () => {
       missedAppointments: [{ appointmentId: "a1", jobId: "j3", apptType: "crew", status: "no_show", startsAt: new Date("2026-06-20T00:00:00Z"), customerName: "Cy" }],
       overdueTasks: [{ taskId: "t1", jobId: "j4", title: "Order materials", customerName: "Di", dueAt: new Date("2026-06-25T00:00:00Z") }],
       materialDeliveries: [],
+      taskNeedsApprovals: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
@@ -70,12 +71,12 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0 }, total: 0, highCount: 0,
     });
   });
 
   describe("buildExceptionQueue material_delivery vector", () => {
-    const baseInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [] };
+    const baseInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
     const install = new Date("2026-07-10T17:00:00Z");
 
     it("emits a high item when the order is misaligned (neededBy after install)", () => {
@@ -121,6 +122,25 @@ describe("buildExceptionQueue", () => {
       });
       expect(q.items.some((i) => i.kind === "material_delivery")).toBe(false);
       expect(q.counts.material_delivery).toBe(0);
+    });
+  });
+
+  describe("buildExceptionQueue task_needs_approval vector", () => {
+    const base = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
+    it("emits a medium needs-approval item", () => {
+      const deferredAt = new Date("2026-07-03T00:00:00Z");
+      const q = buildExceptionQueue({
+        ...base,
+        taskNeedsApprovals: [{ taskId: "t1", jobId: "j1", title: "Estimate import", customerName: "Appro Amy", deferredAt }],
+      });
+      const row = q.items.find((i) => i.kind === "task_needs_approval");
+      expect(row).toBeTruthy();
+      expect(row!.severity).toBe("medium");
+      expect(row!.title).toBe("Appro Amy");
+      expect(row!.detail).toBe("Needs approval: Estimate import");
+      expect(row!.href).toBe("/jobs/j1");
+      expect(row!.occurredAt).toEqual(deferredAt);
+      expect(q.counts.task_needs_approval).toBe(1);
     });
   });
 });
