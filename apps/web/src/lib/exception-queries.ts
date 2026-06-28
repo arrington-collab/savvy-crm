@@ -3,10 +3,12 @@ import { withTenant, job, invoice, appointment, jobTask, customer, tenant, mater
 import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
-// Gathers the four exception vectors for the tenant and normalizes them in core.
-// NOTE (intentional): a past-due invoice can surface BOTH as a `job_at_risk` row
-// (its job is `late`) and an `invoice_overdue` row — two resolution paths
-// (work the job vs. chase the invoice). The `invoice_overdue` branch trusts the
+// Gathers the five exception vectors for the tenant and normalizes them in core
+// (jobs at risk, overdue invoices, missed appointments, overdue tasks, material
+// delivery). NOTE (intentional): the same job can surface under more than one
+// vector — e.g. a past-due invoice as BOTH a `job_at_risk` row (its job is `late`)
+// and an `invoice_overdue` row, or a misaligned `material_delivery` alongside
+// `job_at_risk` — distinct resolution paths (work the job vs. chase the invoice). The `invoice_overdue` branch trusts the
 // `overdue` status as authoritative, so it is deliberately broader than
 // getBoard's `pastDue` subquery (which also requires due_at<now + a balance).
 // TODO(scale): no LIMIT yet — same all-rows-then-filter pattern as getBoard;
