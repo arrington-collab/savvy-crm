@@ -7,8 +7,10 @@ import { materialOrderStatusEnum } from "./enums";
 import type { MaterialOrderLine } from "@savvy/core";
 
 // A bill of materials generated from an accepted estimate's material lines.
-// List-price BOM (price-book unit price), NOT supplier cost — do not feed
-// job.costCents. One order per estimate (estimate_id unique).
+// `subtotal_cents` is the list-price BOM (price-book unit price = what the
+// homeowner is charged). `cost_subtotal_cents` is the supplier cost (D2c),
+// which IS summed into job.cost_cents on {ordered,delivered} via
+// recomputeJobMaterialCost. One order per estimate (estimate_id unique).
 export const materialOrder = pgTable("material_order", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
