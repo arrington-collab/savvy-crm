@@ -384,3 +384,20 @@ trusts the `overdue` status as authoritative, so it is deliberately broader than
 the Jobs board's `pastDue` check (which also requires `due_at < now` + a
 balance). The page has no pagination yet — fine at current tenant sizes; cap it
 before a large customer onboards (same all-rows pattern as the Jobs board).
+
+## Capacity (Jobs K)
+
+`/capacity` shows each rep's utilization over the **next 7 days**:
+
+- **Available** = office minutes in the window (per-weekday hours from
+  `parseSchedulingConfig`, weekends closed) minus the rep's time-off
+  (`rep_availability_block`) overlapping the window. Any 7-day window contains
+  exactly the 5 weekdays, so default capacity = 5 × 9h = 2700 min.
+- **Booked** = sum of real appointment durations (`ends_at − starts_at`) for the
+  rep's `scheduled` appointments starting in the window.
+- **Utilization** = booked ÷ available; `over` ≥ 100%, `high` ≥ 80%, `ok` > 0,
+  `free` 0. Reps are sorted most-loaded first; the header shows team utilization
+  and the overbooked count.
+
+Capacity is per-user (appointments carry an `assignee_user_id`; there is no crew
+entity yet). Logic: `buildCapacityView` in `@savvy/core`.
