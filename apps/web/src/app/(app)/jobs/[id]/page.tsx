@@ -18,11 +18,12 @@ import {
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
-import { parseProductionConfig, computeJobMargin } from "@savvy/core";
+import { parseProductionConfig, computeJobMargin, summarizeJobAutomation } from "@savvy/core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
 import { JobTabs } from "./tabs";
+import { AutomationModule } from "./AutomationModule";
 import { EstimateActions } from "./EstimateActions";
 import {
   listEstimatesForJob,
@@ -228,6 +229,10 @@ export default async function JobDetailPage({
     ([phase, tasks]) => ({ phase, tasks }),
   );
 
+  const automationSummary = summarizeJobAutomation(
+    taskRows.map((t) => ({ ownerAgent: t.ownerAgent, automationLevel: t.automationLevel, status: t.status })),
+  );
+
   const comms = commRows.map((c) => ({
     id: c.id,
     channel: c.channel,
@@ -374,6 +379,8 @@ export default async function JobDetailPage({
           </p>
         ) : null}
       </Card>
+
+      <AutomationModule summary={automationSummary} />
 
       <JobTabs
         tasksByPhase={tasksByPhase}
