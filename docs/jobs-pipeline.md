@@ -376,3 +376,11 @@ that need a human, sorted by severity (high → medium) then oldest first:
 Agent-run errors are intentionally NOT here — those are automation health and
 live on the Command Center. Logic: `buildExceptionQueue` in `@savvy/core`;
 the page reuses `deriveJobHealth` exactly as the Jobs board does.
+
+**Notes (intentional):** A past-due invoice may appear twice — once as a *job at
+risk* (its job is `late`) and once as an *invoice overdue* row — giving the PM
+and the finance person each a resolution path. The `invoice_overdue` vector
+trusts the `overdue` status as authoritative, so it is deliberately broader than
+the Jobs board's `pastDue` check (which also requires `due_at < now` + a
+balance). The page has no pagination yet — fine at current tenant sizes; cap it
+before a large customer onboards (same all-rows pattern as the Jobs board).

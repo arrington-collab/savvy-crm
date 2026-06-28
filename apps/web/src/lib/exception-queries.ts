@@ -3,6 +3,14 @@ import { withTenant, job, invoice, appointment, jobTask, customer, tenant, eq, o
 import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
+// Gathers the four exception vectors for the tenant and normalizes them in core.
+// NOTE (intentional): a past-due invoice can surface BOTH as a `job_at_risk` row
+// (its job is `late`) and an `invoice_overdue` row — two resolution paths
+// (work the job vs. chase the invoice). The `invoice_overdue` branch trusts the
+// `overdue` status as authoritative, so it is deliberately broader than
+// getBoard's `pastDue` subquery (which also requires due_at<now + a balance).
+// TODO(scale): no LIMIT yet — same all-rows-then-filter pattern as getBoard;
+// cap/paginate before onboarding a large tenant.
 export async function getExceptionQueue(): Promise<ExceptionQueue> {
   const tenantId = await getTenantId();
   return withTenant(tenantId, async (tx) => {
