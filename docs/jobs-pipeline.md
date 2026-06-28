@@ -358,3 +358,21 @@ from its `job_task` rows:
 This is a read-only insight surface. `automationLevel` is not yet honored at
 runtime by the agents — making it editable and enforced is the orchestration
 (C) work. Logic: `summarizeJobAutomation` in `@savvy/core`.
+
+## Exception Queue (Jobs J)
+
+`/exceptions` is the tenant-wide "needs you" worklist. It unifies four signals
+that need a human, sorted by severity (high → medium) then oldest first:
+
+- **Job at risk** — `deriveJobHealth` reports `stuck` (past the stage threshold)
+  or `late` (past the build SLA or a past-due invoice). `late` is high.
+- **Invoice overdue** — `status='overdue'`, or `sent` with a past `due_at` and a
+  remaining balance. High.
+- **Appointment missed** — `no_show` (high) or a `scheduled` appointment whose
+  `starts_at` has passed (medium).
+- **Task overdue** — a `job_task` past its `due_at` that isn't `done`/`skipped`.
+  Medium.
+
+Agent-run errors are intentionally NOT here — those are automation health and
+live on the Command Center. Logic: `buildExceptionQueue` in `@savvy/core`;
+the page reuses `deriveJobHealth` exactly as the Jobs board does.
