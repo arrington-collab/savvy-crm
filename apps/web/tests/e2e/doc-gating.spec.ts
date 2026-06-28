@@ -30,8 +30,10 @@ let priorSettings: unknown;
 test.beforeAll(async () => {
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
   priorSettings = t?.settings ?? {};
+  const prior = (priorSettings ?? {}) as Record<string, unknown>;
+  const priorProduction = (prior.production ?? {}) as Record<string, unknown>;
   await adminDb.update(tenant)
-    .set({ settings: { ...(priorSettings as object), production: { requiredDocs: { production: ["contract"] } } } })
+    .set({ settings: { ...prior, production: { ...priorProduction, requiredDocs: { production: ["contract"] } } } as Record<string, unknown> })
     .where(eq(tenant.id, tenantId));
 });
 

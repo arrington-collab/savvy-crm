@@ -19,9 +19,10 @@ async function makeGatedTenantAndJob(): Promise<{ tenantId: string; jobId: strin
 describe("document gate (per-stage)", () => {
   it("blocks ->production when a required doc kind is missing (writes no stage event)", async () => {
     const { tenantId, jobId } = await makeGatedTenantAndJob(); // no documents
-    await expect(
-      withTenant(tenantId, (tx) => recordStageChange(tx, { tenantId, jobId, toStage: "production" })),
-    ).rejects.toBeInstanceOf(IncompleteDocumentsError);
+    const err = await withTenant(tenantId, (tx) => recordStageChange(tx, { tenantId, jobId, toStage: "production" }))
+      .then(() => null, (e) => e);
+    expect(err).toBeInstanceOf(IncompleteDocumentsError);
+    expect((err as IncompleteDocumentsError).missing).toContain("contract");
     const events = await withTenant(tenantId, (tx) =>
       tx.select().from(jobStageEvent).where(and(eq(jobStageEvent.jobId, jobId), eq(jobStageEvent.toStage, "production"))));
     expect(events).toHaveLength(0);

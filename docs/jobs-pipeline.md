@@ -84,6 +84,13 @@ write** (no stage event / task activation / audit row). The board surfaces
 `{ skipped: "doc_gate" }`. There is no settings UI — `requiredDocs` is edited directly in
 `tenant.settings.production`, exactly like `requiredPhotos`.
 
+**Precedence:** on a move to `complete`, the photo gate (§2a) is evaluated **before** the
+document gate, so if both are unsatisfied the missing-photos error surfaces first.
+
+**Stage keys:** `requiredDocs` keys must be valid `JobStage` values (e.g. `production`,
+`closeout`); a misspelled stage key silently configures a gate that never fires — there is no
+settings UI to catch typos.
+
 ---
 
 ## 3. Health derivation
