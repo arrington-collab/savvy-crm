@@ -42,3 +42,4 @@ export { getRepBlocks, repsAvailableAt, createRepBlock, listRepBlocks, deleteRep
 export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link";
 export { listAssignableReps } from "./lifecycle/team";
 export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate, type MaterialOrderRow } from "./lifecycle/material-order";
+export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";

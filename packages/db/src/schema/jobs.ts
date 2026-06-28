@@ -40,6 +40,7 @@ export const jobTask = pgTable("job_task", {
   status: taskStatusEnum("status").notNull().default("pending"),
   dueAt: timestamp("due_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  deferredAt: timestamp("deferred_at", { withTimezone: true }),
   assigneeUserId: uuid("assignee_user_id").references(() => user.id),
   payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
   createdAt: createdAt(),

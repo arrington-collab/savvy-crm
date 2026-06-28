@@ -1,0 +1,1 @@
+ALTER TABLE "job_task" ADD COLUMN "deferred_at" timestamp with time zone;

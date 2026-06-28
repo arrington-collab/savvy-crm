@@ -54,3 +54,4 @@ export * from "./pipeline-asof";
 export * from "./material-order";
 export * from "./exception-queue";
 export * from "./capacity";
+export * from "./task-automation";

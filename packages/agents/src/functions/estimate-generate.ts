@@ -1,7 +1,10 @@
-import { withTenant, eq, createEstimateFromMeasurement, estimate, measurement, priceBookItem } from "@savvy/db";
+import { withTenant, eq, createEstimateFromMeasurement, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
+
+/** Seeded template task that represents "parse the measurement into an estimate". */
+const ESTIMATE_TASK_KEY = "estimating-049";
 
 // ---------------------------------------------------------------------------
 // AI gateway type — injectable for tests so the AI call can be stubbed without
@@ -75,6 +78,11 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
   { event: "measurement/ready" },
   async ({ event, step }) => {
     const { tenantId, jobId, measurementId } = event.data;
+
+    // Runtime automation gate: defer to a human if the owning task isn't full-auto.
+    const gate = await step.run("gate", () =>
+      gateAgentAutomation({ tenantId, jobId, taskKey: ESTIMATE_TASK_KEY, agent: "claims" }));
+    if (!gate.proceed) return { skipped: "automation_deferred", level: gate.level };
 
     // Step 1: generate the deterministic estimate from the price book.
     const est = await step.run("generate", () =>

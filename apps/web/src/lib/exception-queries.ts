@@ -1,6 +1,6 @@
 import "server-only";
 import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, eq, or, sql } from "@savvy/db";
-import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput } from "@savvy/core";
+import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 // Gathers the five exception vectors for the tenant and normalizes them in core
@@ -96,6 +96,17 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       createdAt: r.createdAt,
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries });
+    // --- tasks an agent deferred to a human (deferred_at set, not yet resolved) ---
+    const deferredRows = await tx
+      .select({ taskId: jobTask.id, jobId: jobTask.jobId, title: jobTask.title, deferredAt: jobTask.deferredAt, customerName: customer.name })
+      .from(jobTask)
+      .leftJoin(job, eq(job.id, jobTask.jobId))
+      .leftJoin(customer, eq(customer.id, job.customerId))
+      .where(sql`${jobTask.deferredAt} is not null and ${jobTask.status} not in ('done','skipped')`);
+    const taskNeedsApprovals: TaskNeedsApprovalInput[] = deferredRows.map((r) => ({
+      taskId: r.taskId, jobId: r.jobId, title: r.title, customerName: r.customerName, deferredAt: r.deferredAt as Date,
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals });
   });
 }

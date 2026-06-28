@@ -381,6 +381,18 @@ This is a read-only insight surface. `automationLevel` is not yet honored at
 runtime by the agents — making it editable and enforced is the orchestration
 (C) work. Logic: `summarizeJobAutomation` in `@savvy/core`.
 
+### Runtime automation gate (C Part 2)
+
+Agents honor `job_task.automationLevel` at runtime. Before an agent auto-performs work tied to a
+task, it calls `gateAgentAutomation({ tenantId, jobId, taskKey, agent })`: it reads the owning
+task's level and, if it is not `full` (i.e. `partial` or `manual`), **defers** — it stamps the task
+`deferred_at`, logs a `skipped` `agent_run`, and returns `proceed: false` so the agent skips the
+action. Only `full` tasks run automatically. Deferred tasks surface in `/exceptions` as a medium
+`task_needs_approval` row ("Needs approval: …") until a human completes them. The first wired
+capability is estimate generation (`estimating-049`); because that task's template default is
+`full`, the gate is dormant until a job's task is set non-full. `resolveTaskAutomation` defaults to
+`full` when no matching task exists, so an unmapped agent action is never blocked.
+
 ## Exception Queue (Jobs J)
 
 `/exceptions` is the tenant-wide "needs you" worklist. It unifies four signals
