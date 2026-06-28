@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarizeAgentCoverage, summarizeAutomationStats, AGENT_LABELS } from "./agent-activity";
+import { summarizeAgentCoverage, summarizeAutomationStats, AGENT_LABELS, summarizeJobAutomation, type JobTaskLite } from "./agent-activity";
 
 const now = new Date("2026-06-16T12:00:00Z");
 const h = (n: number) => new Date(now.getTime() - n * 3_600_000); // n hours ago
@@ -39,4 +39,48 @@ describe("summarizeAutomationStats", () => {
 
 it("AGENT_LABELS covers all five agents", () => {
   expect(Object.keys(AGENT_LABELS).sort()).toEqual(["claims", "comms", "finance", "orchestrator", "scheduling"]);
+});
+
+describe("summarizeJobAutomation", () => {
+  const tasks: JobTaskLite[] = [
+    { ownerAgent: "comms", automationLevel: "full", status: "done" },
+    { ownerAgent: "comms", automationLevel: "full", status: "pending" },
+    { ownerAgent: "scheduling", automationLevel: "partial", status: "pending" },
+    { ownerAgent: "finance", automationLevel: "manual", status: "pending" },
+    { ownerAgent: null, automationLevel: "manual", status: "done" },
+  ];
+
+  it("counts levels and computes a weighted autonomy percentage", () => {
+    const s = summarizeJobAutomation(tasks);
+    expect(s.total).toBe(5);
+    expect(s.full).toBe(2);
+    expect(s.partial).toBe(1);
+    expect(s.manual).toBe(2);
+    // weighted = 2*1 + 1*0.5 + 2*0 = 2.5 ; 2.5/5 = 50%
+    expect(s.autonomyPct).toBe(50);
+  });
+
+  it("counts needs-you as non-done, non-full tasks", () => {
+    // pending partial (scheduling) + pending manual (finance) = 2; the pending full and the done tasks are excluded
+    expect(summarizeJobAutomation(tasks).needsYouCount).toBe(2);
+  });
+
+  it("breaks down by agent in AGENT order, only for agents that own a task", () => {
+    const s = summarizeJobAutomation(tasks);
+    expect(s.byAgent.map((a) => a.agent)).toEqual(["comms", "scheduling", "finance"]);
+    const comms = s.byAgent.find((a) => a.agent === "comms")!;
+    expect(comms).toEqual({ agent: "comms", label: "Comms", total: 2, full: 2, partial: 0, manual: 0 });
+  });
+
+  it("treats null/unknown automationLevel as manual", () => {
+    const s = summarizeJobAutomation([{ ownerAgent: "comms", automationLevel: null, status: "pending" }]);
+    expect(s.manual).toBe(1);
+    expect(s.autonomyPct).toBe(0);
+  });
+
+  it("is all-zero for no tasks", () => {
+    expect(summarizeJobAutomation([])).toEqual({
+      total: 0, full: 0, partial: 0, manual: 0, autonomyPct: 0, needsYouCount: 0, byAgent: [],
+    });
+  });
 });

@@ -342,3 +342,19 @@ shows a real margin (`revenue − supplier cost`) and the commission basis
 (`amount_paid − cost_cents`) becomes accurate. Canceling an order drops it from
 the sum automatically (recompute, never increment). Material is currently the
 only contributor to `job.cost_cents`.
+
+## Automation module (cockpit — Jobs I)
+
+The job cockpit's **Automation** card summarizes the job's *configured* autonomy
+from its `job_task` rows:
+
+- **Autonomy %** — weighted across tasks (`full = 1`, `partial = 0.5`,
+  `manual = 0`), i.e. how much of the job is set to run without a human.
+- **Needs you** — count of tasks not yet `done` whose level is not `full`
+  (manual/partial work still awaiting a person).
+- **Per-agent breakdown** — for each of the five agents that owns a task, a
+  `full / partial / manual` count with its persona avatar.
+
+This is a read-only insight surface. `automationLevel` is not yet honored at
+runtime by the agents — making it editable and enforced is the orchestration
+(C) work. Logic: `summarizeJobAutomation` in `@savvy/core`.

@@ -67,3 +67,63 @@ export function summarizeAutomationStats(rows: AgentRunLite[], now: Date): Autom
     activeAgents: new Set(rows.map((r) => r.agent)).size,
   };
 }
+
+/** A job_task reduced to what the automation summary needs. */
+export type JobTaskLite = {
+  ownerAgent: Agent | null;
+  automationLevel: string | null;
+  status: string;
+};
+
+export type AgentAutomation = {
+  agent: Agent;
+  label: string;
+  total: number;
+  full: number;
+  partial: number;
+  manual: number;
+};
+
+export type JobAutomationSummary = {
+  total: number;
+  full: number;
+  partial: number;
+  manual: number;
+  autonomyPct: number;
+  needsYouCount: number;
+  byAgent: AgentAutomation[];
+};
+
+/** Normalize a stored automation level; anything unrecognized (incl. null) is "manual". */
+function normLevel(level: string | null): "full" | "partial" | "manual" {
+  return level === "full" || level === "partial" ? level : "manual";
+}
+
+/**
+ * Summarize a job's CONFIGURED autonomy from its task rows (not runtime telemetry).
+ * Weighted autonomy: full=1, partial=0.5, manual=0. "Needs you" = not-done, not-full.
+ */
+export function summarizeJobAutomation(tasks: JobTaskLite[]): JobAutomationSummary {
+  const levels = tasks.map((t) => normLevel(t.automationLevel));
+  const full = levels.filter((l) => l === "full").length;
+  const partial = levels.filter((l) => l === "partial").length;
+  const manual = levels.filter((l) => l === "manual").length;
+  const total = tasks.length;
+  const autonomyPct = total ? Math.round(((full + partial * 0.5) / total) * 100) : 0;
+  const needsYouCount = tasks.filter((t) => t.status !== "done" && normLevel(t.automationLevel) !== "full").length;
+
+  const byAgent: AgentAutomation[] = AGENT.map((agent) => {
+    const mine = tasks.filter((t) => t.ownerAgent === agent);
+    const lv = mine.map((t) => normLevel(t.automationLevel));
+    return {
+      agent,
+      label: AGENT_LABELS[agent],
+      total: mine.length,
+      full: lv.filter((l) => l === "full").length,
+      partial: lv.filter((l) => l === "partial").length,
+      manual: lv.filter((l) => l === "manual").length,
+    };
+  }).filter((a) => a.total > 0);
+
+  return { total, full, partial, manual, autonomyPct, needsYouCount, byAgent };
+}
