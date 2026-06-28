@@ -52,3 +52,4 @@ export * from "./pipeline-config";
 export * from "./weighted-pipeline";
 export * from "./pipeline-asof";
 export * from "./material-order";
+export * from "./exception-queue";
