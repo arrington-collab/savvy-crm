@@ -14,6 +14,7 @@ import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 import { createMaterialOrderOnAccepted } from "./functions/material-order";
 import { meterUsageMonthly } from "./functions/meter-usage";
 import { coldArchiveDocuments } from "./functions/cold-archive";
+import { weatherReschedule } from "./functions/weather-reschedule";
 import { changeOrderAccepted } from "./functions/change-order";
 import { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
 import { leadRescore } from "./functions/lead-rescore";
@@ -39,6 +40,7 @@ export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 export { createMaterialOrderOnAccepted } from "./functions/material-order";
 export { meterUsageMonthly } from "./functions/meter-usage";
 export { coldArchiveDocuments } from "./functions/cold-archive";
+export { weatherReschedule } from "./functions/weather-reschedule";
 export { changeOrderAccepted } from "./functions/change-order";
 export { draftChangeOrderScope } from "./functions/change-order-draft";
 export { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
@@ -47,4 +49,4 @@ export { leadSpeedToLead } from "./functions/lead-speed-to-lead";
 export { leadCadence } from "./functions/lead-cadence";
 export { voiceFallback } from "./functions/voice-fallback";
 export { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete];
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, weatherReschedule];

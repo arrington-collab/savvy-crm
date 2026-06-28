@@ -110,6 +110,16 @@ export async function getBusyIntervals(input: {
   });
 }
 
+/** Set (note) or clear (note=null) the weather flag on a scheduled appointment. */
+export async function setAppointmentWeatherFlag(input: {
+  tenantId: string; appointmentId: string; note: string | null;
+}): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.update(appointment)
+      .set({ weatherNote: input.note, weatherFlaggedAt: input.note ? new Date() : null })
+      .where(and(eq(appointment.id, input.appointmentId), eq(appointment.status, "scheduled"))));
+}
+
 /**
  * Converts a lead to a job if not already converted (idempotent). Seeds the
  * job's tasks, records the stage change to "inspected", marks the lead booked,

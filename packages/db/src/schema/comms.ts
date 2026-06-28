@@ -36,6 +36,8 @@ export const appointment = pgTable("appointment", {
   assigneeUserId: uuid("assignee_user_id").references(() => user.id),
   status: appointmentStatusEnum("status").notNull().default("scheduled"),
   gcalEventId: text("gcal_event_id"),
+  weatherNote: text("weather_note"),
+  weatherFlaggedAt: timestamp("weather_flagged_at", { withTimezone: true }),
   createdAt: createdAt(),
   // NOTE: a Postgres EXCLUDE constraint (appointment_no_overlap) enforcing
   // no overlapping 'scheduled' appts per assignee is added by hand in

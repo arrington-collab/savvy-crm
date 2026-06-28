@@ -1,6 +1,6 @@
 import "server-only";
 import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, eq, or, sql } from "@savvy/db";
-import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput } from "@savvy/core";
+import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 // Gathers the five exception vectors for the tenant and normalizes them in core
@@ -107,6 +107,16 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       taskId: r.taskId, jobId: r.jobId, title: r.title, customerName: r.customerName, deferredAt: r.deferredAt as Date,
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals });
+    // --- crew appointments flagged for bad weather (proactive, future) ---
+    const wxRows = await tx
+      .select({ id: appointment.id, jobId: appointment.jobId, apptType: appointment.type, startsAt: appointment.startsAt, note: appointment.weatherNote, customerName: customer.name })
+      .from(appointment)
+      .leftJoin(customer, eq(customer.id, appointment.customerId))
+      .where(sql`${appointment.weatherFlaggedAt} is not null and ${appointment.status} = 'scheduled' and ${appointment.startsAt} > now()`);
+    const weatherAtRisks: WeatherAtRiskInput[] = wxRows.map((r) => ({
+      appointmentId: r.id, jobId: r.jobId, apptType: r.apptType, startsAt: r.startsAt, customerName: r.customerName, note: r.note ?? "Weather risk",
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks });
   });
 }

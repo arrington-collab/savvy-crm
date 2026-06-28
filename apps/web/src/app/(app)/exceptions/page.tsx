@@ -9,6 +9,7 @@ const KIND_LABEL: Record<string, string> = {
   task_overdue: "Task overdue",
   material_delivery: "Materials",
   task_needs_approval: "Needs approval",
+  weather_at_risk: "Weather risk",
 };
 
 export default async function ExceptionsPage() {

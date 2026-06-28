@@ -8,7 +8,7 @@ export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
 export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/contact";
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
-  getBusyIntervals, convertLeadToJob, SlotTakenError, NoAssigneeError,
+  getBusyIntervals, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
 } from "./lifecycle/appointments";
 export {
   createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,

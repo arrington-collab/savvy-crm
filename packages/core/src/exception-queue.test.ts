@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildExceptionQueue, type ExceptionQueueInput } from "./exception-queue";
 
-const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
+const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [] };
 
 describe("buildExceptionQueue", () => {
   it("normalizes each vector into an item with the right kind/severity/href", () => {
@@ -12,9 +12,10 @@ describe("buildExceptionQueue", () => {
       overdueTasks: [{ taskId: "t1", jobId: "j4", title: "Order materials", customerName: "Di", dueAt: new Date("2026-06-25T00:00:00Z") }],
       materialDeliveries: [],
       taskNeedsApprovals: [],
+      weatherAtRisks: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
@@ -71,12 +72,12 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0 }, total: 0, highCount: 0,
     });
   });
 
   describe("buildExceptionQueue material_delivery vector", () => {
-    const baseInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
+    const baseInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [] };
     const install = new Date("2026-07-10T17:00:00Z");
 
     it("emits a high item when the order is misaligned (neededBy after install)", () => {
@@ -126,7 +127,7 @@ describe("buildExceptionQueue", () => {
   });
 
   describe("buildExceptionQueue task_needs_approval vector", () => {
-    const base = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
+    const base = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [] };
     it("emits a medium needs-approval item", () => {
       const deferredAt = new Date("2026-07-03T00:00:00Z");
       const q = buildExceptionQueue({
@@ -141,6 +142,21 @@ describe("buildExceptionQueue", () => {
       expect(row!.href).toBe("/jobs/j1");
       expect(row!.occurredAt).toEqual(deferredAt);
       expect(q.counts.task_needs_approval).toBe(1);
+    });
+  });
+
+  describe("buildExceptionQueue weather_at_risk vector", () => {
+    const base = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [] };
+    it("emits a medium weather item", () => {
+      const startsAt = new Date("2026-07-02T16:00:00Z");
+      const q = buildExceptionQueue({ ...base, weatherAtRisks: [{ appointmentId: "a1", jobId: "j1", apptType: "crew", startsAt, customerName: "Rainy Rita", note: "Rain 90%" }] });
+      const row = q.items.find((i) => i.kind === "weather_at_risk");
+      expect(row!.severity).toBe("medium");
+      expect(row!.title).toBe("Rainy Rita");
+      expect(row!.detail).toBe("Rain 90% — reschedule");
+      expect(row!.href).toBe("/schedule");
+      expect(row!.occurredAt).toEqual(startsAt);
+      expect(q.counts.weather_at_risk).toBe(1);
     });
   });
 });
