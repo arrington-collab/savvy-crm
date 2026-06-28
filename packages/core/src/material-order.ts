@@ -12,6 +12,8 @@ export type MaterialOrderLine = {
   unit: PriceBookUnit;
   unitPriceCents: number;
   amountCents: number;
+  unitCostCents?: number;
+  lineCostCents?: number;
 };
 
 /** Days of lead time the supplier needs before the crew install date. */
@@ -46,4 +48,17 @@ export function neededByFromInstall(installAt: Date | null, bufferDays: number =
 export function materialDeliveryFlag(input: { neededByAt: Date | null; installAt: Date | null }): "none" | "no_install" | "misaligned" {
   if (!input.installAt || !input.neededByAt) return "no_install";
   return input.neededByAt.getTime() > input.installAt.getTime() ? "misaligned" : "none";
+}
+
+/** Attach per-unit supplier cost (by line key) and compute the cost subtotal. Missing key → 0. */
+export function attachMaterialCosts(
+  lines: MaterialOrderLine[],
+  costByKey: Record<string, number>,
+): { lines: MaterialOrderLine[]; costSubtotalCents: number } {
+  const costed = lines.map((l) => {
+    const unitCostCents = costByKey[l.key] ?? 0;
+    return { ...l, unitCostCents, lineCostCents: l.quantity * unitCostCents };
+  });
+  const costSubtotalCents = costed.reduce((sum, l) => sum + (l.lineCostCents ?? 0), 0);
+  return { lines: costed, costSubtotalCents };
 }

@@ -2,10 +2,13 @@ import { withTenant } from "../tenant";
 import { materialOrder } from "../schema/procurement";
 import { estimate } from "../schema/finance";
 import { appointment } from "../schema/comms";
-import { and, eq, asc, sql } from "drizzle-orm";
+import { priceBookItem } from "../schema/pricing";
+import { job } from "../schema/jobs";
+import { and, eq, asc, inArray, sql } from "drizzle-orm";
 import {
   materialLinesFromEstimate,
   materialOrderSubtotalCents,
+  attachMaterialCosts,
   neededByFromInstall,
   type EstimateLineItem,
   type MaterialOrderStatus,
@@ -32,6 +35,18 @@ export async function getJobInstallDate(tenantId: string, jobId: string): Promis
   return withTenant(tenantId, (tx) => earliestCrewInstallAt(tx, jobId));
 }
 
+/** Recompute job.costCents as the sum of material-order cost in {ordered,delivered}. Idempotent. */
+async function recomputeJobMaterialCost(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  jobId: string,
+): Promise<void> {
+  const [agg] = await tx
+    .select({ total: sql<number>`coalesce(sum(${materialOrder.costSubtotalCents}), 0)::int` })
+    .from(materialOrder)
+    .where(and(eq(materialOrder.jobId, jobId), inArray(materialOrder.status, ["ordered", "delivered"])));
+  await tx.update(job).set({ costCents: agg?.total ?? 0 }).where(eq(job.id, jobId));
+}
+
 /**
  * Generate a material order from an accepted estimate's material lines.
  * Idempotent per estimate: if one already exists it is returned unchanged.
@@ -50,6 +65,9 @@ export async function createMaterialOrderFromEstimate(input: {
 
     const lines = materialLinesFromEstimate((est.lineItems ?? []) as EstimateLineItem[]);
     const subtotalCents = materialOrderSubtotalCents(lines);
+    const pb = await tx.select({ key: priceBookItem.key, unitCostCents: priceBookItem.unitCostCents }).from(priceBookItem);
+    const costByKey = Object.fromEntries(pb.map((p) => [p.key, p.unitCostCents]));
+    const { lines: costedLines, costSubtotalCents } = attachMaterialCosts(lines, costByKey);
     const installAt = await earliestCrewInstallAt(tx, est.jobId);
     const neededByAt = neededByFromInstall(installAt);
 
@@ -61,8 +79,9 @@ export async function createMaterialOrderFromEstimate(input: {
       jobId: est.jobId,
       estimateId: input.estimateId,
       status: "draft",
-      lineItems: lines,
+      lineItems: costedLines,
       subtotalCents,
+      costSubtotalCents,
       neededByAt,
     }).onConflictDoNothing({ target: materialOrder.estimateId }).returning();
     if (row) return row;
@@ -83,6 +102,7 @@ export async function setMaterialOrderStatus(input: {
     const [row] = await tx.update(materialOrder).set(patch).where(eq(materialOrder.id, input.materialOrderId)).returning();
     // Fix 3: explicit not-found guard instead of non-null assertion
     if (!row) throw new Error(`material order ${input.materialOrderId} not found`);
+    await recomputeJobMaterialCost(tx, row.jobId);
     return row;
   });
 }

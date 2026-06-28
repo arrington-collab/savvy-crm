@@ -15,6 +15,10 @@ function PriceBookRowItem({ item, index }: { item: PriceBookRow; index: number }
   const [priceDollars, setPriceDollars] = useState(
     (item.unitPriceCents / 100).toFixed(2),
   );
+  // Store supplier cost as dollars string for the input; send as cents to server
+  const [costDollars, setCostDollars] = useState(
+    (item.unitCostCents / 100).toFixed(2),
+  );
   const [wasteApplies, setWasteApplies] = useState(item.wasteApplies);
   const [active, setActive] = useState(item.active);
   const [saving, setSaving] = useState(false);
@@ -24,9 +28,11 @@ function PriceBookRowItem({ item, index }: { item: PriceBookRow; index: number }
     setSaving(true);
     setSaved(false);
     const cents = Math.round(parseFloat(priceDollars) * 100);
+    const costCents = Math.round(parseFloat(costDollars) * 100);
     await updatePriceBookItem({
       id: item.id,
       unitPriceCents: isNaN(cents) ? item.unitPriceCents : cents,
+      unitCostCents: isNaN(costCents) ? item.unitCostCents : costCents,
       wasteApplies,
       active,
       sourceFields: item.sourceFields ?? [],
@@ -43,7 +49,7 @@ function PriceBookRowItem({ item, index }: { item: PriceBookRow; index: number }
       data-key={item.key}
       style={{ background: index % 2 ? "var(--surface-panel)" : "transparent" }}
     >
-      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_auto] gap-3 items-center text-sm">
+      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_1fr_auto] gap-3 items-center text-sm">
         {/* Name */}
         <span className="font-medium truncate" style={{ color: "var(--text-body)" }}>{item.name}</span>
 
@@ -69,6 +75,21 @@ function PriceBookRowItem({ item, index }: { item: PriceBookRow; index: number }
             onChange={(e) => setPriceDollars(e.target.value)}
             className="h-7 w-24 text-sm mono"
             aria-label={`Unit price for ${item.name}`}
+          />
+        </div>
+
+        {/* Supplier cost (editable) */}
+        <div className="flex items-center gap-1">
+          <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>$</span>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={costDollars}
+            onChange={(e) => setCostDollars(e.target.value)}
+            className="h-7 w-24 text-sm mono"
+            aria-label={`Supplier cost for ${item.name}`}
+            data-testid="pb-cost-input"
           />
         </div>
 
@@ -122,12 +143,13 @@ export function PriceBookClient({ items }: { items: PriceBookRow[] }) {
       <PageHeader eyebrow="Catalog" title="Price Book" />
 
       {/* Header */}
-      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_auto] gap-3 px-4 eyebrow">
+      <div className="grid grid-cols-[2fr_1fr_1fr_2fr_1fr_1fr_1fr_auto] gap-3 px-4 eyebrow">
         <span>Name</span>
         <span>Category</span>
         <span>Unit</span>
         <span>Source Fields</span>
         <span>Unit Price</span>
+        <span>Supplier Cost</span>
         <span>Options</span>
         <span />
       </div>

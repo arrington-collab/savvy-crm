@@ -326,3 +326,19 @@ generated from its `category:"material"` line items — automatically via the
   scheduled* or *delivery after install*.
 - Status lifecycle: `draft → ordered → delivered` (or `canceled`), advanced
   from the cockpit.
+
+### Supplier cost → margin (D2c)
+
+Each price-book item carries a **supplier cost** (`unit_cost_cents`) alongside
+its list price (`unit_price_cents`), editable in **Settings → Price book**. When
+a material order is generated, each material line is matched to the price book by
+`key` and stamped with `unitCostCents` + `lineCostCents`; the order stores a
+`cost_subtotal_cents`.
+
+When a material order is marked **ordered** (or **delivered**), the job's
+`cost_cents` is recomputed as the **sum** of `cost_subtotal_cents` across that
+job's orders in `{ordered, delivered}` — so the cockpit **Money & margin** card
+shows a real margin (`revenue − supplier cost`) and the commission basis
+(`amount_paid − cost_cents`) becomes accurate. Canceling an order drops it from
+the sum automatically (recompute, never increment). Material is currently the
+only contributor to `job.cost_cents`.

@@ -7,6 +7,7 @@ import {
   materialOrderSubtotalCents,
   neededByFromInstall,
   materialDeliveryFlag,
+  attachMaterialCosts,
   type MaterialOrderLine,
 } from "./material-order";
 
@@ -75,5 +76,31 @@ describe("materialDeliveryFlag", () => {
       neededByAt: new Date("2026-07-08T00:00:00Z"),
       installAt: new Date("2026-07-10T00:00:00Z"),
     })).toBe("none");
+  });
+});
+
+describe("attachMaterialCosts", () => {
+  const lines = materialLinesFromEstimate([
+    { key: "shingles", name: "Shingles", category: "material", unit: "square", quantity: 30, unitPriceCents: 12000, amountCents: 360000 },
+    { key: "underlayment", name: "Underlayment", category: "material", unit: "square", quantity: 30, unitPriceCents: 2000, amountCents: 60000 },
+  ]);
+
+  it("attaches per-line cost from the cost map and sums the cost subtotal", () => {
+    const { lines: costed, costSubtotalCents } = attachMaterialCosts(lines, { shingles: 7800, underlayment: 1300 });
+    expect(costed[0]!.unitCostCents).toBe(7800);
+    expect(costed[0]!.lineCostCents).toBe(30 * 7800);
+    expect(costed[1]!.lineCostCents).toBe(30 * 1300);
+    expect(costSubtotalCents).toBe(30 * 7800 + 30 * 1300);
+  });
+
+  it("treats a missing key as zero cost", () => {
+    const { lines: costed, costSubtotalCents } = attachMaterialCosts(lines, { shingles: 7800 });
+    expect(costed[1]!.unitCostCents).toBe(0);
+    expect(costed[1]!.lineCostCents).toBe(0);
+    expect(costSubtotalCents).toBe(30 * 7800);
+  });
+
+  it("is 0 for no lines", () => {
+    expect(attachMaterialCosts([], { shingles: 7800 })).toEqual({ lines: [], costSubtotalCents: 0 });
   });
 });

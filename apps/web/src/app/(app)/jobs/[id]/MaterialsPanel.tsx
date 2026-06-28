@@ -11,6 +11,7 @@ export type MaterialsPanelOrder = {
   id: string;
   status: string;
   subtotalCents: number;
+  costSubtotalCents: number;
   neededByISO: string | null;
   lines: MaterialsPanelLine[];
   flag: "none" | "no_install" | "misaligned";
@@ -81,6 +82,10 @@ export function MaterialsPanel({ jobId, orders }: { jobId: string; orders: Mater
             <div className="flex items-center justify-between">
               <StatusBadge status={o.status} />
               <span className="mono font-medium text-accent-gold" data-testid="material-order-subtotal">{fmtUsd(o.subtotalCents)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs" data-testid="material-order-cost" style={{ color: "var(--text-faint)" }}>
+              <span>Supplier cost</span>
+              <span className="mono">{fmtUsd(o.costSubtotalCents)}</span>
             </div>
             <ul className="space-y-1 text-sm">
               {o.lines.map((l) => (

@@ -5,6 +5,7 @@ import { getTenantId } from "./tenant";
 export async function updatePriceBookItem(input: {
   id: string;
   unitPriceCents: number;
+  unitCostCents: number;
   wasteApplies: boolean;
   active: boolean;
   sourceFields: string[];
@@ -15,6 +16,7 @@ export async function updatePriceBookItem(input: {
       .update(priceBookItem)
       .set({
         unitPriceCents: input.unitPriceCents,
+        unitCostCents: input.unitCostCents,
         wasteApplies: input.wasteApplies,
         active: input.active,
         sourceFields: input.sourceFields,
