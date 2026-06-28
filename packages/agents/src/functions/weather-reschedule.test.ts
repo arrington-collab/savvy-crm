@@ -27,7 +27,7 @@ describe("evaluateTenantWeather", () => {
 
     const r1 = await evaluateTenantWeather(tenantId, stub([{ date: apptDate, maxWindMph: 5, precipProbability: 90 }]), now);
     expect(r1.flagged).toBe(1);
-    let [a] = await withTenant(tenantId, (tx) => tx.select({ n: appointment.weatherNote }).from(appointment).where(eq(appointment.id, apptId)));
+    const [a] = await withTenant(tenantId, (tx) => tx.select({ n: appointment.weatherNote }).from(appointment).where(eq(appointment.id, apptId)));
     expect(a!.n).toBe("Rain 90%");
 
     const r2 = await evaluateTenantWeather(tenantId, stub([{ date: apptDate, maxWindMph: 5, precipProbability: 0 }]), now);
