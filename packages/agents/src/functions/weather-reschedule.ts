@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, appointment, job, property, setAppointmentWeatherFlag, and, eq, sql } from "@savvy/db";
+import { adminDb, withTenant, tenant, appointment, job, property, setAppointmentWeatherFlag, and, eq, gte, lte } from "@savvy/db";
 import { parseWeatherConfig, parseFinanceConfig, assessWeatherRisk, toCivilDate } from "@savvy/core";
 import { forecast, type ForecastGateway } from "@savvy/integrations";
 import { inngest } from "../client";
@@ -22,7 +22,7 @@ export async function evaluateTenantWeather(
       .leftJoin(job, eq(job.id, appointment.jobId))
       .leftJoin(property, eq(property.id, job.propertyId))
       .where(and(eq(appointment.type, "crew"), eq(appointment.status, "scheduled"),
-        sql`${appointment.startsAt} >= ${now} and ${appointment.startsAt} <= ${windowEnd}`)));
+        gte(appointment.startsAt, now), lte(appointment.startsAt, windowEnd))));
 
   let flagged = 0, cleared = 0;
   for (const r of rows) {
