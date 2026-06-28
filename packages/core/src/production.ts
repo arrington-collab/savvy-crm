@@ -7,6 +7,12 @@ export function missingRequiredPhotos(required: string[], present: string[]): st
   return required.filter((r) => !have.has(r.trim().toLowerCase()));
 }
 
+/** Required doc kinds with no case-insensitive/trimmed match in `present`. [] = complete. */
+export function missingRequiredDocs(required: string[], present: string[]): string[] {
+  const have = new Set(present.map((s) => s.trim().toLowerCase()));
+  return required.filter((r) => !have.has(r.trim().toLowerCase()));
+}
+
 const DEFAULTS: Record<JobType, string[]> = {
   retail: ["before", "after"],
   insurance: ["before", "after", "permit"],
@@ -17,6 +23,8 @@ const DEFAULTS: Record<JobType, string[]> = {
 const labels = (def: string[]) =>
   z.array(z.string()).default(def).transform((a) => a.map((s) => s.trim().toLowerCase()));
 
+const kinds = z.array(z.string()).transform((a) => a.map((s) => s.trim().toLowerCase()));
+
 const productionSchema = z.object({
   requiredPhotos: z.object({
     retail: labels(DEFAULTS.retail),
@@ -24,6 +32,7 @@ const productionSchema = z.object({
     repair: labels(DEFAULTS.repair),
     commercial: labels(DEFAULTS.commercial),
   }).default({}),
+  requiredDocs: z.record(z.string(), kinds).default({}),
 });
 
 export type ProductionConfig = z.infer<typeof productionSchema>;

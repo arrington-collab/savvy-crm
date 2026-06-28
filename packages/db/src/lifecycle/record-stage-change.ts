@@ -2,7 +2,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { job, jobTask, jobStageEvent, auditLog, document, tenant } from "../schema/index";
 import { db } from "../client";
 import type { JobStage, Agent, JobType } from "@savvy/core";
-import { parseProductionConfig, missingRequiredPhotos } from "@savvy/core";
+import { parseProductionConfig, missingRequiredPhotos, missingRequiredDocs } from "@savvy/core";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -11,6 +11,15 @@ export class IncompletePhotosError extends Error {
   constructor(missing: string[]) {
     super("incomplete_photos");
     this.name = "IncompletePhotosError";
+    this.missing = missing;
+  }
+}
+
+export class IncompleteDocumentsError extends Error {
+  missing: string[];
+  constructor(missing: string[]) {
+    super("incomplete_documents");
+    this.name = "IncompleteDocumentsError";
     this.missing = missing;
   }
 }
@@ -38,6 +47,20 @@ export async function recordStageChange(
       const present = rows.map((r) => r.label).filter((x): x is string => !!x);
       const missing = missingRequiredPhotos(required, present);
       if (missing.length > 0) throw new IncompletePhotosError(missing);
+    }
+  }
+
+  // Per-stage document gate: require configured document.kinds before ENTERING toStage.
+  {
+    const [t] = await tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, opts.tenantId));
+    const cfg = parseProductionConfig((t?.settings as { production?: unknown } | undefined)?.production);
+    const requiredDocs = cfg.requiredDocs[opts.toStage] ?? [];
+    if (requiredDocs.length > 0) {
+      const rows = await tx.selectDistinct({ kind: document.kind }).from(document)
+        .where(eq(document.jobId, opts.jobId));
+      const present = rows.map((r) => r.kind).filter((x): x is string => !!x);
+      const missing = missingRequiredDocs(requiredDocs, present);
+      if (missing.length > 0) throw new IncompleteDocumentsError(missing);
     }
   }
 

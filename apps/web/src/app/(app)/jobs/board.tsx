@@ -192,7 +192,11 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
         const result = await moveJobToStage(jobId, toStage);
         if ("error" in result) {
           setBoard(prevBoard);
-          toast.error(`Can't mark complete — missing photos: ${result.missing.join(", ")}`);
+          if (result.error === "missing_docs") {
+            toast.error(`Can't move — missing documents: ${result.missing.join(", ")}`);
+          } else {
+            toast.error(`Can't mark complete — missing photos: ${result.missing.join(", ")}`);
+          }
           return;
         }
       } catch {

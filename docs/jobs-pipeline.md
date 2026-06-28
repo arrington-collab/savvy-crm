@@ -69,6 +69,28 @@ handles this gracefully and returns `{ skipped: "photo_gate" }` — no retry, no
 crash. The job must receive the missing photos before the stage can be advanced
 (manually or via the next `invoice/paid` re-emit).
 
+### 2b. Document gate (per-stage)
+
+`recordStageChange` also enforces a generic, opt-in **document gate**. For any target
+stage, `tenant.settings.production.requiredDocs[toStage]` lists `document.kind` values
+that must already exist on the job before it may ENTER that stage. The default is `{}`
+(no gate). The canonical setting is `{ production: ["contract"] }` — a signed contract
+must be attached before a job moves into `production`. Matching is case-insensitive and
+trimmed against the job's distinct `document.kind`s; signed e-sign docs
+(`kind='lien_waiver'|'cert'`, written by `finalizeEsign`) satisfy a gate for free. When a
+required kind is absent, `recordStageChange` throws `IncompleteDocumentsError` **before any
+write** (no stage event / task activation / audit row). The board surfaces
+`Can't move — missing documents: …` and reverts; the invoice-stage Inngest function returns
+`{ skipped: "doc_gate" }`. There is no settings UI — `requiredDocs` is edited directly in
+`tenant.settings.production`, exactly like `requiredPhotos`.
+
+**Precedence:** on a move to `complete`, the photo gate (§2a) is evaluated **before** the
+document gate, so if both are unsatisfied the missing-photos error surfaces first.
+
+**Stage keys:** `requiredDocs` keys must be valid `JobStage` values (e.g. `production`,
+`closeout`); a misspelled stage key silently configures a gate that never fires — there is no
+settings UI to catch typos.
+
 ---
 
 ## 3. Health derivation
