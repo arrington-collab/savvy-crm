@@ -17,6 +17,7 @@ export const materialOrder = pgTable("material_order", {
   status: materialOrderStatusEnum("status").notNull().default("draft"),
   lineItems: jsonb("line_items").$type<MaterialOrderLine[]>().default([]).notNull(),
   subtotalCents: integer("subtotal_cents").notNull().default(0),
+  costSubtotalCents: integer("cost_subtotal_cents").notNull().default(0),
   neededByAt: timestamp("needed_by_at", { withTimezone: true }),
   orderedAt: timestamp("ordered_at", { withTimezone: true }),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),

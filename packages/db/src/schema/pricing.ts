@@ -11,6 +11,7 @@ export const priceBookItem = pgTable("price_book_item", {
   category: priceBookCategoryEnum("category").notNull(),
   unit: priceBookUnitEnum("unit").notNull(),
   unitPriceCents: integer("unit_price_cents").notNull().default(0),
+  unitCostCents: integer("unit_cost_cents").notNull().default(0),
   sourceFields: jsonb("source_fields").$type<string[]>().default([]).notNull(),
   wasteApplies: boolean("waste_applies").notNull().default(false),
   packSize: integer("pack_size").notNull().default(1),
