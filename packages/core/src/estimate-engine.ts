@@ -9,6 +9,7 @@ export interface EnginePriceBookItem {
   category: PriceBookCategory;
   unit: PriceBookUnit;
   unitPriceCents: number;
+  unitCostCents?: number;
   sourceFields: string[];
   wasteApplies: boolean;
   packSize: number;
