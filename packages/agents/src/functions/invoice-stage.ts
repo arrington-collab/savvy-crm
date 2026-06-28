@@ -28,6 +28,8 @@ export async function syncInvoiceStage(
     } catch (e) {
       // close-out photo gate unmet on the move to `complete` — leave the job in billing
       if (e instanceof Error && e.name === "IncompletePhotosError") return { skipped: "photo_gate" };
+      // per-stage document gate unmet — leave the job where it is
+      if (e instanceof Error && e.name === "IncompleteDocumentsError") return { skipped: "doc_gate" };
       throw e;
     }
     return { jobId: j.id, toStage };

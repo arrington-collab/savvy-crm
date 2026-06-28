@@ -3,6 +3,7 @@ import {
   withTenant,
   recordStageChange,
   IncompletePhotosError,
+  IncompleteDocumentsError,
   jobTask,
   eq,
 } from "@savvy/db";
@@ -13,7 +14,11 @@ import type { JobStage } from "@savvy/core";
 export async function moveJobToStage(
   jobId: string,
   toStage: JobStage,
-): Promise<{ ok: true } | { error: "missing_photos"; missing: string[] }> {
+): Promise<
+  | { ok: true }
+  | { error: "missing_photos"; missing: string[] }
+  | { error: "missing_docs"; missing: string[] }
+> {
   const tenantId = await getTenantId();
   try {
     await withTenant(tenantId, (tx) =>
@@ -22,6 +27,8 @@ export async function moveJobToStage(
   } catch (e) {
     if (e instanceof IncompletePhotosError)
       return { error: "missing_photos", missing: e.missing };
+    if (e instanceof IncompleteDocumentsError)
+      return { error: "missing_docs", missing: e.missing };
     throw e;
   }
   revalidatePath("/jobs");
