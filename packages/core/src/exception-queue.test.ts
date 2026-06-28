@@ -55,6 +55,18 @@ describe("buildExceptionQueue", () => {
     expect(q.items[0]!.severity).toBe("medium");
   });
 
+  it("sorts a null occurredAt last within its severity group", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      // both high (invoices); the one with a null dueAt must sort AFTER the dated one
+      overdueInvoices: [
+        { invoiceId: "nulldate", jobId: "j", customerName: "NoDate", amountDueCents: 100, dueAt: null },
+        { invoiceId: "dated", jobId: "j", customerName: "Dated", amountDueCents: 100, dueAt: new Date("2026-06-01T00:00:00Z") },
+      ],
+    });
+    expect(q.items.map((i) => i.title)).toEqual(["Dated", "NoDate"]);
+  });
+
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
       items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0 }, total: 0, highCount: 0,
