@@ -1,7 +1,6 @@
 import "server-only";
-import { withTenant, appointment, repAvailabilityBlock, tenant, eq, and, gte, lt } from "@savvy/db";
+import { withTenant, appointment, repAvailabilityBlock, tenant, eq, and, gte, lt, listAssignableReps } from "@savvy/db";
 import { parseSchedulingConfig, officeMinutesForWindow, overlapMinutes, buildCapacityView, toCivilDate, addDays, zonedTimeToUtc, type CapacityView } from "@savvy/core";
-import { listAssignableReps } from "@savvy/db";
 import { getTenantId } from "./tenant";
 import { getTenantTimezone } from "./scheduling-queries";
 
