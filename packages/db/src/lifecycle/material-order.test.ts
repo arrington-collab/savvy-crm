@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../admin-client.js";
 import { pool } from "../client.js";
-import { tenant, customer, property, job, estimate, appointment, materialOrder } from "../schema/index.js";
+import { tenant, customer, property, job, estimate, appointment, materialOrder, priceBookItem } from "../schema/index.js";
 import { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate } from "./material-order.js";
 
 let tId: string, custId: string, jobId: string;
@@ -20,6 +20,11 @@ beforeAll(async () => {
   const [p] = await adminDb.insert(property).values({ tenantId: tId, customerId: custId, address: "1 Mat St" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId: tId, customerId: custId, propertyId: p!.id }).returning();
   jobId = j!.id;
+  // Seed a price-book cost entry so cost-map resolution works in the cost tests below.
+  await adminDb.insert(priceBookItem).values({
+    tenantId: tId, key: "shingles", name: "Shingles", category: "material", unit: "square",
+    unitPriceCents: 12000, unitCostCents: 7800,
+  });
 });
 
 afterAll(async () => {
@@ -29,6 +34,7 @@ afterAll(async () => {
   await adminDb.delete(job).where(eq(job.tenantId, tId));
   await adminDb.delete(property).where(eq(property.tenantId, tId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tId));
+  await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tId));
   await adminDb.delete(tenant).where(eq(tenant.id, tId));
   await pool.end();
   await adminPool.end();
@@ -127,5 +133,35 @@ describe("getJobInstallDate", () => {
       { tenantId: tId, jobId: j!.id, type: "crew", status: "scheduled", startsAt: early, endsAt: new Date(early.getTime() + 3_600_000) },
     ]);
     expect((await getJobInstallDate(tId, j!.id))?.toISOString()).toBe(early.toISOString());
+  });
+});
+
+describe("material cost → job.costCents", () => {
+  it("stores costSubtotalCents from the price book at generation", async () => {
+    const e = await newEstimate();
+    const order = await createMaterialOrderFromEstimate({ tenantId: tId, estimateId: e.id });
+    // LINE_ITEMS has 30 squares of "shingles" at unitCostCents 7800
+    expect(order!.costSubtotalCents).toBe(30 * 7800);
+    expect(order!.lineItems[0]!.unitCostCents).toBe(7800);
+    expect(order!.lineItems[0]!.lineCostCents).toBe(30 * 7800);
+  });
+
+  it("recomputes job.costCents on ordered and reverts on canceled", async () => {
+    // Use a fresh job+estimate to avoid sum ambiguity from the shared jobId
+    const [c] = await adminDb.insert(customer).values({ tenantId: tId, name: "CostTest" }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId: tId, customerId: c!.id, address: "42 Cost St" }).returning();
+    const [j] = await adminDb.insert(job).values({ tenantId: tId, customerId: c!.id, propertyId: p!.id }).returning();
+    const freshJobId = j!.id;
+    const [e] = await adminDb.insert(estimate).values({
+      tenantId: tId, jobId: freshJobId, status: "accepted", lineItems: LINE_ITEMS, total: 630000,
+    }).returning();
+    const order = await createMaterialOrderFromEstimate({ tenantId: tId, estimateId: e!.id });
+    await setMaterialOrderStatus({ tenantId: tId, materialOrderId: order!.id, status: "ordered" });
+    const [j1] = await adminDb.select().from(job).where(eq(job.id, freshJobId));
+    expect(j1!.costCents).toBe(30 * 7800);
+
+    await setMaterialOrderStatus({ tenantId: tId, materialOrderId: order!.id, status: "canceled" });
+    const [j2] = await adminDb.select().from(job).where(eq(job.id, freshJobId));
+    expect(j2!.costCents).toBe(0);
   });
 });
