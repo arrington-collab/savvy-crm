@@ -284,6 +284,7 @@ export default async function JobDetailPage({
     id: o.id,
     status: o.status,
     subtotalCents: o.subtotalCents,
+    costSubtotalCents: o.costSubtotalCents,
     neededByISO: o.neededByAt ? o.neededByAt.toISOString() : null,
     lines: o.lineItems.map((l) => ({ key: l.key, name: l.name, quantity: l.quantity, unit: l.unit, amountCents: l.amountCents })),
     flag: materialDeliveryFlag({ neededByAt: o.neededByAt ?? null, installAt: installDate }),
