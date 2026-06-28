@@ -36,7 +36,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await adminDb.update(tenant).set({ settings: priorSettings as object }).where(eq(tenant.id, tenantId));
+  await adminDb.update(tenant).set({ settings: priorSettings as Record<string, unknown> }).where(eq(tenant.id, tenantId));
 });
 
 async function seedApprovedJob(stamp: string): Promise<string> {
