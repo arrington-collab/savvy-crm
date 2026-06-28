@@ -9,7 +9,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { adminDb, customer, property, job, jobTask, eq } from "@savvy/db";
+import { adminDb, customer, property, job, jobTask } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
