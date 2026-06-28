@@ -1,0 +1,75 @@
+import { describe, expect, it } from "vitest";
+import { buildExceptionQueue, type ExceptionQueueInput } from "./exception-queue";
+
+const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [] };
+
+describe("buildExceptionQueue", () => {
+  it("normalizes each vector into an item with the right kind/severity/href", () => {
+    const q = buildExceptionQueue({
+      atRiskJobs: [{ jobId: "j1", customerName: "Ann", stuck: true, late: false, reasons: ["14d in production"], stageEnteredAt: new Date("2026-06-01T00:00:00Z") }],
+      overdueInvoices: [{ invoiceId: "i1", jobId: "j2", customerName: "Bob", amountDueCents: 250000, dueAt: new Date("2026-06-10T00:00:00Z") }],
+      missedAppointments: [{ appointmentId: "a1", jobId: "j3", apptType: "crew", status: "no_show", startsAt: new Date("2026-06-20T00:00:00Z"), customerName: "Cy" }],
+      overdueTasks: [{ taskId: "t1", jobId: "j4", title: "Order materials", customerName: "Di", dueAt: new Date("2026-06-25T00:00:00Z") }],
+    });
+    expect(q.total).toBe(4);
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1 });
+    const job = q.items.find((i) => i.kind === "job_at_risk")!;
+    expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
+    expect(job.detail).toContain("14d in production");
+    expect(q.items.find((i) => i.kind === "invoice_overdue")!).toMatchObject({ severity: "high", href: "/invoices" });
+    expect(q.items.find((i) => i.kind === "appointment_missed")!).toMatchObject({ severity: "high", href: "/schedule" });
+    expect(q.items.find((i) => i.kind === "task_overdue")!).toMatchObject({ severity: "medium", href: "/jobs/j4" });
+  });
+
+  it("rates a late job high and a stuck-only job medium", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      atRiskJobs: [
+        { jobId: "late", customerName: "L", stuck: false, late: true, reasons: ["past SLA"], stageEnteredAt: new Date("2026-06-01T00:00:00Z") },
+        { jobId: "stuck", customerName: "S", stuck: true, late: false, reasons: ["stuck"], stageEnteredAt: new Date("2026-06-01T00:00:00Z") },
+      ],
+    });
+    expect(q.items.find((i) => i.title === "L")!.severity).toBe("high");
+    expect(q.items.find((i) => i.title === "S")!.severity).toBe("medium");
+    expect(q.highCount).toBe(1);
+  });
+
+  it("sorts high before medium, then oldest occurredAt first", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      overdueInvoices: [
+        { invoiceId: "new", jobId: "j", customerName: "New", amountDueCents: 100, dueAt: new Date("2026-06-26T00:00:00Z") },
+        { invoiceId: "old", jobId: "j", customerName: "Old", amountDueCents: 100, dueAt: new Date("2026-06-01T00:00:00Z") },
+      ],
+      overdueTasks: [{ taskId: "t", jobId: "j", title: "x", customerName: "Task", dueAt: new Date("2026-06-15T00:00:00Z") }],
+    });
+    // both invoices are high (older first), task is medium (last)
+    expect(q.items.map((i) => i.title)).toEqual(["Old", "New", "Task"]);
+  });
+
+  it("rates an overdue (not no_show) appointment medium", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      missedAppointments: [{ appointmentId: "a", jobId: "j", apptType: "inspection", status: "scheduled", startsAt: new Date("2026-06-20T00:00:00Z"), customerName: "Ov" }],
+    });
+    expect(q.items[0]!.severity).toBe("medium");
+  });
+
+  it("sorts a null occurredAt last within its severity group", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      // both high (invoices); the one with a null dueAt must sort AFTER the dated one
+      overdueInvoices: [
+        { invoiceId: "nulldate", jobId: "j", customerName: "NoDate", amountDueCents: 100, dueAt: null },
+        { invoiceId: "dated", jobId: "j", customerName: "Dated", amountDueCents: 100, dueAt: new Date("2026-06-01T00:00:00Z") },
+      ],
+    });
+    expect(q.items.map((i) => i.title)).toEqual(["Dated", "NoDate"]);
+  });
+
+  it("is empty for no input", () => {
+    expect(buildExceptionQueue(base)).toEqual({
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0 }, total: 0, highCount: 0,
+    });
+  });
+});

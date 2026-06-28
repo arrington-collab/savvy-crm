@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/command-center", label: "Command Center" },
+  { href: "/exceptions", label: "Exceptions" },
   { href: "/jobs", label: "Jobs" },
   { href: "/leads", label: "Leads" },
   { href: "/comms", label: "Comms" },
