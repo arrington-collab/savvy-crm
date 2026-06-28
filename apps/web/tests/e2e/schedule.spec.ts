@@ -27,8 +27,13 @@ type SeedOptions = {
   city?: string;
 };
 
-/** Seed one appointment this week; returns the appointment id. */
-async function seedAppt(opts: SeedOptions): Promise<string> {
+/**
+ * Seed one appointment this week, assigned to a fresh dedicated crew user.
+ * Returns the appointment id AND that crew user's id — the crew board renders
+ * one column per crew member (`crew-col-<userId>`), so the crew user's id is a
+ * deterministic, pollution-proof handle on exactly this appointment's card.
+ */
+async function seedAppt(opts: SeedOptions): Promise<{ apptId: string; crewUserId: string }> {
   const { type, dayOffset = 1, city = "Phoenix" } = opts;
 
   const [crewUser] = await adminDb
@@ -73,7 +78,13 @@ async function seedAppt(opts: SeedOptions): Promise<string> {
     })
     .returning();
 
-  return appt!.id;
+  return { apptId: appt!.id, crewUserId: crewUser!.id };
+}
+
+/** Day offset (from this week's Monday) that lands on TODAY, which the schedule
+ *  always shows regardless of its week-start convention. Mon=0 … Sun=6. */
+function todayOffset(): number {
+  return (new Date().getUTCDay() + 6) % 7;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,15 +132,18 @@ test("type filter narrows the set", async ({ page }) => {
 });
 
 test("clicking an appointment opens the popover and marks done", async ({ page }) => {
-  await seedAppt({ type: "crew", dayOffset: 2 });
+  // Seed on TODAY so the appt is always in the schedule's visible week (its
+  // Monday-relative dayOffset disagrees with the page's week on some weekdays),
+  // and target OUR appt via its dedicated crew column. The shared e2e DB
+  // accumulates many crew cards across specs (incl. a no_show crew appt whose
+  // popover has no "Done" action), so a positional `.last()` is non-deterministic;
+  // the crew-col-<userId> handle is exact regardless of pollution.
+  const { crewUserId } = await seedAppt({ type: "crew", dayOffset: todayOffset() });
 
-  // Filter to crew-type + crew view directly so the board is small (the shared
-  // e2e DB accumulates many cards across tests; a bare .first() can land on an
-  // off-screen/other card). The freshly-seeded appt is appended last in its column.
   await page.goto("/schedule?view=crew&type=crew");
   await expect(page.getByTestId("crew-board")).toBeVisible();
 
-  const card = page.getByTestId("crew-board").getByTestId("appt-card").last();
+  const card = page.getByTestId(`crew-col-${crewUserId}`).getByTestId("appt-card");
   await expect(card).toBeVisible();
   await card.scrollIntoViewIfNeeded();
   await card.click();
