@@ -443,3 +443,13 @@ before a large customer onboards (same all-rows pattern as the Jobs board).
 
 Capacity is per-user (appointments carry an `assignee_user_id`; there is no crew
 entity yet). Logic: `buildCapacityView` in `@savvy/core`.
+
+## Weather reschedule (D1b)
+
+A daily Inngest cron (`weather-reschedule`) checks each tenant's upcoming scheduled **crew** (install)
+appointments against the NWS forecast for the property's lat/lng. If a day exceeds the tenant's
+`tenant.settings.weather` thresholds (`maxPrecipPct` 60, `maxWindMph` 25, `lookAheadDays` 7), it stamps
+the appointment's `weather_note` + `weather_flagged_at`; otherwise it clears them. Flagged appointments
+surface in `/exceptions` as a medium `weather_at_risk` row ("Rain 90% — reschedule"); a human reschedules
+via `/schedule` (no auto-reschedule). The forecast gateway is **dormant by default** — it returns an
+all-clear fake unless `WEATHER_PROVIDER=nws` is set, so nothing is flagged until a deploy opts in.
