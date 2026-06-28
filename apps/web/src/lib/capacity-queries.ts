@@ -34,6 +34,9 @@ export async function getCapacityView(): Promise<CapacityView> {
 
     const repInputs = reps.map((r) => {
       const mine = appts.filter((a) => a.assigneeUserId === r.id);
+      // Booked = full appointment duration, intentionally counted even if the appt
+      // runs outside office hours (see spec [ASSUMED] — overbooked-beyond-capacity
+      // is a real signal). Available is office-minutes only, so utilization can exceed 100%.
       const scheduledMin = mine.reduce((s, a) => s + Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60000), 0);
       const blockedMin = blocks
         .filter((b) => b.userId === r.id)
