@@ -1,6 +1,6 @@
 import { materialDeliveryFlag } from "./material-order";
 
-export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval";
+export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk";
 export type ExceptionSeverity = "high" | "medium";
 
 export type ExceptionItem = {
@@ -18,6 +18,7 @@ export type MissedAppointmentInput = { appointmentId: string; jobId: string; app
 export type OverdueTaskInput = { taskId: string; jobId: string; title: string; customerName: string | null; dueAt: Date | null };
 export type MaterialDeliveryInput = { materialOrderId: string; jobId: string; customerName: string | null; neededByAt: Date | null; installAt: Date | null; createdAt: Date };
 export type TaskNeedsApprovalInput = { taskId: string; jobId: string; title: string; customerName: string | null; deferredAt: Date };
+export type WeatherAtRiskInput = { appointmentId: string; jobId: string; apptType: string; startsAt: Date; customerName: string | null; note: string };
 
 export type ExceptionQueueInput = {
   atRiskJobs: AtRiskJobInput[];
@@ -26,6 +27,7 @@ export type ExceptionQueueInput = {
   overdueTasks: OverdueTaskInput[];
   materialDeliveries: MaterialDeliveryInput[];
   taskNeedsApprovals: TaskNeedsApprovalInput[];
+  weatherAtRisks: WeatherAtRiskInput[];
 };
 
 export type ExceptionQueue = {
@@ -35,7 +37,7 @@ export type ExceptionQueue = {
   highCount: number;
 };
 
-const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval"];
+const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval", "weather_at_risk"];
 
 function dollars(cents: number | null): string {
   return cents == null ? "" : `$${Math.round(cents / 100).toLocaleString()}`;
@@ -108,6 +110,16 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       detail: `Needs approval: ${t.title}`,
       href: `/jobs/${t.jobId}`,
       occurredAt: t.deferredAt,
+    });
+  }
+  for (const w of input.weatherAtRisks) {
+    items.push({
+      kind: "weather_at_risk",
+      severity: "medium",
+      title: w.customerName ?? "—",
+      detail: `${w.note} — reschedule`,
+      href: "/schedule",
+      occurredAt: w.startsAt,
     });
   }
 
