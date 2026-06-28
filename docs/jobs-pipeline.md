@@ -395,6 +395,14 @@ that need a human, sorted by severity (high → medium) then oldest first:
 - **Task overdue** — a `job_task` past its `due_at` that isn't `done`/`skipped`.
   Medium.
 
+**Material delivery (D2b).** A fifth vector flags `material_order` rows (status `draft`/`ordered`)
+whose delivery timing is at risk, reusing D2a's `materialDeliveryFlag`. A `misaligned` order — its
+snapshotted `neededByAt` is now **after** the job's current earliest scheduled crew install (e.g.
+the install was moved up after ordering) — surfaces as a **high** `material_delivery` exception
+("Materials arrive after install"). An order with materials but **no** scheduled crew install
+surfaces as **medium** ("No install scheduled for materials"). `none` (delivery on/before install)
+is omitted. Like the invoice/job dual-path, a job may appear both here and as `job_at_risk`.
+
 Agent-run errors are intentionally NOT here — those are automation health and
 live on the Command Center. Logic: `buildExceptionQueue` in `@savvy/core`;
 the page reuses `deriveJobHealth` exactly as the Jobs board does.

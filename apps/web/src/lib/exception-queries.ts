@@ -1,12 +1,14 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobTask, customer, tenant, eq, or, sql } from "@savvy/db";
-import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, eq, or, sql } from "@savvy/db";
+import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
-// Gathers the four exception vectors for the tenant and normalizes them in core.
-// NOTE (intentional): a past-due invoice can surface BOTH as a `job_at_risk` row
-// (its job is `late`) and an `invoice_overdue` row — two resolution paths
-// (work the job vs. chase the invoice). The `invoice_overdue` branch trusts the
+// Gathers the five exception vectors for the tenant and normalizes them in core
+// (jobs at risk, overdue invoices, missed appointments, overdue tasks, material
+// delivery). NOTE (intentional): the same job can surface under more than one
+// vector — e.g. a past-due invoice as BOTH a `job_at_risk` row (its job is `late`)
+// and an `invoice_overdue` row, or a misaligned `material_delivery` alongside
+// `job_at_risk` — distinct resolution paths (work the job vs. chase the invoice). The `invoice_overdue` branch trusts the
 // `overdue` status as authoritative, so it is deliberately broader than
 // getBoard's `pastDue` subquery (which also requires due_at<now + a balance).
 // TODO(scale): no LIMIT yet — same all-rows-then-filter pattern as getBoard;
@@ -71,6 +73,29 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       .where(sql`${jobTask.dueAt} is not null and ${jobTask.dueAt} < now() and ${jobTask.status} not in ('done','skipped')`);
     const overdueTasks = taskRows.map((r) => ({ taskId: r.id, jobId: r.jobId, title: r.title, customerName: r.customerName, dueAt: r.dueAt }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks });
+    // --- material-delivery risk (draft/ordered orders vs current crew-install date) ---
+    const moRows = await tx
+      .select({
+        id: materialOrder.id,
+        jobId: materialOrder.jobId,
+        neededByAt: materialOrder.neededByAt,
+        createdAt: materialOrder.createdAt,
+        customerName: customer.name,
+        installAt: sql<string | null>`(select min(starts_at) from appointment where job_id = ${materialOrder.jobId} and type = 'crew' and status = 'scheduled')`,
+      })
+      .from(materialOrder)
+      .leftJoin(job, eq(job.id, materialOrder.jobId))
+      .leftJoin(customer, eq(customer.id, job.customerId))
+      .where(or(eq(materialOrder.status, "draft"), eq(materialOrder.status, "ordered")));
+    const materialDeliveries: MaterialDeliveryInput[] = moRows.map((r) => ({
+      materialOrderId: r.id,
+      jobId: r.jobId,
+      customerName: r.customerName,
+      neededByAt: r.neededByAt,
+      installAt: r.installAt ? new Date(r.installAt) : null,
+      createdAt: r.createdAt,
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries });
   });
 }
