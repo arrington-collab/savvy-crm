@@ -12,7 +12,7 @@ export function AutomationModule({ summary }: { summary: JobAutomationSummary })
           <div>
             <div className="mono text-3xl font-semibold text-accent-gold" data-testid="autonomy-pct">{summary.autonomyPct}%</div>
             <div className="text-xs" style={{ color: "var(--text-faint)" }}>
-              {summary.full + summary.partial} of {summary.total} tasks set to automate
+              {summary.full} full · {summary.partial} partial of {summary.total} tasks
             </div>
           </div>
           <div className="text-right">
@@ -31,7 +31,11 @@ export function AutomationModule({ summary }: { summary: JobAutomationSummary })
                     <AgentAvatar persona={persona} size="sm" />
                     <span style={{ color: "var(--text-muted)" }}>{a.label}</span>
                   </span>
-                  <span className="mono text-xs" style={{ color: "var(--text-faint)" }}>
+                  <span
+                    className="mono text-xs"
+                    style={{ color: "var(--text-faint)" }}
+                    aria-label={`${a.label}: ${a.full} full, ${a.partial} partial, ${a.manual} manual`}
+                  >
                     {a.full} full · {a.partial} partial · {a.manual} manual
                   </span>
                 </div>
