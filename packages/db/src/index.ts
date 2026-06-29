@@ -45,4 +45,4 @@ export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallD
 export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
 export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
-export { createCrew, listCrews, renameCrew, setCrewActive, addCrewMember, removeCrewMember, listCrewIdsForUser, type CrewRow } from "./lifecycle/crew";
+export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember, listCrewIdsForUser, type CrewRow } from "./lifecycle/crew";

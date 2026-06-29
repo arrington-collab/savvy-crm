@@ -9,6 +9,7 @@ import {
   listCrews,
   renameCrew,
   setCrewActive,
+  setCrewLocation,
   addCrewMember,
   removeCrewMember,
   listCrewIdsForUser,
@@ -100,6 +101,26 @@ describe("setCrewActive", () => {
     await setCrewActive({ tenantId, crewId: crewRow.id, active: true });
     const crews2 = await listCrews(tenantId);
     expect(crews2.find((c) => c.id === crewRow.id)!.active).toBe(true);
+  });
+});
+
+describe("setCrewLocation", () => {
+  it("sets and clears the crew's home-base lat/lng (surfaced by listCrews)", async () => {
+    const tenantId = await seedTenant();
+    const crewRow = await createCrew({ tenantId, name: "Yard Crew" });
+    const created = (await listCrews(tenantId)).find((c) => c.id === crewRow.id)!;
+    expect(created.baseLat).toBeNull();
+    expect(created.baseLng).toBeNull();
+
+    await setCrewLocation({ tenantId, crewId: crewRow.id, baseLat: 33.45, baseLng: -112.07 });
+    const set = (await listCrews(tenantId)).find((c) => c.id === crewRow.id)!;
+    expect(set.baseLat).toBe(33.45);
+    expect(set.baseLng).toBe(-112.07);
+
+    await setCrewLocation({ tenantId, crewId: crewRow.id, baseLat: null, baseLng: null });
+    const cleared = (await listCrews(tenantId)).find((c) => c.id === crewRow.id)!;
+    expect(cleared.baseLat).toBeNull();
+    expect(cleared.baseLng).toBeNull();
   });
 });
 

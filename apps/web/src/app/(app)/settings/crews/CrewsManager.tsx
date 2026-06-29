@@ -9,12 +9,13 @@ import {
   createCrewAction,
   renameCrewAction,
   setCrewActiveAction,
+  setCrewLocationAction,
   addCrewMemberAction,
   removeCrewMemberAction,
 } from "@/lib/crew-team-actions";
 
 type CrewMember = { userId: string; name: string };
-type Crew = { id: string; name: string; active: boolean; members: CrewMember[] };
+type Crew = { id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; members: CrewMember[] };
 type CrewUser = { id: string; name: string; hasPin: boolean };
 
 export function CrewsManager(props: {
@@ -28,6 +29,8 @@ export function CrewsManager(props: {
   const [renameInputs, setRenameInputs] = useState<Record<string, string>>({});
   // Per-crew selected user to add
   const [addSelects, setAddSelects] = useState<Record<string, string>>({});
+  // Per-crew home-base lat/lng edits (raw strings; seeded from props on first edit)
+  const [locInputs, setLocInputs] = useState<Record<string, { lat: string; lng: string }>>({});
 
   function run(fn: () => Promise<{ ok: true }>, okMsg: string) {
     start(async () => {
@@ -55,6 +58,22 @@ export function CrewsManager(props: {
 
   function handleToggleActive(crewId: string, active: boolean) {
     run(() => setCrewActiveAction({ crewId, active }), active ? "Crew activated" : "Crew deactivated");
+  }
+
+  function handleSaveLocation(crewId: string, raw: { lat: string; lng: string }) {
+    const lat = raw.lat.trim();
+    const lng = raw.lng.trim();
+    if (lat === "" && lng === "") {
+      run(() => setCrewLocationAction({ crewId, baseLat: null, baseLng: null }), "Crew location cleared");
+      return;
+    }
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    if (Number.isNaN(latNum) || Number.isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      toast.error("Enter a valid latitude (−90…90) and longitude (−180…180), or clear both.");
+      return;
+    }
+    run(() => setCrewLocationAction({ crewId, baseLat: latNum, baseLng: lngNum }), "Crew location saved");
   }
 
   function handleAddMember(crewId: string) {
@@ -153,6 +172,49 @@ export function CrewsManager(props: {
                     Rename
                   </Button>
                 </div>
+
+                {/* Home base (drive-time origin for install slot recommendations) */}
+                {(() => {
+                  const loc = locInputs[crew.id] ?? {
+                    lat: crew.baseLat?.toString() ?? "",
+                    lng: crew.baseLng?.toString() ?? "",
+                  };
+                  return (
+                    <div className="mt-3 flex flex-wrap items-end gap-2" data-testid="crew-location">
+                      <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Base latitude
+                        <Input
+                          data-testid="crew-base-lat"
+                          inputMode="decimal"
+                          placeholder="33.45"
+                          value={loc.lat}
+                          onChange={(e) => setLocInputs((p) => ({ ...p, [crew.id]: { ...loc, lat: e.target.value } }))}
+                          className="mt-0.5 w-32 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Base longitude
+                        <Input
+                          data-testid="crew-base-lng"
+                          inputMode="decimal"
+                          placeholder="-112.07"
+                          value={loc.lng}
+                          onChange={(e) => setLocInputs((p) => ({ ...p, [crew.id]: { ...loc, lng: e.target.value } }))}
+                          className="mt-0.5 w-32 text-sm"
+                        />
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid="save-crew-location-btn"
+                        disabled={pending}
+                        onClick={() => handleSaveLocation(crew.id, loc)}
+                      >
+                        Save base
+                      </Button>
+                    </div>
+                  );
+                })()}
 
                 {/* Members */}
                 {crew.members.length > 0 && (

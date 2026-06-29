@@ -1,5 +1,5 @@
 "use server";
-import { adminDb, lead, user, property, appointment, job, tenant, eq, and } from "@savvy/db";
+import { adminDb, lead, user, crew, property, appointment, job, tenant, eq, and } from "@savvy/db";
 import { parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, rankSlots, resolveRepOrigin, spokenSlotLabel, toCivilDate, zonedTimeToUtc, type LatLng } from "@savvy/core";
 import { distance } from "@savvy/integrations";
 
@@ -50,11 +50,14 @@ export async function slotsForRep(args: {
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
     .slice(0, 12);
 
-  // Only a user assignee has a base location; a crew entity falls back to the office.
-  const [u] = repId
+  // The drive-time origin base comes from the user (assignee) or the crew (install).
+  // Either may be unset, in which case origins fall back to the tenant office.
+  const [owner] = crewId
+    ? await adminDb.select({ baseLat: crew.baseLat, baseLng: crew.baseLng }).from(crew).where(and(eq(crew.id, crewId), eq(crew.tenantId, tenantId)))
+    : repId
     ? await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(and(eq(user.id, repId), eq(user.tenantId, tenantId)))
     : [undefined];
-  const repBase: LatLng | null = u?.baseLat != null && u?.baseLng != null ? { lat: Number(u.baseLat), lng: Number(u.baseLng) } : null;
+  const repBase: LatLng | null = owner?.baseLat != null && owner?.baseLng != null ? { lat: Number(owner.baseLat), lng: Number(owner.baseLng) } : null;
   const officeRaw = (t?.settings as { scheduling?: { office?: { lat?: number; lng?: number } } } | null)?.scheduling?.office;
   const tenantOffice: LatLng | null = officeRaw && typeof officeRaw.lat === "number" && typeof officeRaw.lng === "number" ? { lat: officeRaw.lat, lng: officeRaw.lng } : null;
 

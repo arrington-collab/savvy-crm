@@ -15,7 +15,7 @@ export async function createCrew(input: { tenantId: string; name: string }): Pro
 
 export async function listCrews(
   tenantId: string,
-): Promise<{ id: string; name: string; active: boolean; members: { userId: string; name: string }[] }[]> {
+): Promise<{ id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; members: { userId: string; name: string }[] }[]> {
   return withTenant(tenantId, async (tx) => {
     const crews = await tx
       .select()
@@ -33,11 +33,24 @@ export async function listCrews(
       id: c.id,
       name: c.name,
       active: c.active,
+      baseLat: c.baseLat ?? null,
+      baseLng: c.baseLng ?? null,
       members: members
         .filter((m) => m.crewId === c.id)
         .map((m) => ({ userId: m.userId, name: m.name })),
     }));
   });
+}
+
+/** Set (or clear, with nulls) a crew's home-base location for drive-time routing. */
+export async function setCrewLocation(input: {
+  tenantId: string; crewId: string; baseLat: number | null; baseLng: number | null;
+}): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.update(crew)
+      .set({ baseLat: input.baseLat, baseLng: input.baseLng })
+      .where(and(eq(crew.id, input.crewId), eq(crew.tenantId, input.tenantId))),
+  );
 }
 
 export async function renameCrew(input: { tenantId: string; crewId: string; name: string }): Promise<void> {
