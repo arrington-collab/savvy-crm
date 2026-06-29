@@ -44,4 +44,4 @@ export { listAssignableReps } from "./lifecycle/team";
 export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate, type MaterialOrderRow } from "./lifecycle/material-order";
 export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
-export { upsertClaim, getClaimForJob, type ClaimRow } from "./lifecycle/claim";
+export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";

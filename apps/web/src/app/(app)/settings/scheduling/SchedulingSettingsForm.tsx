@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveSchedulingConfig } from "@/lib/settings-actions";
-import type { SchedulingConfig } from "@savvy/core";
+import { APPOINTMENT_TYPE, type AppointmentType, type SchedulingConfig } from "@savvy/core";
 
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 type Weekday = (typeof WEEKDAYS)[number];
@@ -15,9 +15,10 @@ const DAY_LABELS: Record<Weekday, string> = {
   fri: "Friday", sat: "Saturday", sun: "Sunday",
 };
 
-const APPT_TYPES = ["inspection", "cm", "crew"] as const;
-type ApptType = (typeof APPT_TYPES)[number];
-const TYPE_LABELS: Record<ApptType, string> = { inspection: "Inspection", cm: "CM", crew: "Crew" };
+// Derived from the shared enum so new appointment types can't desync this form.
+const APPT_TYPES = APPOINTMENT_TYPE;
+type ApptType = AppointmentType;
+const TYPE_LABELS: Record<ApptType, string> = { inspection: "Inspection", cm: "CM", crew: "Crew", adjuster: "Adjuster" };
 
 type HoursState = Record<Weekday, { enabled: boolean; open: number; close: number }>;
 type TypesState = Record<ApptType, { durationMin: number; bufferMin: number }>;

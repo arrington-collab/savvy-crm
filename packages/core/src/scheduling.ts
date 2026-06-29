@@ -28,6 +28,7 @@ const DEFAULTS = {
     inspection: { durationMin: 60, bufferMin: 30 },
     cm: { durationMin: 60, bufferMin: 15 },
     crew: { durationMin: 480, bufferMin: 0 },
+    adjuster: { durationMin: 60, bufferMin: 15 },
   },
   reminders: [
     { offsetH: 24, channel: "sms" },

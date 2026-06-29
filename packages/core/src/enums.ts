@@ -39,7 +39,7 @@ export type DripStep = {
 };
 
 // --- Phase 4 (scheduling) ---
-export const APPOINTMENT_TYPE = ["inspection", "cm", "crew"] as const;
+export const APPOINTMENT_TYPE = ["inspection", "cm", "crew", "adjuster"] as const;
 export const APPOINTMENT_STATUS = ["scheduled", "done", "canceled", "no_show"] as const;
 export type AppointmentType = (typeof APPOINTMENT_TYPE)[number];
 export type AppointmentStatus = (typeof APPOINTMENT_STATUS)[number];

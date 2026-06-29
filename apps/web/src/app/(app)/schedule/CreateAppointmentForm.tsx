@@ -14,7 +14,7 @@ type CrewSlot = { startsAt: string; endsAt: string; driveMinutes: number | null;
 
 const DURATIONS = [30, 60, 90, 120, 480];
 // Per-type default duration (matches parseSchedulingConfig DEFAULTS.types).
-const TYPE_DEFAULT_MIN: Record<AppointmentType, number> = { inspection: 60, cm: 60, crew: 480 };
+const TYPE_DEFAULT_MIN: Record<AppointmentType, number> = { inspection: 60, cm: 60, crew: 480, adjuster: 60 };
 
 export function CreateAppointmentForm(props: {
   startLocal: string; // "YYYY-MM-DDTHH:mm" in tenant tz, prefilled from the clicked slot
