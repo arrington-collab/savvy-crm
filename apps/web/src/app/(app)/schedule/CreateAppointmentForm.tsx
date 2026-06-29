@@ -37,19 +37,19 @@ export function CreateAppointmentForm(props: {
   const [crewSlots, setCrewSlots] = useState<CrewSlot[]>([]);
   const searchSeq = useRef(0);
 
-  // Drive-time recommended slots for user-assigned types (inspection, cm, adjuster).
-  // Crew installs use a crew ENTITY (no user base location) — drive-time slots don't apply
-  // for crew type. Follow-up: derive from crew entity's base location when available.
+  // Drive-time recommended slots for a crew install, keyed on the chosen crew ENTITY
+  // (clusters around the crew's other installs; drive-time origins fall back to the
+  // tenant office since a crew has no base location).
   useEffect(() => {
-    if (type === "crew" || !assignee || !picked) return;
+    if (type !== "crew" || !crewId || !picked) return;
     let active = true;
     void (async () => {
-      const r = await getRecommendedCrewSlots(picked.jobId, assignee);
+      const r = await getRecommendedCrewSlots(picked.jobId, crewId);
       if (active) setCrewSlots("error" in r ? [] : r.slots);
     })();
     return () => { active = false; };
-  }, [type, assignee, picked]);
-  const showCrewSlots = type !== "crew" && !!assignee && !!picked && crewSlots.length > 0;
+  }, [type, crewId, picked]);
+  const showCrewSlots = type === "crew" && !!crewId && !!picked && crewSlots.length > 0;
 
   function onType(next: AppointmentType) {
     setType(next);
