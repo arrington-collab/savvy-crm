@@ -11,3 +11,4 @@ export * from "./billing";
 export * from "./scheduling";
 export * from "./booking-link";
 export * from "./procurement";
+export * from "./insurance";

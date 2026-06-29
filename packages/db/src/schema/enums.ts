@@ -9,6 +9,7 @@ import {
   PRICE_BOOK_CATEGORY, PRICE_BOOK_UNIT,
   STORM_CERT_STATUS,
   MATERIAL_ORDER_STATUS,
+  CLAIM_STATUS,
 } from "@savvy/core";
 
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
@@ -33,3 +34,4 @@ export const priceBookCategoryEnum = pgEnum("price_book_category", PRICE_BOOK_CA
 export const priceBookUnitEnum = pgEnum("price_book_unit", PRICE_BOOK_UNIT);
 export const stormCertStatusEnum = pgEnum("storm_cert_status", STORM_CERT_STATUS);
 export const materialOrderStatusEnum = pgEnum("material_order_status", MATERIAL_ORDER_STATUS);
+export const claimStatusEnum = pgEnum("claim_status", CLAIM_STATUS);
