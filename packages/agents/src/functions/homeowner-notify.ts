@@ -20,15 +20,16 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     const copy = homeownerStageCopy(ev.toStage);
     const link = `${base}/status/${signPayloadToken({ tenantId, jobId: ev.jobId }, secret)}`;
     const body = `${copy.headline} ${copy.body} Track your project: ${link}`;
-    // SMS
+    // SMS — send is fail-soft (no creds in dev/test); the communication row records the
+    // intent-to-send regardless, matching appointment-reminders. jobId links it to the job timeline.
     if (ev.phone && !ev.smsOptOut) {
       try { await sms.sendSms({ to: ev.phone, from: smsFrom(), body }); } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
+      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
     }
     // Email
     if (ev.email && !ev.emailOptOut) {
       try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` }); } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, customerId: ev.customerId, channel: "email", direction: "outbound", to: ev.email, body, aiHandled: false }));
+      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "email", direction: "outbound", to: ev.email, body, aiHandled: false }));
     }
     await markStageEventNotified(tenantId, ev.eventId);
     sent++;
