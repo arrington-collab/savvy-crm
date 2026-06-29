@@ -466,3 +466,12 @@ the appointment's `weather_note` + `weather_flagged_at`; otherwise it clears the
 surface in `/exceptions` as a medium `weather_at_risk` row ("Rain 90% — reschedule"); a human reschedules
 via `/schedule` (no auto-reschedule). The forecast gateway is **dormant by default** — it returns an
 all-clear fake unless `WEATHER_PROVIDER=nws` is set, so nothing is flagged until a deploy opts in.
+
+### Claim tracking (G)
+
+Insurance jobs (`job.type='insurance'`) get one thin `claim` record (claim #, carrier name, adjuster,
+ACV/RCV, deductible, `claim_status`), upserted via `upsertClaim` / read via `getClaimForJob` — one claim
+per job (`claim_job_uniq`), tenant-isolated (`tenant_isolation` RLS). This is administrative tracking
+ONLY; supplement intelligence (KB, code lookup, carrier-rebuttal letters) remains the deferred
+SuppIQ/Phase-9 add-on, and the `carrier`/`supplement` tables stay its stubs. The cockpit UI +
+lifecycle-task wiring + adjuster scheduling are slice G-2.
