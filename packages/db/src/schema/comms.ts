@@ -45,7 +45,7 @@ export const appointment = pgTable("appointment", {
   createdAt: createdAt(),
   // NOTE: two Postgres EXCLUDE constraints enforce no overlapping 'scheduled'
   // appts — appointment_no_overlap (per assignee_user_id, migration 0003) and
-  // appointment_crew_no_overlap (per crew_id, migration 0031). Both are added
+  // appointment_crew_no_overlap (per crew_id, migration 0032). Both are added
   // by hand (drizzle-kit can't express EXCLUDE).
 }, (t) => [
   index("appt_tenant_job_idx").on(t.tenantId, t.jobId),
