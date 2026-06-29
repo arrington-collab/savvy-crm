@@ -1,0 +1,1 @@
+ALTER TYPE "public"."appointment_type" ADD VALUE 'adjuster';
