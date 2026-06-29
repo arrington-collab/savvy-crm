@@ -73,3 +73,6 @@ export type EstimateStatus = (typeof ESTIMATE_STATUS)[number];
 export type PriceBookCategory = (typeof PRICE_BOOK_CATEGORY)[number];
 export type PriceBookUnit = (typeof PRICE_BOOK_UNIT)[number];
 export type MeasurementField = (typeof MEASUREMENT_FIELD)[number];
+
+export const CLAIM_STATUS = ["filed", "adjuster_scheduled", "approved", "partial", "denied", "closed"] as const;
+export type ClaimStatus = (typeof CLAIM_STATUS)[number];
