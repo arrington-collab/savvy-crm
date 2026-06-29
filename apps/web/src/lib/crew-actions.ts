@@ -1,6 +1,6 @@
 "use server";
 import { adminDb, user, eq, and, isNull, withTenant, job, document } from "@savvy/db";
-import { openCheckIn, closeCheckIn, recordAgentRun } from "@savvy/db";
+import { openCheckIn, closeCheckIn, recordAgentRun, getCrewLoginCandidates } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 import { verifyPin } from "@savvy/core";
 import { tenantByKey } from "./intake";
@@ -10,7 +10,12 @@ import { headers } from "next/headers";
 import { checkRateLimit, clientIp } from "./rate-limit";
 import { log } from "./log";
 
-export async function crewLogin(key: string, pin: string): Promise<{ ok: true } | { error: string }> {
+export type CrewLoginResult =
+  | { ok: true }
+  | { selectCrew: { crewId: string; members: { id: string; name: string }[] } }
+  | { error: string };
+
+export async function crewLogin(key: string, pin: string): Promise<CrewLoginResult> {
   const ip = clientIp(await headers());
   const limited = await checkRateLimit("crew-pin", `${key}:${ip}`);
   if (!limited.ok) {
@@ -19,8 +24,18 @@ export async function crewLogin(key: string, pin: string): Promise<{ ok: true } 
   }
   const t = await tenantByKey(key);
   if (!t) return { error: "unknown workspace" };
-  // Filter to active (non-deactivated) crew members only — deactivated users must not be
-  // able to sign in even if their PIN hash is still present in the database.
+
+  // Shared crew PIN first: a PIN matching an active crew returns its roster so the
+  // member can self-identify (no session is set until they pick — see crewSelectMember).
+  const crews = await getCrewLoginCandidates(t.id);
+  const crewMatch = crews.find((c) => verifyPin(pin, c.pinHash));
+  if (crewMatch) {
+    if (crewMatch.members.length === 0) return { error: "crew has no members" };
+    return { selectCrew: { crewId: crewMatch.id, members: crewMatch.members } };
+  }
+
+  // Fallback: per-user PIN. Filter to active (non-deactivated) crew members only —
+  // deactivated users must not sign in even if their PIN hash is still present.
   const crew = await adminDb
     .select({ id: user.id, pinHash: user.pinHash })
     .from(user)
@@ -28,6 +43,30 @@ export async function crewLogin(key: string, pin: string): Promise<{ ok: true } 
   const match = crew.find((u) => verifyPin(pin, u.pinHash));
   if (!match) return { error: "invalid PIN" };
   await setCrewCookie({ tenantId: t.id, crewUserId: match.id });
+  return { ok: true };
+}
+
+/**
+ * Step 2 of shared-PIN login: the member taps their name. We RE-VERIFY the crew PIN
+ * here (not just trust crewId+userId) so this can't be used to forge a session without
+ * the PIN, then confirm the user is a member of that crew before setting the session.
+ */
+export async function crewSelectMember(
+  key: string, pin: string, userId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const ip = clientIp(await headers());
+  const limited = await checkRateLimit("crew-pin", `${key}:${ip}`);
+  if (!limited.ok) {
+    log.warn("crew member-select rate limited", { route: "crew-login", tenantKey: key });
+    return { error: "too many attempts" };
+  }
+  const t = await tenantByKey(key);
+  if (!t) return { error: "unknown workspace" };
+  const crews = await getCrewLoginCandidates(t.id);
+  const crewMatch = crews.find((c) => verifyPin(pin, c.pinHash));
+  if (!crewMatch) return { error: "invalid PIN" };
+  if (!crewMatch.members.some((m) => m.id === userId)) return { error: "not a member of this crew" };
+  await setCrewCookie({ tenantId: t.id, crewUserId: userId });
   return { ok: true };
 }
 

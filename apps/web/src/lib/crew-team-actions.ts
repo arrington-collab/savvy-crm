@@ -1,7 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { listCrews, createCrew, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember } from "@savvy/db";
+import { listCrews, createCrew, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember, setCrewPinHash } from "@savvy/db";
+import { hashPin } from "@savvy/core";
 import { getTenantId } from "./tenant";
+import { isOrgAdmin } from "./authz";
 
 export async function listActiveCrews(): Promise<{ id: string; name: string }[]> {
   const tenantId = await getTenantId();
@@ -51,4 +53,13 @@ export async function removeCrewMemberAction(input: { crewId: string; userId: st
   await removeCrewMember({ tenantId, crewId: input.crewId, userId: input.userId });
   revalidatePath("/settings/crews");
   return { ok: true as const };
+}
+
+export async function setCrewPinAction(input: { crewId: string; pin: string | null }): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (input.pin !== null && !/^\d{6,8}$/.test(input.pin)) return { error: "PIN must be 6–8 digits" };
+  const tenantId = await getTenantId();
+  await setCrewPinHash({ tenantId, crewId: input.crewId, pinHash: input.pin === null ? null : hashPin(input.pin) });
+  revalidatePath("/settings/crews");
+  return { ok: true };
 }

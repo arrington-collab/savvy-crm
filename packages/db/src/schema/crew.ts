@@ -13,6 +13,9 @@ export const crew = pgTable("crew", {
   // recommendations. Null falls back to the tenant office.
   baseLat: doublePrecision("base_lat"),
   baseLng: doublePrecision("base_lng"),
+  // Shared crew login PIN (scrypt hash). A member enters it then taps their name,
+  // so check-ins stay attributed to the individual. Null = no shared PIN.
+  pinHash: text("pin_hash"),
   createdAt: createdAt(),
 }, (t) => [index("crew_tenant_idx").on(t.tenantId), tenantIsolation()]);
 

@@ -1,4 +1,4 @@
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, isNull } from "drizzle-orm";
 import { crew, crewMember, user } from "../schema/index";
 import { withTenant } from "../tenant";
 
@@ -15,7 +15,7 @@ export async function createCrew(input: { tenantId: string; name: string }): Pro
 
 export async function listCrews(
   tenantId: string,
-): Promise<{ id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; members: { userId: string; name: string }[] }[]> {
+): Promise<{ id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: { userId: string; name: string }[] }[]> {
   return withTenant(tenantId, async (tx) => {
     const crews = await tx
       .select()
@@ -35,6 +35,8 @@ export async function listCrews(
       active: c.active,
       baseLat: c.baseLat ?? null,
       baseLng: c.baseLng ?? null,
+      // Expose only whether a shared PIN is set — never the hash itself.
+      hasPin: c.pinHash != null,
       members: members
         .filter((m) => m.crewId === c.id)
         .map((m) => ({ userId: m.userId, name: m.name })),
@@ -51,6 +53,46 @@ export async function setCrewLocation(input: {
       .set({ baseLat: input.baseLat, baseLng: input.baseLng })
       .where(and(eq(crew.id, input.crewId), eq(crew.tenantId, input.tenantId))),
   );
+}
+
+/** Set (or clear, with null) a crew's shared login PIN hash. Hashing is done by the caller. */
+export async function setCrewPinHash(input: {
+  tenantId: string; crewId: string; pinHash: string | null;
+}): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.update(crew)
+      .set({ pinHash: input.pinHash })
+      .where(and(eq(crew.id, input.crewId), eq(crew.tenantId, input.tenantId))),
+  );
+}
+
+/**
+ * Active crews (with their active crew-role members) for the shared-PIN login flow.
+ * Returns the pinHash so the caller can verifyPin — server-only; never expose to a client.
+ */
+export async function getCrewLoginCandidates(
+  tenantId: string,
+): Promise<{ id: string; pinHash: string | null; members: { id: string; name: string }[] }[]> {
+  return withTenant(tenantId, async (tx) => {
+    const crews = await tx
+      .select({ id: crew.id, pinHash: crew.pinHash })
+      .from(crew)
+      .where(and(eq(crew.tenantId, tenantId), eq(crew.active, true)));
+
+    const members = await tx
+      .select({ crewId: crewMember.crewId, userId: crewMember.userId, name: user.name })
+      .from(crewMember)
+      .innerJoin(user, eq(crewMember.userId, user.id))
+      .where(and(eq(crewMember.tenantId, tenantId), eq(user.role, "crew"), isNull(user.deactivatedAt)));
+
+    return crews.map((c) => ({
+      id: c.id,
+      pinHash: c.pinHash ?? null,
+      members: members
+        .filter((m) => m.crewId === c.id)
+        .map((m) => ({ id: m.userId, name: m.name })),
+    }));
+  });
 }
 
 export async function renameCrew(input: { tenantId: string; crewId: string; name: string }): Promise<void> {
