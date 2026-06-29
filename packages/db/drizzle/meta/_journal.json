@@ -211,6 +211,13 @@
       "when": 1782750544262,
       "tag": "0029_damp_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1782752307104,
+      "tag": "0030_magical_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }
