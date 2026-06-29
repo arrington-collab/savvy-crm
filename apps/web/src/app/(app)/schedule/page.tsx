@@ -1,4 +1,5 @@
 import { listAppointments, listUsers, getScheduleCities, getTenantTimezone, type ScheduleFilter } from "@/lib/scheduling-queries";
+import { listActiveCrews } from "@/lib/crew-team-actions";
 import { toCivilDate, type ScheduleAppt } from "@savvy/core";
 import { ScheduleClient } from "./ScheduleClient";
 import { PageHeader } from "@/components/cockpit/PageHeader";
@@ -15,8 +16,8 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
     jobType: sp.jobType || undefined,
     city: sp.city || undefined,
   };
-  const [rows, crew, cityOpts, tz] = await Promise.all([
-    listAppointments(filter), listUsers(), getScheduleCities(), getTenantTimezone(),
+  const [rows, crew, cityOpts, tz, crews] = await Promise.all([
+    listAppointments(filter), listUsers(), getScheduleCities(), getTenantTimezone(), listActiveCrews(),
   ]);
   const appts: ScheduleAppt[] = rows.map((r) => ({
     id: r.id, type: r.type, status: r.status,
@@ -33,6 +34,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
       <ScheduleClient
         appts={appts}
         crew={crew}
+        crews={crews}
         cityOptions={cityOpts}
         tz={tz}
         view={view}

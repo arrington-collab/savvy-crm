@@ -51,6 +51,31 @@ export default async function CapacityPage() {
           ))}
         </CardContent>
       </Card>
+
+      <Card data-testid="crew-capacity">
+        <CardHeader><CardTitle>Crew load</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {view.crews.crews.length === 0 && (
+            <p className="text-sm" style={{ color: "var(--text-faint)" }} data-testid="crew-capacity-empty">No active crews yet.</p>
+          )}
+          {view.crews.crews.map((c) => (
+            <div key={c.crewId} className="space-y-1" data-testid="crew-capacity-row" data-status={c.status}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{c.name}</span>
+                <span className="mono text-xs" style={{ color: "var(--text-faint)" }}>
+                  {hrs(c.scheduledMin)} of {hrs(c.availableMin)} · {c.apptCount} appts · <span data-testid="crew-utilization">{c.utilizationPct}%</span>
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2, rgba(255,255,255,0.06))" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(100, c.utilizationPct)}%`, background: STATUS_COLOR[c.status] }}
+                />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
