@@ -22,10 +22,10 @@ export async function getHomeownerStatus(tenantId: string, jobId: string): Promi
     if (!j) return null;
     const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, tenantId));
     const events = await tx.select({ toStage: jobStageEvent.toStage, enteredAt: jobStageEvent.enteredAt })
-      .from(jobStageEvent).where(eq(jobStageEvent.jobId, jobId)).orderBy(asc(jobStageEvent.enteredAt));
+      .from(jobStageEvent).where(and(eq(jobStageEvent.tenantId, tenantId), eq(jobStageEvent.jobId, jobId))).orderBy(asc(jobStageEvent.enteredAt));
     const [next] = await tx.select({ type: appointment.type, startsAt: appointment.startsAt })
       .from(appointment)
-      .where(and(eq(appointment.jobId, jobId), eq(appointment.status, "scheduled"), gte(appointment.startsAt, new Date())))
+      .where(and(eq(appointment.tenantId, tenantId), eq(appointment.jobId, jobId), eq(appointment.status, "scheduled"), gte(appointment.startsAt, new Date())))
       .orderBy(asc(appointment.startsAt)).limit(1);
     return {
       companyName: t?.name ?? "Your contractor",
@@ -55,6 +55,7 @@ export async function listStageEventsToNotify(
       .leftJoin(job, eq(job.id, jobStageEvent.jobId))
       .leftJoin(customer, eq(customer.id, job.customerId))
       .where(and(
+        eq(jobStageEvent.tenantId, tenantId),
         inArray(jobStageEvent.toStage, opts.stages),
         isNull(jobStageEvent.homeownerNotifiedAt),
         gte(jobStageEvent.enteredAt, cutoff),
