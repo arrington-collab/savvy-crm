@@ -56,6 +56,7 @@ export const jobStageEvent = pgTable("job_stage_event", {
   fromStage: jobStageEnum("from_stage"),
   toStage: jobStageEnum("to_stage").notNull(),
   enteredAt: timestamp("entered_at", { withTimezone: true }).defaultNow().notNull(),
+  homeownerNotifiedAt: timestamp("homeowner_notified_at", { withTimezone: true }),
   byUserId: uuid("by_user_id").references(() => user.id),
   byAgent: agentEnum("by_agent"),
   note: text("note"),

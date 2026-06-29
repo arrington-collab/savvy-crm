@@ -1,0 +1,1 @@
+ALTER TABLE "job_stage_event" ADD COLUMN "homeowner_notified_at" timestamp with time zone;
