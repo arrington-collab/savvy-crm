@@ -56,3 +56,4 @@ export * from "./exception-queue";
 export * from "./capacity";
 export * from "./task-automation";
 export * from "./weather-config";
+export * from "./homeowner";

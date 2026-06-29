@@ -43,3 +43,4 @@ export { createBookingLink, resolveBookingLink } from "./lifecycle/booking-link"
 export { listAssignableReps } from "./lifecycle/team";
 export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate, type MaterialOrderRow } from "./lifecycle/material-order";
 export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";
+export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";

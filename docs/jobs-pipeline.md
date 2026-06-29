@@ -444,6 +444,19 @@ before a large customer onboards (same all-rows pattern as the Jobs board).
 Capacity is per-user (appointments carry an `assignee_user_id`; there is no crew
 entity yet). Logic: `buildCapacityView` in `@savvy/core`.
 
+### Homeowner journey (F)
+
+Homeowners get a public, login-free **status page** at `/status/<token>` (token signed with
+`UNSUBSCRIBE_SECRET`, payload `{tenantId, jobId}`) showing their job's journey timeline
+(`buildHomeownerJourney`), next scheduled appointment, and a friendly current-status. They're driven
+there by **milestone notifications**: a `homeowner-notify` cron (every 15 min) reads recent
+(`entered_at >= now-2h`) un-notified `job_stage_event` rows whose `toStage` is in
+`tenant.settings.homeowner.notifyStages` (default `approved`/`production`/`complete`), texts/emails the
+homeowner via the comms gateways (respecting `smsOptOut`/`emailOptOut`, fail-soft), and stamps
+`homeowner_notified_at` so it never double-sends. The cron off the event table (not the
+`job/stage-changed` event, which misses user drags) catches every transition; the 2h window means no
+historical spam on first deploy.
+
 ## Weather reschedule (D1b)
 
 A daily Inngest cron (`weather-reschedule`) checks each tenant's upcoming scheduled **crew** (install)
