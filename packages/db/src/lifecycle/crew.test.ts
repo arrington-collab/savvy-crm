@@ -10,6 +10,8 @@ import {
   renameCrew,
   setCrewActive,
   setCrewLocation,
+  setCrewPinHash,
+  getCrewLoginCandidates,
   addCrewMember,
   removeCrewMember,
   listCrewIdsForUser,
@@ -192,5 +194,50 @@ describe("cross-tenant RLS", () => {
     // Query as tenant-2 using tenant-1's userId — RLS should return nothing
     const ids = await withTenant(t2, (tx) => listCrewIdsForUser(tx, t2, u1));
     expect(ids).toHaveLength(0);
+  });
+});
+
+describe("setCrewPinHash + listCrews.hasPin", () => {
+  it("sets/clears the shared PIN hash; listCrews exposes hasPin (never the hash)", async () => {
+    const tenantId = await seedTenant();
+    const c = await createCrew({ tenantId, name: "Pin Crew" });
+    expect((await listCrews(tenantId)).find((x) => x.id === c.id)!.hasPin).toBe(false);
+
+    await setCrewPinHash({ tenantId, crewId: c.id, pinHash: "scrypt$aa$bb" });
+    const withPin = (await listCrews(tenantId)).find((x) => x.id === c.id)!;
+    expect(withPin.hasPin).toBe(true);
+    expect(withPin as Record<string, unknown>).not.toHaveProperty("pinHash");
+
+    await setCrewPinHash({ tenantId, crewId: c.id, pinHash: null });
+    expect((await listCrews(tenantId)).find((x) => x.id === c.id)!.hasPin).toBe(false);
+  });
+});
+
+describe("getCrewLoginCandidates", () => {
+  it("returns active crews + active members with the pinHash; excludes inactive crews", async () => {
+    const tenantId = await seedTenant();
+    const u1 = await seedUser(tenantId, "Member One");
+    const u2 = await seedUser(tenantId, "Member Two");
+    const active = await createCrew({ tenantId, name: "Active Crew" });
+    const inactive = await createCrew({ tenantId, name: "Inactive Crew" });
+    await setCrewPinHash({ tenantId, crewId: active.id, pinHash: "scrypt$cc$dd" });
+    await addCrewMember({ tenantId, crewId: active.id, userId: u1 });
+    await addCrewMember({ tenantId, crewId: active.id, userId: u2 });
+    await setCrewActive({ tenantId, crewId: inactive.id, active: false });
+
+    const cands = await getCrewLoginCandidates(tenantId);
+    const found = cands.find((x) => x.id === active.id)!;
+    expect(found.pinHash).toBe("scrypt$cc$dd");
+    expect(found.members.map((m) => m.id).sort()).toEqual([u1, u2].sort());
+    expect(cands.map((x) => x.id)).not.toContain(inactive.id);
+  });
+
+  it("is tenant-isolated", async () => {
+    const t1 = await seedTenant();
+    const t2 = await seedTenant();
+    const c1 = await createCrew({ tenantId: t1, name: "T1 Login Crew" });
+    await setCrewPinHash({ tenantId: t1, crewId: c1.id, pinHash: "scrypt$ee$ff" });
+    const cands = await getCrewLoginCandidates(t2);
+    expect(cands.map((x) => x.id)).not.toContain(c1.id);
   });
 });

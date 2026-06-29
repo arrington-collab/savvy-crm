@@ -12,10 +12,11 @@ import {
   setCrewLocationAction,
   addCrewMemberAction,
   removeCrewMemberAction,
+  setCrewPinAction,
 } from "@/lib/crew-team-actions";
 
 type CrewMember = { userId: string; name: string };
-type Crew = { id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; members: CrewMember[] };
+type Crew = { id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: CrewMember[] };
 type CrewUser = { id: string; name: string; hasPin: boolean };
 
 export function CrewsManager(props: {
@@ -31,6 +32,8 @@ export function CrewsManager(props: {
   const [addSelects, setAddSelects] = useState<Record<string, string>>({});
   // Per-crew home-base lat/lng edits (raw strings; seeded from props on first edit)
   const [locInputs, setLocInputs] = useState<Record<string, { lat: string; lng: string }>>({});
+  // Per-crew shared PIN inputs
+  const [pinInputs, setPinInputs] = useState<Record<string, string>>({});
 
   function run(fn: () => Promise<{ ok: true }>, okMsg: string) {
     start(async () => {
@@ -88,6 +91,21 @@ export function CrewsManager(props: {
 
   function handleRemoveMember(crewId: string, userId: string) {
     run(() => removeCrewMemberAction({ crewId, userId }), "Member removed");
+  }
+
+  function handleSavePin(crewId: string) {
+    const value = (pinInputs[crewId] ?? "").trim();
+    const pin = value === "" ? null : value;
+    if (pin !== null && !/^\d{6,8}$/.test(pin)) {
+      toast.error("PIN must be 6–8 digits");
+      return;
+    }
+    run(async () => {
+      const r = await setCrewPinAction({ crewId, pin });
+      if ("error" in r) { toast.error(r.error); return { ok: true as const }; }
+      setPinInputs((prev) => ({ ...prev, [crewId]: "" }));
+      return r;
+    }, pin === null ? "Crew PIN cleared" : "Crew PIN saved");
   }
 
   return (
@@ -215,6 +233,33 @@ export function CrewsManager(props: {
                     </div>
                   );
                 })()}
+
+                {/* Shared crew PIN */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Input
+                    inputMode="numeric"
+                    type="password"
+                    placeholder="6–8 digit PIN"
+                    value={pinInputs[crew.id] ?? ""}
+                    onChange={(e) => setPinInputs((prev) => ({ ...prev, [crew.id]: e.target.value }))}
+                    className="w-36 text-sm"
+                    data-testid="crew-pin-input"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => handleSavePin(crew.id)}
+                    data-testid="save-crew-pin-btn"
+                  >
+                    {crew.hasPin ? "Update PIN" : "Set PIN"}
+                  </Button>
+                  {crew.hasPin && (
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      PIN set
+                    </span>
+                  )}
+                </div>
 
                 {/* Members */}
                 {crew.members.length > 0 && (
