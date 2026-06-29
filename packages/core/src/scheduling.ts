@@ -44,6 +44,8 @@ const schema = z.object({
   reminders: z.array(reminderCfg).default([...DEFAULTS.reminders]),
   office: latLngCfg.optional(),
   driveTime: driveTimeCfg.default({}),
+  // Opt-in: auto-order a Roofr measurement when an inspection is booked. Default off.
+  autoOrderMeasurement: z.boolean().default(false),
 });
 
 export type SchedulingConfig = {
@@ -54,6 +56,7 @@ export type SchedulingConfig = {
   reminders: { offsetH: number; channel: "sms" | "email" }[];
   office?: { lat: number; lng: number };
   driveTime: { wSoon: number; wDrive: number; wCluster: number; driveHalfMin: number };
+  autoOrderMeasurement: boolean;
 };
 
 export function parseSchedulingConfig(raw: unknown): SchedulingConfig {
@@ -66,6 +69,7 @@ export function parseSchedulingConfig(raw: unknown): SchedulingConfig {
     reminders: p.reminders,
     office: p.office,
     driveTime: { ...DRIVE_DEFAULTS, ...p.driveTime },
+    autoOrderMeasurement: p.autoOrderMeasurement,
   };
 }
 
