@@ -18,6 +18,7 @@ type View = "week" | "month" | "crew";
 export function ScheduleClient(props: {
   appts: ScheduleAppt[];
   crew: Crew[];
+  crews: Crew[]; // crew entity options for crew-install appointments
   cityOptions: { cities: string[]; hasUnknown: boolean };
   tz: string;
   view: View;
@@ -113,6 +114,7 @@ export function ScheduleClient(props: {
         <CreateAppointmentForm
           startLocal={draftStartLocal(createDraft.date, createDraft.minutes)}
           crew={props.crew}
+          crews={props.crews}
           onClose={() => setCreateDraft(null)}
           onCreated={() => router.refresh()}
         />

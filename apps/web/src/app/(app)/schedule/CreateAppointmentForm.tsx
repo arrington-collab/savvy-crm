@@ -18,13 +18,15 @@ const TYPE_DEFAULT_MIN: Record<AppointmentType, number> = { inspection: 60, cm: 
 
 export function CreateAppointmentForm(props: {
   startLocal: string; // "YYYY-MM-DDTHH:mm" in tenant tz, prefilled from the clicked slot
-  crew: Crew[];
+  crew: Crew[];   // user-based assignee options (inspection / cm / adjuster types)
+  crews: Crew[];  // crew entity options (for type=crew installs)
   onClose: () => void;
   onCreated: () => void;
 }) {
   const [pending, start] = useTransition();
   const [type, setType] = useState<AppointmentType>("inspection");
-  const [assignee, setAssignee] = useState<string>(""); // "" = Unassigned
+  const [assignee, setAssignee] = useState<string>(""); // "" = Unassigned (user-based)
+  const [crewId, setCrewId] = useState<string>(""); // "" = Unassigned (crew entity)
   const [startVal, setStartVal] = useState(props.startLocal);
   const [durationMin, setDurationMin] = useState(TYPE_DEFAULT_MIN.inspection);
   const [jobQuery, setJobQuery] = useState("");
@@ -35,19 +37,19 @@ export function CreateAppointmentForm(props: {
   const [crewSlots, setCrewSlots] = useState<CrewSlot[]>([]);
   const searchSeq = useRef(0);
 
-  // For a crew install with a chosen crew, surface drive-time-aware recommended times.
-  // Only fetch here (no synchronous setState); the render gates on live conditions so
-  // stale suggestions never show when type/crew change.
+  // Drive-time recommended slots for a crew install, keyed on the chosen crew ENTITY
+  // (clusters around the crew's other installs; drive-time origins fall back to the
+  // tenant office since a crew has no base location).
   useEffect(() => {
-    if (type !== "crew" || !assignee || !picked) return;
+    if (type !== "crew" || !crewId || !picked) return;
     let active = true;
     void (async () => {
-      const r = await getRecommendedCrewSlots(picked.jobId, assignee);
+      const r = await getRecommendedCrewSlots(picked.jobId, crewId);
       if (active) setCrewSlots("error" in r ? [] : r.slots);
     })();
     return () => { active = false; };
-  }, [type, assignee, picked]);
-  const showCrewSlots = type === "crew" && !!assignee && !!picked && crewSlots.length > 0;
+  }, [type, crewId, picked]);
+  const showCrewSlots = type === "crew" && !!crewId && !!picked && crewSlots.length > 0;
 
   function onType(next: AppointmentType) {
     setType(next);
@@ -69,10 +71,11 @@ export function CreateAppointmentForm(props: {
     setSlotTaken(false);
     const e = new Date(s.getTime() + durationMin * 60_000);
     start(async () => {
-      const r = await createAppointmentAction({
-        jobId: picked.jobId, type, assigneeUserId: assignee || null,
-        startsAt: s.toISOString(), endsAt: e.toISOString(),
-      });
+      const r = await createAppointmentAction(
+        type === "crew"
+          ? { jobId: picked.jobId, type, assigneeUserId: null, crewId: crewId || null, startsAt: s.toISOString(), endsAt: e.toISOString() }
+          : { jobId: picked.jobId, type, assigneeUserId: assignee || null, crewId: null, startsAt: s.toISOString(), endsAt: e.toISOString() },
+      );
       if ("error" in r) { setSlotTaken(true); return; }
       toast.success("Appointment created");
       props.onCreated();
@@ -114,13 +117,23 @@ export function CreateAppointmentForm(props: {
               {APPOINTMENT_TYPE.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
-          <label className="flex-1 text-xs" style={{ color: "var(--text-muted)" }}>Crew
-            <select data-testid="create-crew" value={assignee} onChange={(e) => setAssignee(e.target.value)}
-              className="mt-0.5 w-full rounded-md border bg-transparent px-2 py-1 text-sm" style={{ borderColor: "var(--border-panel)", color: "var(--text-body)" }}>
-              <option value="">Unassigned</option>
-              {props.crew.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
+          {type === "crew" ? (
+            <label className="flex-1 text-xs" style={{ color: "var(--text-muted)" }}>Crew
+              <select data-testid="create-crew-entity" value={crewId} onChange={(e) => setCrewId(e.target.value)}
+                className="mt-0.5 w-full rounded-md border bg-transparent px-2 py-1 text-sm" style={{ borderColor: "var(--border-panel)", color: "var(--text-body)" }}>
+                <option value="">Unassigned</option>
+                {props.crews.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+          ) : (
+            <label className="flex-1 text-xs" style={{ color: "var(--text-muted)" }}>Crew
+              <select data-testid="create-crew" value={assignee} onChange={(e) => setAssignee(e.target.value)}
+                className="mt-0.5 w-full rounded-md border bg-transparent px-2 py-1 text-sm" style={{ borderColor: "var(--border-panel)", color: "var(--text-body)" }}>
+                <option value="">Unassigned</option>
+                {props.crew.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+          )}
         </div>
 
         {showCrewSlots ? (

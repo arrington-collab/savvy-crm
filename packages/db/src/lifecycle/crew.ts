@@ -1,0 +1,87 @@
+import { and, eq, asc } from "drizzle-orm";
+import { crew, crewMember, user } from "../schema/index";
+import { withTenant } from "../tenant";
+
+type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
+
+export type CrewRow = typeof crew.$inferSelect;
+
+export async function createCrew(input: { tenantId: string; name: string }): Promise<CrewRow> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [row] = await tx.insert(crew).values({ tenantId: input.tenantId, name: input.name }).returning();
+    return row!;
+  });
+}
+
+export async function listCrews(
+  tenantId: string,
+): Promise<{ id: string; name: string; active: boolean; members: { userId: string; name: string }[] }[]> {
+  return withTenant(tenantId, async (tx) => {
+    const crews = await tx
+      .select()
+      .from(crew)
+      .where(eq(crew.tenantId, tenantId))
+      .orderBy(asc(crew.name));
+
+    const members = await tx
+      .select({ crewId: crewMember.crewId, userId: crewMember.userId, name: user.name })
+      .from(crewMember)
+      .innerJoin(user, eq(crewMember.userId, user.id))
+      .where(eq(crewMember.tenantId, tenantId));
+
+    return crews.map((c) => ({
+      id: c.id,
+      name: c.name,
+      active: c.active,
+      members: members
+        .filter((m) => m.crewId === c.id)
+        .map((m) => ({ userId: m.userId, name: m.name })),
+    }));
+  });
+}
+
+export async function renameCrew(input: { tenantId: string; crewId: string; name: string }): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.update(crew)
+      .set({ name: input.name })
+      .where(and(eq(crew.id, input.crewId), eq(crew.tenantId, input.tenantId))),
+  );
+}
+
+export async function setCrewActive(input: { tenantId: string; crewId: string; active: boolean }): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.update(crew)
+      .set({ active: input.active })
+      .where(and(eq(crew.id, input.crewId), eq(crew.tenantId, input.tenantId))),
+  );
+}
+
+export async function addCrewMember(input: { tenantId: string; crewId: string; userId: string }): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.insert(crewMember)
+      .values({ tenantId: input.tenantId, crewId: input.crewId, userId: input.userId })
+      .onConflictDoNothing(),
+  );
+}
+
+export async function removeCrewMember(input: { tenantId: string; crewId: string; userId: string }): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx.delete(crewMember)
+      .where(
+        and(
+          eq(crewMember.tenantId, input.tenantId),
+          eq(crewMember.crewId, input.crewId),
+          eq(crewMember.userId, input.userId),
+        ),
+      ),
+  );
+}
+
+/** Takes a tx as first arg (like other tx-taking fns). Returns the crew ids the user belongs to. */
+export async function listCrewIdsForUser(tx: Tx, tenantId: string, userId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ crewId: crewMember.crewId })
+    .from(crewMember)
+    .where(and(eq(crewMember.tenantId, tenantId), eq(crewMember.userId, userId)));
+  return rows.map((r) => r.crewId);
+}

@@ -76,6 +76,7 @@ export async function createAppointmentAction(input: {
   jobId: string;
   type: AppointmentType;
   assigneeUserId: string | null;
+  crewId?: string | null;
   startsAt: string;
   endsAt: string;
 }): Promise<{ ok: true } | { error: "slot_taken" }> {
@@ -90,6 +91,7 @@ export async function createAppointmentAction(input: {
     const created = await bookAppointment({
       tenantId, jobId: input.jobId, customerId,
       type: input.type, assigneeUserId: input.assigneeUserId,
+      crewId: input.crewId ?? null,
       startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt),
     });
     appointmentId = created.id;

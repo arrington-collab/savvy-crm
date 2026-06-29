@@ -1,12 +1,14 @@
 import "server-only";
-import { withTenant, appointment, repAvailabilityBlock, tenant, eq, and, gte, lt, listAssignableReps } from "@savvy/db";
-import { parseSchedulingConfig, officeMinutesForWindow, overlapMinutes, buildCapacityView, toCivilDate, addDays, zonedTimeToUtc, type CapacityView } from "@savvy/core";
+import { withTenant, appointment, repAvailabilityBlock, tenant, crew, eq, and, gte, lt, listAssignableReps } from "@savvy/db";
+import { parseSchedulingConfig, officeMinutesForWindow, overlapMinutes, buildCapacityView, buildCrewCapacityView, toCivilDate, addDays, zonedTimeToUtc, type CapacityView, type CrewCapacityView } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getTenantTimezone } from "./scheduling-queries";
 
 const WINDOW_DAYS = 7;
 
-export async function getCapacityView(): Promise<CapacityView> {
+export type CapacityPageView = CapacityView & { crews: CrewCapacityView };
+
+export async function getCapacityView(): Promise<CapacityPageView> {
   const tenantId = await getTenantId();
   const tz = await getTenantTimezone();
 
@@ -22,8 +24,15 @@ export async function getCapacityView(): Promise<CapacityView> {
 
     const reps = await listAssignableReps(tenantId); // [{ id, name }]
 
+    // Fetch all scheduled appts in window — include crewId and type for crew lane
     const appts = await tx
-      .select({ assigneeUserId: appointment.assigneeUserId, startsAt: appointment.startsAt, endsAt: appointment.endsAt })
+      .select({
+        assigneeUserId: appointment.assigneeUserId,
+        crewId: appointment.crewId,
+        type: appointment.type,
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
+      })
       .from(appointment)
       .where(and(eq(appointment.status, "scheduled"), gte(appointment.startsAt, windowStart), lt(appointment.startsAt, windowEnd)));
 
@@ -44,6 +53,25 @@ export async function getCapacityView(): Promise<CapacityView> {
       return { userId: r.id, name: r.name, scheduledMin, blockedMin, apptCount: mine.length };
     });
 
-    return buildCapacityView({ officeMinutesInWindow, windowDays: WINDOW_DAYS, reps: repInputs });
+    const repView = buildCapacityView({ officeMinutesInWindow, windowDays: WINDOW_DAYS, reps: repInputs });
+
+    // Fetch active crews and build crew capacity lane
+    const activeCrews = await tx
+      .select({ id: crew.id, name: crew.name })
+      .from(crew)
+      .where(and(eq(crew.tenantId, tenantId), eq(crew.active, true)));
+
+    // Only crew-type appts with a non-null crewId contribute to crew utilization
+    const crewAppts = appts.filter((a) => a.type === "crew" && a.crewId != null);
+
+    const crewInputs = activeCrews.map((c) => {
+      const mine = crewAppts.filter((a) => a.crewId === c.id);
+      const scheduledMin = mine.reduce((s, a) => s + Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60000), 0);
+      return { crewId: c.id, name: c.name, scheduledMin, apptCount: mine.length };
+    });
+
+    const crewView = buildCrewCapacityView({ officeMinutesInWindow, windowDays: WINDOW_DAYS, crews: crewInputs });
+
+    return { ...repView, crews: crewView };
   });
 }

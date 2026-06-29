@@ -25,6 +25,7 @@ export type BookInput = {
   tenantId: string; jobId: string; customerId?: string;
   type: AppointmentType; assigneeUserId: string | null;
   startsAt: Date; endsAt: Date;
+  crewId?: string | null;
 };
 
 export async function bookAppointment(input: BookInput): Promise<{ id: string }> {
@@ -35,6 +36,7 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
         tenantId, jobId: input.jobId, customerId: input.customerId ?? null,
         type: input.type, assigneeUserId: input.assigneeUserId ?? null,
         startsAt: input.startsAt, endsAt: input.endsAt, status: "scheduled",
+        crewId: input.crewId ?? null,
       }).returning({ id: appointment.id });
       return { id: row!.id };
     });

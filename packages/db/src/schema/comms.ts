@@ -4,6 +4,7 @@ import { idCol, createdAt, updatedAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, lead } from "./crm";
 import { job } from "./jobs";
+import { crew } from "./crew";
 import { commChannelEnum, commDirectionEnum, messageChannelEnum, dripStatusEnum, dripStopReasonEnum, appointmentTypeEnum, appointmentStatusEnum } from "./enums";
 import type { DripStep } from "@savvy/core";
 
@@ -34,15 +35,23 @@ export const appointment = pgTable("appointment", {
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   assigneeUserId: uuid("assignee_user_id").references(() => user.id),
+  // For type='crew' installs the appointment is assigned to a crew (team)
+  // instead of a single user. assigneeUserId is null in that case.
+  crewId: uuid("crew_id").references(() => crew.id),
   status: appointmentStatusEnum("status").notNull().default("scheduled"),
   gcalEventId: text("gcal_event_id"),
   weatherNote: text("weather_note"),
   weatherFlaggedAt: timestamp("weather_flagged_at", { withTimezone: true }),
   createdAt: createdAt(),
-  // NOTE: a Postgres EXCLUDE constraint (appointment_no_overlap) enforcing
-  // no overlapping 'scheduled' appts per assignee is added by hand in
-  // migration 0003 (drizzle-kit can't express EXCLUDE). See plan Task 7.
-}, (t) => [index("appt_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
+  // NOTE: two Postgres EXCLUDE constraints enforce no overlapping 'scheduled'
+  // appts — appointment_no_overlap (per assignee_user_id, migration 0003) and
+  // appointment_crew_no_overlap (per crew_id, migration 0032). Both are added
+  // by hand (drizzle-kit can't express EXCLUDE).
+}, (t) => [
+  index("appt_tenant_job_idx").on(t.tenantId, t.jobId),
+  index("appt_tenant_crew_idx").on(t.tenantId, t.crewId),
+  tenantIsolation(),
+]);
 
 export const messageTemplate = pgTable("message_template", {
   id: idCol(),

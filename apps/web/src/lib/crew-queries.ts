@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, job, customer, property, appointment, crewCheckin, user, eq, and, or, inArray, isNull, desc } from "@savvy/db";
+import { withTenant, job, customer, property, appointment, crewCheckin, user, eq, and, or, inArray, isNull, isNotNull, desc, listCrewIdsForUser } from "@savvy/db";
 import type { CrewSession } from "./crew-session";
 
 const ACTIVE_STAGES = ["approved", "production", "closeout"] as const;
@@ -8,11 +8,25 @@ export type CrewJobRow = { id: string; stage: string; customerName: string | nul
 
 /** Jobs this crew member is assigned to (directly or via a crew appointment), in active stages. */
 export async function listCrewJobs(s: CrewSession): Promise<CrewJobRow[]> {
-  return withTenant(s.tenantId, (tx) => {
-    const apptJobIds = tx
+  return withTenant(s.tenantId, async (tx) => {
+    // Crew appointments assigned directly to this user (legacy: assigneeUserId set)
+    const userApptJobIds = tx
       .select({ jobId: appointment.jobId })
       .from(appointment)
       .where(and(eq(appointment.assigneeUserId, s.crewUserId), eq(appointment.type, "crew")));
+
+    // Crew appointments assigned to a crew entity the user belongs to
+    const myCrewIds = await listCrewIdsForUser(tx, s.tenantId, s.crewUserId);
+
+    // Build crew-entity appointment subquery only when the user is in at least one crew
+    // (drizzle's inArray throws on an empty array — guard it explicitly)
+    const crewEntityApptJobIds = myCrewIds.length > 0
+      ? tx
+          .select({ jobId: appointment.jobId })
+          .from(appointment)
+          .where(and(eq(appointment.type, "crew"), isNotNull(appointment.crewId), inArray(appointment.crewId, myCrewIds)))
+      : null;
+
     return tx
       .select({ id: job.id, stage: job.stage, customerName: customer.name, address: property.address })
       .from(job)
@@ -20,7 +34,9 @@ export async function listCrewJobs(s: CrewSession): Promise<CrewJobRow[]> {
       .leftJoin(property, eq(property.id, job.propertyId))
       .where(and(
         inArray(job.stage, [...ACTIVE_STAGES]),
-        or(eq(job.assignedUserId, s.crewUserId), inArray(job.id, apptJobIds)),
+        crewEntityApptJobIds != null
+          ? or(eq(job.assignedUserId, s.crewUserId), inArray(job.id, userApptJobIds), inArray(job.id, crewEntityApptJobIds))
+          : or(eq(job.assignedUserId, s.crewUserId), inArray(job.id, userApptJobIds)),
       ))
       .orderBy(desc(job.stageEnteredAt));
   });

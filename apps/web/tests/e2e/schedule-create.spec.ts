@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
   withTenant, bookAppointment,
-  customer, property, job, appointment, user,
+  customer, property, job, appointment, user, crew,
   eq, and,
 } from "@savvy/db";
 
@@ -167,12 +167,13 @@ test("create: assigned crew that is busy shows an inline conflict and does not c
 test("create: crew install surfaces recommended slots and books the chosen one", async ({ page }) => {
   const uniq = `Crewslot ${Date.now()}`;
   const { jobId } = await seedJob(uniq, "44 Crew Way");
-  const crewId = await withTenant(tenantId, async (tx) => {
-    const [u] = await tx
-      .insert(user)
-      .values({ tenantId, name: `Installer ${Date.now()}`, email: `installer-${Date.now()}@e2e.test`, role: "crew" })
+  // A crew install is assigned to a crew ENTITY (not an individual user).
+  const crewEntityId = await withTenant(tenantId, async (tx) => {
+    const [c] = await tx
+      .insert(crew)
+      .values({ tenantId, name: `Install Crew ${Date.now()}` })
       .returning();
-    return u!.id;
+    return c!.id;
   });
 
   await page.goto(`/schedule?view=week&anchor=${ANCHOR}`);
@@ -183,9 +184,9 @@ test("create: crew install surfaces recommended slots and books the chosen one",
   await expect(page.getByTestId("create-job-option").first()).toBeVisible({ timeout: 10_000 });
   await page.getByTestId("create-job-option").first().click();
 
-  // Choose a crew install → recommended crew slots should appear.
+  // Choose a crew install + a crew entity → recommended crew slots should appear.
   await page.getByTestId("create-type").selectOption("crew");
-  await page.getByTestId("create-crew").selectOption(crewId);
+  await page.getByTestId("create-crew-entity").selectOption(crewEntityId);
 
   const firstSlot = page.getByTestId("crew-slot-option").first();
   await expect(firstSlot).toBeVisible({ timeout: 10_000 });

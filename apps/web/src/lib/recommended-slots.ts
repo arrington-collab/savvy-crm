@@ -10,13 +10,19 @@ type RecommendedSlot = { startsAt: string; endsAt: string; driveMinutes: number 
  *  drive-time + clustering when known. */
 export async function slotsForRep(args: {
   tenantId: string;
-  repId: string;
+  repId?: string;
+  crewId?: string;
   type?: "inspection" | "cm" | "crew";
   limit?: number;
   todayFirst?: boolean;
   clusterAround?: LatLng | null;
 }): Promise<{ slots: RecommendedSlot[] }> {
-  const { tenantId, repId } = args;
+  const { tenantId, repId, crewId } = args;
+  // The schedule owner is either a user (assignee) or a crew entity (install).
+  // A crew has no base location, so its drive-time origins fall back to the office.
+  const ownerCond = crewId
+    ? eq(appointment.crewId, crewId)
+    : eq(appointment.assigneeUserId, repId!);
   const type = args.type ?? "inspection";
   const limit = args.limit ?? 2;
   const todayFirst = args.todayFirst ?? true;
@@ -32,7 +38,7 @@ export async function slotsForRep(args: {
     .from(appointment)
     .leftJoin(job, eq(appointment.jobId, job.id))
     .leftJoin(property, eq(job.propertyId, property.id))
-    .where(and(eq(appointment.tenantId, tenantId), eq(appointment.assigneeUserId, repId), eq(appointment.status, "scheduled")));
+    .where(and(eq(appointment.tenantId, tenantId), ownerCond, eq(appointment.status, "scheduled")));
   const busy = apptRows
     .filter((r) => r.startsAt >= new Date() && r.startsAt < horizonEnd)
     .map((r) => ({ startsAt: r.startsAt, endsAt: r.endsAt, lat: r.lat == null ? undefined : Number(r.lat), lng: r.lng == null ? undefined : Number(r.lng) }));
@@ -44,7 +50,10 @@ export async function slotsForRep(args: {
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
     .slice(0, 12);
 
-  const [u] = await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(and(eq(user.id, repId), eq(user.tenantId, tenantId)));
+  // Only a user assignee has a base location; a crew entity falls back to the office.
+  const [u] = repId
+    ? await adminDb.select({ baseLat: user.baseLat, baseLng: user.baseLng }).from(user).where(and(eq(user.id, repId), eq(user.tenantId, tenantId)))
+    : [undefined];
   const repBase: LatLng | null = u?.baseLat != null && u?.baseLng != null ? { lat: Number(u.baseLat), lng: Number(u.baseLng) } : null;
   const officeRaw = (t?.settings as { scheduling?: { office?: { lat?: number; lng?: number } } } | null)?.scheduling?.office;
   const tenantOffice: LatLng | null = officeRaw && typeof officeRaw.lat === "number" && typeof officeRaw.lng === "number" ? { lat: officeRaw.lat, lng: officeRaw.lng } : null;
@@ -96,12 +105,14 @@ export async function getRecommendedSlots(
 }
 
 /** Job-keyed crew-slot recommendations for the install booking flow. Resolves the
- *  job's tenant + property cluster point, then delegates to slotsForRep(type="crew").
+ *  job's tenant + property cluster point, then delegates to slotsForRep(type="crew")
+ *  keyed on the CREW ENTITY (clusters around the crew's other installs; drive-time
+ *  origins fall back to the tenant office since a crew has no base location).
  *  Each slot carries `startLocal` ("YYYY-MM-DDTHH:mm" in tenant tz) so the booking
  *  form can prefill its datetime-local input directly. */
 export async function getRecommendedCrewSlots(
   jobId: string,
-  crewUserId: string,
+  crewId: string,
   opts?: { limit?: number },
 ): Promise<{ error: "no_job" } | { slots: (RecommendedSlot & { startLocal: string })[] }> {
   const [j] = await adminDb
@@ -117,7 +128,7 @@ export async function getRecommendedCrewSlots(
     dest && dest.lat != null && dest.lng != null ? { lat: Number(dest.lat), lng: Number(dest.lng) } : null;
 
   const { slots } = await slotsForRep({
-    tenantId: j.tenantId, repId: crewUserId, type: "crew", limit: opts?.limit ?? 5, todayFirst: true, clusterAround,
+    tenantId: j.tenantId, crewId, type: "crew", limit: opts?.limit ?? 5, todayFirst: true, clusterAround,
   });
 
   const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, j.tenantId));

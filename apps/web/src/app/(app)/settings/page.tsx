@@ -7,6 +7,7 @@ const SECTIONS: { href: string; label: string; desc: string }[] = [
   { href: "/settings/payments", label: "Payments", desc: "Connect Stripe to collect payments." },
   { href: "/settings/quickbooks", label: "QuickBooks", desc: "Sync invoices and payments." },
   { href: "/settings/crew", label: "Crew & CompanyCam", desc: "Crew PINs and CompanyCam photo sync." },
+  { href: "/settings/crews", label: "Install crews", desc: "Define crews and assign members for installs." },
   { href: "/settings/scheduling", label: "Scheduling", desc: "Business hours and appointment defaults." },
   { href: "/settings/price-book", label: "Price Book", desc: "Estimate line items and pricing rules." },
   { href: "/settings/assignment", label: "Lead Assignment", desc: "Auto-route new leads to reps by round-robin, load, territory, or score." },
