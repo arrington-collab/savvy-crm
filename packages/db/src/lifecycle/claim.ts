@@ -88,6 +88,13 @@ export type BookAdjusterMeetingInput = {
  * Books an adjuster appointment for the job and flips the job's claim status
  * to 'adjuster_scheduled'. Creates the claim row if one does not yet exist.
  * Returns the appointmentId.
+ *
+ * Ordering is deliberate: the appointment is booked first so a slot conflict
+ * (SlotTakenError from the no-overlap EXCLUDE constraint) aborts before any
+ * claim mutation. The two writes are separate tenant-scoped transactions; the
+ * only non-atomic tail is the claim upsert failing after a committed
+ * appointment, which leaves a valid appointment with an un-flipped status —
+ * visible and self-healing (re-saving the status fixes it).
  */
 export async function bookAdjusterMeeting(
   input: BookAdjusterMeetingInput,

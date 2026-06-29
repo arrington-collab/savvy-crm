@@ -58,7 +58,7 @@ export function ClaimPanel({
   function handleSave() {
     start(async () => {
       try {
-        const r = await saveClaimAction({
+        await saveClaimAction({
           jobId,
           claimNumber,
           carrierName,
@@ -70,12 +70,8 @@ export function ClaimPanel({
           deductibleDollars,
           filedAt,
         });
-        if ("ok" in r) {
-          setSaveHint("saved");
-          router.refresh();
-        } else {
-          setSaveHint("error");
-        }
+        setSaveHint("saved");
+        router.refresh();
       } catch {
         setSaveHint("error");
       }
