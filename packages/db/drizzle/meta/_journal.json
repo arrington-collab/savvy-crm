@@ -232,6 +232,13 @@
       "when": 1782757407857,
       "tag": "0032_abandoned_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782764606662,
+      "tag": "0033_little_blue_blade",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, doublePrecision, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 
@@ -9,6 +9,10 @@ export const crew = pgTable("crew", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
+  // Crew's home base (yard) — used as the drive-time origin for install slot
+  // recommendations. Null falls back to the tenant office.
+  baseLat: doublePrecision("base_lat"),
+  baseLng: doublePrecision("base_lng"),
   createdAt: createdAt(),
 }, (t) => [index("crew_tenant_idx").on(t.tenantId), tenantIsolation()]);
 

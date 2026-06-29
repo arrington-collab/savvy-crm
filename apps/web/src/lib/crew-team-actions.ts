@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { listCrews, createCrew, renameCrew, setCrewActive, addCrewMember, removeCrewMember } from "@savvy/db";
+import { listCrews, createCrew, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember } from "@savvy/db";
 import { getTenantId } from "./tenant";
 
 export async function listActiveCrews(): Promise<{ id: string; name: string }[]> {
@@ -26,6 +26,15 @@ export async function renameCrewAction(input: { crewId: string; name: string }):
 export async function setCrewActiveAction(input: { crewId: string; active: boolean }): Promise<{ ok: true }> {
   const tenantId = await getTenantId();
   await setCrewActive({ tenantId, crewId: input.crewId, active: input.active });
+  revalidatePath("/settings/crews");
+  return { ok: true as const };
+}
+
+export async function setCrewLocationAction(input: {
+  crewId: string; baseLat: number | null; baseLng: number | null;
+}): Promise<{ ok: true }> {
+  const tenantId = await getTenantId();
+  await setCrewLocation({ tenantId, crewId: input.crewId, baseLat: input.baseLat, baseLng: input.baseLng });
   revalidatePath("/settings/crews");
   return { ok: true as const };
 }
