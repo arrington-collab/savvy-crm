@@ -225,6 +225,13 @@
       "when": 1782753678144,
       "tag": "0031_dusty_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1782757407857,
+      "tag": "0032_abandoned_scarecrow",
+      "breakpoints": true
     }
   ]
 }

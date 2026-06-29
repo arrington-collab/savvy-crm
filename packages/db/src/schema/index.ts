@@ -2,6 +2,7 @@ export * from "./enums";
 export * from "./tenancy";
 export * from "./crm";
 export * from "./jobs";
+export * from "./crew";
 export * from "./comms";
 export * from "./finance";
 export * from "./ops";
