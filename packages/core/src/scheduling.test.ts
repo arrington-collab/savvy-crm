@@ -21,6 +21,11 @@ test("partial config merges over defaults", () => {
   expect(c.hours.mon).toEqual([8, 17]); // default kept
 });
 
+test("autoOrderMeasurement defaults off and round-trips when set", () => {
+  expect(parseSchedulingConfig(undefined).autoOrderMeasurement).toBe(false);
+  expect(parseSchedulingConfig({ autoOrderMeasurement: true }).autoOrderMeasurement).toBe(true);
+});
+
 test("haversine ~ known distance", () => {
   // ~1.11 km between 0,0 and 0.01,0
   const d = haversineMeters({ lat: 0, lng: 0 }, { lat: 0.01, lng: 0 });

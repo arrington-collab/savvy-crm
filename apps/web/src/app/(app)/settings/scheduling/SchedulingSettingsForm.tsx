@@ -50,6 +50,9 @@ export function SchedulingSettingsForm({ config }: { config: SchedulingConfig })
   const [granularity, setGranularity] = useState(config.slotGranularityMin);
   const [horizon, setHorizon] = useState(config.bookingHorizonDays);
 
+  // Automation: auto-order a Roofr measurement when an inspection is booked
+  const [autoOrderMeasurement, setAutoOrderMeasurement] = useState(config.autoOrderMeasurement);
+
   // Per-type durations
   const [types, setTypes] = useState<TypesState>(() =>
     Object.fromEntries(APPT_TYPES.map((t) => [t, { ...config.types[t] }])) as TypesState,
@@ -93,6 +96,7 @@ export function SchedulingSettingsForm({ config }: { config: SchedulingConfig })
         bookingHorizonDays: horizon,
         types,
         reminders,
+        autoOrderMeasurement,
       };
       const result = await saveSchedulingConfig(cfg);
       if ("error" in result) {
@@ -208,6 +212,27 @@ export function SchedulingSettingsForm({ config }: { config: SchedulingConfig })
               className="w-24 text-sm"
             />
           </div>
+        </div>
+      </Card>
+
+      {/* Automation */}
+      <Card className="p-4">
+        <h2 className="font-semibold mb-3">Automation</h2>
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="auto-order-measurement"
+            data-testid="auto-order-measurement"
+            checked={autoOrderMeasurement}
+            onChange={(e) => setAutoOrderMeasurement(e.target.checked)}
+            className="h-4 w-4 mt-0.5"
+          />
+          <Label htmlFor="auto-order-measurement" className="text-sm">
+            Auto-order a Roofr measurement when an inspection is booked
+            <span className="block text-xs text-muted-foreground">
+              Orders once per property (skips if a measurement already exists). Off by default.
+            </span>
+          </Label>
         </div>
       </Card>
 
