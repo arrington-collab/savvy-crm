@@ -15,7 +15,7 @@ describe("phase 3 enums", () => {
 });
 
 test("appointment enums", () => {
-  expect(APPOINTMENT_TYPE).toEqual(["inspection", "cm", "crew"]);
+  expect(APPOINTMENT_TYPE).toEqual(["inspection", "cm", "crew", "adjuster"]);
   expect(APPOINTMENT_STATUS).toEqual(["scheduled", "done", "canceled", "no_show"]);
 });
 

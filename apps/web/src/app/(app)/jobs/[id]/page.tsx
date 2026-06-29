@@ -15,6 +15,8 @@ import {
   desc,
   asc,
   sql,
+  getClaimForJob,
+  getAdjusterAppointmentForJob,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
@@ -33,6 +35,7 @@ import { listChangeOrdersForJob } from "@/lib/change-order-queries";
 import { ChangeOrdersSection } from "./ChangeOrdersSection";
 import { listMaterialOrdersForJob, getJobInstallDateForJob } from "@/lib/material-queries";
 import { MaterialsPanel, type MaterialsPanelOrder } from "./MaterialsPanel";
+import { ClaimPanel, type ClaimPanelTask } from "./ClaimPanel";
 import { materialDeliveryFlag } from "@savvy/core";
 import { fmtUsd } from "@/lib/format";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
@@ -266,14 +269,16 @@ export default async function JobDetailPage({
   const margin = computeJobMargin({ revenueCents: jobRow.valueFinal ?? jobRow.valueEstimate, costCents: jobRow.costCents });
   const dollars = (cents: number) => `$${(cents / 100).toLocaleString()}`;
 
-  // Fetch estimate, measurement, change orders, crew check-ins, and material orders in parallel.
-  const [estimates, measurement, changeOrders, checkins, materialOrders, installDate] = await Promise.all([
+  // Fetch estimate, measurement, change orders, crew check-ins, material orders, and claim data in parallel.
+  const [estimates, measurement, changeOrders, checkins, materialOrders, installDate, claimRow, adjusterAppt] = await Promise.all([
     listEstimatesForJob(id),
     getLatestMeasurementForJob(id),
     listChangeOrdersForJob(id),
     getJobCheckins(tenantId, id),
     listMaterialOrdersForJob(id),
     getJobInstallDateForJob(id),
+    jobRow.type === "insurance" ? getClaimForJob(tenantId, id) : Promise.resolve(null),
+    jobRow.type === "insurance" ? getAdjusterAppointmentForJob(tenantId, id) : Promise.resolve(null),
   ]);
 
   // Serialize checkin dates to ISO strings for client props.
@@ -294,6 +299,32 @@ export default async function JobDetailPage({
     lines: o.lineItems.map((l) => ({ key: l.key, name: l.name, quantity: l.quantity, unit: l.unit, amountCents: l.amountCents })),
     flag: materialDeliveryFlag({ neededByAt: o.neededByAt ?? null, installAt: installDate }),
   }));
+
+  // Serialize claim row for ClaimPanel (no Date objects to client).
+  const claimForClient = claimRow
+    ? {
+        claimNumber: claimRow.claimNumber,
+        carrierName: claimRow.carrierName,
+        adjusterName: claimRow.adjusterName,
+        adjusterPhone: claimRow.adjusterPhone,
+        status: claimRow.status,
+        acvCents: claimRow.acvCents,
+        rcvCents: claimRow.rcvCents,
+        deductibleCents: claimRow.deductibleCents,
+        filedAtISO: claimRow.filedAt ? claimRow.filedAt.toISOString() : null,
+      }
+    : null;
+
+  const adjusterApptForClient = adjusterAppt
+    ? {
+        startsAtISO: adjusterAppt.startsAt.toISOString(),
+        endsAtISO: adjusterAppt.endsAt.toISOString(),
+      }
+    : null;
+
+  const claimTasks: ClaimPanelTask[] = taskRows
+    .filter((t) => t.phase === "Insurance Claim Management")
+    .map((t) => ({ id: t.id, title: t.title, status: t.status }));
 
   // Serialize measurement areas for client component (jsonb -> plain object).
   const measurementForClient = measurement
@@ -446,6 +477,21 @@ export default async function JobDetailPage({
           <MaterialsPanel jobId={id} orders={materialOrdersForClient} />
         </CardContent>
       </Card>
+
+      {/* Insurance claim section (insurance jobs only) */}
+      {jobRow.type === "insurance" && (
+        <Card>
+          <CardHeader><CardTitle>Insurance claim</CardTitle></CardHeader>
+          <CardContent>
+            <ClaimPanel
+              jobId={id}
+              claim={claimForClient}
+              adjusterAppointment={adjusterApptForClient}
+              tasks={claimTasks}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Change orders section */}
       <Card>
