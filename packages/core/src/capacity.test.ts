@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseSchedulingConfig } from "./scheduling";
-import { officeMinutesForWindow, overlapMinutes, buildCapacityView } from "./capacity";
+import { officeMinutesForWindow, overlapMinutes, buildCapacityView, buildCrewCapacityView } from "./capacity";
 
 describe("officeMinutesForWindow", () => {
   const cfg = parseSchedulingConfig(undefined); // Mon–Fri 8–17 (540 min/day), weekends closed
@@ -73,5 +73,93 @@ describe("buildCapacityView", () => {
   it("marks 80% as high", () => {
     const v = buildCapacityView({ officeMinutesInWindow: office, windowDays: 7, reps: [{ userId: "u", name: "U", scheduledMin: 2160, blockedMin: 0, apptCount: 4 }] });
     expect(v.reps[0]!).toMatchObject({ utilizationPct: 80, status: "high" });
+  });
+});
+
+describe("buildCrewCapacityView", () => {
+  const office = 2700; // 5 × 540
+
+  it("computes utilization and status per crew (no blocks), sorted most-loaded first", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [
+        { crewId: "free", name: "Free Crew", scheduledMin: 0, apptCount: 0 },
+        { crewId: "over", name: "Over Crew", scheduledMin: 3000, apptCount: 6 },
+        { crewId: "ok", name: "Ok Crew", scheduledMin: 1350, apptCount: 2 },
+      ],
+    });
+    expect(v.crews.map((c) => c.crewId)).toEqual(["over", "ok", "free"]);
+    expect(v.crews.find((c) => c.crewId === "over")!).toMatchObject({ utilizationPct: 111, status: "over", availableMin: 2700 });
+    expect(v.crews.find((c) => c.crewId === "ok")!).toMatchObject({ utilizationPct: 50, status: "ok" });
+    expect(v.crews.find((c) => c.crewId === "free")!).toMatchObject({ utilizationPct: 0, status: "free" });
+    expect(v.overCount).toBe(1);
+  });
+
+  it("crew with 50% utilization is status ok (below 80% threshold)", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [{ crewId: "c1", name: "C1", scheduledMin: 1350, apptCount: 2 }],
+    });
+    expect(v.crews[0]!).toMatchObject({ utilizationPct: 50, status: "ok" });
+  });
+
+  it("empty crew (0 scheduled, 0 appts) has 0% utilization and is free, sorted last", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [
+        { crewId: "c1", name: "C1", scheduledMin: 1350, apptCount: 2 },
+        { crewId: "c2", name: "C2", scheduledMin: 0, apptCount: 0 },
+      ],
+    });
+    expect(v.crews.map((c) => c.crewId)).toEqual(["c1", "c2"]);
+    expect(v.crews.find((c) => c.crewId === "c2")!).toMatchObject({ scheduledMin: 0, apptCount: 0, utilizationPct: 0, status: "free" });
+  });
+
+  it("crew scheduled over available has status over and is counted in overCount", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [
+        { crewId: "c1", name: "C1", scheduledMin: 3000, apptCount: 6 },
+        { crewId: "c2", name: "C2", scheduledMin: 1000, apptCount: 2 },
+      ],
+    });
+    expect(v.crews.find((c) => c.crewId === "c1")!.status).toBe("over");
+    expect(v.overCount).toBe(1);
+  });
+
+  it("computes team utilization as aggregate across crews", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [
+        { crewId: "c1", name: "C1", scheduledMin: 1350, apptCount: 2 },
+        { crewId: "c2", name: "C2", scheduledMin: 1350, apptCount: 2 },
+      ],
+    });
+    // total scheduled = 2700, total available = 2700 + 2700 = 5400
+    // utilization = 2700 / 5400 = 50%
+    expect(v.teamUtilizationPct).toBe(50);
+  });
+
+  it("is empty-safe", () => {
+    expect(buildCrewCapacityView({ officeMinutesInWindow: office, windowDays: 7, crews: [] })).toEqual({
+      crews: [],
+      teamUtilizationPct: 0,
+      overCount: 0,
+      windowDays: 7,
+    });
+  });
+
+  it("marks 80% as high status", () => {
+    const v = buildCrewCapacityView({
+      officeMinutesInWindow: office,
+      windowDays: 7,
+      crews: [{ crewId: "c1", name: "C1", scheduledMin: 2160, apptCount: 4 }],
+    });
+    expect(v.crews[0]!).toMatchObject({ utilizationPct: 80, status: "high" });
   });
 });

@@ -55,3 +55,27 @@ export function buildCapacityView(input: { officeMinutesInWindow: number; window
     windowDays: input.windowDays,
   };
 }
+
+export type CrewCapacityInput = { crewId: string; name: string; scheduledMin: number; apptCount: number };
+export type CrewCapacity = {
+  crewId: string; name: string; availableMin: number; scheduledMin: number; apptCount: number; utilizationPct: number; status: CapacityStatus;
+};
+export type CrewCapacityView = { crews: CrewCapacity[]; teamUtilizationPct: number; overCount: number; windowDays: number };
+
+/** Per-crew utilization (booked vs. available = office, no per-crew blocks), sorted most-loaded first. */
+export function buildCrewCapacityView(input: { officeMinutesInWindow: number; windowDays: number; crews: CrewCapacityInput[] }): CrewCapacityView {
+  const crews: CrewCapacity[] = input.crews.map((c) => {
+    const availableMin = input.officeMinutesInWindow;
+    const utilizationPct = util(c.scheduledMin, availableMin);
+    return { crewId: c.crewId, name: c.name, availableMin, scheduledMin: c.scheduledMin, apptCount: c.apptCount, utilizationPct, status: statusOf(utilizationPct) };
+  });
+  crews.sort((a, b) => b.utilizationPct - a.utilizationPct);
+  const totalScheduled = crews.reduce((s, c) => s + c.scheduledMin, 0);
+  const totalAvailable = crews.reduce((s, c) => s + c.availableMin, 0);
+  return {
+    crews,
+    teamUtilizationPct: util(totalScheduled, totalAvailable),
+    overCount: crews.filter((c) => c.status === "over").length,
+    windowDays: input.windowDays,
+  };
+}
