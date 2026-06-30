@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { seal, open, type SealedSecret, type IntegrationStatus, type TelephonyMode } from "@savvy/core";
-import { adminDb } from "../admin-client.js";
-import { withTenant } from "../tenant.js";
-import { tenant, integrationConnection } from "../schema/index.js";
+import { adminDb } from "../admin-client";
+import { withTenant } from "../tenant";
+import { tenant, integrationConnection } from "../schema/index";
 
 export interface TwilioSecret {
   accountSid: string;
