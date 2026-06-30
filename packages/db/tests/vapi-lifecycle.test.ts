@@ -5,7 +5,7 @@ import { pool } from "../src/client.js";
 import { tenant, integrationConnection } from "../src/schema/index.js";
 import {
   upsertVapiConnection, getVapiConnection, getVapiSecret, resolveVoiceCreds,
-  setTelephonyConnectionStatus, setTelephonyMode,
+  setTelephonyConnectionStatus, setTelephonyMode, tenantByVapiAssistant,
 } from "../src/lifecycle/telephony.js";
 
 let tid: string;
@@ -49,5 +49,24 @@ describe("vapi lifecycle", () => {
     await setTelephonyConnectionStatus(tid, "vapi", "disabled");
     await setTelephonyMode(tid, "byo");
     expect(await resolveVoiceCreds(tid)).toEqual({ source: "inactive" });
+  });
+});
+
+describe("tenantByVapiAssistant", () => {
+  it("returns the tenant id for an active vapi connection by assistantId", async () => {
+    // tid already has a vapi connection from the upsert test above; ensure it is active with a known assistant.
+    await upsertVapiConnection(tid, { secret: { apiKey: "k2" }, assistantId: "asst_lookup_unique", phoneNumberId: "pn_2" });
+    await setTelephonyConnectionStatus(tid, "vapi", "active");
+    expect(await tenantByVapiAssistant("asst_lookup_unique")).toBe(tid);
+  });
+
+  it("returns null for an unknown assistant", async () => {
+    expect(await tenantByVapiAssistant("asst_does_not_exist")).toBeNull();
+  });
+
+  it("does not match a disabled connection", async () => {
+    await upsertVapiConnection(tid, { secret: { apiKey: "k3" }, assistantId: "asst_disabled_unique", phoneNumberId: "pn_3" });
+    await setTelephonyConnectionStatus(tid, "vapi", "disabled");
+    expect(await tenantByVapiAssistant("asst_disabled_unique")).toBeNull();
   });
 });

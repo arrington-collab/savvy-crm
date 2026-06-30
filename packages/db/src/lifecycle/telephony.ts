@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { seal, open, type SealedSecret, type IntegrationStatus, type TelephonyMode } from "@savvy/core";
 import { adminDb } from "../admin-client";
 import { withTenant } from "../tenant";
@@ -313,6 +313,26 @@ export type VoiceResolution =
  * - byo + active connection → the tenant's own decrypted creds.
  * - byo + nothing active → inactive (caller must not place calls).
  */
+/**
+ * Reverse lookup: the tenant id owning an ACTIVE vapi connection whose
+ * assistantId matches. Cross-tenant (adminDb) because the tenant is unknown
+ * at inbound time. Mirrors the metadata->>'' filter used elsewhere.
+ */
+export async function tenantByVapiAssistant(assistantId: string): Promise<string | null> {
+  if (!assistantId) return null;
+  const rows = await adminDb
+    .select({ tenantId: integrationConnection.tenantId })
+    .from(integrationConnection)
+    .where(
+      and(
+        eq(integrationConnection.provider, "vapi"),
+        eq(integrationConnection.status, "active"),
+        sql`${integrationConnection.metadata}->>'assistantId' = ${assistantId}`,
+      ),
+    );
+  return rows[0]?.tenantId ?? null;
+}
+
 export async function resolveVoiceCreds(tenantId: string): Promise<VoiceResolution> {
   const mode = await getTelephonyMode(tenantId);
   if (mode === "platform") {
