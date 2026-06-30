@@ -10,6 +10,8 @@ export type ParsedVapiMessage = {
   outcomeRaw: string | null;
   toNumber: string | null;
   fromNumber: string | null;
+  assistantId: string | null;
+  phoneNumberId: string | null;
 };
 
 function asRecord(v: unknown): Record<string, unknown> {
@@ -48,6 +50,7 @@ export function parseVapiMessage(body: unknown): ParsedVapiMessage {
   const analysis = asRecord(message.analysis);
   const structured = asRecord(analysis.structuredData);
   const phone = asRecord(message.phoneNumber);
+  const assistant = asRecord(message.assistant);
   const customer = asRecord(message.customer);
   const durationRaw = message.durationSeconds ?? artifact.durationSeconds;
 
@@ -62,6 +65,8 @@ export function parseVapiMessage(body: unknown): ParsedVapiMessage {
     outcomeRaw: typeof structured.outcome === "string" ? structured.outcome : null,
     toNumber: typeof phone.number === "string" ? phone.number : null, // the dialed (tenant) number
     fromNumber: typeof customer.number === "string" ? customer.number : null, // the caller's number
+    assistantId: typeof assistant.id === "string" ? assistant.id : (typeof call.assistantId === "string" ? call.assistantId : null),
+    phoneNumberId: typeof phone.id === "string" ? phone.id : null,
   };
 }
 

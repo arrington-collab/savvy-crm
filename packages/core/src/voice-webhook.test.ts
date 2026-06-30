@@ -80,6 +80,25 @@ describe("parseVapiMessage", () => {
     expect(fromBadArgs.toolCalls[0]?.args).toEqual({});
   });
 
+  it("surfaces assistantId and phoneNumberId from an inbound message", () => {
+    const msg = parseVapiMessage({
+      message: {
+        type: "assistant-request",
+        assistant: { id: "asst_byo_1" },
+        phoneNumber: { id: "pn_byo_1", number: "+16025550000" },
+        customer: { number: "+16025551111" },
+      },
+    });
+    expect(msg.assistantId).toBe("asst_byo_1");
+    expect(msg.phoneNumberId).toBe("pn_byo_1");
+  });
+
+  it("defaults assistantId/phoneNumberId to null on empty input", () => {
+    const m = parseVapiMessage(null);
+    expect(m.assistantId).toBeNull();
+    expect(m.phoneNumberId).toBeNull();
+  });
+
   it("toolResult wraps a result in Vapi's results shape", () => {
     expect(toolResult("tc1", { slots: [] })).toEqual({ results: [{ toolCallId: "tc1", result: { slots: [] } }] });
   });
