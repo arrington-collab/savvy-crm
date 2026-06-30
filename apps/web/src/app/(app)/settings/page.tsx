@@ -6,6 +6,7 @@ const SECTIONS: { href: string; label: string; desc: string }[] = [
   { href: "/settings/team", label: "Team", desc: "Invite teammates, manage roles, add crew." },
   { href: "/settings/payments", label: "Payments", desc: "Connect Stripe to collect payments." },
   { href: "/settings/quickbooks", label: "QuickBooks", desc: "Sync invoices and payments." },
+  { href: "/settings/integrations", label: "Telephony", desc: "Use your own Twilio, or have Savvy set it up." },
   { href: "/settings/crew", label: "Crew & CompanyCam", desc: "Crew PINs and CompanyCam photo sync." },
   { href: "/settings/crews", label: "Install crews", desc: "Define crews and assign members for installs." },
   { href: "/settings/scheduling", label: "Scheduling", desc: "Business hours and appointment defaults." },

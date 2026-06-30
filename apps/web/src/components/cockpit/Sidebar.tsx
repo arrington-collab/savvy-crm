@@ -16,6 +16,7 @@ const NAV = [
   { href: "/billing", label: "Billing" },
   { href: "/settings/payments", label: "Payments" },
   { href: "/settings/quickbooks", label: "QuickBooks" },
+  { href: "/settings/integrations", label: "Telephony" },
   { href: "/settings/price-book", label: "Price Book" },
   { href: "/settings/team", label: "Team" },
 ];

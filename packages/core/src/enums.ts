@@ -76,3 +76,13 @@ export type MeasurementField = (typeof MEASUREMENT_FIELD)[number];
 
 export const CLAIM_STATUS = ["filed", "adjuster_scheduled", "approved", "partial", "denied", "closed"] as const;
 export type ClaimStatus = (typeof CLAIM_STATUS)[number];
+
+// --- BYO Telephony ---
+export const TELEPHONY_PROVIDER = ["twilio", "ringcentral", "vapi"] as const;
+export type TelephonyProvider = (typeof TELEPHONY_PROVIDER)[number];
+
+export const INTEGRATION_STATUS = ["pending", "active", "disabled", "setup_requested"] as const;
+export type IntegrationStatus = (typeof INTEGRATION_STATUS)[number];
+
+export const TELEPHONY_MODE = ["platform", "byo"] as const;
+export type TelephonyMode = (typeof TELEPHONY_MODE)[number];
