@@ -13,6 +13,7 @@ import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
+import { MessageBody } from "./MessageBody";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +131,7 @@ export default async function LeadDetailPage({
                   <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
                     {c.channel} · {c.direction} · {ago(c.createdAt)}
                   </div>
-                  <p style={{ color: "var(--text-body)" }}>{c.body ?? "—"}</p>
+                  <MessageBody body={c.body} />
                 </div>
               </li>
             ))}
