@@ -186,6 +186,8 @@ export async function resolveTelephonyCreds(tenantId: string): Promise<Telephony
   if (!view || view.status !== "active") return { source: "inactive" };
   const secret = await getTwilioSecret(tenantId);
   if (!secret) return { source: "inactive" };
+  // Phase 2: the send path MUST reject empty accountSid/from before sending
+  // (a managed-setup placeholder row can be active with empty creds).
   return {
     source: "tenant",
     twilio: { accountSid: secret.accountSid, authToken: secret.authToken, from: view.fromNumber ?? "" },

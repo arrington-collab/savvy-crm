@@ -12,12 +12,14 @@ import {
 import { verifyTwilioCreds } from "@savvy/integrations";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
+import { isOrgAdmin } from "./authz";
 
 const SETTINGS_PATH = "/settings/integrations";
 
 export async function setTelephonyModeAction(
   mode: "platform" | "byo",
 ): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   if (mode !== "platform" && mode !== "byo") return { error: "invalid_mode" };
   const tenantId = await getTenantId();
   await setTelephonyMode(tenantId, mode);
@@ -30,6 +32,7 @@ export async function saveTwilioConnectionAction(input: {
   authToken: string;
   fromNumber: string;
 }): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   if (!input.accountSid || !input.authToken || !input.fromNumber) return { error: "missing_fields" };
   const tenantId = await getTenantId();
   await upsertTwilioConnection(tenantId, {
@@ -41,6 +44,7 @@ export async function saveTwilioConnectionAction(input: {
 }
 
 export async function testTwilioConnectionAction(): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const secret = await getTwilioSecret(tenantId);
   if (!secret) return { error: "no_connection" };
@@ -52,16 +56,22 @@ export async function testTwilioConnectionAction(): Promise<{ ok: true } | { err
   return valid ? { ok: true } : { error: "verify_failed" };
 }
 
-export async function disconnectTelephonyAction(): Promise<{ ok: true }> {
+export async function disconnectTelephonyAction(): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
-  await disconnectTelephony(tenantId, "twilio");
-  revalidatePath(SETTINGS_PATH);
-  return { ok: true };
+  try {
+    await disconnectTelephony(tenantId, "twilio");
+    revalidatePath(SETTINGS_PATH);
+    return { ok: true };
+  } catch {
+    return { error: "disconnect_failed" };
+  }
 }
 
 export async function requestManagedSetupAction(
   feeNote?: string,
 ): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const { userId } = await getCurrentUser();
   // Ensure a placeholder row exists so the managed request has a connection to flip.

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   setTelephonyModeAction,
   saveTwilioConnectionAction,
@@ -52,7 +53,7 @@ export function TelephonyCard({ mode, status, fromNumber }: Props) {
       </div>
 
       {status === "setup_requested" && (
-        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">
           Setup requested — Savvy will reach out to finish connecting your account.
         </p>
       )}
@@ -62,25 +63,22 @@ export function TelephonyCard({ mode, status, fromNumber }: Props) {
           <div className="text-sm">
             Status:{" "}
             <span className={status === "active" ? "text-green-600" : "text-muted-foreground"}>
-              {status === "active" ? `Connected ✓ (${fromNumber ?? "no number"})` : (status ?? "not connected")}
+              {status === "active" ? `Connected ✓ (${from || "no number"})` : (status ?? "not connected")}
             </span>
           </div>
 
-          <input
-            className="w-full rounded-md border px-3 py-2 text-sm"
+          <Input
             placeholder="Account SID (AC…)"
             value={accountSid}
             onChange={(e) => setAccountSid(e.target.value)}
           />
-          <input
-            className="w-full rounded-md border px-3 py-2 text-sm"
+          <Input
             placeholder="Auth Token"
             type="password"
             value={authToken}
             onChange={(e) => setAuthToken(e.target.value)}
           />
-          <input
-            className="w-full rounded-md border px-3 py-2 text-sm"
+          <Input
             placeholder="From number (+1…)"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
