@@ -28,7 +28,8 @@ const emailOptional = z.preprocess(
   z.string().email("Enter a valid email").optional(),
 );
 
-const roofType = z.enum(["asphalt_shingle", "tile", "metal", "flat_foam", "other"]);
+export const ROOF_TYPE_VALUES = ["asphalt_shingle", "tile", "metal", "flat_foam", "other"] as const;
+const roofType = z.enum(ROOF_TYPE_VALUES);
 
 // The plain object (no refinement). A refined schema is a ZodEffects and loses
 // `.extend()`, which /api/leads needs to add its `key`. Export the object so

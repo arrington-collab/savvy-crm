@@ -10,6 +10,7 @@ import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
+import { RoofTypeEditor } from "./RoofTypeEditor";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
@@ -105,6 +106,8 @@ export default async function LeadDetailPage({
         county={detail.county}
         installRecommendation={detail.installRecommendation}
       />
+
+      <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} />
 
       <Card className="p-4">
         <div className="eyebrow mb-3">Storm Certification</div>

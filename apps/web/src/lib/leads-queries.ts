@@ -75,6 +75,7 @@ export type LeadDetail = {
     rationale: string;
   } | null;
   source: string | null;
+  propertyId: string | null;
   customerName: string | null;
   phone: string | null;
   email: string | null;
@@ -108,6 +109,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         installRecommendation: lead.installRecommendation,
         source: lead.source,
         customerId: lead.customerId,
+        propertyId: lead.propertyId,
         customerName: customer.name,
         phone: customer.phone,
         email: customer.email,
@@ -155,6 +157,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       scoreFeatures: row.scoreFeatures as LeadDetail["scoreFeatures"],
       installRecommendation: row.installRecommendation as LeadDetail["installRecommendation"],
       source: row.source,
+      propertyId: row.propertyId,
       customerName: row.customerName,
       phone: row.phone,
       email: row.email,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildExceptionQueue, type ExceptionQueueInput } from "./exception-queue";
 
-const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [] };
+const base: ExceptionQueueInput = { atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [], materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [], roofTypeNeeded: [] };
 
 describe("buildExceptionQueue", () => {
   it("normalizes each vector into an item with the right kind/severity/href", () => {
@@ -13,15 +13,27 @@ describe("buildExceptionQueue", () => {
       materialDeliveries: [],
       taskNeedsApprovals: [],
       weatherAtRisks: [],
+      roofTypeNeeded: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
     expect(q.items.find((i) => i.kind === "invoice_overdue")!).toMatchObject({ severity: "high", href: "/invoices" });
     expect(q.items.find((i) => i.kind === "appointment_missed")!).toMatchObject({ severity: "high", href: "/schedule" });
     expect(q.items.find((i) => i.kind === "task_overdue")!).toMatchObject({ severity: "medium", href: "/jobs/j4" });
+  });
+
+  it("surfaces a roof_type_needed item for a property missing its roof type", () => {
+    const q = buildExceptionQueue({
+      ...base,
+      roofTypeNeeded: [{ jobId: "j9", leadId: "l9", propertyId: "p9", customerName: "Roof Ron", occurredAt: new Date("2026-06-15T00:00:00Z") }],
+    });
+    const item = q.items.find((i) => i.kind === "roof_type_needed")!;
+    expect(item).toMatchObject({ severity: "medium", title: "Roof Ron", href: "/leads/l9" });
+    expect(item.detail).toMatch(/roof type/i);
+    expect(q.counts.roof_type_needed).toBe(1);
   });
 
   it("rates a late job high and a stuck-only job medium", () => {
@@ -72,7 +84,7 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0 }, total: 0, highCount: 0,
     });
   });
 
