@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getTenantSms, type TenantSmsDeps } from "./telephony";
+import { getTenantSms, getTenantVoice, type TenantSmsDeps, type TenantVoiceDeps } from "./telephony";
 
 function deps(resolveResult: unknown): TenantSmsDeps {
   return {
@@ -36,5 +36,32 @@ describe("getTenantSms", () => {
     const d = deps({ source: "tenant", twilio: { accountSid: "", authToken: "", from: "" } });
     const r = await getTenantSms("t1", d);
     expect(r.sender).toBe(d.platformSms);
+  });
+});
+
+function vdeps(result: unknown): TenantVoiceDeps {
+  return {
+    resolve: vi.fn().mockResolvedValue(result) as unknown as TenantVoiceDeps["resolve"],
+    platformVoice: { placeOutboundCall: vi.fn().mockResolvedValue({ callId: "platform" }) },
+  };
+}
+
+describe("getTenantVoice", () => {
+  it("byo + active full creds → tenant gateway (not platform)", async () => {
+    const d = vdeps({ source: "tenant", vapi: { apiKey: "k", assistantId: "a", phoneNumberId: "p" } });
+    const gw = await getTenantVoice("t1", d);
+    expect(gw).not.toBe(d.platformVoice);
+  });
+  it("platform → platform gateway", async () => {
+    const d = vdeps({ source: "platform", vapi: { apiKey: "k", assistantId: "a", phoneNumberId: "p" } });
+    expect(await getTenantVoice("t1", d)).toBe(d.platformVoice);
+  });
+  it("inactive → platform gateway", async () => {
+    const d = vdeps({ source: "inactive" });
+    expect(await getTenantVoice("t1", d)).toBe(d.platformVoice);
+  });
+  it("tenant but empty creds → platform gateway", async () => {
+    const d = vdeps({ source: "tenant", vapi: { apiKey: "", assistantId: "", phoneNumberId: "" } });
+    expect(await getTenantVoice("t1", d)).toBe(d.platformVoice);
   });
 });

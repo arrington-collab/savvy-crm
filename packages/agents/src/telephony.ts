@@ -1,5 +1,5 @@
-import { resolveTelephonyCreds } from "@savvy/db";
-import { makeTwilioSms, sms, smsFrom, type SmsSender } from "@savvy/integrations";
+import { resolveTelephonyCreds, resolveVoiceCreds } from "@savvy/db";
+import { makeTwilioSms, makeHttpVapi, sms, smsFrom, voice, type SmsSender, type VoiceGateway } from "@savvy/integrations";
 
 export interface TenantSmsDeps {
   resolve: typeof resolveTelephonyCreds;
@@ -26,4 +26,27 @@ export async function getTenantSms(
     };
   }
   return { sender: deps.platformSms, from: deps.platformFrom() };
+}
+
+export interface TenantVoiceDeps {
+  resolve: typeof resolveVoiceCreds;
+  platformVoice: VoiceGateway;
+}
+
+const defaultVoiceDeps: TenantVoiceDeps = { resolve: resolveVoiceCreds, platformVoice: voice };
+
+/**
+ * Resolve the VoiceGateway for a tenant.
+ * byo + active with non-empty vapi creds → the tenant's own Vapi gateway;
+ * otherwise the platform account (platform mode, inactive byo, or empty placeholder creds).
+ */
+export async function getTenantVoice(
+  tenantId: string,
+  deps: TenantVoiceDeps = defaultVoiceDeps,
+): Promise<VoiceGateway> {
+  const r = await deps.resolve(tenantId);
+  if (r.source === "tenant" && r.vapi.apiKey && r.vapi.assistantId && r.vapi.phoneNumberId) {
+    return makeHttpVapi(r.vapi);
+  }
+  return deps.platformVoice;
 }

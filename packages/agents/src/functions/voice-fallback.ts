@@ -1,7 +1,7 @@
 import { adminDb, withTenant, lead, customer, property, tenant, eq, recordAgentRun } from "@savvy/db";
 import { buildAssistantOverrides, shouldPlaceVoiceCall, parseFinanceConfig, parseLeadCadenceConfig } from "@savvy/core";
-import { voice } from "@savvy/integrations";
 import { inngest } from "../client";
+import { getTenantVoice } from "../telephony";
 
 /**
  * Builds the storm-context string from a lead's scoreFeatures jsonb field.
@@ -94,7 +94,8 @@ export const voiceFallback = inngest.createFunction(
         tenantName: decision.tenantName, leadName: decision.leadName, address: decision.address,
         stormContext: decision.stormContext, leadId, tenantId, tz: decision.tz,
       });
-      const result = await voice.placeOutboundCall({
+      const gateway = await getTenantVoice(tenantId);
+      const result = await gateway.placeOutboundCall({
         toPhone: decision.phone,
         assistantOverrides: overrides,
         metadata: { leadId, tenantId, direction: "outbound", toPhone: decision.phone },
