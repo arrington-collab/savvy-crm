@@ -1,8 +1,25 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { customer } from "../schema/index";
 
 export type EmailSource = "self_reported" | "appended";
+
+export interface CustomerEmailDue {
+  customerId: string;
+  name: string;
+  phone: string | null;
+}
+
+/** Emailless customers that have a phone to look up by — candidates for append. */
+export async function findCustomersNeedingEmail(tenantId: string, limit: number): Promise<CustomerEmailDue[]> {
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({ customerId: customer.id, name: customer.name, phone: customer.phone })
+      .from(customer)
+      .where(and(isNull(customer.email), isNotNull(customer.phone)))
+      .limit(limit),
+  );
+}
 
 /**
  * Set a customer's email + provenance. Policy:

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb } from "../src/admin-client.js";
 import { withTenant } from "../src/tenant.js";
 import { customer } from "../src/schema/index.js";
-import { setCustomerEmail } from "../src/lifecycle/customer.js";
+import { setCustomerEmail, findCustomersNeedingEmail } from "../src/lifecycle/customer.js";
 import { makeTenant } from "./helpers.js";
 
 async function mkCustomer(tenantId: string, values: Record<string, unknown>) {
@@ -36,6 +36,17 @@ describe("setCustomerEmail", () => {
     const id = await mkCustomer(tenantId, { email: "real@x.com", emailSource: "self_reported" });
     expect(await setCustomerEmail(tenantId, { customerId: id, email: "broker@x.com", source: "appended" })).toBe(false);
     expect(await read(tenantId, id)).toEqual({ email: "real@x.com", emailSource: "self_reported" });
+  });
+
+  it("findCustomersNeedingEmail returns emailless customers that have a phone", async () => {
+    const { tenantId } = await makeTenant();
+    const withPhone = await mkCustomer(tenantId, { phone: "+16025550001" });
+    const noPhone = await mkCustomer(tenantId, {});
+    const hasEmail = await mkCustomer(tenantId, { phone: "+16025550002", email: "x@x.com" });
+    const ids = (await findCustomersNeedingEmail(tenantId, 50)).map((c) => c.customerId);
+    expect(ids).toContain(withPhone);
+    expect(ids).not.toContain(noPhone); // nothing to look up by
+    expect(ids).not.toContain(hasEmail);
   });
 
   it("lets a self_reported email overwrite an appended one (homeowner corrects)", async () => {
