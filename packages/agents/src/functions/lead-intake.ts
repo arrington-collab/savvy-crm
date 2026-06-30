@@ -255,7 +255,7 @@ export const leadIntake = inngest.createFunction(
         }).where(eq(lead.id, leadId)),
       );
       await recordAgentRun({
-        tenantId, agent: "comms", taskKey: "lead.qualify", status: "ok",
+        tenantId, leadId, agent: "comms", taskKey: "lead.qualify", status: "ok",
         modelUsed: r.model, inngestRunId: event.id ?? null,
       });
       return r;
@@ -265,13 +265,13 @@ export const leadIntake = inngest.createFunction(
       try {
         const r = await runLeadAssignment(tenantId, leadId, { state: ctx.state, city: ctx.city ?? null });
         await recordAgentRun({
-          tenantId, agent: "orchestrator", taskKey: "lead.assign",
+          tenantId, leadId, agent: "orchestrator", taskKey: "lead.assign",
           status: r.assigned ? "ok" : "skipped", error: r.assigned ? null : r.reason,
         });
         return r;
       } catch (err) {
         await recordAgentRun({
-          tenantId, agent: "orchestrator", taskKey: "lead.assign",
+          tenantId, leadId, agent: "orchestrator", taskKey: "lead.assign",
           status: "error", error: err instanceof Error ? err.message : "assign failed",
         });
         return { assigned: null, reason: "error" };

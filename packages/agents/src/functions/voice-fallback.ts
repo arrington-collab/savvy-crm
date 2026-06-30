@@ -83,7 +83,7 @@ export const voiceFallback = inngest.createFunction(
 
     if (!decision.ok) {
       await step.run("record-skip", () =>
-        recordAgentRun({ tenantId, agent: "comms", taskKey: "lead.voice.fallback", status: "skipped", error: decision.reason }),
+        recordAgentRun({ tenantId, leadId, agent: "comms", taskKey: "lead.voice.fallback", status: "skipped", error: decision.reason }),
       );
       return { status: "skipped", reason: decision.reason };
     }
@@ -102,7 +102,7 @@ export const voiceFallback = inngest.createFunction(
       });
       const outcome = voiceRunOutcome(result);
       await recordAgentRun({
-        tenantId, agent: "comms", taskKey: "lead.voice.fallback",
+        tenantId, leadId, agent: "comms", taskKey: "lead.voice.fallback",
         status: outcome.status, error: outcome.error,
       });
       return { callId: result?.callId ?? null };

@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-o
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { job } from "./jobs";
+import { lead } from "./crm";
 import { agentEnum } from "./enums";
 
 export const agentRun = pgTable("agent_run", {
@@ -9,6 +10,9 @@ export const agentRun = pgTable("agent_run", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   agent: agentEnum("agent").notNull(),
   jobId: uuid("job_id").references(() => job.id),
+  // Lead-stage runs (no job yet) link here so the command-center feed can show
+  // the customer name via lead → customer, the same way job runs do via job.
+  leadId: uuid("lead_id").references(() => lead.id),
   taskKey: text("task_key"),
   inngestRunId: text("inngest_run_id"),
   status: text("status").notNull().default("running"), // running|ok|error

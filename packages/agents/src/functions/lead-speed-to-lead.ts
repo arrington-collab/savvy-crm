@@ -70,7 +70,7 @@ export const leadSpeedToLead = inngest.createFunction(
         return row ? { tenantId, ...row } : null;
       });
       const reason = ctx ? await runRepAlert(ctx) : "no-lead";
-      await recordAgentRun({ tenantId, agent: "comms", taskKey: "lead.rep.alert", status: reason === "sent" ? "ok" : "skipped", error: reason === "sent" ? null : reason });
+      await recordAgentRun({ tenantId, leadId, agent: "comms", taskKey: "lead.rep.alert", status: reason === "sent" ? "ok" : "skipped", error: reason === "sent" ? null : reason });
       return { reason };
     });
 
@@ -86,7 +86,7 @@ export const leadSpeedToLead = inngest.createFunction(
     // Emit + audit inside a memoized step so a downstream retry can't double-fire (idempotency).
     await step.run("emit-overdue", async () => {
       await inngest.send({ name: "lead/contact-overdue", data: { leadId, tenantId } });
-      await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.overdue", status: "ok" });
+      await recordAgentRun({ tenantId, leadId, agent: "orchestrator", taskKey: "lead.sla.overdue", status: "ok" });
       return { emitted: true };
     });
 
@@ -108,7 +108,7 @@ export const leadSpeedToLead = inngest.createFunction(
         return picked;
       });
       // Audit inside the same step so it's memoized with the reassign decision.
-      await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "lead.sla.escalated", status: next ? "ok" : "skipped", error: next ? null : "no-candidate" });
+      await recordAgentRun({ tenantId, leadId, agent: "orchestrator", taskKey: "lead.sla.escalated", status: next ? "ok" : "skipped", error: next ? null : "no-candidate" });
       return next;
     });
     return { status: "escalated", reassigned };
