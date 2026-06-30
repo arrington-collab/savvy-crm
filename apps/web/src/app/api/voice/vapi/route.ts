@@ -20,11 +20,11 @@ import {
   withTenant,
   getLeadByVoiceCallId,
   setLeadVoiceCallId,
+  getVapiConnection,
 } from "@savvy/db";
-import { inngest } from "@savvy/agents";
-import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
+import { inngest, getTenantSms } from "@savvy/agents";
 import { getRecommendedSlots, slotsForRep } from "@/lib/recommended-slots";
-import { tenantByPhone, createLeadForTenant } from "@/lib/intake";
+import { createLeadForTenant, resolveInboundTenant } from "@/lib/intake";
 
 export const runtime = "nodejs"; // node:crypto + DB
 
@@ -59,12 +59,19 @@ export async function POST(req: Request): Promise<NextResponse> {
   // us per call which assistant to use. We resolve the tenant by the dialed number
   // and return the inbound persona (collect details -> setCallDetails -> bookSlot).
   if (msg.type === "assistant-request") {
-    const t = msg.toNumber ? await tenantByPhone(msg.toNumber) : null;
+    const t = await resolveInboundTenant(msg);
     if (!t) return NextResponse.json({ error: "No assistant is configured for this number." });
     const tz = parseFinanceConfig((t.settings as { finance?: unknown } | null)?.finance).timezone;
     const assistantOverrides = buildInboundAssistant({ tenantName: t.name, tenantId: t.id, tz });
-    // assistantId is undefined when Vapi isn't fully configured (dev/test) -> JSON omits it.
-    return NextResponse.json({ assistantId: process.env.VAPI_ASSISTANT_ID, assistantOverrides });
+    // A BYO tenant answers with their OWN Vapi assistant (the call rides their account);
+    // platform tenants fall back to the shared env assistant. assistantId reads non-secret
+    // connection metadata (no decrypt). undefined in dev/test -> JSON omits it.
+    const vapiConn = await getVapiConnection(t.id);
+    const assistantId =
+      vapiConn?.status === "active" && vapiConn.assistantId
+        ? vapiConn.assistantId
+        : process.env.VAPI_ASSISTANT_ID;
+    return NextResponse.json({ assistantId, assistantOverrides });
   }
 
   // --- Mid-call tool dispatch -------------------------------------------------
@@ -75,7 +82,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     try {
       // Outbound injects tenantId+leadId in metadata; inbound resolves tenant by the dialed number.
       const tenantId =
-        msg.metadata.tenantId ?? (msg.toNumber ? ((await tenantByPhone(msg.toNumber))?.id ?? null) : null);
+        msg.metadata.tenantId ?? (await resolveInboundTenant(msg))?.id ?? null;
 
       // --- setCallDetails: capture address+zip, create/find the call's lead, assign rep, offer slots
       if (tc.name === "setCallDetails") {
@@ -181,9 +188,9 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // Inbound: no lead context — resolve tenant by the dialed number. The tool calls
     // may have already created+correlated the lead by call.id; find that before creating.
-    if (!leadId && msg.toNumber) {
+    if (!leadId && (msg.toNumber || msg.assistantId)) {
       try {
-        const t = await tenantByPhone(msg.toNumber);
+        const t = await resolveInboundTenant(msg);
         if (t) {
           tenantId = t.id;
           const existing = msg.callId ? await getLeadByVoiceCallId(t.id, msg.callId) : null;
@@ -232,9 +239,10 @@ export async function POST(req: Request): Promise<NextResponse> {
           // outbound stamps toPhone in metadata; inbound uses caller's number
           const to = msg.metadata.toPhone ?? msg.fromNumber;
           if (to) {
-            await (sms as SmsSender).sendSms({
+            const { sender, from } = await getTenantSms(tenantId);
+            await sender.sendSms({
               to,
-              from: smsFrom(),
+              from,
               body: `Sorry we missed you! Book your free roof inspection here: ${bookingUrl}`,
             });
           }

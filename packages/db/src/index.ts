@@ -52,4 +52,6 @@ export {
   disconnectTelephony, listManagedSetupRequests, resolveTelephonyCreds,
   type TwilioSecret, type TelephonyConnectionView, type ManagedSetupRequest,
   type ResolvedTwilioCreds, type TelephonyResolution,
+  upsertVapiConnection, getVapiConnection, getVapiSecret, resolveVoiceCreds, tenantByVapiAssistant,
+  type VapiSecret, type VapiConnectionView, type VoiceResolution,
 } from "./lifecycle/telephony";

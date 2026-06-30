@@ -12,5 +12,5 @@ export { ringcentralSms, makeRingCentralSms, parseRingCentralInboundSms, type In
 export { sms, selectSms, smsFrom } from "./comms";
 export { stormProof, httpStormProof, makeFakeStormProof, type StormProofGateway, type StormEvent, type PropertyData, type StormSummary } from "./stormproof";
 export { distance, httpDistance, makeFakeDistance, fakeDriveMinutes, type DistanceGateway, type LatLng } from "./distance";
-export { voice, httpVapi, makeFakeVoice, type VoiceGateway } from "./vapi";
+export { voice, httpVapi, makeFakeVoice, makeHttpVapi, verifyVapiCreds, type VoiceGateway, type VapiApiCreds } from "./vapi";
 export { httpForecastNws, makeFakeForecast, forecast, type ForecastGateway, type DailyForecast } from "./forecast";

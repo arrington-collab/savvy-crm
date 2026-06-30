@@ -4,7 +4,8 @@ import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate, tenant as tenantTbl,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
+import { getEmailSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -32,7 +33,7 @@ export async function draftMessage(
   return { body: renderTemplate(templateBody ?? "", vars), aiHandled: false };
 }
 
-export type SendDeps = { sms: SmsSender; email: EmailSender; ai?: Pick<typeof ai, "complete"> };
+export type SendDeps = { sms: SmsSender; from: string; email: EmailSender; ai?: Pick<typeof ai, "complete"> };
 
 function firstNameOf(name: string): string {
   return name.split(/\s+/)[0] ?? name;
@@ -87,7 +88,7 @@ export async function sendDripStep(
     if (step.channel === "sms") {
       // to is non-null here: the suppress guard returned when the address was missing.
       ({ sid: providerId } = await deps.sms.sendSms({
-        to: to!, from: smsFrom(), body: drafted.body,
+        to: to!, from: deps.from, body: drafted.body,
       }));
     } else {
       ({ id: providerId } = await deps.email.sendEmail({
@@ -178,9 +179,10 @@ export const dripRun = inngest.createFunction(
             return t?.body;
           });
         }
+        const { sender, from } = await getTenantSms(tenantId);
         return sendDripStep(
           { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId },
-          { sms, email: getEmailSender({ gmailConnectionId: setup.gmailConnectionId }) },
+          { sms: sender, from, email: getEmailSender({ gmailConnectionId: setup.gmailConnectionId }) },
         );
       });
     }

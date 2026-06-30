@@ -8,8 +8,11 @@ import {
   setTelephonyConnectionStatus,
   requestManagedTelephonySetup,
   disconnectTelephony,
+  upsertVapiConnection,
+  getVapiSecret,
+  getVapiConnection,
 } from "@savvy/db";
-import { verifyTwilioCreds } from "@savvy/integrations";
+import { verifyTwilioCreds, verifyVapiCreds } from "@savvy/integrations";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
 import { isOrgAdmin } from "./authz";
@@ -80,4 +83,50 @@ export async function requestManagedSetupAction(
   await requestManagedTelephonySetup(tenantId, "twilio", { requestedBy: userId, feeNote });
   revalidatePath(SETTINGS_PATH);
   return { ok: true };
+}
+
+export async function saveVapiConnectionAction(input: {
+  apiKey: string;
+  assistantId: string;
+  phoneNumberId: string;
+}): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!input.apiKey || !input.assistantId || !input.phoneNumberId) return { error: "missing_fields" };
+  const tenantId = await getTenantId();
+  await upsertVapiConnection(tenantId, {
+    secret: { apiKey: input.apiKey },
+    assistantId: input.assistantId,
+    phoneNumberId: input.phoneNumberId,
+  });
+  revalidatePath(SETTINGS_PATH);
+  return { ok: true };
+}
+
+export async function testVapiConnectionAction(): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  const tenantId = await getTenantId();
+  const secret = await getVapiSecret(tenantId);
+  const view = await getVapiConnection(tenantId);
+  if (!secret || !view?.assistantId || !view?.phoneNumberId) return { error: "no_connection" };
+  // The apiKey is read server-side and NEVER returned to the client.
+  const valid = await verifyVapiCreds({
+    apiKey: secret.apiKey,
+    assistantId: view.assistantId,
+    phoneNumberId: view.phoneNumberId,
+  });
+  await setTelephonyConnectionStatus(tenantId, "vapi", valid ? "active" : "pending", { verifiedNow: valid });
+  revalidatePath(SETTINGS_PATH);
+  return valid ? { ok: true } : { error: "verify_failed" };
+}
+
+export async function disconnectVapiAction(): Promise<{ ok: true } | { error: string }> {
+  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  try {
+    const tenantId = await getTenantId();
+    await disconnectTelephony(tenantId, "vapi");
+    revalidatePath(SETTINGS_PATH);
+    return { ok: true };
+  } catch {
+    return { error: "disconnect_failed" };
+  }
 }
