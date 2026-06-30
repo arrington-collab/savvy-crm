@@ -308,12 +308,6 @@ export type VoiceResolution =
   | { source: "inactive" };
 
 /**
- * Resolve Vapi creds for a tenant.
- * - platform mode → global env creds (VAPI_API_KEY / VAPI_ASSISTANT_ID / VAPI_PHONE_NUMBER_ID).
- * - byo + active connection → the tenant's own decrypted creds.
- * - byo + nothing active → inactive (caller must not place calls).
- */
-/**
  * Reverse lookup: the tenant id owning an ACTIVE vapi connection whose
  * assistantId matches. Cross-tenant (adminDb) because the tenant is unknown
  * at inbound time. Mirrors the metadata->>'' filter used elsewhere.
@@ -333,6 +327,12 @@ export async function tenantByVapiAssistant(assistantId: string): Promise<string
   return rows[0]?.tenantId ?? null;
 }
 
+/**
+ * Resolve Vapi creds for a tenant.
+ * - platform mode → global env creds (VAPI_API_KEY / VAPI_ASSISTANT_ID / VAPI_PHONE_NUMBER_ID).
+ * - byo + active connection → the tenant's own decrypted creds.
+ * - byo + nothing active → inactive (caller must not place calls).
+ */
 export async function resolveVoiceCreds(tenantId: string): Promise<VoiceResolution> {
   const mode = await getTelephonyMode(tenantId);
   if (mode === "platform") {
