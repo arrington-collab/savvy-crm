@@ -21,8 +21,7 @@ import {
   getLeadByVoiceCallId,
   setLeadVoiceCallId,
 } from "@savvy/db";
-import { inngest } from "@savvy/agents";
-import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
+import { inngest, getTenantSms } from "@savvy/agents";
 import { getRecommendedSlots, slotsForRep } from "@/lib/recommended-slots";
 import { tenantByPhone, createLeadForTenant } from "@/lib/intake";
 
@@ -232,9 +231,10 @@ export async function POST(req: Request): Promise<NextResponse> {
           // outbound stamps toPhone in metadata; inbound uses caller's number
           const to = msg.metadata.toPhone ?? msg.fromNumber;
           if (to) {
-            await (sms as SmsSender).sendSms({
+            const { sender, from } = await getTenantSms(tenantId);
+            await sender.sendSms({
               to,
-              from: smsFrom(),
+              from,
               body: `Sorry we missed you! Book your free roof inspection here: ${bookingUrl}`,
             });
           }

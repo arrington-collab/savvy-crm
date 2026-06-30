@@ -53,4 +53,5 @@ export { leadCadence } from "./functions/lead-cadence";
 export { voiceFallback } from "./functions/voice-fallback";
 export { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
 export { homeownerNotify } from "./functions/homeowner-notify";
+export { getTenantSms } from "./telephony";
 export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, weatherReschedule, homeownerNotify];
