@@ -10,6 +10,7 @@ import {
   STORM_CERT_STATUS,
   MATERIAL_ORDER_STATUS,
   CLAIM_STATUS,
+  TELEPHONY_PROVIDER, INTEGRATION_STATUS, TELEPHONY_MODE,
 } from "@savvy/core";
 
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
@@ -35,3 +36,6 @@ export const priceBookUnitEnum = pgEnum("price_book_unit", PRICE_BOOK_UNIT);
 export const stormCertStatusEnum = pgEnum("storm_cert_status", STORM_CERT_STATUS);
 export const materialOrderStatusEnum = pgEnum("material_order_status", MATERIAL_ORDER_STATUS);
 export const claimStatusEnum = pgEnum("claim_status", CLAIM_STATUS);
+export const telephonyProviderEnum = pgEnum("telephony_provider", TELEPHONY_PROVIDER);
+export const integrationStatusEnum = pgEnum("integration_status", INTEGRATION_STATUS);
+export const telephonyModeEnum = pgEnum("telephony_mode", TELEPHONY_MODE);

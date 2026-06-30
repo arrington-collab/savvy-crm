@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
-import { userRoleEnum } from "./enums";
+import { userRoleEnum, telephonyModeEnum } from "./enums";
 
 // Root of isolation. NOTE: tenant itself has no tenant_id; it is gated by
 // Clerk org lookup, not RLS. clerk_org_id/public_key/inbound_phone are
@@ -18,6 +18,7 @@ export const tenant = pgTable("tenant", {
   qboConnectionId: text("qbo_connection_id"),
   companycamConnectionId: text("companycam_connection_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
+  telephonyMode: telephonyModeEnum("telephony_mode").notNull().default("platform"),
   createdAt: createdAt(),
 });
 
