@@ -1,6 +1,7 @@
 import { adminDb, withTenant, lead, tenant, customer, property, user, eq, getAssignmentCandidates, setLeadOwner, recordAgentRun } from "@savvy/db";
 import { parseSpeedToLeadConfig, pickReassignee, buildRepAlertSms } from "@savvy/core";
-import { sms, smsFrom, type SmsSender } from "@savvy/integrations";
+import { smsFrom, type SmsSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
 // Open (non-terminal) lead statuses — a lost/won lead is never escalated or reassigned.
@@ -12,6 +13,7 @@ async function loadSla(tenantId: string): Promise<{ firstTouchSlaMin: number; es
 }
 
 export type RepAlertCtx = {
+  tenantId: string;
   source: string | null;
   ownerPhone: string | null;
   customerName: string | null;
@@ -20,14 +22,17 @@ export type RepAlertCtx = {
 };
 
 /** Best-effort: text the assigned rep a tap-to-call alert for a fresh non-call lead.
- *  Returns a reason string. Pure except for the injected SMS sender (defaults to the gateway). */
-export async function runRepAlert(ctx: RepAlertCtx, sender: SmsSender = sms): Promise<string> {
+ *  Returns a reason string. When no sender is injected, resolves per-tenant SMS creds.
+ *  Injected sender (for tests) skips tenant resolution entirely. */
+export async function runRepAlert(ctx: RepAlertCtx, sender?: SmsSender): Promise<string> {
   if (ctx.source === "inbound-call") return "skip-inbound";
   if (!ctx.ownerPhone) return "skip-no-rep-phone";
   if (!ctx.customerPhone) return "skip-no-lead-phone";
   const body = buildRepAlertSms({ name: ctx.customerName ?? "a new lead", city: ctx.city, leadPhone: ctx.customerPhone });
+  // Resolve once: injected sender uses platform from; default path resolves per-tenant creds.
+  const resolved = sender ? { sender, from: smsFrom() } : await getTenantSms(ctx.tenantId);
   try {
-    await sender.sendSms({ to: ctx.ownerPhone, from: smsFrom(), body });
+    await resolved.sender.sendSms({ to: ctx.ownerPhone, from: resolved.from, body });
     return "sent";
   } catch {
     return "send-failed";
@@ -62,7 +67,7 @@ export const leadSpeedToLead = inngest.createFunction(
           .leftJoin(customer, eq(lead.customerId, customer.id))
           .leftJoin(property, eq(lead.propertyId, property.id))
           .where(eq(lead.id, leadId));
-        return row ?? null;
+        return row ? { tenantId, ...row } : null;
       });
       const reason = ctx ? await runRepAlert(ctx) : "no-lead";
       await recordAgentRun({ tenantId, agent: "comms", taskKey: "lead.rep.alert", status: reason === "sent" ? "ok" : "skipped", error: reason === "sent" ? null : reason });

@@ -39,7 +39,7 @@ describe("sendDripStep", () => {
         step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
         templateBody: "Hi {{firstName}}!",
       },
-      { sms, email, ai: { complete: vi.fn() } as never },
+      { sms, from: "+15550000000", email, ai: { complete: vi.fn() } as never },
     );
     expect(sms.sendSms).toHaveBeenCalledOnce();
     const comms = await adminDb.select().from(communication).where(eq(communication.customerId, custId));
@@ -59,7 +59,7 @@ describe("sendDripStep", () => {
         step: { stepNum: 2, delayHours: 0, channel: "sms", templateKey: "welcome" },
         templateBody: "Hi again",
       },
-      { sms, email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
+      { sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
     );
     expect(sms.sendSms).not.toHaveBeenCalled();
     const comms = await adminDb.select().from(communication).where(eq(communication.customerId, custId));
@@ -78,7 +78,7 @@ describe("sendDripStep", () => {
         step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
         templateBody: "Hi {{firstName}}!",
       },
-      { sms, email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
+      { sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
     );
     expect(res.sent).toBe(false);
     expect(sms.sendSms).not.toHaveBeenCalled();

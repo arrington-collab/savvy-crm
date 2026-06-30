@@ -87,7 +87,7 @@ describe("runRepAlert", () => {
   it("texts the rep with a tel: link for a non-call lead with a rep phone", async () => {
     const s = fakeSender();
     const r = await runRepAlert(
-      { source: "web", ownerPhone: "+16025550001", customerName: "Dale Homeowner", customerPhone: "+16025550142", city: "Mesa" },
+      { tenantId: "t-test", source: "web", ownerPhone: "+16025550001", customerName: "Dale Homeowner", customerPhone: "+16025550142", city: "Mesa" },
       s as never,
     );
     expect(r).toBe("sent");
@@ -98,17 +98,17 @@ describe("runRepAlert", () => {
   });
   it("skips inbound-call leads", async () => {
     const s = fakeSender();
-    expect(await runRepAlert({ source: "inbound-call", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-inbound");
+    expect(await runRepAlert({ tenantId: "t-test", source: "inbound-call", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-inbound");
     expect(s.sendSms).not.toHaveBeenCalled();
   });
   it("skips when the rep has no phone", async () => {
     const s = fakeSender();
-    expect(await runRepAlert({ source: "web", ownerPhone: null, customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-no-rep-phone");
+    expect(await runRepAlert({ tenantId: "t-test", source: "web", ownerPhone: null, customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-no-rep-phone");
     expect(s.sendSms).not.toHaveBeenCalled();
   });
   it("skips when there is no customer phone to dial", async () => {
     const s = fakeSender();
-    expect(await runRepAlert({ source: "web", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: null, city: null }, s as never)).toBe("skip-no-lead-phone");
+    expect(await runRepAlert({ tenantId: "t-test", source: "web", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: null, city: null }, s as never)).toBe("skip-no-lead-phone");
     expect(s.sendSms).not.toHaveBeenCalled();
   });
 });
