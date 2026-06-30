@@ -6,6 +6,7 @@ export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } fr
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
 export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/contact";
+export { setCustomerEmail, type EmailSource } from "./lifecycle/customer";
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,

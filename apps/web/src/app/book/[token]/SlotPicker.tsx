@@ -13,6 +13,7 @@ export function SlotPicker({
 }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
   const [pending, start] = useTransition();
 
   if (done)
@@ -30,6 +31,19 @@ export function SlotPicker({
       {slots.length === 0 && (
         <p>No open times in the next two weeks. Please contact us.</p>
       )}
+      {slots.length > 0 && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted-foreground">Email (optional — for your confirmation)</span>
+          <input
+            type="email"
+            data-testid="booking-email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full rounded-md border px-3 py-2"
+          />
+        </label>
+      )}
       {slots.map((s) => (
         <Button
           key={s.startsAt}
@@ -38,7 +52,7 @@ export function SlotPicker({
           disabled={pending}
           onClick={() =>
             start(async () => {
-              const r = await confirmSlot(token, s.startsAt, s.endsAt);
+              const r = await confirmSlot(token, s.startsAt, s.endsAt, email);
               if ("ok" in r) setDone(true);
               else setError(r.error);
             })

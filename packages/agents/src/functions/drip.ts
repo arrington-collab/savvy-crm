@@ -64,11 +64,15 @@ export async function sendDripStep(
   const to = step.channel === "sms" ? c.phone : c.email;
   const optedOut = step.channel === "sms" ? c.smsOptOut : c.emailOptOut;
   // Suppress when opted out OR no address for the channel: log a note + advance, no send.
+  // Appended (data-broker) emails are transactional-only: never used for marketing
+  // drip. Booking/reminder emails are sent elsewhere and are unaffected.
   const suppressReason = optedOut
     ? `${step.channel} opt-out`
     : !to
       ? `no ${step.channel} address`
-      : null;
+      : step.channel === "email" && c.emailSource === "appended"
+        ? "appended email (transactional-only)"
+        : null;
   if (suppressReason) {
     await withTenant(tenantId, async (tx) => {
       await tx.insert(communication).values({

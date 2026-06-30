@@ -2,7 +2,7 @@
 import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
-  bookLeadSlot,
+  bookLeadSlot, setCustomerEmail,
 } from "@savvy/db";
 import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
@@ -33,7 +33,19 @@ export async function getSlotsForToken(token: string) {
   return { slots: slots.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() })) };
 }
 
-export async function confirmSlot(token: string, startsAt: string, endsAt: string) {
+// Homeowner-provided email at booking time = self_reported (marketing-usable).
+async function captureEmail(tenantId: string, customerId: string | undefined, email: string | undefined): Promise<void> {
+  if (!email || !customerId) return;
+  const trimmed = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return; // ignore obviously-bad input, don't fail the booking
+  try {
+    await setCustomerEmail(tenantId, { customerId, email: trimmed, source: "self_reported" });
+  } catch (e) {
+    console.error("capture booking email failed", e);
+  }
+}
+
+export async function confirmSlot(token: string, startsAt: string, endsAt: string, email?: string) {
   const p = verifyPayloadToken<TokenPayload>(token, SECRET());
   if (!p) return { error: "invalid" as const };
   try {
@@ -54,6 +66,8 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
         try {
           await inngest.send({ name: "appointment/booked", data: { appointmentId: r.appointmentId, tenantId: r.tenantId } });
         } catch (e) { console.error(e); }
+        const [l] = await adminDb.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, p.leadId));
+        await captureEmail(p.tenantId, l?.customerId ?? undefined, email);
         return { ok: true as const };
       }
       if (r.error === "slot_taken") return { error: "slot_taken" as const };
@@ -77,6 +91,7 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
     try {
       await inngest.send({ name: "appointment/booked", data: { appointmentId: appt.id, tenantId: p.tenantId } });
     } catch (e) { console.error(e); }
+    await captureEmail(p.tenantId, customerId, email);
     return { ok: true as const };
   } catch (e) {
     if (e instanceof SlotTakenError) return { error: "slot_taken" as const };
