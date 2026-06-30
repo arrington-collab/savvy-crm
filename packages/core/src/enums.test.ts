@@ -1,5 +1,5 @@
 import { describe, it, test, expect } from "vitest";
-import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD, COMMISSION_MODEL, COMMISSION_STATUS, ESTIMATE_SOURCE, ESTIMATE_STATUS, PRICE_BOOK_CATEGORY, PRICE_BOOK_UNIT, MEASUREMENT_FIELD } from "./enums";
+import { MESSAGE_CHANNEL, DRIP_STATUS, DRIP_STOP_REASON, AI_DRAFT_CAPABILITY, APPOINTMENT_TYPE, APPOINTMENT_STATUS, INVOICE_STATUS, PAYMENT_METHOD, COMMISSION_MODEL, COMMISSION_STATUS, ESTIMATE_SOURCE, ESTIMATE_STATUS, PRICE_BOOK_CATEGORY, PRICE_BOOK_UNIT, MEASUREMENT_FIELD, TELEPHONY_PROVIDER, INTEGRATION_STATUS, TELEPHONY_MODE } from "./enums";
 
 describe("phase 3 enums", () => {
   it("message channel is sms|email only (no call)", () => {
@@ -36,4 +36,17 @@ test("phase 7 enums", () => {
   expect(PRICE_BOOK_UNIT).toEqual(["square", "lf", "each", "flat"]);
   expect(MEASUREMENT_FIELD).toContain("squares");
   expect(MEASUREMENT_FIELD).toContain("ridgeLf");
+});
+
+describe("telephony enums", () => {
+  it("provider tuple is twilio/ringcentral/vapi", () => {
+    expect(TELEPHONY_PROVIDER).toEqual(["twilio", "ringcentral", "vapi"]);
+  });
+  it("status tuple covers lifecycle states", () => {
+    expect(INTEGRATION_STATUS).toEqual(["pending", "active", "disabled", "setup_requested"]);
+  });
+  it("mode tuple is platform/byo, default platform first", () => {
+    expect(TELEPHONY_MODE[0]).toBe("platform");
+    expect(TELEPHONY_MODE).toEqual(["platform", "byo"]);
+  });
 });
