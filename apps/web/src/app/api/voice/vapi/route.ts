@@ -20,6 +20,7 @@ import {
   withTenant,
   getLeadByVoiceCallId,
   setLeadVoiceCallId,
+  getVapiConnection,
 } from "@savvy/db";
 import { inngest, getTenantSms } from "@savvy/agents";
 import { getRecommendedSlots, slotsForRep } from "@/lib/recommended-slots";
@@ -62,8 +63,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (!t) return NextResponse.json({ error: "No assistant is configured for this number." });
     const tz = parseFinanceConfig((t.settings as { finance?: unknown } | null)?.finance).timezone;
     const assistantOverrides = buildInboundAssistant({ tenantName: t.name, tenantId: t.id, tz });
-    // assistantId is undefined when Vapi isn't fully configured (dev/test) -> JSON omits it.
-    return NextResponse.json({ assistantId: process.env.VAPI_ASSISTANT_ID, assistantOverrides });
+    // A BYO tenant answers with their OWN Vapi assistant (the call rides their account);
+    // platform tenants fall back to the shared env assistant. assistantId reads non-secret
+    // connection metadata (no decrypt). undefined in dev/test -> JSON omits it.
+    const vapiConn = await getVapiConnection(t.id);
+    const assistantId =
+      vapiConn?.status === "active" && vapiConn.assistantId
+        ? vapiConn.assistantId
+        : process.env.VAPI_ASSISTANT_ID;
+    return NextResponse.json({ assistantId, assistantOverrides });
   }
 
   // --- Mid-call tool dispatch -------------------------------------------------

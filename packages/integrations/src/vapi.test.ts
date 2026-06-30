@@ -36,13 +36,22 @@ describe("vapi factory", () => {
     expect(r).toEqual({ callId: "call_1" });
   });
 
-  it("verifyVapiCreds returns true on 200", async () => {
-    const fakeFetch = (async (url: string) => { expect(url).toContain("/assistant/asst_1"); return new Response("{}", { status: 200 }); }) as unknown as typeof fetch;
-    expect(await verifyVapiCreds({ apiKey: "k", assistantId: "asst_1" }, fakeFetch)).toBe(true);
+  it("verifyVapiCreds returns true when BOTH the assistant and the phone-number resolve", async () => {
+    const seen: string[] = [];
+    const fakeFetch = (async (url: string) => { seen.push(url); return new Response("{}", { status: 200 }); }) as unknown as typeof fetch;
+    expect(await verifyVapiCreds({ apiKey: "k", assistantId: "asst_1", phoneNumberId: "pn_1" }, fakeFetch)).toBe(true);
+    expect(seen.some((u) => u.includes("/assistant/asst_1"))).toBe(true);
+    expect(seen.some((u) => u.includes("/phone-number/pn_1"))).toBe(true);
   });
 
-  it("verifyVapiCreds returns false on 401", async () => {
+  it("verifyVapiCreds returns false when the phone-number id is invalid (even if the assistant is valid)", async () => {
+    const fakeFetch = (async (url: string) =>
+      new Response("{}", { status: url.includes("/phone-number/") ? 404 : 200 })) as unknown as typeof fetch;
+    expect(await verifyVapiCreds({ apiKey: "k", assistantId: "asst_1", phoneNumberId: "pn_bad" }, fakeFetch)).toBe(false);
+  });
+
+  it("verifyVapiCreds returns false on assistant 401", async () => {
     const fakeFetch = (async () => new Response("no", { status: 401 })) as unknown as typeof fetch;
-    expect(await verifyVapiCreds({ apiKey: "bad", assistantId: "asst_1" }, fakeFetch)).toBe(false);
+    expect(await verifyVapiCreds({ apiKey: "bad", assistantId: "asst_1", phoneNumberId: "pn_1" }, fakeFetch)).toBe(false);
   });
 });

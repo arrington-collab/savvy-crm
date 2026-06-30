@@ -71,16 +71,23 @@ export function makeHttpVapi(creds: VapiApiCreds, fetchImpl: typeof fetch = fetc
   };
 }
 
-/** Cheap auth check: GET the assistant resource. 2xx ⇒ creds valid. */
+/**
+ * Cheap auth check: GET BOTH the assistant and the phone-number resources.
+ * Both 2xx ⇒ creds valid. Checking the phone-number id here (not just the
+ * assistant) means Test-connection catches a wrong phoneNumberId now, instead
+ * of it silently failing at the first outbound dial.
+ */
 export async function verifyVapiCreds(
-  creds: { apiKey: string; assistantId: string },
+  creds: { apiKey: string; assistantId: string; phoneNumberId: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<boolean> {
   try {
-    const res = await fetchImpl(`${VAPI_BASE}/assistant/${creds.assistantId}`, {
-      headers: { authorization: `Bearer ${creds.apiKey}` },
-    });
-    return res.ok;
+    const headers = { authorization: `Bearer ${creds.apiKey}` };
+    const [assistant, phoneNumber] = await Promise.all([
+      fetchImpl(`${VAPI_BASE}/assistant/${creds.assistantId}`, { headers }),
+      fetchImpl(`${VAPI_BASE}/phone-number/${creds.phoneNumberId}`, { headers }),
+    ]);
+    return assistant.ok && phoneNumber.ok;
   } catch {
     return false;
   }

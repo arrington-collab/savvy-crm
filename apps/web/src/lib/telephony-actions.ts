@@ -107,9 +107,13 @@ export async function testVapiConnectionAction(): Promise<{ ok: true } | { error
   const tenantId = await getTenantId();
   const secret = await getVapiSecret(tenantId);
   const view = await getVapiConnection(tenantId);
-  if (!secret || !view?.assistantId) return { error: "no_connection" };
+  if (!secret || !view?.assistantId || !view?.phoneNumberId) return { error: "no_connection" };
   // The apiKey is read server-side and NEVER returned to the client.
-  const valid = await verifyVapiCreds({ apiKey: secret.apiKey, assistantId: view.assistantId });
+  const valid = await verifyVapiCreds({
+    apiKey: secret.apiKey,
+    assistantId: view.assistantId,
+    phoneNumberId: view.phoneNumberId,
+  });
   await setTelephonyConnectionStatus(tenantId, "vapi", valid ? "active" : "pending", { verifiedNow: valid });
   revalidatePath(SETTINGS_PATH);
   return valid ? { ok: true } : { error: "verify_failed" };
