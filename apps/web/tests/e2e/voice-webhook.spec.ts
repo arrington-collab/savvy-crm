@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { withTenant, adminDb, user, tenant, appointment, lead, eq, and } from "@savvy/db";
+import { withTenant, adminDb, user, tenant, appointment, lead, integrationConnection, eq, and } from "@savvy/db";
 
 // The webhook is in middleware PUBLIC, so Clerk does not intercept it.
 // VAPI_WEBHOOK_SECRET is set to "test-vapi-secret" in playwright.config.ts webServer.env.
@@ -68,6 +68,71 @@ test("inbound assistant-request returns a tenant-branded live-booking assistant"
 const { id: tenantId } = JSON.parse(
   readFileSync("/tmp/savvy-e2e-tenant.json", "utf8"),
 ) as { id: string };
+
+test("inbound assistant-request resolves tenant by BYO Vapi assistantId", async ({ request }) => {
+  // Use a random assistantId to avoid shared-DB collisions across parallel runs.
+  const byoAssistantId = `asst_byo_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+  // Seed an active Vapi integration_connection row directly (no encryption needed
+  // for this test — tenantByVapiAssistant only reads metadata.assistantId + status).
+  // Secret fields use placeholder values; the test never decrypts them.
+  await adminDb
+    .insert(integrationConnection)
+    .values({
+      tenantId,
+      provider: "vapi",
+      status: "active",
+      secretCiphertext: "test-cipher",
+      secretIv: "test-iv",
+      secretTag: "test-tag",
+      keyVersion: 1,
+      metadata: { assistantId: byoAssistantId, phoneNumberId: "pn_byo_test" },
+    })
+    .onConflictDoUpdate({
+      target: [integrationConnection.tenantId, integrationConnection.provider],
+      set: { status: "active", metadata: { assistantId: byoAssistantId, phoneNumberId: "pn_byo_test" }, updatedAt: new Date() },
+    });
+
+  const [{ name: tenantName }] = await adminDb
+    .select({ name: tenant.name })
+    .from(tenant)
+    .where(eq(tenant.id, tenantId));
+
+  try {
+    // POST an assistant-request carrying the BYO assistant id — no phoneNumber field
+    // so the existing tenantByPhone fallback cannot fire; resolution must use assistantId.
+    const res = await request.post("/api/voice/vapi", {
+      headers: { "x-vapi-secret": SECRET },
+      data: {
+        message: {
+          type: "assistant-request",
+          call: { id: `call_byo_${Date.now()}`, metadata: {} },
+          assistant: { id: byoAssistantId },
+          customer: { number: "+14805550123" },
+        },
+      },
+    });
+    expect(res.status()).toBe(200);
+    const json = (await res.json()) as {
+      assistantOverrides?: {
+        firstMessage?: string;
+        model?: { tools?: { function: { name: string } }[]; messages?: { content: string }[] };
+      };
+    };
+    const ov = json.assistantOverrides!;
+    // The branded assistant for THIS tenant must be returned.
+    expect(ov.firstMessage).toContain(tenantName);
+    const toolNames = ov.model!.tools!.map((t) => t.function.name);
+    expect(toolNames).toContain("setCallDetails");
+    expect(toolNames).toContain("bookSlot");
+    expect(ov.model!.messages![0]!.content).toMatch(/spell/i);
+  } finally {
+    // Clean up: remove the seeded vapi connection so subsequent test runs can re-insert.
+    await adminDb
+      .delete(integrationConnection)
+      .where(and(eq(integrationConnection.tenantId, tenantId), eq(integrationConnection.provider, "vapi")));
+  }
+});
 
 // Booking emits async inngest events; rows appear after the route returns.
 async function waitFor<T>(fn: () => Promise<T | undefined>, ms = 30_000): Promise<T> {

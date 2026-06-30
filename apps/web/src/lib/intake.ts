@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or, sql } from "@savvy/db";
+import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or, sql, tenantByVapiAssistant } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { parseCityFromAddress, normalizeAddress } from "@savvy/core";
 import type { LeadIntakeInput } from "@savvy/core";
@@ -11,6 +11,20 @@ export async function tenantByKey(key: string) {
 export async function tenantByPhone(phone: string) {
   const [t] = await adminDb.select().from(tenant).where(eq(tenant.inboundPhone, phone));
   return t ?? null;
+}
+
+export async function tenantById(id: string) {
+  const [t] = await adminDb.select().from(tenant).where(eq(tenant.id, id));
+  return t ?? null;
+}
+
+/** Inbound tenant resolution: BYO Vapi assistant first, else dialed-number. */
+export async function resolveInboundTenant(msg: { assistantId: string | null; toNumber: string | null }) {
+  if (msg.assistantId) {
+    const tid = await tenantByVapiAssistant(msg.assistantId);
+    if (tid) return tenantById(tid);
+  }
+  return msg.toNumber ? tenantByPhone(msg.toNumber) : null;
 }
 
 /**
