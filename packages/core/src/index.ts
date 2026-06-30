@@ -26,6 +26,7 @@ export * from "./address";
 export * from "./phone";
 export * from "./schedule-view";
 export * from "./secrets";
+export * from "./secret-box";
 export * from "./rate-limit-key";
 export * from "./log-format";
 export * from "./onboarding";
