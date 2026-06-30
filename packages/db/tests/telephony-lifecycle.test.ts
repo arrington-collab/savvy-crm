@@ -7,7 +7,7 @@ import {
   getTelephonyMode, setTelephonyMode,
   upsertTwilioConnection, getTelephonyConnection, getTwilioSecret,
   setTelephonyConnectionStatus, requestManagedTelephonySetup, disconnectTelephony,
-  listManagedSetupRequests,
+  listManagedSetupRequests, resolveTelephonyCreds,
 } from "../src/lifecycle/telephony.js";
 
 let tid: string;
@@ -67,5 +67,34 @@ describe("telephony lifecycle", () => {
   it("disconnects", async () => {
     await disconnectTelephony(tid, "twilio");
     expect((await getTelephonyConnection(tid, "twilio"))!.status).toBe("disabled");
+  });
+});
+
+describe("resolveTelephonyCreds", () => {
+  it("platform mode returns env creds", async () => {
+    process.env.TWILIO_ACCOUNT_SID = "AC_env";
+    process.env.TWILIO_AUTH_TOKEN = "tok_env";
+    process.env.TWILIO_FROM = "+14800000000";
+    await setTelephonyMode(tid, "platform");
+    expect(await resolveTelephonyCreds(tid)).toEqual({
+      source: "platform",
+      twilio: { accountSid: "AC_env", authToken: "tok_env", from: "+14800000000" },
+    });
+  });
+
+  it("byo mode with active connection returns tenant creds", async () => {
+    await upsertTwilioConnection(tid, { secret: { accountSid: "AC_byo", authToken: "tok_byo" }, fromNumber: "+14801112222" });
+    await setTelephonyConnectionStatus(tid, "twilio", "active");
+    await setTelephonyMode(tid, "byo");
+    expect(await resolveTelephonyCreds(tid)).toEqual({
+      source: "tenant",
+      twilio: { accountSid: "AC_byo", authToken: "tok_byo", from: "+14801112222" },
+    });
+  });
+
+  it("byo mode without an active connection is inactive", async () => {
+    await setTelephonyConnectionStatus(tid, "twilio", "disabled");
+    await setTelephonyMode(tid, "byo");
+    expect(await resolveTelephonyCreds(tid)).toEqual({ source: "inactive" });
   });
 });

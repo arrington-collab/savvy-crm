@@ -154,6 +154,44 @@ export async function requestManagedTelephonySetup(
   });
 }
 
+export interface ResolvedTwilioCreds {
+  accountSid: string;
+  authToken: string;
+  from: string;
+}
+
+export type TelephonyResolution =
+  | { source: "platform" | "tenant"; twilio: ResolvedTwilioCreds }
+  | { source: "inactive" };
+
+/**
+ * Resolve Twilio creds for a tenant.
+ * - platform mode → global env creds (today's behavior).
+ * - byo + active connection → the tenant's own decrypted creds.
+ * - byo + nothing active → inactive (caller must not send).
+ */
+export async function resolveTelephonyCreds(tenantId: string): Promise<TelephonyResolution> {
+  const mode = await getTelephonyMode(tenantId);
+  if (mode === "platform") {
+    return {
+      source: "platform",
+      twilio: {
+        accountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
+        authToken: process.env.TWILIO_AUTH_TOKEN ?? "",
+        from: process.env.TWILIO_FROM ?? "+15555550000",
+      },
+    };
+  }
+  const view = await getTelephonyConnection(tenantId, "twilio");
+  if (!view || view.status !== "active") return { source: "inactive" };
+  const secret = await getTwilioSecret(tenantId);
+  if (!secret) return { source: "inactive" };
+  return {
+    source: "tenant",
+    twilio: { accountSid: secret.accountSid, authToken: secret.authToken, from: view.fromNumber ?? "" },
+  };
+}
+
 export async function disconnectTelephony(tenantId: string, provider: "twilio"): Promise<void> {
   await setTelephonyConnectionStatus(tenantId, provider, "disabled");
 }

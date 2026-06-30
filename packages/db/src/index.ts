@@ -49,6 +49,7 @@ export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setC
 export {
   getTelephonyMode, setTelephonyMode, upsertTwilioConnection, getTelephonyConnection,
   getTwilioSecret, setTelephonyConnectionStatus, requestManagedTelephonySetup,
-  disconnectTelephony, listManagedSetupRequests,
+  disconnectTelephony, listManagedSetupRequests, resolveTelephonyCreds,
   type TwilioSecret, type TelephonyConnectionView, type ManagedSetupRequest,
+  type ResolvedTwilioCreds, type TelephonyResolution,
 } from "./lifecycle/telephony";
