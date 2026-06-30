@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { formatSlotLabel } from "@savvy/core";
 import { confirmSlot } from "@/lib/booking-action";
 import { Button } from "@/components/ui/button";
 
@@ -43,7 +44,7 @@ export function SlotPicker({
             })
           }
         >
-          {new Date(s.startsAt).toLocaleString()}
+          {formatSlotLabel(new Date(s.startsAt), new Date())}
         </Button>
       ))}
     </div>
