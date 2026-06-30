@@ -17,6 +17,12 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
 
   const events = await listStageEventsToNotify(tenantId, { stages: cfg.notifyStages, sinceMs: LOOKBACK_MS, now });
   let sent = 0;
+  let smsSender: Awaited<ReturnType<typeof getTenantSms>> | null = null;
+  try {
+    smsSender = await getTenantSms(tenantId);
+  } catch {
+    // fail-soft: no SMS credentials available
+  }
   for (const ev of events) {
     const copy = homeownerStageCopy(ev.toStage);
     const link = `${base}/status/${signPayloadToken({ tenantId, jobId: ev.jobId }, secret)}`;
@@ -24,7 +30,7 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     // SMS — send is fail-soft (no creds in dev/test); the communication row records the
     // intent-to-send regardless, matching appointment-reminders. jobId links it to the job timeline.
     if (ev.phone && !ev.smsOptOut) {
-      try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: ev.phone, from, body }); } catch { /* fail-soft */ }
+      try { if (smsSender) { const { sender, from } = smsSender; await sender.sendSms({ to: ev.phone, from, body }); } } catch { /* fail-soft */ }
       await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
     }
     // Email
