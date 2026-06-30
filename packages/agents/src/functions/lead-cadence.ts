@@ -1,6 +1,7 @@
 import { adminDb, withTenant, lead, customer, tenant, communication, eq } from "@savvy/db";
 import { parseLeadCadenceConfig, parseFinanceConfig, shouldSendChannel, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
-import { sms, smsFrom, getEmailSender, type SmsSender } from "@savvy/integrations";
+import { getEmailSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { buildAckSms, buildAckEmail } from "./lead-intake";
 import { inngest } from "../client";
 
@@ -75,7 +76,10 @@ export const leadCadence = inngest.createFunction(
         const vars = { name: ctx.name ?? "there", bookingUrl };
         if (touch.channel === "sms") {
           let sid = "mock";
-          try { ({ sid } = await (sms as SmsSender).sendSms({ to: ctx.phone!, from: smsFrom(), body: buildAckSms(vars) })); } catch { /* dev */ }
+          try {
+            const { sender, from } = await getTenantSms(tenantId);
+            ({ sid } = await sender.sendSms({ to: ctx.phone!, from, body: buildAckSms(vars) }));
+          } catch { /* dev */ }
           await withTenant(tenantId, (tx) => tx.insert(communication).values({
             tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
           }));

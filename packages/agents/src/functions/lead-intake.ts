@@ -5,8 +5,9 @@ import {
   tenant as tenantTbl,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { sms, smsFrom, type SmsSender, stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng, getEmailSender } from "@savvy/integrations";
+import { stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng, getEmailSender } from "@savvy/integrations";
 import { inngest } from "../client";
+import { getTenantSms } from "../telephony";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
 
@@ -297,7 +298,10 @@ export const leadIntake = inngest.createFunction(
       // SMS ack (transactional — quiet-hours EXEMPT), gated by consent + opt-out.
       if (ctx.phone && shouldSendChannel("sms", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {
         let sid = "mock";
-        try { ({ sid } = await (sms as SmsSender).sendSms({ to: ctx.phone, from: smsFrom(), body: buildAckSms(vars) })); } catch { /* dev: no creds */ }
+        try {
+          const { sender, from } = await getTenantSms(tenantId);
+          ({ sid } = await sender.sendSms({ to: ctx.phone, from, body: buildAckSms(vars) }));
+        } catch { /* dev: no creds */ }
         await withTenant(tenantId, (tx) => tx.insert(communication).values({
           tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
         }));

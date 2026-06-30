@@ -15,7 +15,8 @@ import {
   communication,
   agentRun,
 } from "@savvy/db";
-import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
+import { getEmailSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
 /**
@@ -145,11 +146,8 @@ export const dunningRun = inngest.createFunction(
             commBody = body;
             let sid = "mock";
             try {
-              ({ sid } = await sms.sendSms({
-                to: phase1.phone,
-                from: smsFrom(),
-                body,
-              }));
+              const { sender, from } = await getTenantSms(tenantId);
+              ({ sid } = await sender.sendSms({ to: phase1.phone, from, body }));
             } catch {
               // No creds in dev/test — still log the comm with a mock sid (fail-soft).
             }

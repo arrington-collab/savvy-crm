@@ -1,6 +1,7 @@
 import { adminDb, withTenant, tenant, communication, listStageEventsToNotify, markStageEventNotified, eq } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret } from "@savvy/core";
-import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
+import { getEmailSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
 const LOOKBACK_MS = 2 * 3_600_000;
@@ -23,7 +24,7 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     // SMS — send is fail-soft (no creds in dev/test); the communication row records the
     // intent-to-send regardless, matching appointment-reminders. jobId links it to the job timeline.
     if (ev.phone && !ev.smsOptOut) {
-      try { await sms.sendSms({ to: ev.phone, from: smsFrom(), body }); } catch { /* fail-soft */ }
+      try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: ev.phone, from, body }); } catch { /* fail-soft */ }
       await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
     }
     // Email

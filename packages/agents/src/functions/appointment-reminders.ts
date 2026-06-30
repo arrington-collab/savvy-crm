@@ -1,6 +1,7 @@
 import { withTenant, eq, appointment, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseSchedulingConfig, signPayloadToken, requireSecret, parseEmailConfig } from "@savvy/core";
-import { sms, smsFrom, getEmailSender } from "@savvy/integrations";
+import { getEmailSender } from "@savvy/integrations";
+import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
 export function buildReminderMessage(
@@ -73,7 +74,8 @@ export const appointmentReminders = inngest.createFunction(
         if (!to) return { sent: false };
         try {
           if (r.channel === "sms") {
-            await sms.sendSms({ to, from: smsFrom(), body });
+            const { sender, from } = await getTenantSms(tenantId);
+            await sender.sendSms({ to, from, body });
           } else {
             await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({
               to,
