@@ -50,11 +50,11 @@ function firstNameOf(name: string): string {
 export async function sendDripStep(
   input: {
     tenantId: string; enrollmentId: string; customerId: string;
-    step: DripStep; templateBody?: string; jobId?: string;
+    step: DripStep; templateBody?: string; jobId?: string; leadId?: string;
   },
   deps: SendDeps,
 ): Promise<{ sent: boolean }> {
-  const { tenantId, enrollmentId, customerId, step, templateBody, jobId } = input;
+  const { tenantId, enrollmentId, customerId, step, templateBody, jobId, leadId } = input;
 
   const c = await withTenant(tenantId, async (tx) => {
     const [row] = await tx.select().from(customer).where(eq(customer.id, customerId));
@@ -107,7 +107,7 @@ export async function sendDripStep(
       twilioSid: step.channel === "sms" ? providerId : null, aiHandled: drafted.aiHandled,
     });
     await tx.insert(agentRun).values({
-      tenantId, agent: "comms", jobId: jobId ?? null, status: "ok", modelUsed: drafted.model ?? null,
+      tenantId, agent: "comms", jobId: jobId ?? null, leadId: leadId ?? null, status: "ok", modelUsed: drafted.model ?? null,
     });
     await tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId));
   });
@@ -181,7 +181,7 @@ export const dripRun = inngest.createFunction(
         }
         const { sender, from } = await getTenantSms(tenantId);
         return sendDripStep(
-          { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId },
+          { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId, leadId },
           { sms: sender, from, email: getEmailSender({ gmailConnectionId: setup.gmailConnectionId }) },
         );
       });

@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, agentRun, job, customer, desc, eq, gte } from "@savvy/db";
+import { withTenant, agentRun, gte, listAgentActivity, type AgentActivityRow } from "@savvy/db";
 import type { AgentRunLite } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -17,36 +17,15 @@ export async function getAgentRunWindow(tenantId: string, days: number): Promise
   );
 }
 
-export type ActivityRow = {
-  id: string;
-  agent: string;
-  taskKey: string | null;
-  status: string;
-  modelUsed: string | null;
-  startedAt: Date;
-  target: string | null;
-  error: string | null;
-};
+export type ActivityRow = AgentActivityRow;
 
-/** Detailed feed: newest runs joined to the customer name (via job) for a readable target. */
+/**
+ * Detailed feed: newest runs with the customer name resolved via job OR lead.
+ * The join lives in @savvy/db (listAgentActivity) so it's integration-tested
+ * against Postgres; this is a thin tenant-scoped delegate.
+ */
 export async function getAgentActivity(tenantId: string, limit: number): Promise<ActivityRow[]> {
-  return withTenant(tenantId, (tx) =>
-    tx.select({
-      id: agentRun.id,
-      agent: agentRun.agent,
-      taskKey: agentRun.taskKey,
-      status: agentRun.status,
-      modelUsed: agentRun.modelUsed,
-      startedAt: agentRun.startedAt,
-      target: customer.name,
-      error: agentRun.error,
-    })
-      .from(agentRun)
-      .leftJoin(job, eq(job.id, agentRun.jobId))
-      .leftJoin(customer, eq(customer.id, job.customerId))
-      .orderBy(desc(agentRun.startedAt))
-      .limit(limit),
-  );
+  return listAgentActivity(tenantId, limit);
 }
 
 // Page-facing wrappers (resolve the active tenant from Clerk/TEST_MODE).

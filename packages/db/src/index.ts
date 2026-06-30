@@ -30,7 +30,7 @@ export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/estimate";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
-export { recordAgentRun, type AgentRunStatus } from "./lifecycle/agent-run";
+export { recordAgentRun, listAgentActivity, type AgentRunStatus, type AgentActivityRow } from "./lifecycle/agent-run";
 export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";

@@ -8,7 +8,7 @@
  * collisions across re-runs against the persistent dev DB.
  */
 import { adminDb } from "../src/admin-client.js";
-import { tenant, user, customer, property, job } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, lead } from "../src/schema/index.js";
 
 export async function makeTenant(): Promise<{ tenantId: string }> {
   const [t] = await adminDb
@@ -41,6 +41,22 @@ export async function makeJobWithCustomer(tenantId: string): Promise<{ jobId: st
     .values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead" })
     .returning();
   return { jobId: j!.id, customerId: c!.id };
+}
+
+export async function makeLeadWithCustomer(tenantId: string): Promise<{ leadId: string; customerId: string }> {
+  const [c] = await adminDb
+    .insert(customer)
+    .values({ tenantId, name: "Test Customer" })
+    .returning();
+  const [p] = await adminDb
+    .insert(property)
+    .values({ tenantId, customerId: c!.id, address: "1 Test St" })
+    .returning();
+  const [l] = await adminDb
+    .insert(lead)
+    .values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "test" })
+    .returning();
+  return { leadId: l!.id, customerId: c!.id };
 }
 
 export async function makeJobWithProperty(tenantId: string): Promise<{ jobId: string; customerId: string; propertyId: string }> {
