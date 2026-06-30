@@ -11,19 +11,29 @@ import {
   testTwilioConnectionAction,
   disconnectTelephonyAction,
   requestManagedSetupAction,
+  saveVapiConnectionAction,
+  testVapiConnectionAction,
+  disconnectVapiAction,
 } from "@/lib/telephony-actions";
 
 interface Props {
   mode: "platform" | "byo";
   status: "pending" | "active" | "disabled" | "setup_requested" | null;
   fromNumber: string | null;
+  vapiStatus: "pending" | "active" | "disabled" | "setup_requested" | null;
+  vapiAssistantId: string | null;
+  vapiPhoneNumberId: string | null;
 }
 
-export function TelephonyCard({ mode, status, fromNumber }: Props) {
+export function TelephonyCard({ mode, status, fromNumber, vapiStatus, vapiAssistantId, vapiPhoneNumberId }: Props) {
   const [pending, start] = useTransition();
   const [accountSid, setAccountSid] = useState("");
   const [authToken, setAuthToken] = useState("");
   const [from, setFrom] = useState(fromNumber ?? "");
+  // Vapi fields — apiKey always starts empty (never pre-filled from a secret)
+  const [vapiApiKey, setVapiApiKey] = useState("");
+  const [vapiAssistant, setVapiAssistant] = useState(vapiAssistantId ?? "");
+  const [vapiPhoneNumber, setVapiPhoneNumber] = useState(vapiPhoneNumberId ?? "");
 
   function run(fn: () => Promise<{ ok: true } | { error: string }>, okMsg: string) {
     start(async () => {
@@ -117,6 +127,68 @@ export function TelephonyCard({ mode, status, fromNumber }: Props) {
             >
               Have Savvy set this up
             </Button>
+          </div>
+
+          <div className="mt-4 space-y-3 border-t pt-4">
+            <p className="text-sm font-medium">Vapi (AI voice)</p>
+            <div className="text-sm">
+              Status:{" "}
+              <span className={vapiStatus === "active" ? "text-green-600" : "text-muted-foreground"}>
+                {vapiStatus === "active"
+                  ? `Connected ✓ (${vapiAssistant || "no assistant"})`
+                  : (vapiStatus ?? "not connected")}
+              </span>
+            </div>
+
+            <Input
+              placeholder="API Key"
+              type="password"
+              value={vapiApiKey}
+              onChange={(e) => setVapiApiKey(e.target.value)}
+            />
+            <Input
+              placeholder="Assistant ID"
+              value={vapiAssistant}
+              onChange={(e) => setVapiAssistant(e.target.value)}
+            />
+            <Input
+              placeholder="Phone Number ID"
+              value={vapiPhoneNumber}
+              onChange={(e) => setVapiPhoneNumber(e.target.value)}
+            />
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={pending}
+                onClick={() =>
+                  run(
+                    () =>
+                      saveVapiConnectionAction({
+                        apiKey: vapiApiKey,
+                        assistantId: vapiAssistant,
+                        phoneNumberId: vapiPhoneNumber,
+                      }),
+                    "Vapi credentials saved",
+                  )
+                }
+              >
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => run(() => testVapiConnectionAction(), "Vapi connection verified")}
+              >
+                Test connection
+              </Button>
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => run(() => disconnectVapiAction(), "Vapi disconnected")}
+              >
+                Disconnect
+              </Button>
+            </div>
           </div>
         </div>
       )}
