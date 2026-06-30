@@ -31,6 +31,16 @@ export { createEstimateFromMeasurement, setEstimateStatus } from "./lifecycle/es
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
 export { recordAgentRun, listAgentActivity, type AgentRunStatus, type AgentActivityRow } from "./lifecycle/agent-run";
+export {
+  recordEnrichmentAttempt,
+  findPropertiesNeedingGeocode,
+  findPropertiesNeedingStormproof,
+  findLeadIdForProperty,
+  MAX_ENRICH_ATTEMPTS,
+  ENRICH_BACKOFF_MS,
+  type EnrichmentStatus,
+  type PropertyDue,
+} from "./lifecycle/enrichment";
 export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";

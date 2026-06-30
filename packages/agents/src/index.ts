@@ -15,6 +15,7 @@ import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 import { createMaterialOrderOnAccepted } from "./functions/material-order";
 import { meterUsageMonthly } from "./functions/meter-usage";
 import { coldArchiveDocuments } from "./functions/cold-archive";
+import { enrichmentSweep } from "./functions/enrichment-sweep";
 import { weatherReschedule } from "./functions/weather-reschedule";
 import { changeOrderAccepted } from "./functions/change-order";
 import { stormCertOnLead, stormCertOnLeadFailure } from "./functions/storm-cert";
@@ -43,6 +44,8 @@ export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 export { createMaterialOrderOnAccepted } from "./functions/material-order";
 export { meterUsageMonthly } from "./functions/meter-usage";
 export { coldArchiveDocuments } from "./functions/cold-archive";
+export { enrichmentSweep } from "./functions/enrichment-sweep";
+export { sweepTenant, makeGeocodeEnricher, makeStormproofEnricher, ENRICHERS, type Enricher } from "./enrichment";
 export { weatherReschedule } from "./functions/weather-reschedule";
 export { changeOrderAccepted } from "./functions/change-order";
 export { draftChangeOrderScope } from "./functions/change-order-draft";
@@ -54,4 +57,4 @@ export { voiceFallback } from "./functions/voice-fallback";
 export { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
 export { homeownerNotify } from "./functions/homeowner-notify";
 export { getTenantSms } from "./telephony";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, weatherReschedule, homeownerNotify];
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, weatherReschedule, homeownerNotify];
