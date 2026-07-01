@@ -8,7 +8,7 @@ const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "
 test("exceptions queue lists at-risk job, overdue invoice, missed appt, overdue task", async ({ page }) => {
   const stamp = randomUUID().slice(0, 8);
   const [cust] = await adminDb.insert(customer).values({ tenantId, name: `Exc ${stamp}`, email: `exc-${stamp}@e2e.test` }).returning();
-  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} Exc Way` }).returning();
+  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} Exc Way`, roofType: "asphalt_shingle" }).returning();
   // Stuck job: in production well past the 14d threshold.
   const longAgo = new Date(Date.now() - 30 * 86_400_000);
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: cust!.id, propertyId: prop!.id, type: "retail", stage: "production", stageEnteredAt: longAgo }).returning();

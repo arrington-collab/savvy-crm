@@ -15,7 +15,7 @@ test("a weather-flagged crew appt appears as a Weather risk exception", async ({
   const stamp = randomUUID().slice(0, 8);
   const name = `Rain Ray ${stamp}`;
   const [c] = await adminDb.insert(customer).values({ tenantId, name, email: `rain-${stamp}@e2e.test` }).returning();
-  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Rain Rd`, lat: 33.4, lng: -112.0 }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Rain Rd`, lat: 33.4, lng: -112.0, roofType: "asphalt_shingle" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
   const startsAt = new Date(Date.now() + 2 * 86_400_000);
   await adminDb.insert(appointment).values({

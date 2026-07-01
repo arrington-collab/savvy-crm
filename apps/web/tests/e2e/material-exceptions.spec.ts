@@ -29,7 +29,7 @@ const MAT_LINE_ITEMS = [
 async function seedJob(stamp: string, label: string): Promise<{ jobId: string; estimateId: string; name: string }> {
   const name = `${label} ${stamp}`;
   const [cust] = await adminDb.insert(customer).values({ tenantId, name, email: `${label}-${stamp}@e2e.test` }).returning();
-  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} ${label} Way` }).returning();
+  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} ${label} Way`, roofType: "asphalt_shingle" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: cust!.id, propertyId: prop!.id, type: "retail", stage: "production" }).returning();
   const [est] = await adminDb.insert(estimate).values({ tenantId, jobId: j!.id, status: "accepted", lineItems: EST_LINE_ITEMS, total: 360000, acceptedAt: new Date() }).returning();
   return { jobId: j!.id, estimateId: est!.id, name };
