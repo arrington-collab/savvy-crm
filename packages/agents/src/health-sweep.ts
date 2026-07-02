@@ -1,6 +1,6 @@
 import { evidenceChecks, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
 import {
-  adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, recordAgentRun, and, eq,
+  adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recordAgentRun, and, eq,
   taskRegistry, tenantTaskConfig, verificationRun,
 } from "@savvy/db";
 
@@ -68,6 +68,7 @@ export async function sweepTenantHealth(tenantId: string, opts: { now?: Date } =
     checked++;
   }
 
+  await reconcileTaskExceptions(tenantId, { now });
   await computeTenantRollup(tenantId, { now });
   await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "ops.health_sweep", status: "ok" });
   return { checked };
