@@ -1,7 +1,8 @@
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
+import { REGISTRY_TASK } from "@savvy/core";
 import {
-  adminDb, adminPool, pool, withTenant, eq,
-  tenant, customer, drip, dripEnrollment, communication, agentRun,
+  adminDb, adminPool, pool, eq, and,
+  tenant, customer, lead, property, drip, dripEnrollment, communication, agentRun, taskRegistry, leadTask,
 } from "@savvy/db";
 import { sendDripStep } from "./drip";
 
@@ -23,6 +24,9 @@ afterAll(async () => {
   await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tId));
   await adminDb.delete(dripEnrollment).where(eq(dripEnrollment.tenantId, tId));
   await adminDb.delete(drip).where(eq(drip.tenantId, tId));
+  await adminDb.delete(leadTask).where(eq(leadTask.tenantId, tId));
+  await adminDb.delete(lead).where(eq(lead.tenantId, tId));
+  await adminDb.delete(property).where(eq(property.tenantId, tId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tId));
   await adminDb.delete(tenant).where(eq(tenant.id, tId));
   await pool.end();
@@ -102,5 +106,29 @@ describe("sendDripStep", () => {
     expect(email.sendEmail).not.toHaveBeenCalled();
     const comms = await adminDb.select().from(communication).where(eq(communication.customerId, c3!.id));
     expect(comms.some((r) => r.body === "[suppressed: appended email (transactional-only)]")).toBe(true);
+  });
+
+  it("marks lead_task 24 (follow-up sequence) done with the communication ref when a leadId is present", async () => {
+    const [c5] = await adminDb.insert(customer).values({ tenantId: tId, name: "Lead Owner", phone: "+15555559000" }).returning();
+    const [p5] = await adminDb.insert(property).values({ tenantId: tId, customerId: c5!.id, address: "5 Drip Ln" }).returning();
+    const [l5] = await adminDb.insert(lead).values({ tenantId: tId, customerId: c5!.id, propertyId: p5!.id, status: "contacted" }).returning();
+    const [e5] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c5!.id, leadId: l5!.id, status: "active" }).returning();
+    await adminDb.insert(taskRegistry).values({ id: REGISTRY_TASK.FOLLOW_UP_SEQUENCE, slug: `exectest.${REGISTRY_TASK.FOLLOW_UP_SEQUENCE}`, name: "follow-up", phase: 2, defaultOwner: "HUMAN", defaultMode: "full_auto", scope: "per_lead" }).onConflictDoNothing({ target: taskRegistry.id });
+    await adminDb.insert(leadTask).values({ tenantId: tId, leadId: l5!.id, taskId: REGISTRY_TASK.FOLLOW_UP_SEQUENCE, status: "pending" });
+
+    const sms = { sendSms: vi.fn().mockResolvedValue({ sid: "sm-lead" }) };
+    await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: e5!.id, customerId: c5!.id, leadId: l5!.id,
+        step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Following up, {{firstName}}",
+      },
+      { sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
+    );
+
+    const [comm] = await adminDb.select().from(communication).where(and(eq(communication.customerId, c5!.id), eq(communication.direction, "outbound")));
+    const [row] = await adminDb.select().from(leadTask).where(and(eq(leadTask.leadId, l5!.id), eq(leadTask.taskId, REGISTRY_TASK.FOLLOW_UP_SEQUENCE)));
+    expect(row!.status).toBe("done");
+    expect(row!.evidence).toEqual({ type: "communication", ref: comm!.id });
   });
 });

@@ -84,7 +84,7 @@ export const jobTask = pgTable(
   {
     id: idCol(),
     tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-    jobId: uuid("job_id").notNull().references(() => job.id),
+    jobId: uuid("job_id").notNull().references(() => job.id, { onDelete: "cascade" }),
     taskId: integer("task_id").notNull().references(() => taskRegistry.id),
     status: jobTaskStatusEnum("status").notNull().default("pending"),
     owner: text("owner"), // agent name or user id at execution time
@@ -113,7 +113,7 @@ export const leadTask = pgTable(
   {
     id: idCol(),
     tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-    leadId: uuid("lead_id").notNull().references(() => lead.id),
+    leadId: uuid("lead_id").notNull().references(() => lead.id, { onDelete: "cascade" }),
     taskId: integer("task_id").notNull().references(() => taskRegistry.id),
     status: jobTaskStatusEnum("status").notNull().default("pending"),
     owner: text("owner"), // agent name or user id at execution time

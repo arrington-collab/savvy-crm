@@ -9,8 +9,10 @@ import {
   measurementAreasSchema,
   generateEstimateLineItems,
   computeEstimateTotals,
+  REGISTRY_TASK,
   type EnginePriceBookItem,
 } from "@savvy/core";
+import { markJobTaskDoneTx } from "./job-tasks";
 
 export async function createEstimateFromMeasurement(input: {
   tenantId: string;
@@ -74,6 +76,9 @@ export async function setEstimateStatus(input: {
       .set(set)
       .where(and(eq(estimate.tenantId, input.tenantId), eq(estimate.id, input.estimateId)))
       .returning();
+    if (row && input.status === "sent") {
+      await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.ESTIMATE_DELIVERY, owner: "SAGE", evidence: { type: "estimate", ref: row.id } });
+    }
     return row;
   });
 }

@@ -295,6 +295,13 @@
       "when": 1783001704406,
       "tag": "0041_soft_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1783005121776,
+      "tag": "0042_curly_terror",
+      "breakpoints": true
     }
   ]
 }

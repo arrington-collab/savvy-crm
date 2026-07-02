@@ -1,7 +1,8 @@
-import { renderTemplate, type DripStep, parseEmailConfig } from "@savvy/core";
+import { renderTemplate, type DripStep, parseEmailConfig, REGISTRY_TASK } from "@savvy/core";
 import * as ai from "@savvy/ai";
 import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate, tenant as tenantTbl,
+  markLeadTaskDoneTx,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getEmailSender } from "@savvy/integrations";
@@ -105,15 +106,22 @@ export async function sendDripStep(
   }
 
   await withTenant(tenantId, async (tx) => {
-    await tx.insert(communication).values({
+    const [comm] = await tx.insert(communication).values({
       tenantId, customerId, jobId: jobId ?? null, channel: step.channel, direction: "outbound",
       to, body: drafted.body,
       twilioSid: step.channel === "sms" ? providerId : null, aiHandled: drafted.aiHandled,
-    });
+    }).returning({ id: communication.id });
     await tx.insert(agentRun).values({
       tenantId, agent: "comms", jobId: jobId ?? null, leadId: leadId ?? null, status: "ok", modelUsed: drafted.model ?? null,
     });
     await tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId));
+    // Lead-scoped drip: record the follow-up sequence executing (proof, latest touch).
+    if (leadId) {
+      await markLeadTaskDoneTx(tx, tenantId, {
+        leadId, taskId: REGISTRY_TASK.FOLLOW_UP_SEQUENCE, owner: "comms",
+        evidence: { type: "communication", ref: comm!.id },
+      });
+    }
   });
 
   return { sent: true };

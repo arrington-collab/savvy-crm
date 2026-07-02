@@ -79,8 +79,12 @@ describe("master task list seed (transform)", () => {
 });
 
 describe("master task list seed (database, idempotent)", () => {
+  // NOTE: the registry is persistent, global seed data (like the price book) —
+  // it is intentionally NOT wiped here. Execution-point tests create job_task/
+  // lead_task rows referencing real task ids (24/25/56/139/140); wiping the
+  // registry would FK-violate against them. The seed is idempotent, so leaving
+  // the 212 rows in place across the suite is correct and matches prod.
   afterAll(async () => {
-    await adminDb.delete(taskRegistry).where(inArray(taskRegistry.id, buildTaskRegistrySeed().map((r) => r.id)));
     await adminPool.end();
   });
 
