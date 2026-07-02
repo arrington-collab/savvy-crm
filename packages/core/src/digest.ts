@@ -25,3 +25,39 @@ export function buildDigestMessage(exceptions: TaskException[]): DigestMessage |
     totalMinutes,
   };
 }
+
+/**
+ * The break-glass page — the ONLY exception that interrupts the day instead of
+ * waiting for a digest. Fired for exceptions whose dollar impact clears the
+ * tenant's break-glass threshold. Pure: the message is unit-tested; delivery
+ * (immediate SMS/email) is separate. Ranks by dollar impact so the biggest-money
+ * problem leads.
+ */
+export interface BreakGlassItem {
+  taskId: number;
+  title: string;
+  dollarImpactCents: number;
+}
+
+export interface BreakGlassMessage {
+  subject: string;
+  body: string;
+  count: number;
+  totalDollars: number;
+}
+
+export function buildBreakGlassMessage(items: BreakGlassItem[]): BreakGlassMessage | null {
+  if (items.length === 0) return null; // never page an empty alert
+  const count = items.length;
+  const totalDollars = Math.round(items.reduce((sum, i) => sum + i.dollarImpactCents, 0) / 100);
+  const top = [...items].sort((a, b) => b.dollarImpactCents - a.dollarImpactCents)[0]!;
+  const topDollars = Math.round(top.dollarImpactCents / 100);
+  const noun = count === 1 ? "issue needs" : "issues need";
+  const dollars = (n: number) => `$${n.toLocaleString("en-US")}`;
+  return {
+    subject: `🚨 Savvy break-glass: ${count} ${count === 1 ? "issue" : "issues"} (${dollars(totalDollars)})`,
+    body: `🚨 ${count} break-glass ${noun} you now (~${dollars(totalDollars)} at risk). Top: ${top.title} — ${dollars(topDollars)}.`,
+    count,
+    totalDollars,
+  };
+}

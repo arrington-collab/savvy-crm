@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { buildDigestMessage } from "./digest";
+import { buildDigestMessage, buildBreakGlassMessage, type BreakGlassItem } from "./digest";
 import type { TaskException } from "./task-exception";
 
 const ex = (o: Partial<TaskException>): TaskException => ({
@@ -25,4 +25,32 @@ test("summarizes count, the top item, and total founder-minutes", () => {
 
 test("uses singular phrasing for a single exception", () => {
   expect(buildDigestMessage([ex({})])!.body).toMatch(/^1 task needs/);
+});
+
+const bg = (o: Partial<BreakGlassItem>): BreakGlassItem => ({
+  taskId: 139, title: "Invoice math", dollarImpactCents: 500_00, ...o,
+});
+
+test("break-glass: returns null when there is nothing to page (never page an empty alert)", () => {
+  expect(buildBreakGlassMessage([])).toBeNull();
+});
+
+test("break-glass: pages count, total dollars, and leads with the biggest-dollar item", () => {
+  const msg = buildBreakGlassMessage([
+    bg({ title: "Small", dollarImpactCents: 200_00 }),
+    bg({ title: "Huge", dollarImpactCents: 1_800_00 }),
+  ]);
+  expect(msg).not.toBeNull();
+  expect(msg!.count).toBe(2);
+  expect(msg!.totalDollars).toBe(2000); // (200_00 + 1_800_00) / 100
+  expect(msg!.body).toContain("2");
+  expect(msg!.body).toContain("Huge"); // ranked by dollar impact, biggest leads
+  expect(msg!.body).toContain("$2,000");
+});
+
+test("break-glass: uses singular phrasing for one item", () => {
+  const msg = buildBreakGlassMessage([bg({ dollarImpactCents: 750_00 })]);
+  expect(msg!.count).toBe(1);
+  expect(msg!.totalDollars).toBe(750);
+  expect(msg!.body).toMatch(/1 break-glass issue/);
 });

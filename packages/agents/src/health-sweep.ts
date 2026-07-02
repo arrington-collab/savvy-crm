@@ -3,6 +3,7 @@ import {
   adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recordAgentRun, and, eq,
   taskRegistry, tenantTaskConfig, verificationRun,
 } from "@savvy/db";
+import { pageBreakGlass } from "./break-glass";
 
 const CHECK_TIMEOUT_MS = 10_000;
 const WINDOW_MS = 86_400_000; // the sweep evaluates the last 24h
@@ -69,6 +70,9 @@ export async function sweepTenantHealth(tenantId: string, opts: { now?: Date } =
   }
 
   await reconcileTaskExceptions(tenantId, { now });
+  // Interrupt the owner NOW for any exception that cleared the break-glass
+  // threshold — the one alert that doesn't wait for the digest.
+  await pageBreakGlass(tenantId, { now });
   await computeTenantRollup(tenantId, { now });
   await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "ops.health_sweep", status: "ok" });
   return { checked };

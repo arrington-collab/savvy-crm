@@ -1,8 +1,8 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { EvidenceCtx, EvidenceResult } from "@savvy/core";
 import {
-  adminDb, adminPool, eq, and, inArray,
-  tenant, customer, property, lead, communication, taskRegistry, verificationRun, taskHealth, agentRun, leadTask, tenantOpsRollup, taskException,
+  adminDb, adminPool, eq, and, inArray, isNull,
+  tenant, user, customer, property, job, invoice, lead, communication, taskRegistry, verificationRun, taskHealth, agentRun, jobTask, leadTask, tenantOpsRollup, taskException,
 } from "@savvy/db";
 import { runCheck, sweepTenantHealth } from "./health-sweep";
 
@@ -28,17 +28,20 @@ const CLEAN = 9401; // lead.dedupe on a tenant with no dup leads -> pass
 const BAD = 9402; // comms.no_double_send with a seeded double-send -> fail
 const UNKNOWN = 9403; // check_key with no implementation -> skipped
 const WRONG = 9404; // a done lead_task whose evidence IS a violation -> spot-verify exception
-const SYN = [CLEAN, BAD, UNKNOWN, WRONG];
+const BG = 9405; // a done job_task on a large mismatched invoice -> break-glass page
+const SYN = [CLEAN, BAD, UNKNOWN, WRONG, BG];
 let tenantId: string;
 let leadId: string;
 const reg = (id: number, checkKey: string) => ({ id, slug: `sw.${id}`, name: `sw-${id}`, phase: 2, defaultOwner: "HUMAN" as const, defaultMode: "full_auto" as const, scope: "per_lead" as const, checkKey });
 const vr = (taskId: number) => adminDb.select().from(verificationRun).where(and(eq(verificationRun.tenantId, tenantId), eq(verificationRun.taskId, taskId))).then((r) => r[0]);
 
 beforeAll(async () => {
-  const [t] = await adminDb.insert(tenant).values({ name: "SW Co", publicKey: `sw-${Date.now()}`, clerkOrgId: `org_sw_${Date.now()}` }).returning();
+  const [t] = await adminDb.insert(tenant).values({ name: "SW Co", publicKey: `sw-${Date.now()}`, clerkOrgId: `org_sw_${Date.now()}`, breakGlass: { min_dollars: 1000, deadline_hours: 48 } }).returning();
   tenantId = t!.id;
+  await adminDb.insert(user).values({ tenantId, role: "owner", name: "Owner", email: `owner-sw-${Date.now()}@x.com`, phone: "+16025557777" });
   await adminDb.insert(taskRegistry).values([
     reg(CLEAN, "lead.dedupe"), reg(BAD, "comms.no_double_send"), reg(UNKNOWN, "does.not.exist"), reg(WRONG, "comms.no_double_send"),
+    { ...reg(BG, "finance.invoice_math"), scope: "per_job" as const, name: "Invoice generation" },
   ]);
   // Seed a double-send so comms.no_double_send fails; capture the offending ids.
   const [c] = await adminDb.insert(customer).values({ tenantId, name: "HO", phone: "+16025550000" }).returning();
@@ -53,6 +56,12 @@ beforeAll(async () => {
   const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, status: "contacted" }).returning();
   leadId = l!.id;
   await adminDb.insert(leadTask).values({ tenantId, leadId, taskId: WRONG, status: "done", evidence: { type: "communication", ref: dup[0]!.id } });
+
+  // A done invoice-generation task on a $2,500 invoice that fails finance.invoice_math
+  // (amount_due != sum of line items) -> done-but-wrong worth $2,500 -> break-glass.
+  const [jb] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "billing" }).returning();
+  const [inv] = await adminDb.insert(invoice).values({ tenantId, jobId: jb!.id, amountDue: 2_500_00, lineItems: [] }).returning();
+  await adminDb.insert(jobTask).values({ tenantId, jobId: jb!.id, taskId: BG, status: "done", evidence: { type: "invoice", ref: inv!.id } });
 });
 
 afterAll(async () => {
@@ -61,11 +70,15 @@ afterAll(async () => {
   await adminDb.delete(verificationRun).where(eq(verificationRun.tenantId, tenantId));
   await adminDb.delete(taskHealth).where(eq(taskHealth.tenantId, tenantId));
   await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tenantId));
+  await adminDb.delete(jobTask).where(eq(jobTask.tenantId, tenantId));
   await adminDb.delete(leadTask).where(eq(leadTask.tenantId, tenantId));
+  await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantId));
   await adminDb.delete(communication).where(eq(communication.tenantId, tenantId));
+  await adminDb.delete(job).where(eq(job.tenantId, tenantId));
   await adminDb.delete(lead).where(eq(lead.tenantId, tenantId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
+  await adminDb.delete(user).where(eq(user.tenantId, tenantId));
   await adminDb.delete(taskRegistry).where(inArray(taskRegistry.id, SYN));
   await adminDb.delete(tenant).where(eq(tenant.id, tenantId));
   await adminPool.end();
@@ -94,5 +107,20 @@ describe("sweepTenantHealth", () => {
     expect(lt!.status).toBe("exception");
     const [h] = await adminDb.select().from(taskHealth).where(and(eq(taskHealth.tenantId, tenantId), eq(taskHealth.taskId, WRONG)));
     expect(h!.status).toBe("red");
+  });
+
+  it("prices a done-but-wrong invoice and pages break-glass within the sweep", async () => {
+    await sweepTenantHealth(tenantId);
+    const [ex] = await adminDb
+      .select()
+      .from(taskException)
+      .where(and(eq(taskException.tenantId, tenantId), eq(taskException.taskId, BG), isNull(taskException.resolvedAt)));
+    expect(ex!.kind).toBe("verification_mismatch");
+    expect(ex!.dollarImpactCents).toBe(2_500_00); // the invoice's amount_due
+    expect(ex!.breakGlass).toBe(true); // $2,500 >= $1,000 threshold
+    expect(ex!.breakGlassNotifiedAt).not.toBeNull(); // paged during the sweep
+
+    const runs = await adminDb.select().from(agentRun).where(and(eq(agentRun.tenantId, tenantId), eq(agentRun.taskKey, "ops.break_glass")));
+    expect(runs.length).toBeGreaterThanOrEqual(1); // paged (idempotent across the two sweeps above)
   });
 });
