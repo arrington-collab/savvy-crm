@@ -1,4 +1,5 @@
 export { twilioSms, makeTwilioSms, verifyTwilioCreds, type SmsSender, type TwilioApiCreds } from "./twilio";
+export { geocode, type GeoPoint } from "./geocode";
 export { resendEmail, makeResendEmail, makeGmailEmail, getEmailSender, type EmailSender } from "./email";
 export { nangoGcal, makeFakeCalendarSync, type CalendarSync } from "./gcal";
 export { stripeGateway, makeFakeStripe, type StripeGateway, type StripeEventLite } from "./stripe";

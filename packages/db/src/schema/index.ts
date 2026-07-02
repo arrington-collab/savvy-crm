@@ -14,3 +14,4 @@ export * from "./booking-link";
 export * from "./procurement";
 export * from "./insurance";
 export * from "./integrations";
+export * from "./enrichment";
