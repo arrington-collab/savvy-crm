@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or, sql, tenantByVapiAssistant } from "@savvy/db";
+import { adminDb, withTenant, tenant, customer, property, lead, eq, and, or, sql, tenantByVapiAssistant, instantiateLeadTasks } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { parseCityFromAddress, normalizeAddress } from "@savvy/core";
 import type { LeadIntakeInput } from "@savvy/core";
@@ -73,6 +73,7 @@ export async function createLeadForTenant(tenantId: string, input: LeadIntakeInp
     const [l] = await tx.insert(lead).values({
       tenantId, customerId: c.id, propertyId, source: input.source, status: "new",
     }).returning();
+    await instantiateLeadTasks(tx, { tenantId, leadId: l!.id });
     return l!.id;
   });
   try {

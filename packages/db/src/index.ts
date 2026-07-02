@@ -3,6 +3,7 @@ export { adminDb, adminPool } from "./admin-client";
 export { withTenant, type Tx } from "./tenant";
 export { seedJobTasks } from "./lifecycle/seed-job-tasks";
 export { instantiateJobTasks, markJobTaskDone, backfillJobTasks } from "./lifecycle/job-tasks";
+export { instantiateLeadTasks, markLeadTaskDone, backfillLeadTasks } from "./lifecycle/lead-tasks";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } from "./lifecycle/record-stage-change";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";

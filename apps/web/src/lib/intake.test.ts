@@ -1,7 +1,7 @@
 // CI-gated: requires Postgres. If ECONNREFUSED locally, this suite is expected
 // to fail — rely on CI. Dedupe logic is exercised here with real DB round-trips.
-import { describe, it, expect, beforeAll } from "vitest";
-import { adminDb, withTenant, tenant, customer, lead, property } from "@savvy/db";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { adminDb, withTenant, tenant, customer, lead, property, taskRegistry, leadTask, eq, and } from "@savvy/db";
 import { createLeadForTenant } from "./intake";
 
 describe("createLeadForTenant — non-destructive dedupe", () => {
@@ -208,5 +208,34 @@ describe("createLeadForTenant — sms_consent_at capture", () => {
     const ginas = after2.filter((c) => c.email === "gina@example.com");
     expect(ginas).toHaveLength(1); // deduped to one customer
     expect(ginas[0]!.smsConsentAt!.getTime()).toBe(t1!.getTime()); // unchanged
+  });
+});
+
+describe("createLeadForTenant — instantiates the lead ledger", () => {
+  const SYN = 9201; // synthetic per_lead registry task
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const [t] = await adminDb.insert(tenant).values({ name: "LedgerTest", clerkOrgId: `org_ledger_${Date.now()}` }).returning();
+    tenantId = t!.id;
+    await adminDb.insert(taskRegistry).values({
+      id: SYN, slug: `synw.${SYN}`, name: "syn-web", phase: 2,
+      defaultOwner: "HUMAN", defaultMode: "full_auto", scope: "per_lead", appliesTo: {},
+    });
+  });
+
+  afterAll(async () => {
+    await adminDb.delete(leadTask).where(eq(leadTask.taskId, SYN));
+    await adminDb.delete(taskRegistry).where(eq(taskRegistry.id, SYN));
+  });
+
+  it("creates lead_task rows for the new lead", async () => {
+    const leadId = await createLeadForTenant(tenantId, {
+      name: "Ledger Lead", phone: "+16025557000",
+      address: "1 Ledger St, Phoenix AZ 85001", state: "AZ", source: "web",
+    });
+    const rows = await adminDb.select().from(leadTask).where(and(eq(leadTask.leadId, leadId), eq(leadTask.taskId, SYN)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe("pending");
   });
 });
