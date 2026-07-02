@@ -59,5 +59,6 @@ export * from "./material-order";
 export * from "./exception-queue";
 export * from "./capacity";
 export * from "./task-automation";
+export * from "./job-task";
 export * from "./weather-config";
 export * from "./homeowner";
