@@ -1,10 +1,10 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import {
   computeTaskHealth, buildTaskExceptions,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException,
 } from "@savvy/core";
 import { withTenant } from "../tenant";
-import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup } from "../schema/index";
+import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException } from "../schema/index";
 
 const DAY_MS = 86_400_000;
 
@@ -200,6 +200,49 @@ export async function computeTaskExceptions(tenantId: string): Promise<TaskExcep
       });
     }
     return buildTaskExceptions(inputs);
+  });
+}
+
+/**
+ * Reconciles the persisted exception ledger with the current computed set: opens
+ * a row for each newly-unhealthy task (stamping opened_at), refreshes kind/severity
+ * on still-open ones, and resolves (resolved_at) rows whose task recovered. At most
+ * one OPEN row per task. This gives exceptions the identity + timings that
+ * founder-minutes and break-glass paging need, without abandoning the computed
+ * source of truth (task_health). Run by the sweep after health is recomputed.
+ */
+export async function reconcileTaskExceptions(
+  tenantId: string,
+  opts: { now?: Date } = {},
+): Promise<{ opened: number; resolved: number; open: number }> {
+  const now = opts.now ?? new Date();
+  const computed = await computeTaskExceptions(tenantId);
+  const byTask = new Map(computed.map((e) => [e.taskId, e]));
+
+  return withTenant(tenantId, async (tx) => {
+    const open = await tx
+      .select({ id: taskException.id, taskId: taskException.taskId })
+      .from(taskException)
+      .where(and(eq(taskException.tenantId, tenantId), isNull(taskException.resolvedAt)));
+    const openByTask = new Map(open.map((r) => [r.taskId, r]));
+
+    let opened = 0, resolved = 0;
+    for (const [taskId, ex] of byTask) {
+      const existing = openByTask.get(taskId);
+      if (existing) {
+        await tx.update(taskException).set({ kind: ex.kind, severity: ex.severity, updatedAt: now }).where(eq(taskException.id, existing.id));
+      } else {
+        await tx.insert(taskException).values({ tenantId, taskId, kind: ex.kind, severity: ex.severity, openedAt: now });
+        opened++;
+      }
+    }
+    for (const [taskId, row] of openByTask) {
+      if (!byTask.has(taskId)) {
+        await tx.update(taskException).set({ resolvedAt: now, updatedAt: now }).where(eq(taskException.id, row.id));
+        resolved++;
+      }
+    }
+    return { opened, resolved, open: byTask.size };
   });
 }
 

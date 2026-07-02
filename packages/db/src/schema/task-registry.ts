@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, numeric, boolean, jsonb, timestamp, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, numeric, boolean, jsonb, timestamp, index, unique, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, updatedAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { job } from "./jobs";
@@ -203,6 +204,38 @@ export const tenantOpsRollup = pgTable(
   },
   (t) => [
     unique("tenant_ops_rollup_tenant_uniq").on(t.tenantId),
+    tenantIsolation(),
+  ],
+);
+
+/**
+ * Persisted exception lifecycle. The open set is still state-derived (computed
+ * from task_health), but we track each exception's identity + timings so the
+ * owner's attention can be measured: opened_at (sweep detected it), first_viewed_at
+ * (owner opened it in the UI — Slice 5), resolved_at (sweep saw the task recover).
+ * founder-minutes = Σ(resolved − first_viewed). dollar_impact + break_glass drive
+ * immediate paging (computed in the next slice). At most one OPEN row per task.
+ */
+export const taskException = pgTable(
+  "task_exception",
+  {
+    id: idCol(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+    taskId: integer("task_id").notNull().references(() => taskRegistry.id),
+    kind: text("kind").notNull(), // task_regression | task_stale | verification_mismatch
+    severity: text("severity").notNull(), // high | medium
+    dollarImpactCents: integer("dollar_impact_cents").notNull().default(0),
+    breakGlass: boolean("break_glass").notNull().default(false),
+    breakGlassNotifiedAt: timestamp("break_glass_notified_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
+    firstViewedAt: timestamp("first_viewed_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("task_exception_tenant_idx").on(t.tenantId),
+    // At most one OPEN (unresolved) exception per task — reconcile relies on this.
+    uniqueIndex("task_exception_open_uniq").on(t.tenantId, t.taskId).where(sql`resolved_at is null`),
     tenantIsolation(),
   ],
 );
