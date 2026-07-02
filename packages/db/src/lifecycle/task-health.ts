@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import {
   computeTaskHealth, buildTaskExceptions,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite,
@@ -351,4 +351,49 @@ export async function getTenantRollup(tenantId: string): Promise<TenantRollupLit
     if (!row) return null;
     return { ...row, founderMinutes30d: Number(row.founderMinutes30d) };
   });
+}
+
+/** One Job Ledger row: a registry task instantiated for a job, plus its evidence and scoreboard health. */
+export type JobLedgerRow = {
+  taskId: number;
+  name: string;
+  phase: number;
+  slug: string;
+  status: string; // job_task status: pending | blocked | done | verified | exception
+  owner: string | null;
+  evidence: { type: string; ref: string; url?: string } | null;
+  blockedBy: number[];
+  healthStatus: string | null; // task_health status (null until the sweep scores it)
+  completedAt: Date | null;
+  verifiedAt: Date | null;
+};
+
+/**
+ * The Job Ledger for a job (read-only): every instantiated job_task joined to its
+ * registry task (name/phase) and current scoreboard health, ordered by phase then
+ * task id. This is the ground truth Sage cites for "is X done?" — the answer is
+ * these rows + evidence refs, never model memory.
+ */
+export async function getJobLedger(tenantId: string, jobId: string): Promise<JobLedgerRow[]> {
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        taskId: jobTask.taskId,
+        name: taskRegistry.name,
+        phase: taskRegistry.phase,
+        slug: taskRegistry.slug,
+        status: jobTask.status,
+        owner: jobTask.owner,
+        evidence: jobTask.evidence,
+        blockedBy: jobTask.blockedBy,
+        healthStatus: taskHealth.status,
+        completedAt: jobTask.completedAt,
+        verifiedAt: jobTask.verifiedAt,
+      })
+      .from(jobTask)
+      .innerJoin(taskRegistry, eq(taskRegistry.id, jobTask.taskId))
+      .leftJoin(taskHealth, and(eq(taskHealth.taskId, jobTask.taskId), eq(taskHealth.tenantId, jobTask.tenantId)))
+      .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.jobId, jobId)))
+      .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id)),
+  );
 }
