@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
-  adminDb, withTenant, customer, property, job, jobTask, jobStageEvent, seedJobTasks, eq, and, isNull,
+  adminDb, withTenant, customer, property, job, jobChecklistItem, jobStageEvent, seedJobTasks, eq, and, isNull,
 } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(
@@ -54,7 +54,7 @@ test("pipeline: seed job -> board -> drag to inspected -> tasks activate -> deta
   // Before the move: inspected-stage tasks are NOT activated (due_at null).
   const inspectedPending = () =>
     withTenant(tenantId, (tx) =>
-      tx.select().from(jobTask).where(and(eq(jobTask.jobId, jobId), eq(jobTask.status, "pending"), isNull(jobTask.dueAt), eq(jobTask.phase, "Inspection"))),
+      tx.select().from(jobChecklistItem).where(and(eq(jobChecklistItem.jobId, jobId), eq(jobChecklistItem.status, "pending"), isNull(jobChecklistItem.dueAt), eq(jobChecklistItem.phase, "Inspection"))),
     );
   expect((await inspectedPending()).length).toBeGreaterThan(0);
 
@@ -71,7 +71,7 @@ test("pipeline: seed job -> board -> drag to inspected -> tasks activate -> deta
 
   // Inspected tasks are now activated (due_at set).
   const activated = await withTenant(tenantId, (tx) =>
-    tx.select().from(jobTask).where(and(eq(jobTask.jobId, jobId), eq(jobTask.phase, "Inspection"))),
+    tx.select().from(jobChecklistItem).where(and(eq(jobChecklistItem.jobId, jobId), eq(jobChecklistItem.phase, "Inspection"))),
   );
   expect(activated.length).toBeGreaterThan(0);
   expect(activated.every((t) => t.dueAt !== null)).toBe(true);

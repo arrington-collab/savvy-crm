@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { withTenant } from "../tenant.js";
-import { adminDb, tenant, customer, property, lead, job, jobTask, eq, and } from "../index.js";
+import { adminDb, tenant, customer, property, lead, job, jobChecklistItem, eq, and } from "../index.js";
 import { convertLeadToJob } from "./appointments.js";
 
 async function mkTenant(name: string) {
@@ -23,7 +23,7 @@ describe("convertLeadToJob job.type carryover", () => {
     const { jobId } = await convertLeadToJob({ tenantId: tid, leadId });
     const [j] = await adminDb.select({ type: job.type }).from(job).where(eq(job.id, jobId));
     expect(j!.type).toBe("insurance");
-    const tasks = await adminDb.select({ id: jobTask.id }).from(jobTask).where(and(eq(jobTask.tenantId, tid), eq(jobTask.jobId, jobId)));
+    const tasks = await adminDb.select({ id: jobChecklistItem.id }).from(jobChecklistItem).where(and(eq(jobChecklistItem.tenantId, tid), eq(jobChecklistItem.jobId, jobId)));
     expect(tasks.length).toBeGreaterThan(0); // insurance templates seeded
   });
   it("opens a retail job for a standard-lane lead", async () => {

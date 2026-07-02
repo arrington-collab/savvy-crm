@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { jobTask } from "../schema/index";
+import { jobChecklistItem } from "../schema/index";
 import { db } from "../client";
 import { withTenant } from "../tenant";
 import { recordAgentRun } from "./agent-run";
@@ -11,9 +11,9 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /** The owning task's automationLevel for (jobId, key); "full" when no task matches (never blocks). */
 export async function resolveTaskAutomation(tx: Tx, jobId: string, taskKey: string): Promise<string> {
   const [t] = await tx
-    .select({ level: jobTask.automationLevel })
-    .from(jobTask)
-    .where(and(eq(jobTask.jobId, jobId), eq(jobTask.key, taskKey)))
+    .select({ level: jobChecklistItem.automationLevel })
+    .from(jobChecklistItem)
+    .where(and(eq(jobChecklistItem.jobId, jobId), eq(jobChecklistItem.key, taskKey)))
     .limit(1);
   return t?.level ?? "full";
 }
@@ -30,12 +30,12 @@ export async function gateAgentAutomation(input: {
   if (shouldAutoAct(level)) return { proceed: true, level };
 
   await withTenant(input.tenantId, (tx) =>
-    tx.update(jobTask)
+    tx.update(jobChecklistItem)
       .set({ deferredAt: new Date() })
       .where(and(
-        eq(jobTask.jobId, input.jobId),
-        eq(jobTask.key, input.taskKey),
-        sql`${jobTask.status} not in ('done','skipped')`,
+        eq(jobChecklistItem.jobId, input.jobId),
+        eq(jobChecklistItem.key, input.taskKey),
+        sql`${jobChecklistItem.status} not in ('done','skipped')`,
       )),
   );
   await recordAgentRun({

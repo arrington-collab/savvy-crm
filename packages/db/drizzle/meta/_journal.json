@@ -274,6 +274,13 @@
       "when": 1782958325467,
       "tag": "0038_zippy_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1782960160755,
+      "tag": "0039_wet_garia",
+      "breakpoints": true
     }
   ]
 }

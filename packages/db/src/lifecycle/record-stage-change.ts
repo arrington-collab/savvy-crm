@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { job, jobTask, jobStageEvent, auditLog, document, tenant } from "../schema/index";
+import { job, jobChecklistItem, jobStageEvent, auditLog, document, tenant } from "../schema/index";
 import { db } from "../client";
 import type { JobStage, Agent, JobType } from "@savvy/core";
 import { parseProductionConfig, missingRequiredPhotos, missingRequiredDocs } from "@savvy/core";
@@ -76,14 +76,14 @@ export async function recordStageChange(
   });
 
   const dueAt = new Date(now.getTime() + DUE_DAYS * 86_400_000);
-  const res = await tx.update(jobTask).set({ dueAt }).where(
+  const res = await tx.update(jobChecklistItem).set({ dueAt }).where(
     and(
-      eq(jobTask.jobId, opts.jobId),
-      eq(jobTask.status, "pending"),
-      isNull(jobTask.dueAt),
-      sql`${jobTask.payload}->>'stage' = ${opts.toStage}`,
+      eq(jobChecklistItem.jobId, opts.jobId),
+      eq(jobChecklistItem.status, "pending"),
+      isNull(jobChecklistItem.dueAt),
+      sql`${jobChecklistItem.payload}->>'stage' = ${opts.toStage}`,
     ),
-  ).returning({ id: jobTask.id });
+  ).returning({ id: jobChecklistItem.id });
 
   await tx.insert(auditLog).values({
     tenantId: opts.tenantId, agent: opts.byAgent ?? null, userId: opts.byUserId ?? null,

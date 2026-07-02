@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, property, eq, or, sql } from "@savvy/db";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, eq, or, sql } from "@savvy/db";
 import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -66,11 +66,11 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
 
     // --- overdue tasks ---
     const taskRows = await tx
-      .select({ id: jobTask.id, jobId: jobTask.jobId, title: jobTask.title, dueAt: jobTask.dueAt, customerName: customer.name })
-      .from(jobTask)
-      .leftJoin(job, eq(job.id, jobTask.jobId))
+      .select({ id: jobChecklistItem.id, jobId: jobChecklistItem.jobId, title: jobChecklistItem.title, dueAt: jobChecklistItem.dueAt, customerName: customer.name })
+      .from(jobChecklistItem)
+      .leftJoin(job, eq(job.id, jobChecklistItem.jobId))
       .leftJoin(customer, eq(customer.id, job.customerId))
-      .where(sql`${jobTask.dueAt} is not null and ${jobTask.dueAt} < now() and ${jobTask.status} not in ('done','skipped')`);
+      .where(sql`${jobChecklistItem.dueAt} is not null and ${jobChecklistItem.dueAt} < now() and ${jobChecklistItem.status} not in ('done','skipped')`);
     const overdueTasks = taskRows.map((r) => ({ taskId: r.id, jobId: r.jobId, title: r.title, customerName: r.customerName, dueAt: r.dueAt }));
 
     // --- material-delivery risk (draft/ordered orders vs current crew-install date) ---
@@ -98,11 +98,11 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
 
     // --- tasks an agent deferred to a human (deferred_at set, not yet resolved) ---
     const deferredRows = await tx
-      .select({ taskId: jobTask.id, jobId: jobTask.jobId, title: jobTask.title, deferredAt: jobTask.deferredAt, customerName: customer.name })
-      .from(jobTask)
-      .leftJoin(job, eq(job.id, jobTask.jobId))
+      .select({ taskId: jobChecklistItem.id, jobId: jobChecklistItem.jobId, title: jobChecklistItem.title, deferredAt: jobChecklistItem.deferredAt, customerName: customer.name })
+      .from(jobChecklistItem)
+      .leftJoin(job, eq(job.id, jobChecklistItem.jobId))
       .leftJoin(customer, eq(customer.id, job.customerId))
-      .where(sql`${jobTask.deferredAt} is not null and ${jobTask.status} not in ('done','skipped')`);
+      .where(sql`${jobChecklistItem.deferredAt} is not null and ${jobChecklistItem.status} not in ('done','skipped')`);
     const taskNeedsApprovals: TaskNeedsApprovalInput[] = deferredRows.map((r) => ({
       taskId: r.taskId, jobId: r.jobId, title: r.title, customerName: r.customerName, deferredAt: r.deferredAt as Date,
     }));
