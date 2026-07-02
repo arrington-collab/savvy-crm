@@ -7,6 +7,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
 import { leadToJobType } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
+import { instantiateJobTasks } from "./job-tasks";
 import { recordStageChange } from "./record-stage-change";
 import { stopDripEnrollments } from "./stop-drip";
 
@@ -161,6 +162,7 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
       type: jobType, stage: "lead", leadId: l.id,
     }).returning();
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
+    await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
     await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, l.id));
     await stopDripEnrollments(tx, { tenantId: args.tenantId, customerId: l.customerId!, reason: "converted" });

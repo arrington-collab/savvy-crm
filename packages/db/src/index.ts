@@ -1,7 +1,8 @@
 export { db, pool, schema } from "./client";
 export { adminDb, adminPool } from "./admin-client";
-export { withTenant } from "./tenant";
+export { withTenant, type Tx } from "./tenant";
 export { seedJobTasks } from "./lifecycle/seed-job-tasks";
+export { instantiateJobTasks, markJobTaskDone, backfillJobTasks } from "./lifecycle/job-tasks";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } from "./lifecycle/record-stage-change";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
