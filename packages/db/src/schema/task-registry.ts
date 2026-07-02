@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, numeric, boolean, jsonb, timestamp, index
 import { idCol, createdAt, updatedAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { job } from "./jobs";
+import { lead } from "./crm";
 import { agentRun } from "./agents";
 import {
   taskOwnerEnum, taskModeEnum, taskScopeEnum, verificationTierEnum,
@@ -98,6 +99,35 @@ export const jobTask = pgTable(
   (t) => [
     index("job_task_tenant_job_idx").on(t.tenantId, t.jobId),
     unique("job_task_job_task_uniq").on(t.jobId, t.taskId),
+    tenantIsolation(),
+  ],
+);
+
+/**
+ * The Lead Ledger: per-lead instantiation of a per_lead registry task (booking,
+ * follow-up, scoring). Symmetric to job_task — leads run per_lead tasks the same
+ * way jobs run per_job tasks; instance-level evidence for pre-job work.
+ */
+export const leadTask = pgTable(
+  "lead_task",
+  {
+    id: idCol(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+    leadId: uuid("lead_id").notNull().references(() => lead.id),
+    taskId: integer("task_id").notNull().references(() => taskRegistry.id),
+    status: jobTaskStatusEnum("status").notNull().default("pending"),
+    owner: text("owner"), // agent name or user id at execution time
+    evidence: jsonb("evidence").$type<Evidence>(),
+    agentRunId: uuid("agent_run_id").references(() => agentRun.id),
+    blockedBy: integer("blocked_by").array().notNull().default([]), // computed from depends_on
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("lead_task_tenant_lead_idx").on(t.tenantId, t.leadId),
+    unique("lead_task_lead_task_uniq").on(t.leadId, t.taskId),
     tenantIsolation(),
   ],
 );

@@ -288,6 +288,13 @@
       "when": 1782960800496,
       "tag": "0040_adorable_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1783001704406,
+      "tag": "0041_soft_jubilee",
+      "breakpoints": true
     }
   ]
 }
