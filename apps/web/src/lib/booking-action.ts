@@ -2,9 +2,9 @@
 import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
-  bookLeadSlot,
+  bookLeadSlot, setCustomerEmail,
 } from "@savvy/db";
-import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, requireSecret } from "@savvy/core";
+import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, formatSlotLabel, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 
 const SECRET = () => requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
@@ -26,14 +26,37 @@ export async function getSlotsForToken(token: string) {
   if (!assignee) return { error: "no_assignee" as const };
   const busy = await loadBusy(p.tenantId, assignee.id, cfg.bookingHorizonDays);
   const cluster = await loadClusterPoint(p);
+  const now = new Date();
   const slots = computeOpenSlots({
     config: cfg, type: p.type, existingAppts: busy,
-    fromDate: new Date(), now: new Date(), tz, clusterAround: cluster ?? undefined,
+    fromDate: now, now, tz, clusterAround: cluster ?? undefined,
   }).slice(0, 12);
-  return { slots: slots.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() })) };
+  // Format the label on the server in the tenant's timezone so the public page
+  // hydrates without a mismatch (a client-side new Date()/toLocale* would differ
+  // between SSR and browser and blow away the SlotPicker subtree — including any
+  // email the homeowner already typed).
+  return {
+    slots: slots.map((s) => ({
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+      label: formatSlotLabel(s.startsAt, now, tz),
+    })),
+  };
 }
 
-export async function confirmSlot(token: string, startsAt: string, endsAt: string) {
+// Homeowner-provided email at booking time = self_reported (marketing-usable).
+async function captureEmail(tenantId: string, customerId: string | undefined, email: string | undefined): Promise<void> {
+  if (!email || !customerId) return;
+  const trimmed = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return; // ignore obviously-bad input, don't fail the booking
+  try {
+    await setCustomerEmail(tenantId, { customerId, email: trimmed, source: "self_reported" });
+  } catch (e) {
+    console.error("capture booking email failed", e);
+  }
+}
+
+export async function confirmSlot(token: string, startsAt: string, endsAt: string, email?: string) {
   const p = verifyPayloadToken<TokenPayload>(token, SECRET());
   if (!p) return { error: "invalid" as const };
   try {
@@ -54,6 +77,8 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
         try {
           await inngest.send({ name: "appointment/booked", data: { appointmentId: r.appointmentId, tenantId: r.tenantId } });
         } catch (e) { console.error(e); }
+        const [l] = await adminDb.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, p.leadId));
+        await captureEmail(p.tenantId, l?.customerId ?? undefined, email);
         return { ok: true as const };
       }
       if (r.error === "slot_taken") return { error: "slot_taken" as const };
@@ -77,6 +102,7 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
     try {
       await inngest.send({ name: "appointment/booked", data: { appointmentId: appt.id, tenantId: p.tenantId } });
     } catch (e) { console.error(e); }
+    await captureEmail(p.tenantId, customerId, email);
     return { ok: true as const };
   } catch (e) {
     if (e instanceof SlotTakenError) return { error: "slot_taken" as const };

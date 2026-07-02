@@ -13,6 +13,9 @@ export const customer = pgTable("customer", {
   smsOptOut: boolean("sms_opt_out").default(false).notNull(),
   emailOptOut: boolean("email_opt_out").default(false).notNull(),
   smsConsentAt: timestamp("sms_consent_at", { withTimezone: true }),
+  // Provenance of the email: "self_reported" (homeowner gave it — usable for
+  // marketing) vs "appended" (data-broker skip-trace — transactional-only).
+  emailSource: text("email_source"),
   qboId: text("qbo_id"),
   createdAt: createdAt(),
 }, (t) => [index("customer_tenant_idx").on(t.tenantId), tenantIsolation()]);
