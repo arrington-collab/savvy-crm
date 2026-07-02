@@ -353,6 +353,167 @@ export async function getTenantRollup(tenantId: string): Promise<TenantRollupLit
   });
 }
 
+/** An open (unresolved) scoreboard exception with its task name — the Today worklist source. */
+export type OpenTaskException = {
+  taskId: number;
+  name: string;
+  kind: string;
+  severity: string;
+  dollarImpactCents: number;
+  breakGlass: boolean;
+  openedAt: Date;
+  firstViewedAt: Date | null;
+};
+
+/**
+ * The tenant's open persisted exceptions for the Today worklist — joined to the
+ * task name, ranked high-severity first, then biggest dollar impact, then oldest.
+ * Reads the persisted task_exception lifecycle (identity + timings), unlike the
+ * computed computeTaskExceptions vector.
+ */
+export async function listOpenTaskExceptions(tenantId: string): Promise<OpenTaskException[]> {
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        taskId: taskException.taskId,
+        name: taskRegistry.name,
+        kind: taskException.kind,
+        severity: taskException.severity,
+        dollarImpactCents: taskException.dollarImpactCents,
+        breakGlass: taskException.breakGlass,
+        openedAt: taskException.openedAt,
+        firstViewedAt: taskException.firstViewedAt,
+      })
+      .from(taskException)
+      .innerJoin(taskRegistry, eq(taskRegistry.id, taskException.taskId))
+      .where(and(eq(taskException.tenantId, tenantId), isNull(taskException.resolvedAt)))
+      .orderBy(
+        sql`case when ${taskException.severity} = 'high' then 0 else 1 end`,
+        desc(taskException.dollarImpactCents),
+        asc(taskException.openedAt),
+      ),
+  );
+}
+
+/**
+ * Stamps first_viewed_at on a task's open exception the first time the owner opens
+ * it in the UI — the one write the read-only Slice 5 legitimately needs (founder-
+ * minutes = Σ(resolved − first_viewed) reads it). Idempotent: only stamps when
+ * first_viewed_at is still null; returns whether it stamped.
+ */
+export async function markTaskExceptionViewed(tenantId: string, taskId: number, opts: { now?: Date } = {}): Promise<boolean> {
+  const now = opts.now ?? new Date();
+  return withTenant(tenantId, async (tx) => {
+    const res = await tx
+      .update(taskException)
+      .set({ firstViewedAt: now, updatedAt: now })
+      .where(and(
+        eq(taskException.tenantId, tenantId),
+        eq(taskException.taskId, taskId),
+        isNull(taskException.resolvedAt),
+        isNull(taskException.firstViewedAt),
+      ))
+      .returning({ id: taskException.id });
+    return res.length > 0;
+  });
+}
+
+/** Everything the /tasks/[id] proof page cites for a single registry task. */
+export type TaskDetail = {
+  taskId: number;
+  name: string;
+  phase: number;
+  slug: string;
+  health: {
+    status: string;
+    effectiveMode: string;
+    cleanStreakDays: number;
+    lastVerifiedAt: Date | null;
+    failCount7d: number;
+    openExceptionCount: number;
+  } | null;
+  exception: {
+    kind: string;
+    severity: string;
+    dollarImpactCents: number;
+    breakGlass: boolean;
+    openedAt: Date;
+    firstViewedAt: Date | null;
+  } | null;
+  verifications: { status: string; checkKey: string; ranAt: Date }[];
+  instances: { entity: "job" | "lead"; entityId: string; status: string; owner: string | null; evidence: { type: string; ref: string; url?: string } | null; verifiedAt: Date | null }[];
+};
+
+/**
+ * Assembles the per-task proof surface for /tasks/[id]: the registry task, its
+ * current health, the open exception (if any), recent verification history, and
+ * the ledger instances (job_task + lead_task) that carry the evidence. Returns
+ * null for an unknown task id. Read-only — the "is X done?" answer is these rows.
+ */
+export async function getTaskDetail(tenantId: string, taskId: number): Promise<TaskDetail | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [reg] = await tx
+      .select({ name: taskRegistry.name, phase: taskRegistry.phase, slug: taskRegistry.slug })
+      .from(taskRegistry)
+      .where(eq(taskRegistry.id, taskId));
+    if (!reg) return null;
+
+    const [health] = await tx
+      .select({
+        status: taskHealth.status,
+        effectiveMode: taskHealth.effectiveMode,
+        cleanStreakDays: taskHealth.cleanStreakDays,
+        lastVerifiedAt: taskHealth.lastVerifiedAt,
+        failCount7d: taskHealth.failCount7d,
+        openExceptionCount: taskHealth.openExceptionCount,
+      })
+      .from(taskHealth)
+      .where(and(eq(taskHealth.tenantId, tenantId), eq(taskHealth.taskId, taskId)));
+
+    const [exc] = await tx
+      .select({
+        kind: taskException.kind,
+        severity: taskException.severity,
+        dollarImpactCents: taskException.dollarImpactCents,
+        breakGlass: taskException.breakGlass,
+        openedAt: taskException.openedAt,
+        firstViewedAt: taskException.firstViewedAt,
+      })
+      .from(taskException)
+      .where(and(eq(taskException.tenantId, tenantId), eq(taskException.taskId, taskId), isNull(taskException.resolvedAt)));
+
+    const verifications = await tx
+      .select({ status: verificationRun.status, checkKey: verificationRun.checkKey, ranAt: verificationRun.ranAt })
+      .from(verificationRun)
+      .where(and(eq(verificationRun.tenantId, tenantId), eq(verificationRun.taskId, taskId)))
+      .orderBy(desc(verificationRun.ranAt))
+      .limit(10);
+
+    const jobInst = await tx
+      .select({ entityId: jobTask.jobId, status: jobTask.status, owner: jobTask.owner, evidence: jobTask.evidence, verifiedAt: jobTask.verifiedAt })
+      .from(jobTask)
+      .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.taskId, taskId)));
+    const leadInst = await tx
+      .select({ entityId: leadTask.leadId, status: leadTask.status, owner: leadTask.owner, evidence: leadTask.evidence, verifiedAt: leadTask.verifiedAt })
+      .from(leadTask)
+      .where(and(eq(leadTask.tenantId, tenantId), eq(leadTask.taskId, taskId)));
+
+    return {
+      taskId,
+      name: reg.name,
+      phase: reg.phase,
+      slug: reg.slug,
+      health: health ?? null,
+      exception: exc ?? null,
+      verifications,
+      instances: [
+        ...jobInst.map((r) => ({ entity: "job" as const, ...r })),
+        ...leadInst.map((r) => ({ entity: "lead" as const, ...r })),
+      ],
+    };
+  });
+}
+
 /** One Job Ledger row: a registry task instantiated for a job, plus its evidence and scoreboard health. */
 export type JobLedgerRow = {
   taskId: number;
