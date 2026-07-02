@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../admin-client.js";
 import { pool } from "../client.js";
-import { tenant, customer, property, lead, job, jobTask, jobStageEvent, auditLog } from "../schema/index.js";
+import { tenant, customer, property, lead, job, jobChecklistItem, jobStageEvent, auditLog } from "../schema/index.js";
 import { document } from "../schema/ops.js";
 import { convertLeadToJob } from "./appointments.js";
 
@@ -46,7 +46,7 @@ afterAll(async () => {
   // convertLeadToJob seeds job_task rows and (via recordStageChange) writes a
   // job_stage_event + an audit_log row; delete those children before their
   // parents (job / tenant) to satisfy FK constraints.
-  await adminDb.delete(jobTask).where(eq(jobTask.tenantId, tId));
+  await adminDb.delete(jobChecklistItem).where(eq(jobChecklistItem.tenantId, tId));
   await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, tId));
   await adminDb.delete(auditLog).where(eq(auditLog.tenantId, tId));
   await adminDb.delete(job).where(eq(job.tenantId, tId));

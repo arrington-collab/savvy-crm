@@ -1,10 +1,10 @@
-import { jobTask } from "../schema/index";
+import { jobChecklistItem } from "../schema/index";
 import { TASK_TEMPLATES } from "../seed-data/templates";
 import type { JobType } from "@savvy/core";
 
 // Minimal tx shape we need (a drizzle transaction). Keep loose to avoid the
 // fragile full Tx generic; callers pass a real withTenant tx.
-type InsertTx = { insert: (table: typeof jobTask) => { values: (rows: unknown[]) => Promise<unknown> } };
+type InsertTx = { insert: (table: typeof jobChecklistItem) => { values: (rows: unknown[]) => Promise<unknown> } };
 
 /**
  * Seeds every non-org template matching the job's type as a pending job_task.
@@ -16,7 +16,7 @@ export async function seedJobTasks(
 ): Promise<number> {
   const templates = TASK_TEMPLATES.filter((t) => !t.orgLevel && t.jobTypes.includes(job.type));
   if (templates.length === 0) return 0;
-  await tx.insert(jobTask).values(
+  await tx.insert(jobChecklistItem).values(
     templates.map((t) => ({
       tenantId: job.tenantId,
       jobId: job.id,

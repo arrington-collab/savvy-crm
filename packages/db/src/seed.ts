@@ -1,6 +1,7 @@
 import { adminDb, adminPool } from "./admin-client";
 import { tenant, user, customer, property, job, messageTemplate, drip } from "./schema/index";
 import { parseSchedulingConfig } from "@savvy/core";
+import { seedTaskRegistry } from "../seeds/master-task-list";
 
 async function seedTenant(opts: {
   name: string; clerkOrgId: string; publicKey: string; inboundPhone: string;
@@ -54,6 +55,8 @@ async function seedTenant(opts: {
 }
 
 async function main() {
+  const n = await seedTaskRegistry(adminDb);
+  console.log(`seeded task_registry (${n} tasks)`);
   await seedTenant({ name: "Acme Roofing", clerkOrgId: "org_acme", publicKey: "acme", inboundPhone: "+15555550111" });
   await seedTenant({ name: "Best Roofers", clerkOrgId: "org_best", publicKey: "best", inboundPhone: "+15555550222" });
   console.log("seeded 2 tenants");

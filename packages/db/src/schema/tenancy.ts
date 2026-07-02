@@ -19,6 +19,14 @@ export const tenant = pgTable("tenant", {
   companycamConnectionId: text("companycam_connection_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
   telephonyMode: telephonyModeEnum("telephony_mode").notNull().default("platform"),
+  // Task Registry / Scoreboard: every cron, customer-facing time string, and
+  // business-hours rule reads this instead of a hardcoded TZ. Alta = America/Denver.
+  timezone: text("timezone").notNull().default("America/Phoenix"),
+  // Local times exceptions are batched into digests (protects the owner's day).
+  digestTimes: jsonb("digest_times").$type<string[]>().notNull().default(["07:00", "17:00"]),
+  // When an exception may interrupt the owner immediately instead of waiting for a digest.
+  breakGlass: jsonb("break_glass").$type<{ min_dollars: number; deadline_hours: number }>()
+    .notNull().default({ min_dollars: 10000, deadline_hours: 48 }),
   createdAt: createdAt(),
 });
 

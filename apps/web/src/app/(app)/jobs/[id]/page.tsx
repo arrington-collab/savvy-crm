@@ -3,7 +3,7 @@ import {
   job,
   customer,
   property,
-  jobTask,
+  jobChecklistItem,
   communication,
   jobStageEvent,
   auditLog,
@@ -88,17 +88,17 @@ export default async function JobDetailPage({
 
     const taskRows = await tx
       .select({
-        id: jobTask.id,
-        title: jobTask.title,
-        phase: jobTask.phase,
-        automationLevel: jobTask.automationLevel,
-        status: jobTask.status,
-        dueAt: jobTask.dueAt,
-        ownerAgent: jobTask.ownerAgent,
+        id: jobChecklistItem.id,
+        title: jobChecklistItem.title,
+        phase: jobChecklistItem.phase,
+        automationLevel: jobChecklistItem.automationLevel,
+        status: jobChecklistItem.status,
+        dueAt: jobChecklistItem.dueAt,
+        ownerAgent: jobChecklistItem.ownerAgent,
       })
-      .from(jobTask)
-      .where(eq(jobTask.jobId, id))
-      .orderBy(asc(sql`(${jobTask.payload}->>'num')::int`));
+      .from(jobChecklistItem)
+      .where(eq(jobChecklistItem.jobId, id))
+      .orderBy(asc(sql`(${jobChecklistItem.payload}->>'num')::int`));
 
     const commRows = await tx
       .select({

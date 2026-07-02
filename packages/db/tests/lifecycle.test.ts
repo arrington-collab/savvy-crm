@@ -4,7 +4,7 @@ import { JOB_STAGE } from "@savvy/core";
 import { eq } from "drizzle-orm";
 import { adminDb } from "../src/admin-client";
 import { withTenant } from "../src/tenant";
-import { tenant, customer, property, job, jobTask } from "../src/schema/index";
+import { tenant, customer, property, job, jobChecklistItem } from "../src/schema/index";
 import { seedJobTasks } from "../src/lifecycle/seed-job-tasks";
 import { recordStageChange } from "../src/lifecycle/record-stage-change";
 import { jobStageEvent, auditLog } from "../src/schema/index";
@@ -41,10 +41,10 @@ describe("seedJobTasks", () => {
     const [j] = await adminDb.insert(job).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead" }).returning();
     const n = await withTenant(t!.id, (tx) => seedJobTasks(tx as never, { id: j!.id, tenantId: t!.id, type: "retail" }));
     expect(n).toBeGreaterThan(0);
-    const rows = await withTenant(t!.id, (tx) => tx.select().from(jobTask).where(eq(jobTask.jobId, j!.id)));
+    const rows = await withTenant(t!.id, (tx) => tx.select().from(jobChecklistItem).where(eq(jobChecklistItem.jobId, j!.id)));
     expect(rows.length).toBe(n);
     expect(rows.every((r) => r.phase !== "Operations & Compliance" && r.phase !== "Reporting & Analytics")).toBe(true);
-    await adminDb.delete(jobTask).where(eq(jobTask.tenantId, t!.id));
+    await adminDb.delete(jobChecklistItem).where(eq(jobChecklistItem.tenantId, t!.id));
     await adminDb.delete(job).where(eq(job.tenantId, t!.id));
     await adminDb.delete(property).where(eq(property.tenantId, t!.id));
     await adminDb.delete(customer).where(eq(customer.tenantId, t!.id));
@@ -70,7 +70,7 @@ describe("recordStageChange", () => {
     const events = await withTenant(t!.id, (tx) => tx.select().from(jobStageEvent).where(eq(jobStageEvent.jobId, j!.id)));
     expect(events.length).toBe(2);
 
-    await adminDb.delete(jobTask).where(eq(jobTask.tenantId, t!.id));
+    await adminDb.delete(jobChecklistItem).where(eq(jobChecklistItem.tenantId, t!.id));
     await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, t!.id));
     await adminDb.delete(auditLog).where(eq(auditLog.tenantId, t!.id));
     await adminDb.delete(job).where(eq(job.tenantId, t!.id));

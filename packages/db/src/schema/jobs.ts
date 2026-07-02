@@ -28,7 +28,11 @@ export const job = pgTable("job", {
   uniqueIndex("job_companycam_project_uniq").on(t.companycamProjectId).where(sql`${t.companycamProjectId} IS NOT NULL`),
 ]);
 
-export const jobTask = pgTable("job_task", {
+// Ad-hoc per-job checklist items (key/title/status). NOTE: renamed from the
+// original "job_task" table — that name now belongs to the Task Registry's
+// per-job task instances (see schema/task-registry.ts). This is the
+// operational checklist, not the registry.
+export const jobChecklistItem = pgTable("job_checklist_item", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").notNull().references(() => job.id),
@@ -45,7 +49,7 @@ export const jobTask = pgTable("job_task", {
   payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
   createdAt: createdAt(),
 }, (t) => [
-  index("job_task_tenant_job_idx").on(t.tenantId, t.jobId),
+  index("job_checklist_item_tenant_job_idx").on(t.tenantId, t.jobId),
   tenantIsolation(),
 ]);
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { withTenant } from "../src/tenant.js";
 import { resolveTaskAutomation, gateAgentAutomation } from "../src/lifecycle/task-automation.js";
-import { jobTask, agentRun } from "../src/schema/index.js";
+import { jobChecklistItem, agentRun } from "../src/schema/index.js";
 import { adminDb } from "../src/admin-client.js";
 import { eq, and } from "drizzle-orm";
 import { makeTenant, makeJobWithCustomer } from "./helpers.js";
@@ -11,7 +11,7 @@ const KEY = "estimating-049";
 async function seedTaskedJob(level: string): Promise<{ tenantId: string; jobId: string }> {
   const { tenantId } = await makeTenant();
   const { jobId } = await makeJobWithCustomer(tenantId);
-  await adminDb.insert(jobTask).values({ tenantId, jobId, key: KEY, title: "Estimate import", automationLevel: level as never, status: "pending" });
+  await adminDb.insert(jobChecklistItem).values({ tenantId, jobId, key: KEY, title: "Estimate import", automationLevel: level as never, status: "pending" });
   return { tenantId, jobId };
 }
 
@@ -30,7 +30,7 @@ describe("gateAgentAutomation", () => {
     const { tenantId, jobId } = await seedTaskedJob("full");
     const res = await gateAgentAutomation({ tenantId, jobId, taskKey: KEY, agent: "claims" });
     expect(res).toEqual({ proceed: true, level: "full" });
-    const [t] = await withTenant(tenantId, (tx) => tx.select({ d: jobTask.deferredAt }).from(jobTask).where(and(eq(jobTask.jobId, jobId), eq(jobTask.key, KEY))));
+    const [t] = await withTenant(tenantId, (tx) => tx.select({ d: jobChecklistItem.deferredAt }).from(jobChecklistItem).where(and(eq(jobChecklistItem.jobId, jobId), eq(jobChecklistItem.key, KEY))));
     expect(t!.d).toBeNull();
     const runs = await withTenant(tenantId, (tx) => tx.select().from(agentRun).where(eq(agentRun.jobId, jobId)));
     expect(runs).toHaveLength(0);
@@ -40,7 +40,7 @@ describe("gateAgentAutomation", () => {
     const { tenantId, jobId } = await seedTaskedJob("manual");
     const res = await gateAgentAutomation({ tenantId, jobId, taskKey: KEY, agent: "claims" });
     expect(res).toEqual({ proceed: false, level: "manual" });
-    const [t] = await withTenant(tenantId, (tx) => tx.select({ d: jobTask.deferredAt }).from(jobTask).where(and(eq(jobTask.jobId, jobId), eq(jobTask.key, KEY))));
+    const [t] = await withTenant(tenantId, (tx) => tx.select({ d: jobChecklistItem.deferredAt }).from(jobChecklistItem).where(and(eq(jobChecklistItem.jobId, jobId), eq(jobChecklistItem.key, KEY))));
     expect(t!.d).not.toBeNull();
     const runs = await withTenant(tenantId, (tx) => tx.select().from(agentRun).where(and(eq(agentRun.jobId, jobId), eq(agentRun.status, "skipped"))));
     expect(runs).toHaveLength(1);

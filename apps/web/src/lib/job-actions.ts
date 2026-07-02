@@ -4,7 +4,7 @@ import {
   recordStageChange,
   IncompletePhotosError,
   IncompleteDocumentsError,
-  jobTask,
+  jobChecklistItem,
   eq,
 } from "@savvy/db";
 import { revalidatePath } from "next/cache";
@@ -42,12 +42,12 @@ export async function toggleTask(
   const tenantId = await getTenantId();
   await withTenant(tenantId, async (tx) => {
     await tx
-      .update(jobTask)
+      .update(jobChecklistItem)
       .set({
         status: done ? "done" : "pending",
         completedAt: done ? new Date() : null,
       })
-      .where(eq(jobTask.id, taskId));
+      .where(eq(jobChecklistItem.id, taskId));
   });
   revalidatePath("/jobs", "layout");
   return { ok: true };

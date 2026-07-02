@@ -11,6 +11,8 @@ import {
   MATERIAL_ORDER_STATUS,
   CLAIM_STATUS,
   TELEPHONY_PROVIDER, INTEGRATION_STATUS, TELEPHONY_MODE,
+  TASK_OWNER, TASK_MODE, TASK_SCOPE, VERIFICATION_TIER,
+  JOB_TASK_STATUS, EVIDENCE_STATUS, TASK_HEALTH_STATUS,
 } from "@savvy/core";
 
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
@@ -39,3 +41,10 @@ export const claimStatusEnum = pgEnum("claim_status", CLAIM_STATUS);
 export const telephonyProviderEnum = pgEnum("telephony_provider", TELEPHONY_PROVIDER);
 export const integrationStatusEnum = pgEnum("integration_status", INTEGRATION_STATUS);
 export const telephonyModeEnum = pgEnum("telephony_mode", TELEPHONY_MODE);
+export const taskOwnerEnum = pgEnum("task_owner", TASK_OWNER);
+export const taskModeEnum = pgEnum("task_mode", TASK_MODE);
+export const taskScopeEnum = pgEnum("task_scope", TASK_SCOPE);
+export const verificationTierEnum = pgEnum("verification_tier", VERIFICATION_TIER);
+export const jobTaskStatusEnum = pgEnum("job_task_status", JOB_TASK_STATUS);
+export const evidenceStatusEnum = pgEnum("evidence_status", EVIDENCE_STATUS);
+export const taskHealthStatusEnum = pgEnum("task_health_status", TASK_HEALTH_STATUS);
