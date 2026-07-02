@@ -3,8 +3,8 @@ import {
   computeTaskHealth, buildTaskExceptions,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException,
 } from "@savvy/core";
-import { withTenant } from "../tenant";
-import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException } from "../schema/index";
+import { withTenant, type Tx } from "../tenant";
+import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException, invoice, tenant } from "../schema/index";
 
 const DAY_MS = 86_400_000;
 
@@ -204,12 +204,44 @@ export async function computeTaskExceptions(tenantId: string): Promise<TaskExcep
 }
 
 /**
+ * Dollar impact of a done-but-wrong (verification_mismatch) exception: sums the
+ * amount_due of the invoices its exception ledger rows point at. Only invoice
+ * evidence carries a dollar figure today; non-invoice evidence and non-mismatch
+ * exception kinds are $0. This is the number break-glass pages on.
+ */
+async function computeDollarImpactCents(tx: Tx, tenantId: string, taskId: number, kind: string): Promise<number> {
+  if (kind !== "verification_mismatch") return 0;
+  const rows = [
+    ...(await tx
+      .select({ evidence: jobTask.evidence })
+      .from(jobTask)
+      .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.taskId, taskId), eq(jobTask.status, "exception")))),
+    ...(await tx
+      .select({ evidence: leadTask.evidence })
+      .from(leadTask)
+      .where(and(eq(leadTask.tenantId, tenantId), eq(leadTask.taskId, taskId), eq(leadTask.status, "exception")))),
+  ];
+  const invoiceIds = rows
+    .map((r) => r.evidence)
+    .filter((e): e is NonNullable<typeof e> => e?.type === "invoice")
+    .map((e) => e.ref);
+  if (invoiceIds.length === 0) return 0;
+  const invs = await tx
+    .select({ amountDue: invoice.amountDue })
+    .from(invoice)
+    .where(and(eq(invoice.tenantId, tenantId), inArray(invoice.id, invoiceIds)));
+  return invs.reduce((sum, i) => sum + (i.amountDue ?? 0), 0);
+}
+
+/**
  * Reconciles the persisted exception ledger with the current computed set: opens
- * a row for each newly-unhealthy task (stamping opened_at), refreshes kind/severity
- * on still-open ones, and resolves (resolved_at) rows whose task recovered. At most
- * one OPEN row per task. This gives exceptions the identity + timings that
- * founder-minutes and break-glass paging need, without abandoning the computed
- * source of truth (task_health). Run by the sweep after health is recomputed.
+ * a row for each newly-unhealthy task (stamping opened_at), refreshes
+ * kind/severity/dollar-impact/break-glass on still-open ones, and resolves
+ * (resolved_at) rows whose task recovered. At most one OPEN row per task. This
+ * gives exceptions the identity + timings that founder-minutes and break-glass
+ * paging need, without abandoning the computed source of truth (task_health).
+ * break_glass fires when dollar impact clears the tenant's threshold. Run by the
+ * sweep after health is recomputed.
  */
 export async function reconcileTaskExceptions(
   tenantId: string,
@@ -220,6 +252,10 @@ export async function reconcileTaskExceptions(
   const byTask = new Map(computed.map((e) => [e.taskId, e]));
 
   return withTenant(tenantId, async (tx) => {
+    const [tRow] = await tx.select({ breakGlass: tenant.breakGlass }).from(tenant).where(eq(tenant.id, tenantId));
+    const minDollars = tRow?.breakGlass?.min_dollars;
+    const thresholdCents = typeof minDollars === "number" && minDollars > 0 ? minDollars * 100 : null;
+
     const open = await tx
       .select({ id: taskException.id, taskId: taskException.taskId })
       .from(taskException)
@@ -228,11 +264,13 @@ export async function reconcileTaskExceptions(
 
     let opened = 0, resolved = 0;
     for (const [taskId, ex] of byTask) {
+      const dollarImpactCents = await computeDollarImpactCents(tx, tenantId, taskId, ex.kind);
+      const breakGlass = thresholdCents !== null && dollarImpactCents >= thresholdCents;
       const existing = openByTask.get(taskId);
       if (existing) {
-        await tx.update(taskException).set({ kind: ex.kind, severity: ex.severity, updatedAt: now }).where(eq(taskException.id, existing.id));
+        await tx.update(taskException).set({ kind: ex.kind, severity: ex.severity, dollarImpactCents, breakGlass, updatedAt: now }).where(eq(taskException.id, existing.id));
       } else {
-        await tx.insert(taskException).values({ tenantId, taskId, kind: ex.kind, severity: ex.severity, openedAt: now });
+        await tx.insert(taskException).values({ tenantId, taskId, kind: ex.kind, severity: ex.severity, dollarImpactCents, breakGlass, openedAt: now });
         opened++;
       }
     }

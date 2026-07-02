@@ -51,6 +51,7 @@ export { enrichmentSweep } from "./functions/enrichment-sweep";
 export { taskHealthSweep } from "./functions/task-health-sweep";
 export { opsDigest } from "./functions/ops-digest";
 export { sendTenantDigest } from "./ops-digest";
+export { pageBreakGlass } from "./break-glass";
 export { sweepTenantHealth, runCheck } from "./health-sweep";
 export { sweepTenant, makeGeocodeEnricher, makeStormproofEnricher, ENRICHERS, type Enricher } from "./enrichment";
 export { emailAppendSweep, appendEmailsForTenant } from "./functions/email-append";
