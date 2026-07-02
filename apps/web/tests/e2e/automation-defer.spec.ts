@@ -17,7 +17,7 @@ test("a deferred task appears as a Needs approval exception", async ({ page }) =
   const stamp = randomUUID().slice(0, 8);
   const name = `Defer Dan ${stamp}`;
   const [cust] = await adminDb.insert(customer).values({ tenantId, name, email: `defer-${stamp}@e2e.test` }).returning();
-  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} Defer Way` }).returning();
+  const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} Defer Way`, roofType: "asphalt_shingle" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: cust!.id, propertyId: prop!.id, type: "retail", stage: "estimate" }).returning();
   await adminDb.insert(jobTask).values({
     tenantId, jobId: j!.id, key: "estimating-049", title: "Estimate import",

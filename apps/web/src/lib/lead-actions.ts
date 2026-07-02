@@ -1,6 +1,6 @@
 "use server";
-import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted } from "@savvy/db";
-import { leadIntakeSchema } from "@savvy/core";
+import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, property, eq } from "@savvy/db";
+import { leadIntakeSchema, ROOF_TYPE_VALUES } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { createLeadForTenant } from "./intake";
@@ -64,6 +64,24 @@ export async function markLeadLost(
     return { ok: true };
   } catch {
     return { error: "could not mark lead lost" };
+  }
+}
+
+/** Human-supplied roof type (resolves a roof_type_needed exception). Validated against the enum. */
+export async function setPropertyRoofType(
+  leadId: string,
+  propertyId: string,
+  roofType: string,
+): Promise<{ ok: true } | { error: string }> {
+  if (!(ROOF_TYPE_VALUES as readonly string[]).includes(roofType)) return { error: "invalid roof type" };
+  try {
+    const tenantId = await getTenantId();
+    await withTenant(tenantId, (tx) => tx.update(property).set({ roofType }).where(eq(property.id, propertyId)));
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/exceptions");
+    return { ok: true };
+  } catch {
+    return { error: "could not set roof type" };
   }
 }
 

@@ -10,6 +10,7 @@ const KIND_LABEL: Record<string, string> = {
   material_delivery: "Materials",
   task_needs_approval: "Needs approval",
   weather_at_risk: "Weather risk",
+  roof_type_needed: "Roof type",
 };
 
 export default async function ExceptionsPage() {

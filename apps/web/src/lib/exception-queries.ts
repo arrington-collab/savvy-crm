@@ -1,6 +1,6 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, eq, or, sql } from "@savvy/db";
-import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobTask, customer, tenant, materialOrder, property, eq, or, sql } from "@savvy/db";
+import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 // Gathers the five exception vectors for the tenant and normalizes them in core
@@ -117,6 +117,18 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       appointmentId: r.id, jobId: r.jobId, apptType: r.apptType, startsAt: r.startsAt, customerName: r.customerName, note: r.note ?? "Weather risk",
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks });
+    // --- roof type unknown on an active, post-inspection job (someone's engaged
+    // the property, so we should have it — pressure a human to capture it) ---
+    const roofRows = await tx
+      .select({ jobId: job.id, leadId: job.leadId, propertyId: job.propertyId, customerName: customer.name, stageEnteredAt: job.stageEnteredAt })
+      .from(job)
+      .leftJoin(property, eq(property.id, job.propertyId))
+      .leftJoin(customer, eq(customer.id, job.customerId))
+      .where(sql`${property.roofType} is null and ${job.stage} in ('inspected','estimate','approved','production','closeout','billing')`);
+    const roofTypeNeeded: RoofTypeNeededInput[] = roofRows.map((r) => ({
+      jobId: r.jobId, leadId: r.leadId, propertyId: r.propertyId, customerName: r.customerName, occurredAt: r.stageEnteredAt,
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded });
   });
 }
