@@ -15,3 +15,4 @@ export * from "./procurement";
 export * from "./insurance";
 export * from "./integrations";
 export * from "./enrichment";
+export * from "./task-registry";

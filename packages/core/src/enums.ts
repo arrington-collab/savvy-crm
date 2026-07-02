@@ -86,3 +86,26 @@ export type IntegrationStatus = (typeof INTEGRATION_STATUS)[number];
 
 export const TELEPHONY_MODE = ["platform", "byo"] as const;
 export type TelephonyMode = (typeof TELEPHONY_MODE)[number];
+
+// --- Task Registry / Scoreboard (see docs/superpowers/specs/task-registry.md) ---
+// Named agent personas that own registry tasks (distinct from the AGENT domain enum).
+export const TASK_OWNER = ["SAGE", "ATLAS", "NOVA", "MILO", "VERA", "SCOUT", "HUMAN"] as const;
+// Automation mode for a registry task (distinct from the older AUTOMATION_LEVEL).
+export const TASK_MODE = ["full_auto", "assisted", "manual"] as const;
+export const TASK_SCOPE = ["per_job", "per_lead", "per_tenant_recurring", "one_time"] as const;
+export const VERIFICATION_TIER = ["execution", "invariant", "reconciliation", "sampled_audit"] as const;
+// Per-job task-instance lifecycle. `done` is claimed by the doer; `verified` is
+// granted only by the health sweep (checker != doer).
+export const JOB_TASK_STATUS = ["pending", "in_progress", "done", "verified", "exception", "failed", "skipped", "not_applicable"] as const;
+// Outcome of an evidence check.
+export const EVIDENCE_STATUS = ["pass", "fail", "stale", "skip"] as const;
+// Scoreboard health status. green is earned, never declared.
+export const TASK_HEALTH_STATUS = ["green", "amber", "red", "gray"] as const;
+
+export type TaskOwner = (typeof TASK_OWNER)[number];
+export type TaskMode = (typeof TASK_MODE)[number];
+export type TaskScope = (typeof TASK_SCOPE)[number];
+export type VerificationTier = (typeof VERIFICATION_TIER)[number];
+export type JobTaskStatus = (typeof JOB_TASK_STATUS)[number];
+export type EvidenceStatus = (typeof EVIDENCE_STATUS)[number];
+export type TaskHealthStatus = (typeof TASK_HEALTH_STATUS)[number];
