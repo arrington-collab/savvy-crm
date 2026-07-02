@@ -267,6 +267,13 @@
       "when": 1782856723754,
       "tag": "0037_heavy_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782958325467,
+      "tag": "0038_zippy_corsair",
+      "breakpoints": true
     }
   ]
 }
