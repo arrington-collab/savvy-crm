@@ -1,5 +1,8 @@
-import { and, desc, eq, sql } from "drizzle-orm";
-import { computeTaskHealth, type TaskHealthInputs, type TaskHealthResult, type EvidenceResult } from "@savvy/core";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  computeTaskHealth, buildTaskExceptions,
+  type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException,
+} from "@savvy/core";
 import { withTenant } from "../tenant";
 import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask } from "../schema/index";
 
@@ -155,5 +158,47 @@ export async function spotVerifyDoneTasks(
     }
 
     return { verified, exceptions };
+  });
+}
+
+/**
+ * The tenant's current scoreboard exceptions — computed from state (the #82
+ * pattern: no exception table, no marker columns). Every amber/red task is an
+ * open exception; recovering to green removes it. Consumed by the digest and
+ * the read-only UI. Ranked by severity then founder-minutes (the automation
+ * priority queue).
+ */
+export async function computeTaskExceptions(tenantId: string): Promise<TaskException[]> {
+  return withTenant(tenantId, async (tx) => {
+    const rows = await tx
+      .select({
+        taskId: taskHealth.taskId,
+        status: taskHealth.status,
+        openExc: taskHealth.openExceptionCount,
+        name: taskRegistry.name,
+        est: taskRegistry.estFounderMinutes,
+      })
+      .from(taskHealth)
+      .innerJoin(taskRegistry, eq(taskRegistry.id, taskHealth.taskId))
+      .where(and(eq(taskHealth.tenantId, tenantId), inArray(taskHealth.status, ["amber", "red"])));
+
+    const inputs = [];
+    for (const r of rows) {
+      const [latest] = await tx
+        .select({ status: verificationRun.status })
+        .from(verificationRun)
+        .where(and(eq(verificationRun.tenantId, tenantId), eq(verificationRun.taskId, r.taskId)))
+        .orderBy(desc(verificationRun.ranAt))
+        .limit(1);
+      inputs.push({
+        taskId: r.taskId,
+        taskName: r.name,
+        status: r.status,
+        latestVerification: latest?.status ?? null,
+        ledgerExceptionCount: r.openExc,
+        estFounderMinutes: Number(r.est),
+      });
+    }
+    return buildTaskExceptions(inputs);
   });
 }
