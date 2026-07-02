@@ -1,6 +1,5 @@
 "use client";
 import { useState, useTransition } from "react";
-import { formatSlotLabel } from "@savvy/core";
 import { confirmSlot } from "@/lib/booking-action";
 import { Button } from "@/components/ui/button";
 
@@ -9,7 +8,10 @@ export function SlotPicker({
   slots,
 }: {
   token: string;
-  slots: { startsAt: string; endsAt: string }[];
+  // `label` is formatted on the server (tenant tz) so this client component
+  // renders a stable string — no new Date()/toLocale* that would mismatch on
+  // hydration and reset the email field mid-typing.
+  slots: { startsAt: string; endsAt: string; label: string }[];
 }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function SlotPicker({
             })
           }
         >
-          {formatSlotLabel(new Date(s.startsAt), new Date())}
+          {s.label}
         </Button>
       ))}
     </div>

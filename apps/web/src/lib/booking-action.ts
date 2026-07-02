@@ -4,7 +4,7 @@ import {
   bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
   bookLeadSlot, setCustomerEmail,
 } from "@savvy/db";
-import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, requireSecret } from "@savvy/core";
+import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, formatSlotLabel, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 
 const SECRET = () => requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
@@ -26,11 +26,22 @@ export async function getSlotsForToken(token: string) {
   if (!assignee) return { error: "no_assignee" as const };
   const busy = await loadBusy(p.tenantId, assignee.id, cfg.bookingHorizonDays);
   const cluster = await loadClusterPoint(p);
+  const now = new Date();
   const slots = computeOpenSlots({
     config: cfg, type: p.type, existingAppts: busy,
-    fromDate: new Date(), now: new Date(), tz, clusterAround: cluster ?? undefined,
+    fromDate: now, now, tz, clusterAround: cluster ?? undefined,
   }).slice(0, 12);
-  return { slots: slots.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() })) };
+  // Format the label on the server in the tenant's timezone so the public page
+  // hydrates without a mismatch (a client-side new Date()/toLocale* would differ
+  // between SSR and browser and blow away the SlotPicker subtree — including any
+  // email the homeowner already typed).
+  return {
+    slots: slots.map((s) => ({
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+      label: formatSlotLabel(s.startsAt, now, tz),
+    })),
+  };
 }
 
 // Homeowner-provided email at booking time = self_reported (marketing-usable).
