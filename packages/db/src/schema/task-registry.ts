@@ -180,3 +180,29 @@ export const taskHealth = pgTable(
     tenantIsolation(),
   ],
 );
+
+/**
+ * Per-tenant portfolio snapshot (one row per tenant, upserted by the sweep).
+ * Coverage = full_auto tasks proven green out of the whole task list — the
+ * "empire coverage" metric — plus the status breakdown and 30d ops rates.
+ */
+export const tenantOpsRollup = pgTable(
+  "tenant_ops_rollup",
+  {
+    id: idCol(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+    fullAutoGreen: integer("full_auto_green").notNull().default(0), // coverage numerator
+    totalTasks: integer("total_tasks").notNull().default(0), // coverage denominator (212)
+    greenCount: integer("green_count").notNull().default(0),
+    amberCount: integer("amber_count").notNull().default(0),
+    redCount: integer("red_count").notNull().default(0),
+    openExceptionCount: integer("open_exception_count").notNull().default(0),
+    jobs30d: integer("jobs_30d").notNull().default(0), // exceptions-per-job denominator
+    founderMinutes30d: numeric("founder_minutes_30d").notNull().default("0"),
+    computedAt: timestamp("computed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique("tenant_ops_rollup_tenant_uniq").on(t.tenantId),
+    tenantIsolation(),
+  ],
+);
