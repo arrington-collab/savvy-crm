@@ -302,6 +302,13 @@
       "when": 1783005121776,
       "tag": "0042_curly_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1783022322378,
+      "tag": "0043_typical_blue_blade",
+      "breakpoints": true
     }
   ]
 }

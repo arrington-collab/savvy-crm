@@ -1,10 +1,10 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   computeTaskHealth, buildTaskExceptions,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException,
 } from "@savvy/core";
 import { withTenant } from "../tenant";
-import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask } from "../schema/index";
+import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup } from "../schema/index";
 
 const DAY_MS = 86_400_000;
 
@@ -200,5 +200,48 @@ export async function computeTaskExceptions(tenantId: string): Promise<TaskExcep
       });
     }
     return buildTaskExceptions(inputs);
+  });
+}
+
+/**
+ * Snapshots a tenant's portfolio metrics into tenant_ops_rollup (one row per
+ * tenant, upserted by the sweep): coverage (full_auto tasks proven green out of
+ * the whole task list), the status breakdown, open exceptions, 30d job count,
+ * and founder-minutes. The portfolio view reads these — running N companies at a
+ * glance.
+ */
+export async function computeTenantRollup(
+  tenantId: string,
+  opts: { now?: Date } = {},
+): Promise<void> {
+  const now = opts.now ?? new Date();
+  const cutoff = new Date(now.getTime() - 30 * 86_400_000);
+  await withTenant(tenantId, async (tx) => {
+    const health = await tx
+      .select({ status: taskHealth.status, mode: taskHealth.effectiveMode, openExc: taskHealth.openExceptionCount, fm: taskHealth.founderMinutes30d })
+      .from(taskHealth)
+      .where(eq(taskHealth.tenantId, tenantId));
+
+    let fullAutoGreen = 0, greenCount = 0, amberCount = 0, redCount = 0, openExceptionCount = 0, founderMinutes = 0;
+    for (const h of health) {
+      if (h.status === "green") { greenCount++; if (h.mode === "full_auto") fullAutoGreen++; }
+      else if (h.status === "amber") amberCount++;
+      else if (h.status === "red") redCount++;
+      openExceptionCount += h.openExc;
+      founderMinutes += Number(h.fm);
+    }
+
+    const [tc] = await tx.select({ cnt: sql<number>`count(*)::int` }).from(taskRegistry);
+    const [jc] = await tx.select({ cnt: sql<number>`count(*)::int` }).from(job).where(gte(job.createdAt, cutoff));
+
+    const set = {
+      fullAutoGreen, totalTasks: tc?.cnt ?? 0,
+      greenCount, amberCount, redCount, openExceptionCount,
+      jobs30d: jc?.cnt ?? 0, founderMinutes30d: String(founderMinutes), computedAt: now,
+    };
+    await tx
+      .insert(tenantOpsRollup)
+      .values({ tenantId, ...set })
+      .onConflictDoUpdate({ target: tenantOpsRollup.tenantId, set });
   });
 }

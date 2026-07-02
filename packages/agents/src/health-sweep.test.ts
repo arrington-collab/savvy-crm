@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { EvidenceCtx, EvidenceResult } from "@savvy/core";
 import {
   adminDb, adminPool, eq, and, inArray,
-  tenant, customer, property, lead, communication, taskRegistry, verificationRun, taskHealth, agentRun, leadTask,
+  tenant, customer, property, lead, communication, taskRegistry, verificationRun, taskHealth, agentRun, leadTask, tenantOpsRollup,
 } from "@savvy/db";
 import { runCheck, sweepTenantHealth } from "./health-sweep";
 
@@ -56,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await adminDb.delete(tenantOpsRollup).where(eq(tenantOpsRollup.tenantId, tenantId));
   await adminDb.delete(verificationRun).where(eq(verificationRun.tenantId, tenantId));
   await adminDb.delete(taskHealth).where(eq(taskHealth.tenantId, tenantId));
   await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tenantId));
