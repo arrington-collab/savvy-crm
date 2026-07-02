@@ -1,6 +1,6 @@
 import { evidenceChecks, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
 import {
-  adminDb, adminPool, recomputeTaskHealth, recordAgentRun, and, eq,
+  adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, recordAgentRun, and, eq,
   taskRegistry, tenantTaskConfig, verificationRun,
 } from "@savvy/db";
 
@@ -61,6 +61,9 @@ export async function sweepTenantHealth(tenantId: string, opts: { now?: Date } =
       tenantId, taskId: t.id, checkKey: t.checkKey, status: result.status,
       details: { message: result.details }, refs: result.refs,
     });
+    // Spot-verify claimed work against this check's independent result BEFORE
+    // recompute, so done-but-wrong exceptions feed the health status.
+    await spotVerifyDoneTasks(tenantId, t.id, result, { now });
     await recomputeTaskHealth(tenantId, t.id, { now });
     checked++;
   }
