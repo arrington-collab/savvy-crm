@@ -50,34 +50,36 @@ export async function instantiateLeadTasks(
  * removing this task from their blocked_by. Never grants `verified` — only the
  * health sweep does. Mirror of markJobTaskDone.
  */
-export async function markLeadTaskDone(
-  tenantId: string,
-  args: { leadId: string; taskId: number; owner?: string; evidence?: EvidenceRef; agentRunId?: string },
-): Promise<void> {
-  await withTenant(tenantId, async (tx) => {
-    await tx
-      .update(leadTask)
-      .set({
-        status: "done",
-        owner: args.owner ?? null,
-        evidence: args.evidence ?? null,
-        agentRunId: args.agentRunId ?? null,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(leadTask.tenantId, tenantId), eq(leadTask.leadId, args.leadId), eq(leadTask.taskId, args.taskId)));
+export type MarkLeadTaskArgs = { leadId: string; taskId: number; owner?: string; evidence?: EvidenceRef; agentRunId?: string };
 
-    await tx
-      .update(leadTask)
-      .set({ blockedBy: sql`array_remove(${leadTask.blockedBy}, ${args.taskId})`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(leadTask.tenantId, tenantId),
-          eq(leadTask.leadId, args.leadId),
-          sql`${args.taskId} = ANY(${leadTask.blockedBy})`,
-        ),
-      );
-  });
+/** Transaction-joining variant of markLeadTaskDone (atomic evidence writes). No-op if the row is absent. */
+export async function markLeadTaskDoneTx(tx: Tx, tenantId: string, args: MarkLeadTaskArgs): Promise<void> {
+  await tx
+    .update(leadTask)
+    .set({
+      status: "done",
+      owner: args.owner ?? null,
+      evidence: args.evidence ?? null,
+      agentRunId: args.agentRunId ?? null,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(leadTask.tenantId, tenantId), eq(leadTask.leadId, args.leadId), eq(leadTask.taskId, args.taskId)));
+
+  await tx
+    .update(leadTask)
+    .set({ blockedBy: sql`array_remove(${leadTask.blockedBy}, ${args.taskId})`, updatedAt: new Date() })
+    .where(
+      and(
+        eq(leadTask.tenantId, tenantId),
+        eq(leadTask.leadId, args.leadId),
+        sql`${args.taskId} = ANY(${leadTask.blockedBy})`,
+      ),
+    );
+}
+
+export async function markLeadTaskDone(tenantId: string, args: MarkLeadTaskArgs): Promise<void> {
+  await withTenant(tenantId, (tx) => markLeadTaskDoneTx(tx, tenantId, args));
 }
 
 /**

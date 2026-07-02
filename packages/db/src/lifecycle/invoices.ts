@@ -3,8 +3,9 @@ import { invoice, payment, estimate } from "../schema/finance";
 import { job } from "../schema/jobs";
 import { tenant } from "../schema/tenancy";
 import { and, eq, sql } from "drizzle-orm";
-import { computeInvoiceTotal, formatInvoiceNumber, parseFinanceConfig, type LineItem } from "@savvy/core";
+import { computeInvoiceTotal, formatInvoiceNumber, parseFinanceConfig, REGISTRY_TASK, type LineItem } from "@savvy/core";
 import type { PaymentMethod } from "@savvy/core";
+import { markJobTaskDoneTx } from "./job-tasks";
 
 export class StripeNotConnectedError extends Error {
   constructor() { super("stripe_not_connected"); this.name = "StripeNotConnectedError"; }
@@ -22,6 +23,7 @@ export async function createInvoice(input: {
       tenantId: input.tenantId, jobId: input.jobId, customerId: j?.customerId ?? null,
       lineItems: input.lineItems, amountDue, status: "draft",
     }).returning();
+    await markJobTaskDoneTx(tx, input.tenantId, { jobId: input.jobId, taskId: REGISTRY_TASK.INVOICE_GENERATION, owner: "finance", evidence: { type: "invoice", ref: row!.id } });
     return row!;
   });
 }
@@ -38,6 +40,7 @@ export async function createInvoiceFromEstimate(input: {
       lineItems: e.lineItems as unknown[], amountDue: e.total ?? 0, status: "draft",
     }).returning();
     await tx.update(estimate).set({ status: "accepted" }).where(eq(estimate.id, input.estimateId));
+    await markJobTaskDoneTx(tx, input.tenantId, { jobId: e.jobId, taskId: REGISTRY_TASK.INVOICE_GENERATION, owner: "finance", evidence: { type: "invoice", ref: row!.id } });
     return row!;
   });
 }
@@ -58,6 +61,9 @@ export async function sendInvoice(input: { tenantId: string; invoiceId: string }
       .set({ number, dueAt, status: "sent" })
       .where(and(eq(invoice.id, input.invoiceId), eq(invoice.status, "draft")))
       .returning();
+    if (row) {
+      await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.INVOICE_DELIVERY, owner: "finance", evidence: { type: "invoice", ref: row.id } });
+    }
     return row!;
   });
 }

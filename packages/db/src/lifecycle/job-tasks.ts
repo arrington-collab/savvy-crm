@@ -50,34 +50,40 @@ export async function instantiateJobTasks(
  * health sweep grants that), then unblocks siblings by removing this task from
  * their blocked_by. The doer claims done; the checker (sweep) grants verified.
  */
-export async function markJobTaskDone(
-  tenantId: string,
-  args: { jobId: string; taskId: number; owner?: string; evidence?: EvidenceRef; agentRunId?: string },
-): Promise<void> {
-  await withTenant(tenantId, async (tx) => {
-    await tx
-      .update(jobTask)
-      .set({
-        status: "done",
-        owner: args.owner ?? null,
-        evidence: args.evidence ?? null,
-        agentRunId: args.agentRunId ?? null,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.jobId, args.jobId), eq(jobTask.taskId, args.taskId)));
+export type MarkJobTaskArgs = { jobId: string; taskId: number; owner?: string; evidence?: EvidenceRef; agentRunId?: string };
 
-    await tx
-      .update(jobTask)
-      .set({ blockedBy: sql`array_remove(${jobTask.blockedBy}, ${args.taskId})`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(jobTask.tenantId, tenantId),
-          eq(jobTask.jobId, args.jobId),
-          sql`${args.taskId} = ANY(${jobTask.blockedBy})`,
-        ),
-      );
-  });
+/**
+ * Same as markJobTaskDone but joins an existing transaction — so an execution
+ * point can record its proof atomically with the work it just did (evidence
+ * commits iff the work commits). No-op if the row doesn't exist (0 rows updated).
+ */
+export async function markJobTaskDoneTx(tx: Tx, tenantId: string, args: MarkJobTaskArgs): Promise<void> {
+  await tx
+    .update(jobTask)
+    .set({
+      status: "done",
+      owner: args.owner ?? null,
+      evidence: args.evidence ?? null,
+      agentRunId: args.agentRunId ?? null,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.jobId, args.jobId), eq(jobTask.taskId, args.taskId)));
+
+  await tx
+    .update(jobTask)
+    .set({ blockedBy: sql`array_remove(${jobTask.blockedBy}, ${args.taskId})`, updatedAt: new Date() })
+    .where(
+      and(
+        eq(jobTask.tenantId, tenantId),
+        eq(jobTask.jobId, args.jobId),
+        sql`${args.taskId} = ANY(${jobTask.blockedBy})`,
+      ),
+    );
+}
+
+export async function markJobTaskDone(tenantId: string, args: MarkJobTaskArgs): Promise<void> {
+  await withTenant(tenantId, (tx) => markJobTaskDoneTx(tx, tenantId, args));
 }
 
 /**
