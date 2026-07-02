@@ -63,6 +63,7 @@ export * from "./job-task";
 export * from "./registry-task-ids";
 export * from "./task-health";
 export * from "./task-exception";
+export * from "./tenant-coverage";
 export * from "./digest";
 export * from "./tz";
 export * from "./weather-config";

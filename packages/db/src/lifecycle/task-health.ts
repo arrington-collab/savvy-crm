@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import {
   computeTaskHealth, buildTaskExceptions,
-  type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException,
+  type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException, invoice, tenant } from "../schema/index";
@@ -324,5 +324,31 @@ export async function computeTenantRollup(
       .insert(tenantOpsRollup)
       .values({ tenantId, ...set })
       .onConflictDoUpdate({ target: tenantOpsRollup.tenantId, set });
+  });
+}
+
+/**
+ * Reads a tenant's portfolio snapshot for the Coverage Map (read-only UI). Returns
+ * null until the first nightly sweep has written a rollup. Coerces the numeric
+ * founder_minutes column to a number so the pure summarizer stays number-typed.
+ */
+export async function getTenantRollup(tenantId: string): Promise<TenantRollupLite> {
+  return withTenant(tenantId, async (tx) => {
+    const [row] = await tx
+      .select({
+        fullAutoGreen: tenantOpsRollup.fullAutoGreen,
+        totalTasks: tenantOpsRollup.totalTasks,
+        greenCount: tenantOpsRollup.greenCount,
+        amberCount: tenantOpsRollup.amberCount,
+        redCount: tenantOpsRollup.redCount,
+        openExceptionCount: tenantOpsRollup.openExceptionCount,
+        jobs30d: tenantOpsRollup.jobs30d,
+        founderMinutes30d: tenantOpsRollup.founderMinutes30d,
+        computedAt: tenantOpsRollup.computedAt,
+      })
+      .from(tenantOpsRollup)
+      .where(eq(tenantOpsRollup.tenantId, tenantId));
+    if (!row) return null;
+    return { ...row, founderMinutes30d: Number(row.founderMinutes30d) };
   });
 }

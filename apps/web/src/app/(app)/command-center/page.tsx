@@ -1,10 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { summarizeAgentCoverage, summarizeAutomationStats } from "@savvy/core";
 import { loadAgentRunWindow, loadAgentActivity } from "@/lib/command-center-queries";
+import { loadTenantRollup } from "@/lib/scoreboard-queries";
 import { resolveAgent, agentLabel } from "@/lib/agents";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { SageCore } from "@/components/cockpit/SageCore";
 import { MetricCard } from "@/components/cockpit/MetricCard";
+import { CoverageMap } from "@/components/cockpit/CoverageMap";
 import { CommandCenterAskSage } from "@/components/cockpit/CommandCenterAskSage";
 import { PipelineSummaryPanel } from "./PipelineSummaryPanel";
 
@@ -43,7 +45,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default async function CommandCenterPage() {
-  const [runWindow, activity] = await Promise.all([loadAgentRunWindow(30), loadAgentActivity(30)]);
+  const [runWindow, activity, rollup] = await Promise.all([loadAgentRunWindow(30), loadAgentActivity(30), loadTenantRollup()]);
   const now = new Date();
   const stats = summarizeAutomationStats(runWindow, now);
   const coverage = summarizeAgentCoverage(runWindow, now);
@@ -69,6 +71,9 @@ export default async function CommandCenterPage() {
         <MetricCard label="Error rate" value={`${Math.round(stats.errorRate * 100)}%`} danger={stats.errorRate > 0} />
         <MetricCard label="Active agents" value={`${stats.activeAgents}/5`} />
       </div>
+
+      {/* Empire Coverage — how much of the 212-task operation is automated & proven. */}
+      <CoverageMap rollup={rollup} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Activity */}
