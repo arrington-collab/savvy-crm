@@ -31,6 +31,25 @@ export type TaskRegistrySeedRow = {
   defaultMode: TaskMode;
   scope: TaskScope;
   appliesTo: { job_types?: string[] };
+  checkKey: string | null;
+};
+
+/**
+ * Binds evidence checks (packages/core/src/verification/checks.ts) to their
+ * master task by ID — the handoff's rule: bind by ID, not slug (the mechanical
+ * slug scheme differs from the checks' semantic keys). Only 1:1 mappings live
+ * here. Cross-cutting guards (comms.no_double_send, comms.body_quality) and
+ * enrichment substeps (lead.enrich.*, exceptions.roof_type) stay UNBOUND until
+ * Slice 4 designs how the sweep runs task-agnostic "global guard" checks —
+ * binding one of those to a single arbitrary task would mis-attribute proof.
+ */
+export const CHECK_BINDINGS: Record<number, string> = {
+  18: "lead.dedupe", // Lead deduplication & merge
+  19: "lead.score", // Lead qualification scoring
+  24: "drip.appended_guard", // Follow-up sequence (multi-touch)
+  32: "lead.speed_to_contact", // Speed-to-lead monitoring & alerts
+  139: "finance.invoice_math", // Invoice generation
+  151: "finance.commissions", // Sales commission calculation
 };
 
 // PDF "Automation Level" -> registry default_mode.
@@ -82,6 +101,7 @@ export function buildTaskRegistrySeed(raw: RawFile = loadRawTaskList()): TaskReg
       defaultMode: mode,
       scope: PHASE_SCOPE[t.phase] ?? "per_job",
       appliesTo: toAppliesTo(t.jobType),
+      checkKey: CHECK_BINDINGS[t.id] ?? null,
     };
   });
 }
@@ -102,6 +122,7 @@ export async function seedTaskRegistry(db: typeof adminDb): Promise<number> {
         defaultMode: sqlExcluded("default_mode"),
         scope: sqlExcluded("scope"),
         appliesTo: sqlExcluded("applies_to"),
+        checkKey: sqlExcluded("check_key"),
         updatedAt: sqlNow(),
       },
     });
