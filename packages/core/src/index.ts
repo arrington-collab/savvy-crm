@@ -61,5 +61,6 @@ export * from "./capacity";
 export * from "./task-automation";
 export * from "./job-task";
 export * from "./registry-task-ids";
+export * from "./task-health";
 export * from "./weather-config";
 export * from "./homeowner";
