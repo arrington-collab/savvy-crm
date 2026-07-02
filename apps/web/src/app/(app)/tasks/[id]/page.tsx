@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { loadTaskDetail } from "@/lib/scoreboard-queries";
 import { TaskViewTracker } from "./TaskViewTracker";
+import { TaskHealthAskSage } from "./TaskHealthAskSage";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -64,6 +65,16 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     <div className="space-y-6" data-testid="task-detail">
       {/* Stamp first_viewed_at once (founder-minutes clock starts on open). */}
       <TaskViewTracker taskId={taskId} />
+      {/* get_task_health Sage citation for this task. */}
+      <TaskHealthAskSage
+        detail={{
+          taskId: detail.taskId,
+          name: detail.name,
+          healthStatus: detail.health?.status ?? null,
+          latestVerification: detail.verifications[0]?.status ?? null,
+          exception: detail.exception ? { kind: detail.exception.kind, severity: detail.exception.severity } : null,
+        }}
+      />
 
       <div className="flex items-end justify-between">
         <div>
