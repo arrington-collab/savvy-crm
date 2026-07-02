@@ -17,6 +17,7 @@ import {
   sql,
   getClaimForJob,
   getAdjusterAppointmentForJob,
+  getJobLedger,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
@@ -25,6 +26,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
 import { JobTabs } from "./tabs";
+import { JobLedgerCard } from "./JobLedgerCard";
 import { AutomationModule } from "./AutomationModule";
 import { EstimateActions } from "./EstimateActions";
 import {
@@ -179,6 +181,9 @@ export default async function JobDetailPage({
   }
 
   const { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow } = data;
+
+  // The Job Ledger — registry tasks instantiated for this job + evidence + health.
+  const ledger = await getJobLedger(tenantId, id);
 
   // Build merged timeline (server-side), dates serialized to ISO strings.
   type TimelineItem = { kind: "stage" | "comm" | "audit"; at: string; text: string };
@@ -425,6 +430,9 @@ export default async function JobDetailPage({
         customerEmail={jobRow.customerEmail ?? null}
         checkins={checkinRows}
       />
+
+      {/* Job Ledger — the scoreboard proof surface for this job */}
+      <JobLedgerCard rows={ledger} />
 
       {/* Estimates section */}
       <Card>
