@@ -1,8 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
+import { evidenceChecks } from "@savvy/core";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { taskRegistry } from "../src/schema/index.js";
-import { buildTaskRegistrySeed, toAppliesTo, seedTaskRegistry } from "../seeds/master-task-list.js";
+import { buildTaskRegistrySeed, toAppliesTo, seedTaskRegistry, CHECK_BINDINGS } from "../seeds/master-task-list.js";
 
 // Expected task count per phase (from the code-reviewed extraction of the PDF).
 const EXPECTED_PHASE_COUNTS: Record<number, number> = {
@@ -55,6 +56,26 @@ describe("master task list seed (transform)", () => {
     expect(rows.find((r) => r.phase === 15)!.scope).toBe("per_tenant_recurring");
     expect(rows.every((r) => r.defaultOwner === "HUMAN")).toBe(true);
   });
+
+  it("binds evidence check_keys to their 1:1 master task ids (and null elsewhere)", () => {
+    const byId = (id: number) => rows.find((r) => r.id === id)!;
+    expect(byId(18).checkKey).toBe("lead.dedupe"); // Lead deduplication & merge
+    expect(byId(19).checkKey).toBe("lead.score"); // Lead qualification scoring
+    expect(byId(24).checkKey).toBe("drip.appended_guard"); // Follow-up sequence (multi-touch)
+    expect(byId(32).checkKey).toBe("lead.speed_to_contact"); // Speed-to-lead monitoring
+    expect(byId(139).checkKey).toBe("finance.invoice_math"); // Invoice generation
+    expect(byId(151).checkKey).toBe("finance.commissions"); // Sales commission calculation
+    expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
+    // Exactly the bound set carries a check_key; everything else is null.
+    const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
+    expect(bound).toEqual([18, 19, 24, 32, 139, 151]);
+  });
+
+  it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {
+    for (const [taskId, checkKey] of Object.entries(CHECK_BINDINGS)) {
+      expect(evidenceChecks[checkKey], `task ${taskId} -> "${checkKey}"`).toBeDefined();
+    }
+  });
 });
 
 describe("master task list seed (database, idempotent)", () => {
@@ -75,5 +96,14 @@ describe("master task list seed (database, idempotent)", () => {
     const t1 = stored.find((r) => r.id === 1)!;
     expect(t1.slug).toBeTruthy();
     expect(t1.defaultMode).toBe("full_auto");
+  });
+
+  it("persists check_key bindings and refreshes them on re-seed", async () => {
+    await seedTaskRegistry(adminDb);
+    await seedTaskRegistry(adminDb); // re-seed must keep bindings in place, not null them
+    const bound = await adminDb.select().from(taskRegistry).where(inArray(taskRegistry.id, [18, 151, 1]));
+    expect(bound.find((r) => r.id === 18)!.checkKey).toBe("lead.dedupe");
+    expect(bound.find((r) => r.id === 151)!.checkKey).toBe("finance.commissions");
+    expect(bound.find((r) => r.id === 1)!.checkKey).toBeNull();
   });
 });
