@@ -5,6 +5,7 @@ const weatherSchema = z.object({
   maxWindMph: z.number().int().positive().default(25),
   maxPrecipPct: z.number().int().min(0).max(100).default(60),
   lookAheadDays: z.number().int().min(1).max(30).default(7),
+  autoReschedule: z.boolean().default(true),
 });
 export type WeatherConfig = z.infer<typeof weatherSchema>;
 export function parseWeatherConfig(raw: unknown): WeatherConfig {

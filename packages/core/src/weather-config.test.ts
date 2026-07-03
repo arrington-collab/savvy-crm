@@ -3,11 +3,17 @@ import { parseWeatherConfig, assessWeatherRisk } from "./weather-config";
 
 describe("parseWeatherConfig", () => {
   it("defaults", () => {
-    expect(parseWeatherConfig(undefined)).toEqual({ enabled: true, maxWindMph: 25, maxPrecipPct: 60, lookAheadDays: 7 });
+    expect(parseWeatherConfig(undefined)).toEqual({ enabled: true, maxWindMph: 25, maxPrecipPct: 60, lookAheadDays: 7, autoReschedule: true });
   });
   it("merges overrides", () => {
     expect(parseWeatherConfig({ maxWindMph: 30, enabled: false }).maxWindMph).toBe(30);
     expect(parseWeatherConfig({ enabled: false }).enabled).toBe(false);
+  });
+  it("defaults autoReschedule to true", () => {
+    expect(parseWeatherConfig({}).autoReschedule).toBe(true);
+  });
+  it("respects autoReschedule=false", () => {
+    expect(parseWeatherConfig({ autoReschedule: false }).autoReschedule).toBe(false);
   });
 });
 
