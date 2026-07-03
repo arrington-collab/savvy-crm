@@ -35,3 +35,30 @@ export function priorMonthKeyInTimeZone(now: Date, tz: string): string {
   const d = new Date(Date.UTC(y, m - 2, 1)); // m-1 = current (0-based), −1 more = prior; Date handles year wrap
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
+
+/** Offset (ms) to add to a UTC instant to get its wall-clock reading in `tz`. */
+function tzOffsetMs(instant: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "numeric", second: "numeric", hour12: false,
+  }).formatToParts(instant);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const hour = get("hour") % 24; // normalize a "24" midnight
+  const asUTC = Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+  return asUTC - instant.getTime();
+}
+
+/**
+ * The UTC instant corresponding to `hour:00` LOCAL time on the same local
+ * calendar day as `anchor`, in IANA zone `tz`. DST-correct (resolves the zone's
+ * offset at the target wall-clock, not the anchor's). Used to schedule
+ * wall-clock-anchored homeowner touches ("6pm the evening before", "7am day-of").
+ */
+export function instantAtLocalHourOnDayOf(anchor: Date, tz: string, hour: number): Date {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(anchor);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const guess = Date.UTC(get("year"), get("month") - 1, get("day"), hour, 0, 0);
+  // Resolve the offset at the guessed instant, then correct once — sufficient at hour granularity.
+  const offset = tzOffsetMs(new Date(guess), tz);
+  return new Date(guess - offset);
+}
