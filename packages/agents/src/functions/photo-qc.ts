@@ -92,13 +92,13 @@ const visionSchema = z.object({
   reason: z.string(),
 });
 
-/** Read one tenant's photo-QC config from settings.photoQc. */
+/** Read one tenant's photo-QC config from settings.jobs.photoQc. */
 async function loadPhotoQcConfig(tenantId: string) {
   const [t] = await withTenant(tenantId, (tx) =>
     tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId)),
   );
-  const settings = (t?.settings ?? {}) as { photoQc?: unknown };
-  return parsePhotoQcConfig(settings.photoQc);
+  const settings = (t?.settings ?? {}) as { jobs?: { photoQc?: unknown } };
+  return parsePhotoQcConfig(settings.jobs?.photoQc);
 }
 
 /**
