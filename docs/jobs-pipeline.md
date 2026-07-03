@@ -516,8 +516,19 @@ practice; the tradeoff is that a milestone SMS landing in quiet hours is skipped
 (email covers it). All homeowner SMS paths — crew-day journey, retail cadence, and now the milestone
 notifier — are TCPA-quiet-hours-safe.
 
-> **Still on the roadmap (F2b):** evening-before-**delivery** text (keyed off the material-order delivery
-> date). The review/referral ask ships as part of the retail close-out cadence below.
+#### Evening-before-delivery text (F2b)
+
+When a material order is **placed** (status → `ordered`, which emits `material/ordered`), the durable
+`homeowner-delivery-notify` Inngest function schedules a single evening-before-delivery homeowner text —
+"your materials arrive tomorrow" — at `crewJourney.deliveryEveHour` (default 18:00) tenant-local the
+evening before the order's `neededByAt` delivery date, pushed out of quiet hours via `nextAllowedSendTime`.
+Copy is config-driven (`crewJourney.deliveryEveCopy`); the send is opt-out-aware, fail-soft, and rechecks
+the order isn't canceled before firing (a canceled order stops it). Same-day/past orders (whose evening-
+before has passed) are skipped. Pure scheduler: `buildDeliveryEveTouch` in `@savvy/core`.
+
+**The homeowner journey (§F) is now complete:** pre-production / milestone notifications, evening-before-
+delivery, evening-before-crew prep, day-of morning, mid-day progress, completion, and the review/referral
+ask (via the retail cadence) — all config-driven and quiet-hours-safe.
 
 #### Retail close-out cadence (retail lane)
 

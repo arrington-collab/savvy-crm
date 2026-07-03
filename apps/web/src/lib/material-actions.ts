@@ -34,6 +34,11 @@ export async function advanceMaterialOrderStatusAction(input: {
     try { await inngest.send({ name: "material/delivered", data: { tenantId, jobId: input.jobId, materialOrderId: input.materialOrderId } }); }
     catch (e) { log.error("material/delivered emit failed", { jobId: input.jobId, msg: String(e) }); }
   }
+  // Homeowner journey (§F2b): a placed order schedules an evening-before-delivery text. Fail-soft.
+  if (input.status === "ordered") {
+    try { await inngest.send({ name: "material/ordered", data: { tenantId, jobId: input.jobId, materialOrderId: input.materialOrderId } }); }
+    catch (e) { log.error("material/ordered emit failed", { jobId: input.jobId, msg: String(e) }); }
+  }
   revalidatePath(`/jobs/${input.jobId}`);
   return { ok: true as const };
 }

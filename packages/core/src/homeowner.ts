@@ -15,6 +15,8 @@ const DAY_OF_COPY_DEFAULT =
   "Good morning! Your roofing crew is on the way today. We'll keep you posted as the work progresses — thanks for trusting us with your home.";
 const MID_DAY_COPY_DEFAULT =
   "Quick update — your roof is well underway and the crew is making great progress. We'll let you know as soon as it's wrapped up.";
+const DELIVERY_EVE_COPY_DEFAULT =
+  "Heads up — your roofing materials are scheduled to arrive tomorrow. They'll be dropped in the driveway; no need to be home. Please keep the driveway clear if you can.";
 
 const quietHoursSchema = z
   .object({ startHour: z.number().int().min(0).max(23), endHour: z.number().int().min(0).max(23) })
@@ -25,9 +27,11 @@ const crewJourneySchema = z
     eveBeforeHour: z.number().int().min(0).max(23).default(18),
     dayOfHour: z.number().int().min(0).max(23).default(7),
     midDayHour: z.number().int().min(0).max(23).default(12),
+    deliveryEveHour: z.number().int().min(0).max(23).default(18),
     eveBeforeCopy: z.string().min(1).default(EVE_BEFORE_COPY_DEFAULT),
     dayOfCopy: z.string().min(1).default(DAY_OF_COPY_DEFAULT),
     midDayCopy: z.string().min(1).default(MID_DAY_COPY_DEFAULT),
+    deliveryEveCopy: z.string().min(1).default(DELIVERY_EVE_COPY_DEFAULT),
   })
   .default({});
 
@@ -42,7 +46,10 @@ export type HomeownerConfig = {
   enabled: boolean;
   notifyStages: JobStage[];
   quietHours: QuietHours;
-  crewJourney: { eveBeforeHour: number; dayOfHour: number; midDayHour: number; eveBeforeCopy: string; dayOfCopy: string; midDayCopy: string };
+  crewJourney: {
+    eveBeforeHour: number; dayOfHour: number; midDayHour: number; deliveryEveHour: number;
+    eveBeforeCopy: string; dayOfCopy: string; midDayCopy: string; deliveryEveCopy: string;
+  };
 };
 export function parseHomeownerConfig(raw: unknown): HomeownerConfig {
   return homeownerSchema.parse(raw ?? {}) as HomeownerConfig;
@@ -66,6 +73,25 @@ export function buildCrewDayTouches(installStartsAt: Date, tz: string, cfg: Home
     { key: "mid_day", fireAt: nextAllowedSendTime(instantAtLocalHourOnDayOf(installStartsAt, tz, midDayHour), tz, cfg.quietHours), body: midDayCopy },
   ];
   return touches.filter((t) => t.fireAt.getTime() > now.getTime()).sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+}
+
+/**
+ * The evening-before-DELIVERY homeowner text (§F): "materials arrive tomorrow." Fires at
+ * `crewJourney.deliveryEveHour` tenant-local the evening before the material-order delivery
+ * date, pushed out of quiet hours. Returns null when there is no delivery date or the evening
+ * before has already passed. Pure — the Inngest wrapper handles the durable sleep + send.
+ */
+export function buildDeliveryEveTouch(
+  deliveryAt: Date | null,
+  tz: string,
+  cfg: HomeownerConfig,
+  now: Date,
+): { fireAt: Date; body: string } | null {
+  if (!deliveryAt) return null;
+  const priorDayAnchor = new Date(deliveryAt.getTime() - 24 * 3_600_000);
+  const fireAt = nextAllowedSendTime(instantAtLocalHourOnDayOf(priorDayAnchor, tz, cfg.crewJourney.deliveryEveHour), tz, cfg.quietHours);
+  if (fireAt.getTime() <= now.getTime()) return null;
+  return { fireAt, body: cfg.crewJourney.deliveryEveCopy };
 }
 
 /** Customer-friendly milestone copy for notifications + the status page. */
