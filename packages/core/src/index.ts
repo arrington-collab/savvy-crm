@@ -45,6 +45,7 @@ export * from "./maps";
 export * from "./rep-origin";
 export * from "./lead-followup";
 export * from "./retail-cadence";
+export * from "./depreciation";
 export * from "./voice-persona";
 export * from "./voice-webhook";
 export * from "./availability";
