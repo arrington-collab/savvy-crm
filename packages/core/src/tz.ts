@@ -62,3 +62,18 @@ export function instantAtLocalHourOnDayOf(anchor: Date, tz: string, hour: number
   const offset = tzOffsetMs(new Date(guess), tz);
   return new Date(guess - offset);
 }
+
+/**
+ * The UTC instant whose wall-clock reading in `tz` is the same hour:minute:second
+ * as `sourceLocalTime`, but on calendar day `targetCivilDate` (YYYY-MM-DD).
+ * Used to move an appointment to a new day while preserving its time-of-day.
+ */
+export function instantAtLocalTimeOnDate(targetCivilDate: string, sourceLocalTime: Date, tz: string): Date {
+  const [y, m, d] = targetCivilDate.split("-").map(Number) as [number, number, number];
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", second: "numeric", hour12: false }).formatToParts(sourceLocalTime);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const hour = get("hour") % 24; // normalize a "24" midnight
+  const guess = Date.UTC(y, m - 1, d, hour, get("minute"), get("second"));
+  const offset = tzOffsetMs(new Date(guess), tz);
+  return new Date(guess - offset);
+}

@@ -7,7 +7,7 @@ type ApptLite = { id: string; gcalEventId: string | null; type: string; startsAt
 export async function syncCalendarForAppointment(
   input:
     | { event: "appointment/booked"; appt: ApptLite; connectionId: string | null }
-    | { event: "appointment/changed"; reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show"; appt: ApptLite; connectionId: string | null },
+    | { event: "appointment/changed"; reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show" | "weather_rescheduled"; appt: ApptLite; connectionId: string | null },
   deps: { cal: CalendarSync },
 ): Promise<{ op: "created" | "patched" | "deleted" | "skipped"; eventId?: string }> {
   const { appt, connectionId } = input;
@@ -52,7 +52,7 @@ export const appointmentCalendarSync = inngest.createFunction(
       syncCalendarForAppointment(
         event.name === "appointment/booked"
           ? { event: "appointment/booked", appt: apptHydrated, connectionId: loaded.connectionId }
-          : { event: "appointment/changed", reason: (event.data as { reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show" }).reason, appt: apptHydrated, connectionId: loaded.connectionId },
+          : { event: "appointment/changed", reason: (event.data as { reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show" | "weather_rescheduled" }).reason, appt: apptHydrated, connectionId: loaded.connectionId },
         { cal: nangoGcal },
       ),
     );

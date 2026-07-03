@@ -3,7 +3,7 @@ import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
 import { document } from "../schema/ops";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
 import { leadToJobType } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
@@ -110,6 +110,25 @@ export async function getBusyIntervals(input: {
         lat: r.lat == null ? undefined : Number(r.lat),
         lng: r.lng == null ? undefined : Number(r.lng),
       }));
+  });
+}
+
+/** Start times of a crew's other scheduled crew appts in [from,to] — excludes `excludeAppointmentId`. */
+export async function getCrewBusyStarts(input: {
+  tenantId: string; crewId: string; from: Date; to: Date; excludeAppointmentId: string;
+}): Promise<Date[]> {
+  return withTenant(input.tenantId, async (tx) => {
+    const rows = await tx.select({ startsAt: appointment.startsAt })
+      .from(appointment)
+      .where(and(
+        eq(appointment.crewId, input.crewId),
+        eq(appointment.type, "crew"),
+        eq(appointment.status, "scheduled"),
+        gte(appointment.startsAt, input.from),
+        lte(appointment.startsAt, input.to),
+        ne(appointment.id, input.excludeAppointmentId),
+      ));
+    return rows.map((r) => r.startsAt);
   });
 }
 

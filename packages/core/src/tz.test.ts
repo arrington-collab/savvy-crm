@@ -1,5 +1,5 @@
 import { test, expect, describe, it } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf } from "./tz";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate } from "./tz";
 
 // Phoenix is UTC-7 year-round (no DST); Denver is UTC-6 in July (MDT).
 test("returns the local hour (0-23) for the given IANA zone", () => {
@@ -59,4 +59,16 @@ describe("instantAtLocalHourOnDayOf", () => {
     expect(hourInTimeZone(r, "America/New_York")).toBe(18);
     expect(r.toISOString()).toBe("2026-07-15T22:00:00.000Z"); // 18:00 EDT == 22:00Z
   });
+});
+
+it("places the source wall-clock time onto a different calendar day", () => {
+  const tz = "America/Phoenix";
+  // A source instant whose Phoenix wall-clock time is 09:30 on 2026-07-06.
+  const source = instantAtLocalTimeOnDate("2026-07-06", new Date("2026-01-01T16:30:00Z"), tz);
+  const moved = instantAtLocalTimeOnDate("2026-07-13", source, tz);
+  // moved must read 09:30 local on 2026-07-13
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(moved);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  expect(`${get("year")}-${get("month")}-${get("day")}`).toBe("2026-07-13");
+  expect(`${get("hour")}:${get("minute")}`).toBe("09:30");
 });

@@ -140,3 +140,14 @@ export async function listCrewIdsForUser(tx: Tx, tenantId: string, userId: strin
     .where(and(eq(crewMember.tenantId, tenantId), eq(crewMember.userId, userId)));
   return rows.map((r) => r.crewId);
 }
+
+/** Phone/email of every member user of a crew (for crew notifications). */
+export async function getCrewContacts(input: { tenantId: string; crewId: string }): Promise<{ phone: string | null; email: string }[]> {
+  return withTenant(input.tenantId, async (tx) => {
+    const rows = await tx.select({ phone: user.phone, email: user.email })
+      .from(crewMember)
+      .innerJoin(user, eq(user.id, crewMember.userId))
+      .where(and(eq(crewMember.tenantId, input.tenantId), eq(crewMember.crewId, input.crewId)));
+    return rows.map((r) => ({ phone: r.phone, email: r.email }));
+  });
+}
