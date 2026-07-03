@@ -2,6 +2,7 @@ export const JOB_TYPE = ["retail", "insurance", "repair", "commercial"] as const
 export const JOB_STAGE = ["lead","inspected","estimate","approved","production","closeout","billing","complete","lost"] as const;
 export const TASK_STATUS = ["pending","in_progress","blocked","done","skipped"] as const;
 export const AUTOMATION_LEVEL = ["full","partial","manual"] as const;
+export type AutomationLevel = (typeof AUTOMATION_LEVEL)[number];
 export const AGENT = ["orchestrator","comms","scheduling","finance","claims"] as const;
 export const COMM_CHANNEL = ["call","sms","email"] as const;
 export const COMM_DIRECTION = ["inbound","outbound"] as const;

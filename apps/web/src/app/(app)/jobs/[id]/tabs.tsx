@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { toggleTask } from "@/lib/job-actions";
+import { toggleTask, setTaskAutomationLevel } from "@/lib/job-actions";
+import { nextAutomationLevel, isAutomationLevel, type AutomationLevel } from "@savvy/core";
 import { DocsPanel, type DocRow } from "./DocsPanel";
 import { EsignPanel, type EsignRow } from "./EsignPanel";
 import { formatDate } from "@/lib/format";
@@ -48,10 +49,31 @@ type CommRow = {
 };
 
 function automationBadge(level: string) {
-  if (level === "full")
-    return <Badge variant="secondary">Full Auto · will be automated</Badge>;
+  if (level === "full") return <Badge variant="secondary">Full Auto</Badge>;
   if (level === "manual") return <Badge variant="outline">Manual</Badge>;
-  return <Badge variant="secondary">Partial Auto</Badge>;
+  return <Badge variant="secondary">Assisted</Badge>;
+}
+
+/** Clickable automation control: cycles Manual → Assisted → Auto → Manual (Background Ops). */
+function AutomationLevelControl({ taskId, level }: { taskId: string; level: string }) {
+  const [pending, startTransition] = useTransition();
+  const current = (isAutomationLevel(level) ? level : "manual") as AutomationLevel;
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      data-testid="automation-level-control"
+      title="Click to change automation: Manual → Assisted → Auto"
+      onClick={() =>
+        startTransition(async () => {
+          await setTaskAutomationLevel(taskId, nextAutomationLevel(current));
+        })
+      }
+      className="cursor-pointer rounded-full outline-none focus:ring-1 focus:ring-accent-gold disabled:opacity-50"
+    >
+      {automationBadge(current)}
+    </button>
+  );
 }
 
 function TaskItem({ task }: { task: TaskRow }) {
@@ -86,7 +108,7 @@ function TaskItem({ task }: { task: TaskRow }) {
       >
         {task.title}
       </span>
-      {automationBadge(task.automationLevel)}
+      <AutomationLevelControl taskId={task.id} level={task.automationLevel} />
       {task.dueAt ? (
         <span className="mono text-xs font-medium text-primary">
           active · {formatDate(task.dueAt)}
