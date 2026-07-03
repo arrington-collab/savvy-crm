@@ -6,9 +6,14 @@ import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { fmtUsd } from "@/lib/format";
 import { CLAIM_STATUS } from "@savvy/core";
 import type { ClaimStatus } from "@savvy/core";
-import { saveClaimAction, bookAdjusterMeetingAction } from "@/lib/claim-actions";
+import { saveClaimAction, bookAdjusterMeetingAction, uploadXactimatePricingAction, sendDepreciationInvoiceAction } from "@/lib/claim-actions";
 
 export type ClaimPanelTask = { id: string; title: string; status: string };
+export type ClaimDepreciation = {
+  recoverableCents: number;
+  draftInvoiceId: string | null;
+  draftStatus: "none" | "pending_approval" | "sent";
+};
 
 function centsToDollars(cents: number | null): string {
   if (cents == null) return "";
@@ -20,6 +25,7 @@ export function ClaimPanel({
   claim,
   adjusterAppointment,
   tasks,
+  depreciation,
 }: {
   jobId: string;
   claim: {
@@ -35,6 +41,7 @@ export function ClaimPanel({
   } | null;
   adjusterAppointment: { startsAtISO: string; endsAtISO: string } | null;
   tasks: ClaimPanelTask[];
+  depreciation?: ClaimDepreciation | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -54,6 +61,10 @@ export function ClaimPanel({
   // Adjuster meeting booking state
   const [adjusterTime, setAdjusterTime] = useState("");
   const [bookHint, setBookHint] = useState<"slot_taken" | "invalid_time" | null>(null);
+
+  // Depreciation-recovery state (§G)
+  const [updatedRcvDollars, setUpdatedRcvDollars] = useState("");
+  const [depHint, setDepHint] = useState<string | null>(null);
 
   function handleSave() {
     start(async () => {
@@ -92,6 +103,22 @@ export function ClaimPanel({
       } else {
         setBookHint(r.error);
       }
+    });
+  }
+
+  function handleGenerateRecovery() {
+    start(async () => {
+      const r = await uploadXactimatePricingAction({ jobId, updatedRcvDollars });
+      if ("ok" in r) { setDepHint(null); setUpdatedRcvDollars(""); router.refresh(); }
+      else { setDepHint(r.error); }
+    });
+  }
+
+  function handleSendRecovery(invoiceId: string) {
+    start(async () => {
+      const r = await sendDepreciationInvoiceAction({ jobId, invoiceId });
+      if ("ok" in r) { setDepHint(null); router.refresh(); }
+      else { setDepHint(r.error); }
     });
   }
 
@@ -287,6 +314,62 @@ export function ClaimPanel({
               <div className="mono font-medium">{fmtUsd(claim.deductibleCents)}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Depreciation recovery (§G) — only when there is recoverable depreciation */}
+      {depreciation && depreciation.recoverableCents > 0 && (
+        <div className="space-y-3 rounded-md border border-border p-3" data-testid="depreciation-recovery">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Depreciation recovery</span>
+            <span className="mono text-sm font-medium text-accent-gold" data-testid="depreciation-amount">
+              {fmtUsd(depreciation.recoverableCents)}
+            </span>
+          </div>
+
+          {depreciation.draftStatus === "none" && (
+            <div className="space-y-2">
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Update the Xactimate pricing to current, then generate the recovery invoice. Enter the
+                updated RCV (optional) — it re-prices the claim before drafting.
+              </p>
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Updated RCV (optional)</label>
+                  <input
+                    className="w-full rounded-md border border-border bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-accent-gold"
+                    value={updatedRcvDollars}
+                    onChange={(e) => setUpdatedRcvDollars(e.target.value)}
+                    placeholder="e.g. 22000"
+                    inputMode="decimal"
+                  />
+                </div>
+                <Button onClick={handleGenerateRecovery} disabled={pending} data-testid="generate-recovery-invoice">
+                  Generate recovery invoice
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {depreciation.draftStatus === "pending_approval" && depreciation.draftInvoiceId && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Draft recovery invoice is ready. Review, then send it to the carrier — nothing is sent
+                without your approval.
+              </p>
+              <Button onClick={() => handleSendRecovery(depreciation.draftInvoiceId!)} disabled={pending} data-testid="send-recovery-invoice">
+                Send to carrier
+              </Button>
+            </div>
+          )}
+
+          {depreciation.draftStatus === "sent" && (
+            <p className="text-xs font-medium text-accent-gold" data-testid="depreciation-sent">
+              Recovery invoice sent to the carrier ✓
+            </p>
+          )}
+
+          {depHint && <p className="text-xs text-red-500">Couldn&apos;t complete that: {depHint}</p>}
         </div>
       )}
     </div>

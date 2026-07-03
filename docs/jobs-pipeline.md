@@ -546,6 +546,21 @@ prepare recovery invoice"*, due immediately so it surfaces in the `/exceptions` 
 recoverable depreciation are skipped. The task's `payload.recoverableDepreciationCents` carries the amount
 forward.
 
-> **G2 (next):** when the staffer **uploads updated Xactimate pricing**, auto-generate the depreciation
-> invoice as a **draft** held in Needs-you for a one-tap "send" approval (nothing goes to the carrier
-> without it), plus a dedicated `depreciation_invoice_approval` exception vector.
+#### Depreciation recovery — invoice + one-tap send (G2)
+
+The office staffer completes the judgment step from the ClaimPanel: **"Generate recovery invoice"**
+(optionally entering the updated Xactimate RCV, which re-prices the claim) calls
+`uploadXactimatePricingAction` → `draftDepreciationInvoice` (`@savvy/db`). That:
+
+1. drafts the recovery invoice (`status='draft'`, `amountDue` = `RCV − ACV`, one "Recoverable
+   depreciation (carrier)" line) — **nothing is sent to the carrier yet**;
+2. marks the G1 detection task (`claims.depreciation_recovery`) **done**;
+3. queues a **send-approval task** (`claims.depreciation_invoice_approval`, `dueAt = now`, `payload.invoiceId`)
+   that surfaces in the `/exceptions` "Needs you" list.
+
+The human then taps **"Send to carrier"** → `sendDepreciationInvoiceAction` → `sendDepreciationInvoice`
+flips the draft to `sent`, closes the approval task, and emits `invoice/sent` (QBO push + billing-stage
+advance). Everything is **idempotent** (the approval task guards a second draft; send no-ops a non-draft).
+Lane-scoped to insurance jobs — the human does the two judgment steps (updated estimate, confirm the dollar
+document) and the system does the rest of the paperwork. The approval task surfaces via the existing
+`task_overdue` Needs-you vector (no schema migration or new exception kind needed).
