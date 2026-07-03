@@ -480,8 +480,17 @@ before a large customer onboards (same all-rows pattern as the Jobs board).
   `free` 0. Reps are sorted most-loaded first; the header shows team utilization
   and the overbooked count.
 
-Capacity is per-user (appointments carry an `assignee_user_id`; there is no crew
-entity yet). Logic: `buildCapacityView` in `@savvy/core`.
+Rep load is per-user (appointments carry an `assignee_user_id`); a parallel per-crew
+lane (`buildCrewCapacityView`, appointments' `crew_id`) shows crew utilization.
+
+**"You need another crew" (§K).** Above the load lanes, `/capacity` surfaces a
+demand-vs-capacity recommendation that closes the sales↔ops loop. **Demand** = the
+install backlog (`approved`/`production` jobs with **no** scheduled crew install).
+**Build capacity** = one full-day install per active crew per workday over the window,
+i.e. `crewCount × workdaysInWindow` (`countWorkdays` reads the tenant's scheduling hours).
+When the backlog outruns capacity, a banner recommends hiring, sized to the deficit
+(`suggestedCrews = ceil(deficit / workdaysInWindow)`). Pure logic: `assessCrewDemand` in
+`@savvy/core`; `buildCapacityView` computes the rep lane.
 
 ### Homeowner journey (F)
 
