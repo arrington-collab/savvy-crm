@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityFromAddress, formatCountyLabel, normalizeAddress, expandAddressForSpeech } from "./address.js";
+import { parseCityFromAddress, formatCountyLabel, normalizeAddress, normalizeAddressForMatch, expandAddressForSpeech } from "./address.js";
 
 describe("parseCityFromAddress", () => {
   it("extracts the city before STATE ZIP", () => {
@@ -46,16 +46,32 @@ describe("formatCountyLabel", () => {
 });
 
 describe("normalizeAddress", () => {
+  it("lowercases, strips punctuation, and collapses whitespace", () => {
+    expect(normalizeAddress("123 Main St., Mesa, AZ  85201")).toBe("123 main st mesa az 85201");
+  });
+  it("treats casing/spacing variants as equal", () => {
+    expect(normalizeAddress("123  MAIN st")).toBe(normalizeAddress("123 Main St"));
+  });
+  it("returns empty string for null/undefined", () => {
+    expect(normalizeAddress(null)).toBe("");
+    expect(normalizeAddress(undefined)).toBe("");
+  });
+  it("Unicode-folds accented characters to ASCII (e.g. Cañon → canon)", () => {
+    expect(normalizeAddress("Cañon Rd")).toContain("canon");
+  });
+});
+
+describe("normalizeAddressForMatch", () => {
   it("lowercases, trims, and collapses whitespace", () => {
-    expect(normalizeAddress("  123   Main   St  ")).toBe("123 main st");
+    expect(normalizeAddressForMatch("  123   Main   St  ")).toBe("123 main st");
   });
   it("standardizes common suffix abbreviations", () => {
-    expect(normalizeAddress("123 Main Street")).toBe("123 main st");
-    expect(normalizeAddress("5 Oak Avenue")).toBe("5 oak ave");
-    expect(normalizeAddress("9 Elm Drive")).toBe("9 elm dr");
+    expect(normalizeAddressForMatch("123 Main Street")).toBe("123 main st");
+    expect(normalizeAddressForMatch("5 Oak Avenue")).toBe("5 oak ave");
+    expect(normalizeAddressForMatch("9 Elm Drive")).toBe("9 elm dr");
   });
   it("strips punctuation so equivalent addresses match", () => {
-    expect(normalizeAddress("123 Main St.")).toBe(normalizeAddress("123 Main Street"));
+    expect(normalizeAddressForMatch("123 Main St.")).toBe(normalizeAddressForMatch("123 Main Street"));
   });
 });
 
