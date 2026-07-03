@@ -11,7 +11,7 @@ type Events = {
   "appointment/changed": {
     data: {
       appointmentId: string; tenantId: string;
-      reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show";
+      reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show" | "weather_rescheduled";
       prevAssigneeUserId?: string;
     };
   };

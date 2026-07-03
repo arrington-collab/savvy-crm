@@ -1,6 +1,6 @@
 /** "2026-07-08" -> "Wed 7/8". Civil date is already tz-resolved, so format in UTC. */
 export function formatShortDate(civilDate: string): string {
-  const [y, m, d] = civilDate.split("-").map(Number);
+  const [y, m, d] = civilDate.split("-").map(Number) as [number, number, number];
   const dt = new Date(Date.UTC(y, m - 1, d));
   const wd = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(dt);
   return `${wd} ${m}/${d}`;
