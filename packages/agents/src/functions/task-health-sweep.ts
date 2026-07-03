@@ -1,5 +1,5 @@
 import { adminDb, tenant } from "@savvy/db";
-import { hourInTimeZone } from "@savvy/core";
+import { tenantsDueAtHour } from "@savvy/core";
 import { inngest } from "../client";
 import { sweepTenantHealth } from "../health-sweep";
 
@@ -17,9 +17,8 @@ export const taskHealthSweep = inngest.createFunction(
   { cron: "0 * * * *" },
   async ({ step }) => {
     const due = await step.run("due-tenants", async () => {
-      const now = new Date();
       const tenants = await adminDb.select({ id: tenant.id, timezone: tenant.timezone }).from(tenant);
-      return tenants.filter((t) => hourInTimeZone(now, t.timezone) === SWEEP_HOUR).map((t) => t.id);
+      return tenantsDueAtHour(tenants, new Date(), SWEEP_HOUR).map((t) => t.id);
     });
     for (const id of due) {
       await step.run(`sweep:${id}`, () => sweepTenantHealth(id));

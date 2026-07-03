@@ -46,7 +46,7 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
 
 export const homeownerNotify = inngest.createFunction(
   { id: "homeowner-notify", concurrency: { limit: 1 } },
-  { cron: "TZ=America/Phoenix */15 * * * *" },
+  { cron: "*/15 * * * *" }, // every 15 min — frequency-based, so tenant-local time doesn't apply
   async ({ step }) => {
     const tenants = await step.run("list-tenants", async () => adminDb.select({ id: tenant.id }).from(tenant));
     let sent = 0;
