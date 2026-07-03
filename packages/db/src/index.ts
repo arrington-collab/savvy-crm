@@ -15,7 +15,7 @@ export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/conta
 export { setCustomerEmail, findCustomersNeedingEmail, type EmailSource, type CustomerEmailDue } from "./lifecycle/customer";
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
-  getBusyIntervals, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
+  getBusyIntervals, getCrewBusyStarts, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
 } from "./lifecycle/appointments";
 export {
   createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
@@ -62,7 +62,7 @@ export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallD
 export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
 export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
-export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setCrewPinHash, getCrewLoginCandidates, addCrewMember, removeCrewMember, listCrewIdsForUser, type CrewRow } from "./lifecycle/crew";
+export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setCrewPinHash, getCrewLoginCandidates, addCrewMember, removeCrewMember, listCrewIdsForUser, getCrewContacts, type CrewRow } from "./lifecycle/crew";
 export {
   getTelephonyMode, setTelephonyMode, upsertTwilioConnection, getTelephonyConnection,
   getTwilioSecret, setTelephonyConnectionStatus, requestManagedTelephonySetup,
