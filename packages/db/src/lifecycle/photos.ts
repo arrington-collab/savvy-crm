@@ -2,7 +2,7 @@ import { adminDb } from "../admin-client";
 import { withTenant } from "../tenant";
 import { property, job, document } from "../schema/index";
 import { tenant } from "../schema/index";
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, isNotNull, ne } from "drizzle-orm";
 import { normalizeAddressForMatch } from "@savvy/core";
 
 const CLOSED_STAGES = ["complete", "lost"] as const;
@@ -73,4 +73,60 @@ export async function listUnmatchedPhotos(tenantId: string): Promise<{ id: strin
 export async function matchPhotoToJob(input: { tenantId: string; documentId: string; jobId: string }): Promise<void> {
   await withTenant(input.tenantId, (tx) => tx.update(document).set({ jobId: input.jobId })
     .where(and(eq(document.id, input.documentId), eq(document.tenantId, input.tenantId))));
+}
+
+/** Fetch the QC-relevant fields of a single photo document. Returns null if not found. */
+export async function getPhotoForQc(input: { tenantId: string; documentId: string }): Promise<{ jobId: string | null; r2Key: string | null; label: string | null; qcStatus: string | null } | null> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [d] = await tx.select({ jobId: document.jobId, r2Key: document.r2Key, label: document.label, qcStatus: document.qcStatus })
+      .from(document).where(and(eq(document.id, input.documentId), eq(document.kind, "photo")));
+    return d ?? null;
+  });
+}
+
+/** Return other photos on the same job that already have a perceptual hash (for duplicate detection). */
+export async function getJobPhotoHashes(input: { tenantId: string; jobId: string; excludeDocumentId: string }): Promise<{ documentId: string; phash: string }[]> {
+  return withTenant(input.tenantId, async (tx) => {
+    const rows = await tx.select({ documentId: document.id, phash: document.phash })
+      .from(document).where(and(
+        eq(document.jobId, input.jobId),
+        eq(document.kind, "photo"),
+        isNotNull(document.phash),
+        ne(document.id, input.excludeDocumentId),
+      ));
+    return rows.filter((r): r is { documentId: string; phash: string } => r.phash != null);
+  });
+}
+
+/** Persist the QC result for a photo document. */
+export async function setPhotoQc(input: { tenantId: string; documentId: string; phash: string | null; qcStatus: string; qcReasons: unknown }): Promise<void> {
+  await withTenant(input.tenantId, (tx) => tx.update(document)
+    .set({ phash: input.phash, qcStatus: input.qcStatus, qcReasons: input.qcReasons })
+    .where(and(eq(document.id, input.documentId), eq(document.tenantId, input.tenantId))));
+}
+
+/** Return all flagged photo documents for the tenant with a human-readable reason string. */
+export async function listFlaggedPhotos(tenantId: string): Promise<{ documentId: string; jobId: string; label: string | null; reason: string; occurredAt: Date }[]> {
+  return withTenant(tenantId, async (tx) => {
+    const rows = await tx.select({ id: document.id, jobId: document.jobId, label: document.label, qcReasons: document.qcReasons, createdAt: document.createdAt })
+      .from(document).where(and(
+        eq(document.kind, "photo"),
+        eq(document.qcStatus, "flagged"),
+        isNotNull(document.jobId),
+      ));
+    return rows.map((r) => ({
+      documentId: r.id, jobId: r.jobId!, label: r.label,
+      reason: reasonText(r.qcReasons), occurredAt: r.createdAt,
+    }));
+  });
+}
+
+/** Turn the structured qcReasons object into a short human string for the exception detail. */
+function reasonText(raw: unknown): string {
+  const r = (raw ?? {}) as { quality?: string; wrongCategory?: boolean; duplicateOf?: string };
+  const parts: string[] = [];
+  if (r.quality) parts.push(r.quality);
+  if (r.wrongCategory) parts.push("wrong category");
+  if (r.duplicateOf) parts.push("duplicate");
+  return parts.join(", ") || "flagged";
 }

@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, generateObject, embed as aiEmbed } from "ai";
+import type { LanguageModelV1 } from "ai";
 import type { z } from "zod";
 import { EMBED_MODEL, resolveModel, isAnthropicGateway, type Capability } from "./capabilities";
 
@@ -41,6 +42,30 @@ export async function completeObject<T>(opts: {
     prompt: opts.prompt,
   });
   return { object: res.object as T, model };
+}
+
+/** Vision classify against an explicit model (used by tests + the public wrapper). */
+export async function classifyImageWith<T>(
+  model: LanguageModelV1,
+  opts: { prompt: string; system?: string; image: { bytes: Uint8Array }; schema: z.ZodType<T>; anthropic?: boolean },
+): Promise<{ object: T; model: string }> {
+  const res = await generateObject({
+    model,
+    ...(opts.anthropic ? { mode: "tool" as const } : {}),
+    schema: opts.schema,
+    system: opts.system,
+    messages: [{ role: "user", content: [{ type: "text", text: opts.prompt }, { type: "image", image: opts.image.bytes }] }],
+  });
+  return { object: res.object as T, model: (model as { modelId?: string }).modelId ?? "unknown" };
+}
+
+export async function classifyImage<T>(opts: {
+  capability: Capability; prompt: string; system?: string; image: { bytes: Uint8Array }; schema: z.ZodType<T>;
+}): Promise<{ object: T; model: string }> {
+  const modelId = resolveModel(opts.capability, process.env.LITELLM_BASE_URL);
+  const anthropic = isAnthropicGateway(process.env.LITELLM_BASE_URL);
+  const { object } = await classifyImageWith(gateway()(modelId), { ...opts, anthropic });
+  return { object, model: modelId };
 }
 
 export async function embed(text: string): Promise<{ vector: number[]; model: string }> {
