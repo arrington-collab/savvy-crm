@@ -1,5 +1,5 @@
-import { test, expect } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone } from "./tz";
+import { test, expect, describe, it } from "vitest";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf } from "./tz";
 
 // Phoenix is UTC-7 year-round (no DST); Denver is UTC-6 in July (MDT).
 test("returns the local hour (0-23) for the given IANA zone", () => {
@@ -34,4 +34,29 @@ test("priorMonthKeyInTimeZone keys off the tenant's LOCAL month, not UTC", () =>
   expect(priorMonthKeyInTimeZone(new Date("2026-07-01T13:00:00Z"), "America/Phoenix")).toBe("2026-06"); // local July -> prior June
   expect(priorMonthKeyInTimeZone(new Date("2026-01-01T13:00:00Z"), "America/Phoenix")).toBe("2025-12"); // year wrap
   expect(priorMonthKeyInTimeZone(new Date("2026-07-01T02:00:00Z"), "America/Phoenix")).toBe("2026-05"); // UTC=July but local=Jun 30 -> prior May
+});
+
+describe("instantAtLocalHourOnDayOf", () => {
+  it("returns the instant at the given local hour on the anchor's local day", () => {
+    // 2026-07-15 15:00 UTC == 08:00 Phoenix (UTC-7), same local day.
+    const anchor = new Date("2026-07-15T15:00:00Z");
+    const r = instantAtLocalHourOnDayOf(anchor, "America/Phoenix", 18);
+    expect(hourInTimeZone(r, "America/Phoenix")).toBe(18);
+    expect(r.toISOString()).toBe("2026-07-16T01:00:00.000Z"); // 18:00 Phoenix == 01:00Z next day
+  });
+
+  it("resolves the local day from the timezone, not UTC", () => {
+    // 2026-07-16 03:00 UTC is still 2026-07-15 20:00 Phoenix → local day is the 15th.
+    const anchor = new Date("2026-07-16T03:00:00Z");
+    const r = instantAtLocalHourOnDayOf(anchor, "America/Phoenix", 7);
+    expect(hourInTimeZone(r, "America/Phoenix")).toBe(7);
+    expect(r.toISOString()).toBe("2026-07-15T14:00:00.000Z"); // 07:00 Phoenix == 14:00Z, the 15th
+  });
+
+  it("handles a DST timezone (America/New_York, summer = UTC-4)", () => {
+    const anchor = new Date("2026-07-15T12:00:00Z"); // 08:00 EDT
+    const r = instantAtLocalHourOnDayOf(anchor, "America/New_York", 18);
+    expect(hourInTimeZone(r, "America/New_York")).toBe(18);
+    expect(r.toISOString()).toBe("2026-07-15T22:00:00.000Z"); // 18:00 EDT == 22:00Z
+  });
 });
