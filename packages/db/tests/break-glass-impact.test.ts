@@ -8,7 +8,7 @@ import {
 
 // Tasks: BIG/SMALL are done-but-wrong (verification_mismatch) with invoice evidence;
 // COMMS is done-but-wrong but its evidence is not an invoice; STALE is task_stale.
-const BIG = 9601, SMALL = 9602, COMMS = 9603, STALE = 9604;
+const BIG = 9651, SMALL = 9652, COMMS = 9653, STALE = 9654;
 const SYN = [BIG, SMALL, COMMS, STALE];
 const MIN_DOLLARS = 1000; // break-glass threshold => 100_000 cents
 

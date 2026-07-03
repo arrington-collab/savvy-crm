@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
 import { JobTabs } from "./tabs";
 import { JobLedgerCard } from "./JobLedgerCard";
+import { JobLedgerAskSage } from "./JobLedgerAskSage";
 import { AutomationModule } from "./AutomationModule";
 import { EstimateActions } from "./EstimateActions";
 import {
@@ -432,6 +433,7 @@ export default async function JobDetailPage({
       />
 
       {/* Job Ledger — the scoreboard proof surface for this job */}
+      <JobLedgerAskSage jobId={jobRow.id} rows={ledger} />
       <JobLedgerCard rows={ledger} />
 
       {/* Estimates section */}
