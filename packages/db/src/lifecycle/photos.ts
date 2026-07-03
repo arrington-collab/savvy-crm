@@ -1,8 +1,8 @@
 import { adminDb } from "../admin-client";
 import { withTenant } from "../tenant";
-import { property, job } from "../schema/index";
+import { property, job, document } from "../schema/index";
 import { tenant } from "../schema/index";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { normalizeAddressForMatch } from "@savvy/core";
 
 const CLOSED_STAGES = ["complete", "lost"] as const;
@@ -33,4 +33,35 @@ export async function resolveTenantByIngestKey(key: string): Promise<{ tenantId:
     .from(tenant)
     .where(sql`${tenant.settings} #>> '{sitesnap,ingestKey}' = ${key}`);
   return row ? { tenantId: row.id } : null;
+}
+
+/** Idempotent insert of a SiteSnap photo document. Repeat (tenant, sitesnapPhotoId) → no-op. */
+export async function recordSiteSnapPhoto(input: {
+  tenantId: string; jobId: string | null; category: string;
+  r2Key: string; captureAddress: string; sitesnapPhotoId: string;
+}): Promise<{ created: boolean; documentId: string }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [existing] = await tx.select({ id: document.id }).from(document)
+      .where(and(eq(document.tenantId, input.tenantId), eq(document.sitesnapPhotoId, input.sitesnapPhotoId)));
+    if (existing) return { created: false, documentId: existing.id };
+    const [row] = await tx.insert(document).values({
+      tenantId: input.tenantId, jobId: input.jobId, kind: "photo", source: "sitesnap",
+      label: input.category, r2Key: input.r2Key, captureAddress: input.captureAddress,
+      sitesnapPhotoId: input.sitesnapPhotoId, qcStatus: "pending",
+    }).returning({ id: document.id });
+    return { created: true, documentId: row!.id };
+  });
+}
+
+/** SiteSnap photos with no job (address didn't match) — the unmatched tray. */
+export async function listUnmatchedPhotos(tenantId: string): Promise<{ id: string; captureAddress: string | null; label: string | null; createdAt: Date }[]> {
+  return withTenant(tenantId, (tx) => tx.select({
+    id: document.id, captureAddress: document.captureAddress, label: document.label, createdAt: document.createdAt,
+  }).from(document).where(and(eq(document.source, "sitesnap"), isNull(document.jobId))));
+}
+
+/** Manually attach an unmatched photo to a job (from the tray). */
+export async function matchPhotoToJob(input: { tenantId: string; documentId: string; jobId: string }): Promise<void> {
+  await withTenant(input.tenantId, (tx) => tx.update(document).set({ jobId: input.jobId })
+    .where(and(eq(document.id, input.documentId), eq(document.tenantId, input.tenantId))));
 }
