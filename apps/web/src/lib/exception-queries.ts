@@ -143,9 +143,12 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       .filter((r) => r.costKnown && r.marginPct != null && r.marginPct <= marginTargetPct)
       .map((r) => ({ jobId: r.jobId, customerName: r.customerName, marginPct: r.marginPct as number, occurredAt: null }));
 
-    // --- photo checklist incomplete: production/closeout jobs missing required photos ---
+    // --- photo checklist incomplete: closeout jobs missing required photos.
+    // Scoped to `closeout` (not `production`): a job entering production hasn't been shot
+    // yet, so flagging it immediately is noise. At closeout the checklist is expected complete
+    // and an unsatisfied one actually blocks the completion gate — that's the actionable signal.
     const prodCfg = parseProductionConfig((t?.settings as { production?: unknown } | undefined)?.production);
-    const photoJobs = jobRows.filter((r) => r.stage === "production" || r.stage === "closeout");
+    const photoJobs = jobRows.filter((r) => r.stage === "closeout");
     let photoIncomplete: PhotoIncompleteInput[] = [];
     if (photoJobs.length > 0) {
       const photoRows = await tx

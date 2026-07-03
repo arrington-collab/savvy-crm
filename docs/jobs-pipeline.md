@@ -448,9 +448,11 @@ is omitted. Like the invoice/job dual-path, a job may appear both here and as `j
 default 20%) surface as `margin_outlier` — **high** when the margin is negative (losing money),
 **medium** when merely thin. Only jobs with a known cost (`cost_cents > 0`) are evaluated.
 
-**Photo checklist incomplete (J).** Jobs in `production`/`closeout` whose required photo checklist
+**Photo checklist incomplete (J).** Jobs in `closeout` whose required photo checklist
 (`production.requiredPhotos[jobType]`) is not yet satisfied surface as a **medium** `photo_incomplete`
 row listing the missing labels (`missingRequiredPhotos`) — the QA-by-photo signal a human should chase.
+Scoped to `closeout` (not `production`): a job just entering production hasn't been shot yet, so flagging
+it earlier is noise; at closeout the unsatisfied checklist is what actually blocks the completion gate.
 
 Agent-run errors are intentionally NOT here — those are automation health and
 live on the Command Center. Logic: `buildExceptionQueue` in `@savvy/core`;
