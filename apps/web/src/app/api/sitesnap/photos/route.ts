@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { inngest } from "@savvy/agents";
 import { r2Storage } from "@savvy/integrations";
 import { ingestSiteSnapPhoto, type IngestBody } from "@/lib/sitesnap-ingest";
+import { safeFetchImage } from "@/lib/safe-fetch-image";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -16,12 +17,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const res = await ingestSiteSnapPhoto(body, key, {
     storage: r2Storage,
-    fetchBytes: async (url) => {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`fetch ${r.status}`);
-      const buf = new Uint8Array(await r.arrayBuffer());
-      return { bytes: buf, mime: r.headers.get("content-type") ?? "image/jpeg" };
-    },
+    fetchBytes: (url) => safeFetchImage(url),
     emit: async (jobId, documentId, tenantId) => {
       await inngest.send({ name: "photo/ingested", data: { tenantId, documentId, jobId } });
     },

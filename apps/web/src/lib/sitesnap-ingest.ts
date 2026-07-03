@@ -1,7 +1,7 @@
 import { resolveTenantByIngestKey, resolvePhotoJob, recordSiteSnapPhoto } from "@savvy/db";
 import type { StorageGateway } from "@savvy/integrations";
 
-export type IngestBody = { address: string; category: string; imageUrl: string; externalPhotoId: string; capturedAt?: string };
+export type IngestBody = { address: string; category: string; imageUrl: string; externalPhotoId: string };
 export type IngestDeps = {
   storage: StorageGateway;
   fetchBytes: (url: string) => Promise<{ bytes: Uint8Array; mime: string }>;

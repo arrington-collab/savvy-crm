@@ -32,6 +32,19 @@ describe("ingestSiteSnapPhoto", () => {
     expect(emit).toHaveBeenCalledWith(jobId, rows[0]!.id, tenantId);
   });
 
+  it("returns 502 and does not record a document when fetchBytes throws", async () => {
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId } = await seed(key);
+    const storage = makeFakeStorage();
+    const emit = vi.fn();
+    const failFetch = async (_url: string): Promise<{ bytes: Uint8Array; mime: string }> => { throw new Error("blocked_host"); };
+    const r = await ingestSiteSnapPhoto({ address: "123 Main Street", category: "ridge", imageUrl: "u", externalPhotoId: "e4" }, key, { storage, fetchBytes: failFetch, emit });
+    expect(r.status).toBe(502);
+    const rows = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "e4")));
+    expect(rows).toHaveLength(0);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it("stores unmatched (jobId null) when no address matches", async () => {
     const key = `k-${crypto.randomUUID()}`;
     const { tenantId } = await seed(key);
