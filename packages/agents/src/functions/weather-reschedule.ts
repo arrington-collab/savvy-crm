@@ -1,5 +1,5 @@
 import { adminDb, withTenant, tenant, appointment, job, property, setAppointmentWeatherFlag, and, eq, gte, lte } from "@savvy/db";
-import { parseWeatherConfig, parseFinanceConfig, assessWeatherRisk, toCivilDate } from "@savvy/core";
+import { parseWeatherConfig, parseFinanceConfig, assessWeatherRisk, toCivilDate, tenantsDueAtHour } from "@savvy/core";
 import { forecast, type ForecastGateway } from "@savvy/integrations";
 import { inngest } from "../client";
 
@@ -42,12 +42,15 @@ export async function evaluateTenantWeather(
 
 export const weatherReschedule = inngest.createFunction(
   { id: "weather-reschedule", concurrency: { limit: 1 } },
-  { cron: "TZ=America/Phoenix 0 5 * * *" }, // daily 05:00
+  { cron: "0 * * * *" }, // hourly tick; runs each tenant at 05:00 its local time
   async ({ step }) => {
-    const tenants = await step.run("list-tenants", async () => adminDb.select({ id: tenant.id }).from(tenant));
+    const due = await step.run("due-tenants", async () => {
+      const rows = await adminDb.select({ id: tenant.id, timezone: tenant.timezone }).from(tenant);
+      return tenantsDueAtHour(rows, new Date(), 5).map((t) => t.id);
+    });
     let flagged = 0, cleared = 0;
-    for (const t of tenants) {
-      const res = await step.run(`weather-${t.id}`, () => evaluateTenantWeather(t.id, forecast, new Date()));
+    for (const id of due) {
+      const res = await step.run(`weather-${id}`, () => evaluateTenantWeather(id, forecast, new Date()));
       flagged += res.flagged; cleared += res.cleared;
     }
     return { flagged, cleared };

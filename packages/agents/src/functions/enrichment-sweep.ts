@@ -1,4 +1,5 @@
 import { adminDb, tenant } from "@savvy/db";
+import { tenantsDueAtHour } from "@savvy/core";
 import { inngest } from "../client";
 import { sweepTenant } from "../enrichment";
 
@@ -10,12 +11,15 @@ import { sweepTenant } from "../enrichment";
  */
 export const enrichmentSweep = inngest.createFunction(
   { id: "enrichment-sweep" },
-  { cron: "TZ=America/Phoenix 0 3 * * *" },
+  { cron: "0 * * * *" }, // hourly tick; runs each tenant at 03:00 its local time
   async ({ step }) => {
-    const tenants = await step.run("list-tenants", async () => adminDb.select({ id: tenant.id }).from(tenant));
-    for (const t of tenants) {
-      await step.run(`sweep:${t.id}`, () => sweepTenant(t.id));
+    const due = await step.run("due-tenants", async () => {
+      const rows = await adminDb.select({ id: tenant.id, timezone: tenant.timezone }).from(tenant);
+      return tenantsDueAtHour(rows, new Date(), 3).map((t) => t.id);
+    });
+    for (const id of due) {
+      await step.run(`sweep:${id}`, () => sweepTenant(id));
     }
-    return { tenants: tenants.length };
+    return { tenants: due.length };
   },
 );

@@ -1,4 +1,5 @@
 import { adminDb, tenant, findCustomersNeedingEmail, setCustomerEmail } from "@savvy/db";
+import { tenantsDueAtHour } from "@savvy/core";
 import { emailFinder as defaultFinder, type EmailFinder } from "@savvy/integrations";
 import { inngest } from "../client";
 
@@ -25,12 +26,15 @@ export async function appendEmailsForTenant(tenantId: string, finder: EmailFinde
  */
 export const emailAppendSweep = inngest.createFunction(
   { id: "email-append-sweep", concurrency: { limit: 1 } },
-  { cron: "TZ=America/Phoenix 0 5 * * *" },
+  { cron: "0 * * * *" }, // hourly tick; runs each tenant at 05:00 its local time
   async ({ step }) => {
-    const tenants = await step.run("list-tenants", async () => adminDb.select({ id: tenant.id }).from(tenant));
+    const due = await step.run("due-tenants", async () => {
+      const rows = await adminDb.select({ id: tenant.id, timezone: tenant.timezone }).from(tenant);
+      return tenantsDueAtHour(rows, new Date(), 5).map((t) => t.id);
+    });
     let filled = 0;
-    for (const t of tenants) {
-      filled += await step.run(`append-${t.id}`, () => appendEmailsForTenant(t.id));
+    for (const id of due) {
+      filled += await step.run(`append-${id}`, () => appendEmailsForTenant(id));
     }
     return { filled };
   },

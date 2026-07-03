@@ -1,5 +1,5 @@
 import { adminDb, withTenant, tenant, lead, property, eq, and, inArray, recordAgentRun, getScoringSettings } from "@savvy/db";
-import { scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures } from "@savvy/core";
+import { scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, tenantsDueAtHour } from "@savvy/core";
 import { stormProof } from "@savvy/integrations";
 import { inngest } from "../client";
 
@@ -57,12 +57,15 @@ function bandRank(b: string | null): number {
 
 export const leadRescore = inngest.createFunction(
   { id: "lead-rescore", concurrency: { limit: 1 } },
-  { cron: "TZ=America/Phoenix 0 3 * * *" }, // nightly 03:00
+  { cron: "0 * * * *" }, // hourly tick; runs each tenant at 03:00 its local time
   async ({ step }) => {
-    const tenants = await step.run("list-tenants", async () => adminDb.select({ id: tenant.id }).from(tenant));
+    const due = await step.run("due-tenants", async () => {
+      const rows = await adminDb.select({ id: tenant.id, timezone: tenant.timezone }).from(tenant);
+      return tenantsDueAtHour(rows, new Date(), 3).map((t) => t.id);
+    });
     let upgraded = 0;
-    for (const t of tenants) {
-      upgraded += await step.run(`rescore-${t.id}`, () => rescoreTenant(t.id));
+    for (const id of due) {
+      upgraded += await step.run(`rescore-${id}`, () => rescoreTenant(id));
     }
     return { upgraded };
   },
