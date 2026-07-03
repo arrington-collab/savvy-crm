@@ -6,10 +6,11 @@ import {
   IncompleteDocumentsError,
   jobChecklistItem,
   eq,
+  setJobTaskAutomationLevel,
 } from "@savvy/db";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
-import type { JobStage } from "@savvy/core";
+import { isAutomationLevel, type JobStage, type AutomationLevel } from "@savvy/core";
 
 export async function moveJobToStage(
   jobId: string,
@@ -33,6 +34,18 @@ export async function moveJobToStage(
   }
   revalidatePath("/jobs");
   return { ok: true };
+}
+
+/** Set a cockpit task's automation level (Background Ops: promote Manual → assisted → auto). */
+export async function setTaskAutomationLevel(
+  taskId: string,
+  level: AutomationLevel,
+): Promise<{ ok: true } | { error: string }> {
+  if (!isAutomationLevel(level)) return { error: "bad_level" };
+  const tenantId = await getTenantId();
+  const r = await setJobTaskAutomationLevel({ tenantId, taskId, level });
+  revalidatePath("/jobs", "layout");
+  return "ok" in r ? { ok: true } : { error: r.skipped };
 }
 
 export async function toggleTask(

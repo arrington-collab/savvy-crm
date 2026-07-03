@@ -385,9 +385,12 @@ from its `job_task` rows:
 - **Per-agent breakdown** — for each of the five agents that owns a task, a
   `full / partial / manual` count with its persona avatar.
 
-This is a read-only insight surface. `automationLevel` is not yet honored at
-runtime by the agents — making it editable and enforced is the orchestration
-(C) work. Logic: `summarizeJobAutomation` in `@savvy/core`.
+The card summarizes; the per-task **automation level is promotable inline** on the
+Tasks list (the badge is a click control that cycles **Manual → Assisted → Auto → Manual**
+via `nextAutomationLevel` → `setTaskAutomationLevel` → `setJobTaskAutomationLevel`, RLS-scoped).
+The level is enforced at runtime by the agents (see "Runtime automation gate" below), so
+promoting a task to Full Auto lets that task's agent act without a human, while Manual/Assisted
+defer to the Needs-you queue. Logic: `summarizeJobAutomation` in `@savvy/core`.
 
 ### Runtime automation gate (C Part 2)
 

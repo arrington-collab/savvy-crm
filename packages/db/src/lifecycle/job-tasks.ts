@@ -1,7 +1,26 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { jobTaskApplies, type JobType, type JobStage, type EvidenceRef } from "@savvy/core";
+import { jobTaskApplies, type JobType, type JobStage, type EvidenceRef, type AutomationLevel } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
-import { job, taskRegistry, tenantTaskConfig, jobTask } from "../schema/index";
+import { job, taskRegistry, tenantTaskConfig, jobTask, jobChecklistItem } from "../schema/index";
+
+/**
+ * Set a cockpit task's automation level (Background Ops: Manual → AI-assisted → AI-auto,
+ * promotable). Tenant-scoped via RLS. Returns not_found if no matching task row.
+ */
+export async function setJobTaskAutomationLevel(input: {
+  tenantId: string;
+  taskId: string;
+  level: AutomationLevel;
+}): Promise<{ ok: true } | { skipped: string }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const rows = await tx
+      .update(jobChecklistItem)
+      .set({ automationLevel: input.level })
+      .where(eq(jobChecklistItem.id, input.taskId))
+      .returning({ id: jobChecklistItem.id });
+    return rows.length > 0 ? { ok: true } : { skipped: "not_found" };
+  });
+}
 
 // Non-terminal job stages — the ones a job ledger is still live for.
 const ACTIVE_STAGES: JobStage[] = ["lead", "inspected", "estimate", "approved", "production", "closeout", "billing"];
