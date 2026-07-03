@@ -1,6 +1,6 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, eq, or, and, inArray, sql } from "@savvy/db";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -169,6 +169,14 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
         .filter((r) => r.missing.length > 0);
     }
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete });
+    // --- unmatched SiteSnap photos (jobId null): surface in the Needs-you queue ---
+    const unmatchedRows = await listUnmatchedPhotos(tenantId);
+    const photoUnmatched: PhotoUnmatchedInput[] = unmatchedRows.map((r) => ({
+      documentId: r.id,
+      captureAddress: r.captureAddress,
+      occurredAt: r.createdAt,
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched });
   });
 }
