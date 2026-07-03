@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dHash, hammingDistance, parsePhotoQcConfig } from "./photo-qc";
+import { dHash, hammingDistance, parsePhotoQcConfig, assessPhotoQc } from "./photo-qc";
 
 // helper: a 8x9 matrix that strictly increases left→right so every adjacent
 // comparison is "left < right" → all 64 bits 0.
@@ -31,5 +31,19 @@ describe("parsePhotoQcConfig", () => {
   });
   it("respects overrides", () => {
     expect(parsePhotoQcConfig({ enabled: false, dupeMaxDistance: 4 })).toEqual({ enabled: false, dupeMaxDistance: 4 });
+  });
+});
+
+describe("assessPhotoQc", () => {
+  it("passes a usable, on-category, unique photo", () => {
+    const ok = { usable: true, quality: "ok" as const, depictsCategory: true, reason: "" };
+    expect(assessPhotoQc({ vision: ok, duplicateOf: null }).flagged).toBe(false);
+  });
+  it("flags unusable, wrong-category, and duplicate photos with reasons", () => {
+    const ok = { usable: true, quality: "ok" as const, depictsCategory: true, reason: "" };
+    expect(assessPhotoQc({ vision: { ...ok, usable: false, quality: "blurry" }, duplicateOf: null }))
+      .toEqual({ flagged: true, reasons: { quality: "blurry" } });
+    expect(assessPhotoQc({ vision: { ...ok, depictsCategory: false }, duplicateOf: null }).reasons.wrongCategory).toBe(true);
+    expect(assessPhotoQc({ vision: ok, duplicateOf: "doc-9" }).reasons.duplicateOf).toBe("doc-9");
   });
 });

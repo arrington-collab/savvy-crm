@@ -37,3 +37,15 @@ export type PhotoQcConfig = z.infer<typeof photoQcSchema>;
 export function parsePhotoQcConfig(raw: unknown): PhotoQcConfig {
   return photoQcSchema.parse(raw ?? {});
 }
+
+export type PhotoQcVision = { usable: boolean; quality: "ok" | "blurry" | "dark" | "obstructed"; depictsCategory: boolean; reason: string };
+export type PhotoQcVerdict = { flagged: boolean; reasons: { quality?: string; wrongCategory?: boolean; duplicateOf?: string } };
+
+/** Pure verdict: flag if unusable, off-category, or a near-duplicate. */
+export function assessPhotoQc(input: { vision: PhotoQcVision; duplicateOf: string | null }): PhotoQcVerdict {
+  const reasons: PhotoQcVerdict["reasons"] = {};
+  if (!input.vision.usable) reasons.quality = input.vision.quality === "ok" ? "unusable" : input.vision.quality;
+  if (!input.vision.depictsCategory) reasons.wrongCategory = true;
+  if (input.duplicateOf) reasons.duplicateOf = input.duplicateOf;
+  return { flagged: Object.keys(reasons).length > 0, reasons };
+}
