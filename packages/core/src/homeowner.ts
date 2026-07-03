@@ -13,6 +13,8 @@ const EVE_BEFORE_COPY_DEFAULT =
   "Your roofing crew arrives tomorrow! Quick prep so we can get right to work: please move cars out of the driveway, keep pets indoors, and clear access to your attic. Questions? Just reply.";
 const DAY_OF_COPY_DEFAULT =
   "Good morning! Your roofing crew is on the way today. We'll keep you posted as the work progresses — thanks for trusting us with your home.";
+const MID_DAY_COPY_DEFAULT =
+  "Quick update — your roof is well underway and the crew is making great progress. We'll let you know as soon as it's wrapped up.";
 
 const quietHoursSchema = z
   .object({ startHour: z.number().int().min(0).max(23), endHour: z.number().int().min(0).max(23) })
@@ -22,8 +24,10 @@ const crewJourneySchema = z
   .object({
     eveBeforeHour: z.number().int().min(0).max(23).default(18),
     dayOfHour: z.number().int().min(0).max(23).default(7),
+    midDayHour: z.number().int().min(0).max(23).default(12),
     eveBeforeCopy: z.string().min(1).default(EVE_BEFORE_COPY_DEFAULT),
     dayOfCopy: z.string().min(1).default(DAY_OF_COPY_DEFAULT),
+    midDayCopy: z.string().min(1).default(MID_DAY_COPY_DEFAULT),
   })
   .default({});
 
@@ -38,13 +42,13 @@ export type HomeownerConfig = {
   enabled: boolean;
   notifyStages: JobStage[];
   quietHours: QuietHours;
-  crewJourney: { eveBeforeHour: number; dayOfHour: number; eveBeforeCopy: string; dayOfCopy: string };
+  crewJourney: { eveBeforeHour: number; dayOfHour: number; midDayHour: number; eveBeforeCopy: string; dayOfCopy: string; midDayCopy: string };
 };
 export function parseHomeownerConfig(raw: unknown): HomeownerConfig {
   return homeownerSchema.parse(raw ?? {}) as HomeownerConfig;
 }
 
-export type CrewDayTouch = { key: "eve_before" | "day_of"; fireAt: Date; body: string };
+export type CrewDayTouch = { key: "eve_before" | "day_of" | "mid_day"; fireAt: Date; body: string };
 
 /**
  * The homeowner's crew-day journey off a scheduled install (§F): an evening-before
@@ -54,11 +58,12 @@ export type CrewDayTouch = { key: "eve_before" | "day_of"; fireAt: Date; body: s
  * Pure — the Inngest wrapper handles the durable sleep + send.
  */
 export function buildCrewDayTouches(installStartsAt: Date, tz: string, cfg: HomeownerConfig, now: Date): CrewDayTouch[] {
-  const { eveBeforeHour, dayOfHour, eveBeforeCopy, dayOfCopy } = cfg.crewJourney;
+  const { eveBeforeHour, dayOfHour, midDayHour, eveBeforeCopy, dayOfCopy, midDayCopy } = cfg.crewJourney;
   const priorDayAnchor = new Date(installStartsAt.getTime() - 24 * 3_600_000);
   const touches: CrewDayTouch[] = [
     { key: "eve_before", fireAt: nextAllowedSendTime(instantAtLocalHourOnDayOf(priorDayAnchor, tz, eveBeforeHour), tz, cfg.quietHours), body: eveBeforeCopy },
     { key: "day_of", fireAt: nextAllowedSendTime(instantAtLocalHourOnDayOf(installStartsAt, tz, dayOfHour), tz, cfg.quietHours), body: dayOfCopy },
+    { key: "mid_day", fireAt: nextAllowedSendTime(instantAtLocalHourOnDayOf(installStartsAt, tz, midDayHour), tz, cfg.quietHours), body: midDayCopy },
   ];
   return touches.filter((t) => t.fireAt.getTime() > now.getTime()).sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
 }

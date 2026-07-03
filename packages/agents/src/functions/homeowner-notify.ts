@@ -1,5 +1,5 @@
 import { adminDb, withTenant, tenant, communication, listStageEventsToNotify, markStageEventNotified, eq } from "@savvy/db";
-import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret } from "@savvy/core";
+import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
@@ -7,10 +7,12 @@ import { inngest } from "../client";
 const LOOKBACK_MS = 2 * 3_600_000;
 
 export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date): Promise<{ sent: number }> {
-  const [t] = await withTenant(tenantId, (tx) => tx.select({ settings: tenant.settings, name: tenant.name }).from(tenant).where(eq(tenant.id, tenantId)));
+  const [t] = await withTenant(tenantId, (tx) => tx.select({ settings: tenant.settings, name: tenant.name, timezone: tenant.timezone }).from(tenant).where(eq(tenant.id, tenantId)));
   const settings = (t?.settings ?? {}) as { homeowner?: unknown; email?: unknown };
   const cfg = parseHomeownerConfig(settings.homeowner);
   if (!cfg.enabled) return { sent: 0 };
+  // TCPA: never send a milestone SMS during the tenant's quiet hours (email still goes).
+  const smsQuiet = isWithinQuietHours(now, t?.timezone ?? "America/Phoenix", cfg.quietHours);
   const gmailConnectionId = parseEmailConfig(settings.email).gmailConnectionId ?? null;
   const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
   const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
@@ -29,7 +31,7 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     const body = `${copy.headline} ${copy.body} Track your project: ${link}`;
     // SMS — send is fail-soft (no creds in dev/test); the communication row records the
     // intent-to-send regardless, matching appointment-reminders. jobId links it to the job timeline.
-    if (ev.phone && !ev.smsOptOut) {
+    if (ev.phone && !ev.smsOptOut && !smsQuiet) {
       try { if (smsSender) { const { sender, from } = smsSender; await sender.sendSms({ to: ev.phone, from, body }); } } catch { /* fail-soft */ }
       await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
     }

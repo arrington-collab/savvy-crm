@@ -485,31 +485,39 @@ homeowner via the comms gateways (respecting `smsOptOut`/`emailOptOut`, fail-sof
 `job/stage-changed` event, which misses user drags) catches every transition; the 2h window means no
 historical spam on first deploy.
 
-#### Crew-day journey (F1 — evening-before + day-of)
+#### Crew-day journey (F1 + F2a — evening-before, day-of, mid-day)
 
-Beyond the milestone notifications, the homeowner gets two **appointment-relative** touches off a
+Beyond the milestone notifications, the homeowner gets three **appointment-relative** touches off a
 scheduled crew (install) appointment, handled by the durable `homeowner-crew-notify` Inngest function
 (triggered on `appointment/booked` + `appointment/changed`, filtered to `type='crew'`):
 
 - **Evening-before prep text** — fires at `crewJourney.eveBeforeHour` (default 18:00) tenant-local the
   day before the install: "crew arrives tomorrow — move cars out, keep pets indoors, clear attic access."
 - **Day-of-morning text** — fires at `crewJourney.dayOfHour` (default 07:00) tenant-local on install day.
+- **Mid-day progress text** — fires at `crewJourney.midDayHour` (default 12:00) tenant-local on install
+  day: "your roof is well underway."
 
-Both fire times are **pushed out of quiet hours** (`homeowner.quietHours`, default 21:00→08:00 local, so
-the 07:00 day-of send lands at 08:00) via `nextAllowedSendTime` — the homeowner journey is now
+All fire times are **pushed out of quiet hours** (`homeowner.quietHours`, default 21:00→08:00 local, so
+the 07:00 day-of send lands at 08:00) via `nextAllowedSendTime` — the homeowner journey is
 TCPA-quiet-hours-safe, matching dunning and the lead cadence. Copy and hours are config-driven under
-`tenant.settings.homeowner.crewJourney` (`eveBeforeHour`, `dayOfHour`, `eveBeforeCopy`, `dayOfCopy`);
-omitted keys fall back to compiled defaults. The function is durable (`step.sleepUntil`),
+`tenant.settings.homeowner.crewJourney` (`eveBeforeHour`, `dayOfHour`, `midDayHour`, `eveBeforeCopy`,
+`dayOfCopy`, `midDayCopy`); omitted keys fall back to compiled defaults. The function is durable (`step.sleepUntil`),
 opt-out-aware (`smsOptOut`/`emailOptOut`), fail-soft on missing creds, and **cancels + reschedules**
 itself when the appointment is moved (`cancelOn: appointment/changed`; the fresh `appointment/booked`
 re-plans the touches). Same-day bookings whose touch time has already passed are dropped. The pure
 scheduler is `buildCrewDayTouches` in `@savvy/core`; the tz wall-clock anchor is
 `instantAtLocalHourOnDayOf` in `tz.ts`.
 
-> **Still on the roadmap for F2:** evening-before-**delivery** text and mid-day progress. The existing
-> milestone `homeowner-notify` cron does not yet apply quiet hours to its stage-change sends (only the
-> crew-day journey + retail cadence do) — folding that in is F2. (The review/referral ask now ships as
-> part of the retail close-out cadence below.)
+**Milestone notifier quiet hours (F2a):** the stage-change `homeowner-notify` cron now also respects quiet
+hours — an SMS whose send time falls inside `homeowner.quietHours` (per the tenant's `timezone`) is
+**suppressed** (`isWithinQuietHours`), while the email still sends and the event is still stamped notified.
+Milestone transitions (approved/production/complete) are business-hours events, so this rarely fires in
+practice; the tradeoff is that a milestone SMS landing in quiet hours is skipped rather than deferred
+(email covers it). All homeowner SMS paths — crew-day journey, retail cadence, and now the milestone
+notifier — are TCPA-quiet-hours-safe.
+
+> **Still on the roadmap (F2b):** evening-before-**delivery** text (keyed off the material-order delivery
+> date). The review/referral ask ships as part of the retail close-out cadence below.
 
 #### Retail close-out cadence (retail lane)
 
