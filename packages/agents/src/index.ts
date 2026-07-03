@@ -28,6 +28,7 @@ import { leadCadence } from "./functions/lead-cadence";
 import { voiceFallback } from "./functions/voice-fallback";
 import { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
 import { homeownerCrewNotify } from "./functions/homeowner-crew-notify";
+import { retailCloseoutCadence } from "./functions/retail-cadence";
 import { crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout } from "./functions/production-triggers";
 import { homeownerNotify } from "./functions/homeowner-notify";
 
@@ -68,6 +69,7 @@ export { voiceFallback } from "./functions/voice-fallback";
 export { invoiceSentToBilling, invoicePaidToComplete } from "./functions/invoice-stage";
 export { crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout } from "./functions/production-triggers";
 export { homeownerCrewNotify } from "./functions/homeowner-crew-notify";
+export { retailCloseoutCadence } from "./functions/retail-cadence";
 export { homeownerNotify } from "./functions/homeowner-notify";
 export { getTenantSms } from "./telephony";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, weatherReschedule, homeownerNotify];
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, retailCloseoutCadence, weatherReschedule, homeownerNotify];
