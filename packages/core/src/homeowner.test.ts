@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseHomeownerConfig, homeownerStageCopy, buildHomeownerJourney, buildCrewDayTouches } from "./homeowner";
+import { parseHomeownerConfig, homeownerStageCopy, buildHomeownerJourney, buildCrewDayTouches, buildDeliveryEveTouch } from "./homeowner";
 import { hourInTimeZone } from "./tz";
 
 describe("parseHomeownerConfig", () => {
@@ -11,9 +11,11 @@ describe("parseHomeownerConfig", () => {
     expect(c.crewJourney.eveBeforeHour).toBe(18);
     expect(c.crewJourney.dayOfHour).toBe(7);
     expect(c.crewJourney.midDayHour).toBe(12);
+    expect(c.crewJourney.deliveryEveHour).toBe(18);
     expect(c.crewJourney.eveBeforeCopy.length).toBeGreaterThan(0);
     expect(c.crewJourney.dayOfCopy.length).toBeGreaterThan(0);
     expect(c.crewJourney.midDayCopy.length).toBeGreaterThan(0);
+    expect(c.crewJourney.deliveryEveCopy.length).toBeGreaterThan(0);
   });
   it("filters invalid stages + merges + accepts overrides", () => {
     const c = parseHomeownerConfig({
@@ -59,6 +61,31 @@ describe("buildCrewDayTouches", () => {
     // now is after the eve_before (2026-07-20T01:00Z) but before day_of (2026-07-20T15:00Z)
     const touches = buildCrewDayTouches(install, tz, cfg, new Date("2026-07-20T05:00:00Z"));
     expect(touches.map((t) => t.key)).toEqual(["day_of", "mid_day"]);
+  });
+});
+
+describe("buildDeliveryEveTouch", () => {
+  const tz = "America/Phoenix";
+  const delivery = new Date("2026-07-20T15:00:00Z"); // delivery target, 08:00 Phoenix on the 20th
+
+  it("schedules an evening-before-delivery text at the local evening hour", () => {
+    const cfg = parseHomeownerConfig(undefined);
+    const t = buildDeliveryEveTouch(delivery, tz, cfg, new Date("2026-07-01T00:00:00Z"));
+    expect(t).not.toBeNull();
+    expect(hourInTimeZone(t!.fireAt, tz)).toBe(18); // 18:00 local the evening before
+    expect(t!.body.toLowerCase()).toContain("material");
+  });
+
+  it("returns null when the evening-before time has already passed", () => {
+    const cfg = parseHomeownerConfig(undefined);
+    // eve-before is 2026-07-20T01:00Z; now is after it.
+    const t = buildDeliveryEveTouch(delivery, tz, cfg, new Date("2026-07-20T05:00:00Z"));
+    expect(t).toBeNull();
+  });
+
+  it("returns null when there is no delivery date", () => {
+    const cfg = parseHomeownerConfig(undefined);
+    expect(buildDeliveryEveTouch(null, tz, cfg, new Date("2026-07-01T00:00:00Z"))).toBeNull();
   });
 });
 

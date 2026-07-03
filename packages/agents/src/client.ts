@@ -16,6 +16,7 @@ type Events = {
     };
   };
   "crew/checked-in": { data: { tenantId: string; jobId: string } };
+  "material/ordered": { data: { tenantId: string; jobId: string; materialOrderId: string } };
   "material/delivered": { data: { tenantId: string; jobId: string; materialOrderId?: string } };
   "job/production-photos-updated": { data: { tenantId: string; jobId: string } };
   "invoice/sent": { data: { invoiceId: string; tenantId: string } };
