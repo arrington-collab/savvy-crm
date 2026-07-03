@@ -185,7 +185,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Test: `packages/db/src/lifecycle/photos-resolve.test.ts` (create)
 
 **Interfaces:**
-- Consumes: `normalizeAddress` (`@savvy/core`).
+- Consumes: `normalizeAddressForMatch` (`@savvy/core`).
 - Produces:
   ```ts
   resolvePhotoJob(input: { tenantId: string; address: string }): Promise<{ jobId: string } | null>
@@ -249,20 +249,20 @@ import { withTenant } from "../tenant";
 import { property, job } from "../schema/index";
 import { tenant } from "../schema/index";
 import { and, eq, notInArray, desc, sql } from "drizzle-orm";
-import { normalizeAddress } from "@savvy/core";
+import { normalizeAddressForMatch } from "@savvy/core";
 
 const CLOSED_STAGES = ["complete", "lost"] as const;
 
 /** Resolve the Savvy job a photo belongs to by matching its property address.
  *  Prefers the most recent open (non-complete/lost) job; else the newest job. */
 export async function resolvePhotoJob(input: { tenantId: string; address: string }): Promise<{ jobId: string } | null> {
-  const norm = normalizeAddress(input.address);
+  const norm = normalizeAddressForMatch(input.address);
   return withTenant(input.tenantId, async (tx) => {
     // Normalize property addresses in SQL the same way (lower + strip . , # + collapse spaces).
     // Suffix-word standardization is not reproduced in SQL; we compare on the cleaned form and
-    // rely on normalizeAddress-equal inputs. Fetch candidates, then match in JS for parity.
+    // rely on normalizeAddressForMatch-equal inputs. Fetch candidates, then match in JS for parity.
     const props = await tx.select({ id: property.id, address: property.address }).from(property);
-    const match = props.find((p) => normalizeAddress(p.address) === norm);
+    const match = props.find((p) => normalizeAddressForMatch(p.address) === norm);
     if (!match) return null;
     const jobs = await tx.select({ id: job.id, stage: job.stage, createdAt: job.createdAt })
       .from(job).where(eq(job.propertyId, match.id)).orderBy(desc(job.createdAt));
