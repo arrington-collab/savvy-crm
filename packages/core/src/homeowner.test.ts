@@ -10,8 +10,10 @@ describe("parseHomeownerConfig", () => {
     expect(c.quietHours).toEqual({ startHour: 21, endHour: 8 });
     expect(c.crewJourney.eveBeforeHour).toBe(18);
     expect(c.crewJourney.dayOfHour).toBe(7);
+    expect(c.crewJourney.midDayHour).toBe(12);
     expect(c.crewJourney.eveBeforeCopy.length).toBeGreaterThan(0);
     expect(c.crewJourney.dayOfCopy.length).toBeGreaterThan(0);
+    expect(c.crewJourney.midDayCopy.length).toBeGreaterThan(0);
   });
   it("filters invalid stages + merges + accepts overrides", () => {
     const c = parseHomeownerConfig({
@@ -37,13 +39,16 @@ describe("buildCrewDayTouches", () => {
   it("returns the evening-before-prep and day-of-morning touches, quiet-hours-safe", () => {
     const cfg = parseHomeownerConfig(undefined);
     const touches = buildCrewDayTouches(install, tz, cfg, new Date("2026-07-01T00:00:00Z"));
-    expect(touches.map((t) => t.key)).toEqual(["eve_before", "day_of"]);
+    expect(touches.map((t) => t.key)).toEqual(["eve_before", "day_of", "mid_day"]);
     // eve_before fires at 18:00 local the day before (not in quiet hours).
     expect(hourInTimeZone(touches[0]!.fireAt, tz)).toBe(18);
     // day_of default hour 7 is inside quiet hours (21→8) → pushed to 08:00 local.
     expect(hourInTimeZone(touches[1]!.fireAt, tz)).toBe(8);
+    // mid_day fires at 12:00 local on install day.
+    expect(hourInTimeZone(touches[2]!.fireAt, tz)).toBe(12);
     // ordered soonest-first
     expect(touches[0]!.fireAt.getTime()).toBeLessThan(touches[1]!.fireAt.getTime());
+    expect(touches[1]!.fireAt.getTime()).toBeLessThan(touches[2]!.fireAt.getTime());
     // prep instructions in the evening-before copy
     expect(touches[0]!.body.toLowerCase()).toContain("attic");
     expect(touches[0]!.body.toLowerCase()).toContain("pets");
@@ -53,7 +58,7 @@ describe("buildCrewDayTouches", () => {
     const cfg = parseHomeownerConfig(undefined);
     // now is after the eve_before (2026-07-20T01:00Z) but before day_of (2026-07-20T15:00Z)
     const touches = buildCrewDayTouches(install, tz, cfg, new Date("2026-07-20T05:00:00Z"));
-    expect(touches.map((t) => t.key)).toEqual(["day_of"]);
+    expect(touches.map((t) => t.key)).toEqual(["day_of", "mid_day"]);
   });
 });
 
