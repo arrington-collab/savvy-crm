@@ -16,7 +16,7 @@ describe("buildExceptionQueue", () => {
       roofTypeNeeded: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
@@ -84,7 +84,40 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0 }, total: 0, highCount: 0,
+    });
+  });
+
+  describe("margin_outlier vector", () => {
+    it("emits a high item when margin is negative and medium when merely thin", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        marginOutliers: [
+          { jobId: "jm1", customerName: "Neg", marginPct: -5, occurredAt: new Date("2026-06-01T00:00:00Z") },
+          { jobId: "jm2", customerName: "Thin", marginPct: 8, occurredAt: new Date("2026-06-02T00:00:00Z") },
+        ],
+      });
+      expect(q.counts.margin_outlier).toBe(2);
+      const neg = q.items.find((i) => i.title === "Neg")!;
+      expect(neg).toMatchObject({ kind: "margin_outlier", severity: "high", href: "/jobs/jm1" });
+      expect(neg.detail).toContain("-5%");
+      expect(q.items.find((i) => i.title === "Thin")!.severity).toBe("medium");
+    });
+  });
+
+  describe("photo_incomplete vector", () => {
+    it("emits a medium item listing the missing required photos", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        photoIncomplete: [
+          { jobId: "jp1", customerName: "Pat", missing: ["before", "after"], occurredAt: new Date("2026-06-03T00:00:00Z") },
+        ],
+      });
+      expect(q.counts.photo_incomplete).toBe(1);
+      const it0 = q.items.find((i) => i.kind === "photo_incomplete")!;
+      expect(it0).toMatchObject({ severity: "medium", title: "Pat", href: "/jobs/jp1" });
+      expect(it0.detail.toLowerCase()).toContain("before");
+      expect(it0.detail.toLowerCase()).toContain("after");
     });
   });
 

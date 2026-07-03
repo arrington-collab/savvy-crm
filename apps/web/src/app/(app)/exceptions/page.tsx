@@ -12,6 +12,8 @@ const KIND_LABEL: Record<string, string> = {
   task_needs_approval: "Needs approval",
   weather_at_risk: "Weather risk",
   roof_type_needed: "Roof type",
+  margin_outlier: "Margin",
+  photo_incomplete: "Photos",
   // scoreboard task exceptions
   verification_mismatch: "Done-but-wrong",
   task_stale: "Stale check",
