@@ -486,9 +486,33 @@ re-plans the touches). Same-day bookings whose touch time has already passed are
 scheduler is `buildCrewDayTouches` in `@savvy/core`; the tz wall-clock anchor is
 `instantAtLocalHourOnDayOf` in `tz.ts`.
 
-> **Still on the roadmap for F2:** evening-before-**delivery** text, mid-day progress, and the
-> review/referral ask. The existing milestone `homeowner-notify` cron does not yet apply quiet hours to
-> its stage-change sends (only the crew-day journey does) — folding that in is F2.
+> **Still on the roadmap for F2:** evening-before-**delivery** text and mid-day progress. The existing
+> milestone `homeowner-notify` cron does not yet apply quiet hours to its stage-change sends (only the
+> crew-day journey + retail cadence do) — folding that in is F2. (The review/referral ask now ships as
+> part of the retail close-out cadence below.)
+
+#### Retail close-out cadence (retail lane)
+
+Close-out **differs by lane**. For a **retail** job, when its invoice is sent (`invoice/sent`), the
+durable `retail-closeout-cadence` Inngest function drips **7 / 15 / 30 / 60 / 90-day** touches to the
+homeowner (`retailCloseoutCadence`, config `tenant.settings.retailCadence`). Each touch reloads the
+**live invoice balance** and composes copy with `buildRetailTouchBody`:
+
+- **balance open** → a gentle balance nudge + pay/track link (the `/status/<token>` portal) **plus** the
+  review/referral ask;
+- **balance settled** → the review/referral ask only (pointing at `retailCadence.reviewUrl`, or the
+  status page if unset).
+
+**This is the lane branch:** the function loads the job and **returns `not_retail` for insurance jobs** —
+insurance close-out follows the carrier/depreciation timeline instead (slice G). Steps / quiet-hours / copy
+are config-driven (defaults: 7/15/30/60/90, quiet 21→08, mixed sms/email); SMS sends are quiet-hours-gated
+via `nextAllowedSendTime`, opt-out-aware, and fail-soft. It `cancelOn: invoice/void`. This is the softer
+relationship layer that drives reviews into the referral lane — **complementary to dunning** (§E), which
+handles firm overdue collection; both key off `invoice/sent`.
+
+> Multi-invoice note: the cadence enrolls per `invoice/sent`, so a retail job with several invoices would
+> start a cadence each — fine at current scale (same all-events posture as the other cadences); dedupe if
+> a tenant routinely issues multiple retail invoices per job.
 
 ## Weather reschedule (D1b)
 
