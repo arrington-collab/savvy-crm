@@ -6,6 +6,8 @@ export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTas
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks } from "./lifecycle/lead-tasks";
 export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, computeTenantRollup, reconcileTaskExceptions, getTenantRollup, getJobLedger, type JobLedgerRow, listOpenTaskExceptions, type OpenTaskException, markTaskExceptionViewed, getTaskDetail, type TaskDetail, recomputeFounderMinutes, listAutomationRoadmap, type RoadmapTask } from "./lifecycle/task-health";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } from "./lifecycle/record-stage-change";
+export { advanceJobStageForward } from "./lifecycle/advance-stage";
+export { missingProductionPhotos, hasScheduledCrewInstall } from "./lifecycle/production-signals";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
 export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/contact";
