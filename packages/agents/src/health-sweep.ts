@@ -1,6 +1,6 @@
 import { evidenceChecks, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
 import {
-  adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recordAgentRun, and, eq,
+  adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recomputeFounderMinutes, recordAgentRun, and, eq,
   taskRegistry, tenantTaskConfig, verificationRun,
 } from "@savvy/db";
 import { pageBreakGlass } from "./break-glass";
@@ -73,6 +73,9 @@ export async function sweepTenantHealth(tenantId: string, opts: { now?: Date } =
   // Interrupt the owner NOW for any exception that cleared the break-glass
   // threshold — the one alert that doesn't wait for the digest.
   await pageBreakGlass(tenantId, { now });
+  // Recompute founder-minutes (needs resolved_at from reconcile) before the
+  // rollup sums them.
+  await recomputeFounderMinutes(tenantId, { now });
   await computeTenantRollup(tenantId, { now });
   await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "ops.health_sweep", status: "ok" });
   return { checked };
