@@ -532,3 +532,20 @@ per job (`claim_job_uniq`), tenant-isolated (`tenant_isolation` RLS). This is ad
 ONLY; supplement intelligence (KB, code lookup, carrier-rebuttal letters) remains the deferred
 SuppIQ/Phase-9 add-on, and the `carrier`/`supplement` tables stay its stubs. The cockpit UI +
 lifecycle-task wiring + adjuster scheduling are slice G-2.
+
+#### Depreciation recovery — detection (G1)
+
+Insurance close-out runs a depreciation-recovery lane the retail cadence does not. When an insurance
+job's invoice is **paid** (`invoice/paid` → the job reaches `complete`), the `insurance-depreciation-detect`
+Inngest function computes the **recoverable depreciation** — `recoverableDepreciationCents` = `RCV − ACV`,
+the holdback the carrier releases after documented completion (`@savvy/core`). If it is positive, it
+generates the **office-staff task** (`detectDepreciationRecovery` in `@savvy/db`): a `job_checklist_item`
+keyed `claims.depreciation_recovery`, owned by the **claims** agent, titled *"Update Xactimate pricing +
+prepare recovery invoice"*, due immediately so it surfaces in the `/exceptions` "Needs you" list. It is
+**idempotent** per job (the key is the guard) and **lane-scoped** — retail jobs and jobs with no
+recoverable depreciation are skipped. The task's `payload.recoverableDepreciationCents` carries the amount
+forward.
+
+> **G2 (next):** when the staffer **uploads updated Xactimate pricing**, auto-generate the depreciation
+> invoice as a **draft** held in Needs-you for a one-tap "send" approval (nothing goes to the carrier
+> without it), plus a dedicated `depreciation_invoice_approval` exception vector.
