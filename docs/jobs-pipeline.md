@@ -148,11 +148,28 @@ The jobs board shows:
 
 ---
 
-## 4. `leadToJobType` heuristic
+## 4. Conversion carryover & `leadToJobType`
 
-When a won lead converts to a job (`convertLeadToJob`), there is no explicit
-insurance/retail flag on the lead. The heuristic maps the lead's **lane** to a
-job type:
+When a won lead converts to a job (`convertLeadToJob`), the lead's context carries
+over — **no re-keying**:
+
+- **Customer + property** via the shared `customerId` / `propertyId` FKs.
+- **Owner / credit** — the lead's `assignedUserId` is copied to `job.assignedUserId`.
+- **Documents** — the customer's un-linked (`jobId IS NULL`) lead-stage **storm certs
+  and photos** are stamped onto the new job in the same transaction (idempotent, so a
+  repeat conversion on a booked lead never re-stamps).
+- **Job type** — derived from the lead's lane (below).
+- **Measurements** live on the `measurement` table keyed by `propertyId`, so they are
+  reachable from the job via its property without duplication.
+
+> There is no explicit insurance carrier / policy / deductible on the lead, so those
+> are entered on the `claim` record after conversion (see Claim tracking) rather than
+> carried from the lead.
+
+### `leadToJobType`
+
+The lead has no explicit insurance/retail flag; the heuristic maps the lead's
+**lane** to a job type:
 
 ```ts
 leadToJobType(lane: string | null): JobType

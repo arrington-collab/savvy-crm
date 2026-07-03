@@ -3,7 +3,7 @@ import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
 import { document } from "../schema/ops";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
 import { leadToJobType } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
@@ -134,8 +134,9 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
     if (!l) throw new Error("lead not found");
 
-    // Stamp un-linked cert documents onto a job within the same transaction.
-    // Idempotent: only updates docs where jobId IS NULL.
+    // Carry the customer's lead-stage documents (storm certs + photos) onto the job
+    // within the same transaction. Idempotent: only updates docs where jobId IS NULL,
+    // so a repeat conversion (booked lead) never re-stamps or duplicates.
     async function stampCerts(jobId: string): Promise<void> {
       await tx
         .update(document)
@@ -143,7 +144,7 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
         .where(
           and(
             eq(document.customerId, l!.customerId!),
-            eq(document.kind, "cert"),
+            inArray(document.kind, ["cert", "photo"]),
             isNull(document.jobId),
           ),
         );
@@ -160,6 +161,7 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
     const [newJob] = await tx.insert(job).values({
       tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
       type: jobType, stage: "lead", leadId: l.id,
+      assignedUserId: l.assignedUserId ?? null, // carry the lead's owner/credit onto the job
     }).returning();
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
