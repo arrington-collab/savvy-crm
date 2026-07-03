@@ -77,3 +77,22 @@ export function normalizeAddress(addr: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+const SUFFIX: Record<string, string> = {
+  street: "st", st: "st", avenue: "ave", ave: "ave", av: "ave",
+  drive: "dr", dr: "dr", road: "rd", rd: "rd", lane: "ln", ln: "ln",
+  boulevard: "blvd", blvd: "blvd", court: "ct", ct: "ct", place: "pl", pl: "pl",
+  circle: "cir", cir: "cir", terrace: "ter", ter: "ter", highway: "hwy", hwy: "hwy",
+};
+
+/** Normalize a street address for fuzzy equality: lowercase, strip punctuation,
+ *  collapse whitespace, and standardize common street-suffix words.
+ *  Null-safe: returns "" for null/undefined. */
+export function normalizeAddressForMatch(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const cleaned = raw.toLowerCase().replace(/[.,#]/g, " ").replace(/\s+/g, " ").trim();
+  return cleaned
+    .split(" ")
+    .map((tok) => SUFFIX[tok] ?? tok)
+    .join(" ");
+}

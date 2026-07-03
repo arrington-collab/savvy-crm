@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityFromAddress, formatCountyLabel, normalizeAddress, expandAddressForSpeech } from "./address.js";
+import { parseCityFromAddress, formatCountyLabel, normalizeAddress, normalizeAddressForMatch, expandAddressForSpeech } from "./address.js";
 
 describe("parseCityFromAddress", () => {
   it("extracts the city before STATE ZIP", () => {
@@ -58,6 +58,20 @@ describe("normalizeAddress", () => {
   });
   it("Unicode-folds accented characters to ASCII (e.g. Cañon → canon)", () => {
     expect(normalizeAddress("Cañon Rd")).toContain("canon");
+  });
+});
+
+describe("normalizeAddressForMatch", () => {
+  it("lowercases, trims, and collapses whitespace", () => {
+    expect(normalizeAddressForMatch("  123   Main   St  ")).toBe("123 main st");
+  });
+  it("standardizes common suffix abbreviations", () => {
+    expect(normalizeAddressForMatch("123 Main Street")).toBe("123 main st");
+    expect(normalizeAddressForMatch("5 Oak Avenue")).toBe("5 oak ave");
+    expect(normalizeAddressForMatch("9 Elm Drive")).toBe("9 elm dr");
+  });
+  it("strips punctuation so equivalent addresses match", () => {
+    expect(normalizeAddressForMatch("123 Main St.")).toBe(normalizeAddressForMatch("123 Main Street"));
   });
 });
 

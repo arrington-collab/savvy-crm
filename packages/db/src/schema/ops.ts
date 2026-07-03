@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
@@ -18,10 +19,19 @@ export const document = pgTable("document", {
   source: text("source").default("upload"), // companycam|savvy|upload
   externalUrl: text("external_url"),                 // CompanyCam-hosted URL (source='companycam')
   companycamPhotoId: text("companycam_photo_id"),    // dedupe key for the CompanyCam webhook
+  sitesnapPhotoId: text("sitesnap_photo_id"),          // dedupe key for the SiteSnap webhook
+  captureAddress: text("capture_address"),             // raw address from the producer (for unmatched re-match)
+  phash: text("phash"),                                // perceptual hash (Slice 2 dedup)
+  qcStatus: text("qc_status").default("pending"),      // pending|passed|flagged|skipped
+  qcReasons: jsonb("qc_reasons").$type<unknown>(),     // structured QC reasons (Slice 2)
   sharedWith: jsonb("shared_with").$type<unknown[]>().default([]).notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: createdAt(),
-}, (t) => [index("document_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
+}, (t) => [
+  index("document_tenant_job_idx").on(t.tenantId, t.jobId),
+  uniqueIndex("document_tenant_sitesnap_uniq").on(t.tenantId, t.sitesnapPhotoId).where(sql`${t.sitesnapPhotoId} is not null`),
+  tenantIsolation(),
+]);
 
 export const measurement = pgTable("measurement", {
   id: idCol(),

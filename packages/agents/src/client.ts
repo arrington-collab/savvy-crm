@@ -31,6 +31,7 @@ type Events = {
   "lead/contacted": { data: { leadId: string; tenantId: string } };
   "lead/contact-overdue": { data: { leadId: string; tenantId: string } };
   "lead/disqualified": { data: { leadId: string; tenantId: string } };
+  "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
 };
 
 export const inngest = new Inngest({
