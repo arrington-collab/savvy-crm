@@ -606,3 +606,43 @@ export async function getJobLedger(tenantId: string, jobId: string): Promise<Job
       .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id)),
   );
 }
+
+/** One row of the Automation Roadmap: a human-touched task ranked by the attention it costs. */
+export type RoadmapTask = {
+  taskId: number;
+  name: string;
+  phase: number;
+  effectiveMode: string;
+  founderMinutes30d: number;
+  healthStatus: string;
+};
+
+/**
+ * The automation priority queue (read-only): manual/assisted tasks that cost the
+ * owner real time in the last 30 days, ranked by founder-minutes descending — the
+ * empire roadmap (automate the top of this list next). Excludes full_auto tasks
+ * and tasks with no logged attention.
+ */
+export async function listAutomationRoadmap(tenantId: string, limit = 10): Promise<RoadmapTask[]> {
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        taskId: taskHealth.taskId,
+        name: taskRegistry.name,
+        phase: taskRegistry.phase,
+        effectiveMode: taskHealth.effectiveMode,
+        founderMinutes30d: taskHealth.founderMinutes30d,
+        healthStatus: taskHealth.status,
+      })
+      .from(taskHealth)
+      .innerJoin(taskRegistry, eq(taskRegistry.id, taskHealth.taskId))
+      .where(and(
+        eq(taskHealth.tenantId, tenantId),
+        inArray(taskHealth.effectiveMode, ["manual", "assisted"]),
+        sql`${taskHealth.founderMinutes30d} > 0`,
+      ))
+      .orderBy(sql`${taskHealth.founderMinutes30d} desc`)
+      .limit(limit),
+  );
+  return rows.map((r) => ({ ...r, founderMinutes30d: Number(r.founderMinutes30d) }));
+}

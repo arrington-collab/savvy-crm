@@ -1,12 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { summarizeAgentCoverage, summarizeAutomationStats } from "@savvy/core";
 import { loadAgentRunWindow, loadAgentActivity } from "@/lib/command-center-queries";
-import { loadTenantRollup } from "@/lib/scoreboard-queries";
+import { loadTenantRollup, loadAutomationRoadmap } from "@/lib/scoreboard-queries";
 import { resolveAgent, agentLabel } from "@/lib/agents";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { SageCore } from "@/components/cockpit/SageCore";
 import { MetricCard } from "@/components/cockpit/MetricCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
+import { AutomationRoadmap } from "@/components/cockpit/AutomationRoadmap";
 import { CommandCenterAskSage } from "@/components/cockpit/CommandCenterAskSage";
 import { PipelineSummaryPanel } from "./PipelineSummaryPanel";
 
@@ -45,7 +46,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default async function CommandCenterPage() {
-  const [runWindow, activity, rollup] = await Promise.all([loadAgentRunWindow(30), loadAgentActivity(30), loadTenantRollup()]);
+  const [runWindow, activity, rollup, roadmap] = await Promise.all([loadAgentRunWindow(30), loadAgentActivity(30), loadTenantRollup(), loadAutomationRoadmap(8)]);
   const now = new Date();
   const stats = summarizeAutomationStats(runWindow, now);
   const coverage = summarizeAgentCoverage(runWindow, now);
@@ -74,6 +75,9 @@ export default async function CommandCenterPage() {
 
       {/* Empire Coverage — how much of the 212-task operation is automated & proven. */}
       <CoverageMap rollup={rollup} />
+
+      {/* Automation Roadmap — what to automate next, by human time spent. */}
+      <AutomationRoadmap tasks={roadmap} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Activity */}

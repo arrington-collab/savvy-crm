@@ -1,5 +1,5 @@
 import "server-only";
-import { getTenantRollup, getTaskDetail, listOpenTaskExceptions } from "@savvy/db";
+import { getTenantRollup, getTaskDetail, listOpenTaskExceptions, listAutomationRoadmap } from "@savvy/db";
 import { getTenantId } from "./tenant";
 
 /** Page-facing wrapper: the active tenant's Coverage Map snapshot (null pre-first-sweep). */
@@ -15,4 +15,9 @@ export async function loadTaskDetail(taskId: number) {
 /** Open scoreboard exceptions for the Today worklist. */
 export async function loadOpenTaskExceptions() {
   return listOpenTaskExceptions(await getTenantId());
+}
+
+/** The automation priority queue: manual/assisted tasks ranked by founder-minutes. */
+export async function loadAutomationRoadmap(limit = 8) {
+  return listAutomationRoadmap(await getTenantId(), limit);
 }
