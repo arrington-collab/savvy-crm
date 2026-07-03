@@ -44,10 +44,22 @@ describe("getJobPhotoHashes", () => {
     await adminDb.insert(document).values({
       tenantId, jobId, kind: "photo", label: "gutter", r2Key: "r2-c", qcStatus: "pending",
     });
+
+    // Seed a second job under the SAME tenant and insert a photo with a phash.
+    // The result must NOT include this doc — cross-job isolation check.
+    const [c2] = await adminDb.insert(customer).values({ tenantId, name: "C2" }).returning();
+    const [p2] = await adminDb.insert(property).values({ tenantId, customerId: c2!.id, address: "3 C St" }).returning();
+    const [j2] = await adminDb.insert(job).values({ tenantId, customerId: c2!.id, propertyId: p2!.id, type: "retail", stage: "production" }).returning();
+    const [docOtherJob] = await adminDb.insert(document).values({
+      tenantId, jobId: j2!.id, kind: "photo", label: "fascia", r2Key: "r2-other", phash: "fff999", qcStatus: "pending",
+    }).returning();
+
     const results = await getJobPhotoHashes({ tenantId, jobId, excludeDocumentId: docA!.id });
     const ids = results.map((r) => r.documentId);
     expect(ids).toContain(docB!.id);
     expect(ids).not.toContain(docA!.id);
+    // Photo belonging to a different job must not appear even though it has a phash
+    expect(ids).not.toContain(docOtherJob!.id);
     // All returned rows must have a non-null phash
     for (const r of results) expect(r.phash).toBeTruthy();
   });
