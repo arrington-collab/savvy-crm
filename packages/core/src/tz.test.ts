@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour } from "./tz";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone } from "./tz";
 
 // Phoenix is UTC-7 year-round (no DST); Denver is UTC-6 in July (MDT).
 test("returns the local hour (0-23) for the given IANA zone", () => {
@@ -23,4 +23,15 @@ test("tenantsDueAtHour selects only tenants whose local hour matches (one hourly
   expect(tenantsDueAtHour(tenants, noonUtc, 4).map((t) => t.id)).toEqual(["a", "c"]);
   expect(tenantsDueAtHour(tenants, noonUtc, 5).map((t) => t.id)).toEqual(["b"]);
   expect(tenantsDueAtHour(tenants, noonUtc, 3)).toEqual([]);
+});
+
+test("dayOfMonthInTimeZone returns the local day, respecting the midnight boundary", () => {
+  expect(dayOfMonthInTimeZone(new Date("2026-07-01T13:00:00Z"), "America/Phoenix")).toBe(1); // 06:00 Jul 1 local
+  expect(dayOfMonthInTimeZone(new Date("2026-07-01T06:00:00Z"), "America/Phoenix")).toBe(30); // 23:00 Jun 30 local
+});
+
+test("priorMonthKeyInTimeZone keys off the tenant's LOCAL month, not UTC", () => {
+  expect(priorMonthKeyInTimeZone(new Date("2026-07-01T13:00:00Z"), "America/Phoenix")).toBe("2026-06"); // local July -> prior June
+  expect(priorMonthKeyInTimeZone(new Date("2026-01-01T13:00:00Z"), "America/Phoenix")).toBe("2025-12"); // year wrap
+  expect(priorMonthKeyInTimeZone(new Date("2026-07-01T02:00:00Z"), "America/Phoenix")).toBe("2026-05"); // UTC=July but local=Jun 30 -> prior May
 });
