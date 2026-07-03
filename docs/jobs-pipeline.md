@@ -443,6 +443,15 @@ the install was moved up after ordering) — surfaces as a **high** `material_de
 surfaces as **medium** ("No install scheduled for materials"). `none` (delivery on/before install)
 is omitted. Like the invoice/job dual-path, a job may appear both here and as `job_at_risk`.
 
+**Margin outlier (J).** Open jobs whose real-time gross margin (`computeJobMargin` over
+`value_final ?? value_estimate` vs `cost_cents`) is at or below `jobs.marginTargetPct` (config,
+default 20%) surface as `margin_outlier` — **high** when the margin is negative (losing money),
+**medium** when merely thin. Only jobs with a known cost (`cost_cents > 0`) are evaluated.
+
+**Photo checklist incomplete (J).** Jobs in `production`/`closeout` whose required photo checklist
+(`production.requiredPhotos[jobType]`) is not yet satisfied surface as a **medium** `photo_incomplete`
+row listing the missing labels (`missingRequiredPhotos`) — the QA-by-photo signal a human should chase.
+
 Agent-run errors are intentionally NOT here — those are automation health and
 live on the Command Center. Logic: `buildExceptionQueue` in `@savvy/core`;
 the page reuses `deriveJobHealth` exactly as the Jobs board does.

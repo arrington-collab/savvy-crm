@@ -22,6 +22,8 @@ const jobsSchema = z.object({
       commercial: z.number().int().min(1).default(60),
     })
     .default({}),
+  // real-time gross margin (%) at or below which an open job surfaces as a margin outlier
+  marginTargetPct: z.number().int().default(20),
 });
 
 export type JobsConfig = z.infer<typeof jobsSchema>;

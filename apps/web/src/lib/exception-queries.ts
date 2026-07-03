@@ -1,7 +1,9 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, eq, or, sql } from "@savvy/db";
-import { parseJobsConfig, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, eq, or, and, inArray, sql } from "@savvy/db";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
+
+const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
 
 // Gathers the five exception vectors for the tenant and normalizes them in core
 // (jobs at risk, overdue invoices, missed appointments, overdue tasks, material
@@ -21,6 +23,7 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       .select({
         id: job.id, stage: job.stage, type: job.type, stageEnteredAt: job.stageEnteredAt,
         customerName: customer.name,
+        valueEstimate: job.valueEstimate, valueFinal: job.valueFinal, costCents: job.costCents,
         approvedAt: sql<string | null>`(select entered_at from job_stage_event where job_id = ${job.id} and to_stage = 'approved' order by entered_at asc limit 1)`,
         pastDue: sql<boolean>`exists (select 1 from invoice where job_id = ${job.id} and status in ('sent','overdue') and due_at is not null and due_at < now() and coalesce(amount_paid,0) < coalesce(amount_due,0))`,
       })
@@ -129,6 +132,40 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       jobId: r.jobId, leadId: r.leadId, propertyId: r.propertyId, customerName: r.customerName, occurredAt: r.stageEnteredAt,
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded });
+    // --- margin outliers: open jobs whose real-time margin is at/below target (cost known) ---
+    const marginTargetPct = config.marginTargetPct;
+    const marginOutliers: MarginOutlierInput[] = jobRows
+      .filter((r) => OPEN_STAGES.includes(r.stage as JobStage) && r.costCents != null && r.costCents > 0)
+      .map((r) => {
+        const m = computeJobMargin({ revenueCents: r.valueFinal ?? r.valueEstimate ?? 0, costCents: r.costCents });
+        return { jobId: r.id, customerName: r.customerName, marginPct: m.marginPct, costKnown: m.costKnown };
+      })
+      .filter((r) => r.costKnown && r.marginPct != null && r.marginPct <= marginTargetPct)
+      .map((r) => ({ jobId: r.jobId, customerName: r.customerName, marginPct: r.marginPct as number, occurredAt: null }));
+
+    // --- photo checklist incomplete: production/closeout jobs missing required photos ---
+    const prodCfg = parseProductionConfig((t?.settings as { production?: unknown } | undefined)?.production);
+    const photoJobs = jobRows.filter((r) => r.stage === "production" || r.stage === "closeout");
+    let photoIncomplete: PhotoIncompleteInput[] = [];
+    if (photoJobs.length > 0) {
+      const photoRows = await tx
+        .select({ jobId: document.jobId, label: document.label })
+        .from(document)
+        .where(and(inArray(document.jobId, photoJobs.map((r) => r.id)), eq(document.kind, "photo")));
+      const labelsByJob = new Map<string, Set<string>>();
+      for (const row of photoRows) {
+        if (!row.jobId || !row.label) continue;
+        (labelsByJob.get(row.jobId) ?? labelsByJob.set(row.jobId, new Set()).get(row.jobId)!).add(row.label);
+      }
+      photoIncomplete = photoJobs
+        .map((r) => {
+          const required = prodCfg.requiredPhotos[r.type as JobType] ?? [];
+          const present = [...(labelsByJob.get(r.id) ?? [])];
+          return { jobId: r.id, customerName: r.customerName, missing: missingRequiredPhotos(required, present), occurredAt: new Date(r.stageEnteredAt as unknown as string) };
+        })
+        .filter((r) => r.missing.length > 0);
+    }
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete });
   });
 }
