@@ -46,4 +46,10 @@ describe("assessPhotoQc", () => {
     expect(assessPhotoQc({ vision: { ...ok, depictsCategory: false }, duplicateOf: null }).reasons.wrongCategory).toBe(true);
     expect(assessPhotoQc({ vision: ok, duplicateOf: "doc-9" }).reasons.duplicateOf).toBe("doc-9");
   });
+  it('maps quality "ok" + usable=false to reasons.quality="unusable"', () => {
+    const ok = { usable: true, quality: "ok" as const, depictsCategory: true, reason: "" };
+    expect(
+      assessPhotoQc({ vision: { ...ok, usable: false }, duplicateOf: null }).reasons.quality
+    ).toBe("unusable");
+  });
 });
