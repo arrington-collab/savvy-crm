@@ -38,6 +38,9 @@ export async function evaluateTenantWeather(
   const settings = (t?.settings ?? {}) as { weather?: unknown; finance?: unknown; homeowner?: unknown; email?: unknown };
   const cfg = parseWeatherConfig(settings.weather);
   if (!cfg.enabled) return { flagged: 0, cleared: 0, rescheduled: 0, rescheduledAppointmentIds: [] };
+  // NOTE: the weather layer reasons in finance.timezone; the re-armed homeowner-crew-notify uses
+  // tenant.timezone. When those differ, "install day" reasoning can diverge slightly — low impact
+  // in the common case where they are equal (single-market tenant).
   const tz = parseFinanceConfig(settings.finance).timezone;
   const homeownerCfg = parseHomeownerConfig(settings.homeowner);
   const gmailConnectionId = parseEmailConfig(settings.email).gmailConnectionId ?? null;
@@ -121,7 +124,9 @@ async function tryReschedule(
   }
 }
 
-/** Fail-soft comms: notify homeowner (quiet-hours-gated SMS + always email) and every crew member. */
+/** Fail-soft comms: notify homeowner (quiet-hours-gated SMS + always email) and every crew member.
+ * MUST NOT throw — a DB/comms blip here must not strand an already-moved appointment. The invariant
+ * is: reschedule succeeded ⟹ id returned ⟹ appointment/changed emitted. */
 async function notifyWeatherMove(
   ctx: MoveCtx, r: AtRiskRow, crewId: string,
   originalLabel: string, targetLabel: string, reason: string,
@@ -131,21 +136,23 @@ async function notifyWeatherMove(
 
   if (r.phone && !r.smsOptOut && !isWithinQuietHours(ctx.now, tz, ctx.homeownerCfg.quietHours)) {
     try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: r.phone, from, body }); } catch { /* fail-soft: no creds */ }
-    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "sms", direction: "outbound", to: r.phone, body, aiHandled: false }));
+    try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "sms", direction: "outbound", to: r.phone, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
   if (r.email && !r.emailOptOut) {
     try { await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({ to: r.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Your roofing install has moved", html: `<p>${body}</p>` }); } catch { /* fail-soft */ }
-    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "email", direction: "outbound", to: r.email, body, aiHandled: false }));
+    try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "email", direction: "outbound", to: r.email, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
 
   const crewBody = buildWeatherMoveCrewBody({ address: r.address ?? "", originalLabel, targetLabel, reason });
-  for (const contact of await getCrewContacts({ tenantId, crewId })) {
+  let crewContacts: Awaited<ReturnType<typeof getCrewContacts>>;
+  try { crewContacts = await getCrewContacts({ tenantId, crewId }); } catch { return; /* fail-soft: can't reach contacts */ }
+  for (const contact of crewContacts) {
     if (contact.phone) {
       try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: contact.phone, from, body: crewBody }); } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "sms", direction: "outbound", to: contact.phone, body: crewBody, aiHandled: false }));
+      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "sms", direction: "outbound", to: contact.phone, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     } else if (contact.email) {
       try { await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({ to: contact.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Weather move: install rescheduled", html: `<p>${crewBody}</p>` }); } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "email", direction: "outbound", to: contact.email, body: crewBody, aiHandled: false }));
+      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "email", direction: "outbound", to: contact.email, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     }
   }
 }

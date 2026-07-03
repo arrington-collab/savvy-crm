@@ -76,9 +76,31 @@ describe("evaluateTenantWeather", () => {
     expect(toCivilDate(a!.startsAt.toISOString(), s.tz)).toBe(nextDay); // moved
     expect(a!.note).toBeNull();                                         // flag cleared
 
-    const comms = await withTenant(s.tenantId, (tx) => tx.select({ ch: communication.channel, to: communication.to }).from(communication).where(eq(communication.jobId, s.jobId)));
+    const comms = await withTenant(s.tenantId, (tx) => tx.select({ ch: communication.channel, to: communication.to, customerId: communication.customerId }).from(communication).where(eq(communication.jobId, s.jobId)));
     // homeowner email + at least the crew member (SMS is quiet-hours-gated, so >= 2 avoids flakiness)
     expect(comms.length).toBeGreaterThanOrEqual(2);
+    // at least one crew-notify row must have customerId === null (not the homeowner row)
+    expect(comms.some((c) => c.customerId === null)).toBe(true);
+  });
+
+  it("flag-only (no move) when autoReschedule is false even with a safe day available", async () => {
+    const s = await seedWithCrew();
+    // Turn off auto-reschedule but leave weather enabled — the safety valve must be honoured.
+    await withTenant(s.tenantId, (tx) =>
+      tx.update(tenant).set({ settings: { weather: { enabled: true, autoReschedule: false }, finance: { timezone: s.tz } } }).where(eq(tenant.id, s.tenantId)),
+    );
+    const nextDay = toCivilDate(new Date(new Date(`${s.apptDate}T12:00:00Z`).getTime() + 86_400_000).toISOString(), s.tz);
+    const r = await evaluateTenantWeather(
+      s.tenantId,
+      stub([{ date: s.apptDate, maxWindMph: 5, precipProbability: 90 }, { date: nextDay, maxWindMph: 5, precipProbability: 0 }]),
+      new Date(),
+    );
+    expect(r.rescheduled).toBe(0);
+    expect(r.flagged).toBe(1);
+    // Appointment must NOT have moved — civil date stays the same.
+    const [a] = await withTenant(s.tenantId, (tx) => tx.select({ startsAt: appointment.startsAt, note: appointment.weatherNote }).from(appointment).where(eq(appointment.id, s.apptId)));
+    expect(toCivilDate(a!.startsAt.toISOString(), s.tz)).toBe(s.apptDate);
+    expect(a!.note).toBeTruthy(); // weatherNote set
   });
 
   it("falls back to flag-only when no safe day exists in the window", async () => {
