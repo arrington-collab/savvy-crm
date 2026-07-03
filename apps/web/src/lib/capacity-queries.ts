@@ -1,12 +1,12 @@
 import "server-only";
-import { withTenant, appointment, repAvailabilityBlock, tenant, crew, eq, and, gte, lt, listAssignableReps } from "@savvy/db";
-import { parseSchedulingConfig, officeMinutesForWindow, overlapMinutes, buildCapacityView, buildCrewCapacityView, toCivilDate, addDays, zonedTimeToUtc, type CapacityView, type CrewCapacityView } from "@savvy/core";
+import { withTenant, appointment, repAvailabilityBlock, tenant, crew, job, eq, and, gte, lt, sql, listAssignableReps } from "@savvy/db";
+import { parseSchedulingConfig, officeMinutesForWindow, countWorkdays, overlapMinutes, buildCapacityView, buildCrewCapacityView, assessCrewDemand, toCivilDate, addDays, zonedTimeToUtc, type CapacityView, type CrewCapacityView, type CrewDemandAssessment } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getTenantTimezone } from "./scheduling-queries";
 
 const WINDOW_DAYS = 7;
 
-export type CapacityPageView = CapacityView & { crews: CrewCapacityView };
+export type CapacityPageView = CapacityView & { crews: CrewCapacityView; crewDemand: CrewDemandAssessment };
 
 export async function getCapacityView(): Promise<CapacityPageView> {
   const tenantId = await getTenantId();
@@ -72,6 +72,18 @@ export async function getCapacityView(): Promise<CapacityPageView> {
 
     const crewView = buildCrewCapacityView({ officeMinutesInWindow, windowDays: WINDOW_DAYS, crews: crewInputs });
 
-    return { ...repView, crews: crewView };
+    // "Need another crew" (§K): install backlog vs build capacity over the window.
+    // Backlog = approved/production jobs with no scheduled crew install.
+    const [pending] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(job)
+      .where(sql`${job.stage} in ('approved','production') and not exists (select 1 from appointment where job_id = ${job.id} and type = 'crew' and status = 'scheduled')`);
+    const crewDemand = assessCrewDemand({
+      pendingInstalls: pending?.n ?? 0,
+      crewCount: activeCrews.length,
+      workdaysInWindow: countWorkdays(config, civilDates),
+    });
+
+    return { ...repView, crews: crewView, crewDemand };
   });
 }

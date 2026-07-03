@@ -27,6 +27,20 @@ export default async function CapacityPage() {
         </div>
       </div>
 
+      {view.crewDemand.recommendAnotherCrew && (
+        <div
+          data-testid="need-another-crew"
+          className="rounded-md border p-3 text-sm"
+          style={{ borderColor: "var(--color-destructive, #dc2626)", color: "var(--color-destructive, #dc2626)" }}
+        >
+          <span className="font-semibold">You need another crew.</span>{" "}
+          {view.crewDemand.pendingInstalls} jobs are awaiting install but your {view.crewDemand.crewCount}{" "}
+          {view.crewDemand.crewCount === 1 ? "crew" : "crews"} can only build ~{view.crewDemand.buildCapacity} in the next{" "}
+          {view.windowDays} days — add {view.crewDemand.suggestedCrews}{" "}
+          {view.crewDemand.suggestedCrews === 1 ? "crew" : "crews"} to keep up.
+        </div>
+      )}
+
       <Card>
         <CardHeader><CardTitle>Rep load</CardTitle></CardHeader>
         <CardContent className="space-y-3">

@@ -61,6 +61,7 @@ export * from "./pipeline-asof";
 export * from "./material-order";
 export * from "./exception-queue";
 export * from "./capacity";
+export * from "./crew-demand";
 export * from "./task-automation";
 export * from "./job-task";
 export * from "./registry-task-ids";

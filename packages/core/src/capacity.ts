@@ -13,6 +13,17 @@ export function officeMinutesForWindow(config: SchedulingConfig, civilDates: str
   return total;
 }
 
+/** Count of civil dates (YYYY-MM-DD) that are workdays — i.e. have configured office hours. */
+export function countWorkdays(config: SchedulingConfig, civilDates: string[]): number {
+  let n = 0;
+  for (const d of civilDates) {
+    const wd = WD_OF_INDEX[new Date(`${d}T00:00:00Z`).getUTCDay()]!;
+    const h = config.hours[wd];
+    if (h && h.length === 2 && h[1]! > h[0]!) n += 1;
+  }
+  return n;
+}
+
 /** Minutes of [aStart,aEnd) that fall inside [wStart,wEnd). Never negative. */
 export function overlapMinutes(aStart: Date, aEnd: Date, wStart: Date, wEnd: Date): number {
   const start = Math.max(aStart.getTime(), wStart.getTime());
