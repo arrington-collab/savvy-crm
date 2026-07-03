@@ -18,10 +18,11 @@ import {
   getClaimForJob,
   getAdjusterAppointmentForJob,
   getJobLedger,
+  DEPRECIATION_APPROVAL_TASK_KEY,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
-import { parseProductionConfig, computeJobMargin, summarizeJobAutomation } from "@savvy/core";
+import { parseProductionConfig, computeJobMargin, summarizeJobAutomation, recoverableDepreciationCents } from "@savvy/core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
@@ -92,12 +93,14 @@ export default async function JobDetailPage({
     const taskRows = await tx
       .select({
         id: jobChecklistItem.id,
+        key: jobChecklistItem.key,
         title: jobChecklistItem.title,
         phase: jobChecklistItem.phase,
         automationLevel: jobChecklistItem.automationLevel,
         status: jobChecklistItem.status,
         dueAt: jobChecklistItem.dueAt,
         ownerAgent: jobChecklistItem.ownerAgent,
+        payload: jobChecklistItem.payload,
       })
       .from(jobChecklistItem)
       .where(eq(jobChecklistItem.jobId, id))
@@ -332,6 +335,18 @@ export default async function JobDetailPage({
     .filter((t) => t.phase === "Insurance Claim Management")
     .map((t) => ({ id: t.id, title: t.title, status: t.status }));
 
+  // Depreciation-recovery state (§G) for the ClaimPanel: recoverable amount + draft/send status.
+  const depreciationApproval = taskRows.find((t) => t.key === DEPRECIATION_APPROVAL_TASK_KEY);
+  const depreciationForClient = claimForClient
+    ? {
+        recoverableCents: recoverableDepreciationCents({ rcvCents: claimForClient.rcvCents, acvCents: claimForClient.acvCents }),
+        draftInvoiceId: (depreciationApproval?.payload as { invoiceId?: string } | undefined)?.invoiceId ?? null,
+        draftStatus: (depreciationApproval
+          ? depreciationApproval.status === "done" ? "sent" : "pending_approval"
+          : "none") as "none" | "pending_approval" | "sent",
+      }
+    : null;
+
   // Serialize measurement areas for client component (jsonb -> plain object).
   const measurementForClient = measurement
     ? {
@@ -498,6 +513,7 @@ export default async function JobDetailPage({
               claim={claimForClient}
               adjusterAppointment={adjusterApptForClient}
               tasks={claimTasks}
+              depreciation={depreciationForClient}
             />
           </CardContent>
         </Card>
