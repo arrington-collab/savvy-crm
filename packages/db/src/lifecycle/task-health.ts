@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
-  computeTaskHealth, buildTaskExceptions,
+  computeTaskHealth, buildTaskExceptions, sumFounderMinutes,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
@@ -281,6 +281,54 @@ export async function reconcileTaskExceptions(
       }
     }
     return { opened, resolved, open: byTask.size };
+  });
+}
+
+/**
+/**
+ * Recomputes per-task founder-minutes over the trailing 30 days — Σ(resolved −
+ * first_viewed) capped at 30m/item — and writes task_health.founder_minutes_30d.
+ * This is the automation-priority signal: manual/assisted tasks sorted by it
+ * descending are the empire roadmap. Run by the sweep AFTER reconcile (which
+ * stamps resolved_at) and BEFORE the rollup (which sums this column). Resets
+ * tasks that no longer have qualifying exceptions.
+ */
+export async function recomputeFounderMinutes(tenantId: string, opts: { now?: Date } = {}): Promise<void> {
+  const now = opts.now ?? new Date();
+  const cutoff = new Date(now.getTime() - 30 * 86_400_000);
+  await withTenant(tenantId, async (tx) => {
+    // Resolved-in-window exceptions the owner actually opened.
+    const rows = await tx
+      .select({ taskId: taskException.taskId, firstViewedAt: taskException.firstViewedAt, resolvedAt: taskException.resolvedAt })
+      .from(taskException)
+      .where(and(
+        eq(taskException.tenantId, tenantId),
+        isNotNull(taskException.firstViewedAt),
+        isNotNull(taskException.resolvedAt),
+        gte(taskException.resolvedAt, cutoff),
+      ));
+
+    const byTask = new Map<number, { firstViewedAt: Date | null; resolvedAt: Date | null }[]>();
+    for (const r of rows) {
+      const arr = byTask.get(r.taskId) ?? [];
+      arr.push({ firstViewedAt: r.firstViewedAt, resolvedAt: r.resolvedAt });
+      byTask.set(r.taskId, arr);
+    }
+
+    // Set each existing task_health row to its computed minutes (resetting stale ones).
+    const existing = await tx
+      .select({ taskId: taskHealth.taskId, fm: taskHealth.founderMinutes30d })
+      .from(taskHealth)
+      .where(eq(taskHealth.tenantId, tenantId));
+    for (const h of existing) {
+      const target = byTask.has(h.taskId) ? sumFounderMinutes(byTask.get(h.taskId)!) : 0;
+      if (Number(h.fm) !== target) {
+        await tx
+          .update(taskHealth)
+          .set({ founderMinutes30d: String(target), updatedAt: sql`now()` })
+          .where(and(eq(taskHealth.tenantId, tenantId), eq(taskHealth.taskId, h.taskId)));
+      }
+    }
   });
 }
 

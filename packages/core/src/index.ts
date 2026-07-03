@@ -65,6 +65,7 @@ export * from "./task-health";
 export * from "./task-exception";
 export * from "./tenant-coverage";
 export * from "./sage-answers";
+export * from "./founder-minutes";
 export * from "./digest";
 export * from "./tz";
 export * from "./weather-config";
