@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordCompanyCamPhoto, recordAgentRun } from "@savvy/db";
+import { inngest } from "@savvy/agents";
 import { companyCam } from "@savvy/integrations";
 import { log } from "@/lib/log";
 
@@ -23,6 +24,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   const res = await recordCompanyCamPhoto({ projectId: ev.projectId, photoId: ev.photoId, url: ev.url });
   if (res?.created) {
     await recordAgentRun({ tenantId: res.tenantId, agent: "scheduling", taskKey: "photo.companycam", jobId: res.jobId, status: "ok" });
+    // Derived status (§B): a new production photo may satisfy the checklist → closeout. Fail-soft.
+    try { await inngest.send({ name: "job/production-photos-updated", data: { tenantId: res.tenantId, jobId: res.jobId } }); }
+    catch (e) { log.error("job/production-photos-updated emit failed", { jobId: res.jobId, msg: String(e) }); }
   }
   return NextResponse.json({ ok: true });
 }

@@ -15,6 +15,9 @@ type Events = {
       prevAssigneeUserId?: string;
     };
   };
+  "crew/checked-in": { data: { tenantId: string; jobId: string } };
+  "material/delivered": { data: { tenantId: string; jobId: string; materialOrderId?: string } };
+  "job/production-photos-updated": { data: { tenantId: string; jobId: string } };
   "invoice/sent": { data: { invoiceId: string; tenantId: string } };
   "invoice/paid": { data: { invoiceId: string; tenantId: string } };
   "invoice/void": { data: { invoiceId: string; tenantId: string } };

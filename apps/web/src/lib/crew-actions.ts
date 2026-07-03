@@ -1,6 +1,7 @@
 "use server";
 import { adminDb, user, eq, and, isNull, withTenant, job, document } from "@savvy/db";
 import { openCheckIn, closeCheckIn, recordAgentRun, getCrewLoginCandidates } from "@savvy/db";
+import { inngest } from "@savvy/agents";
 import { r2Storage } from "@savvy/integrations";
 import { verifyPin } from "@savvy/core";
 import { tenantByKey } from "./intake";
@@ -81,8 +82,13 @@ export async function crewCheckIn(
   const s = await getCrewSession();
   if (!s) return { error: "not signed in" };
   if (!(await crewCanAccessJob(s, jobId))) return { error: "not your job" };
-  await withTenant(s.tenantId, (tx) => openCheckIn(tx, { tenantId: s.tenantId, jobId, crewUserId: s.crewUserId, lat, lng }));
+  const check = await withTenant(s.tenantId, (tx) => openCheckIn(tx, { tenantId: s.tenantId, jobId, crewUserId: s.crewUserId, lat, lng }));
   await recordAgentRun({ tenantId: s.tenantId, agent: "scheduling", taskKey: "crew.checkin", jobId, status: "ok" });
+  // Derived status (§B): the first crew GPS check-in advances the job to production. Fail-soft.
+  if (!check.reused) {
+    try { await inngest.send({ name: "crew/checked-in", data: { tenantId: s.tenantId, jobId } }); }
+    catch (e) { log.error("crew/checked-in emit failed", { jobId, msg: String(e) }); }
+  }
   return { ok: true };
 }
 
@@ -132,5 +138,8 @@ export async function crewRecordPhoto(
     return row;
   });
   if (!res) return { error: "not_found" };
+  // Derived status (§B): a new production photo may satisfy the checklist → closeout. Fail-soft.
+  try { await inngest.send({ name: "job/production-photos-updated", data: { tenantId: s.tenantId, jobId } }); }
+  catch (e) { log.error("job/production-photos-updated emit failed", { jobId, msg: String(e) }); }
   return { ok: true, id: res.id };
 }

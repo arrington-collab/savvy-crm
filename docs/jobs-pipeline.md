@@ -35,29 +35,37 @@ and `job.stageEnteredAt`.
 Stages can be advanced by **user action** (drag on the board, status update in the
 detail view) or by **system events** emitted through Inngest.
 
-### Currently wired (pieces A + B)
+### Currently wired
 
 | Inngest event        | Target stage | Notes                                                                                        |
 |----------------------|--------------|----------------------------------------------------------------------------------------------|
 | `estimate/accepted`  | `approved`   | Fired when the homeowner or carrier approves the estimate                                    |
+| `crew/checked-in`    | `production` | Fired on the crew's first GPS check-in for a job (`crewCheckIn`); advances into the build     |
+| `material/delivered` | `production` | Fired when a material order is marked **delivered** — but **only if a crew install is scheduled** (crew assigned); otherwise skips `no_crew_install` |
+| `job/production-photos-updated` | `closeout` | Fired when a production photo lands (CompanyCam webhook or crew upload); advances **only when the required-photo checklist is satisfied** (`missingProductionPhotos` empty), else skips `photos_incomplete` |
 | `invoice/sent`       | `billing`    | Fired when an invoice is dispatched; forward-only — skips if the job is already at `billing` or beyond |
 | `invoice/paid`       | `complete`   | Fired when full payment is confirmed; forward-only + **photo gate** (see §2a below)          |
 
-All three use `syncInvoiceStage` (for the invoice events) or an equivalent
-`recordStageChange` call. They are **forward-only**: a stage transition is skipped
-if the job's current stage index is already equal to or ahead of the target.
-Re-firing the same event is idempotent.
+Every transition routes through **`advanceJobStageForward`** (shared) or, for the
+invoice events, `syncInvoiceStage` — both wrap `recordStageChange`. They are
+**forward-only**: a transition is skipped (`not_forward`) if the job's current
+stage index is already equal to or ahead of the target, so re-firing the same
+event is idempotent and a real-world signal can never regress a job. Because
+`crew/checked-in` and `material/delivered` both target `production`, whichever
+lands first wins and the second no-ops — no dedup bookkeeping needed. Gate-blocked
+moves report `photo_gate` / `doc_gate` and leave the job in place rather than
+throwing.
 
-### Future (pieces C + D — not yet wired)
+**The board advances with zero manual dragging** across the full real-event chain:
+approve → crew-arrives / materials-delivered → production → photos-complete →
+closeout → invoice → billing → paid → complete. Manual drags remain available as
+an override.
 
-| Planned event               | Target stage | Piece |
-|-----------------------------|--------------|-------|
-| `material/delivered`        | `production` | C     |
-| `crew/gps-arrived`          | `production` | C     |
-| `completion-photo/uploaded` | `closeout`   | D     |
-
-These signals are identified but not yet consumed. Stages they would drive can
-still be advanced manually.
+> Not a distinct stage: the spec's "Pre-Production ready" is collapsed into
+> `production` here (both `material/delivered` and `crew/checked-in` advance to it).
+> Adding a real `preproduction` stage between `approved` and `production` is an
+> optional future refinement (it would touch board columns, stage thresholds, and
+> win-probabilities).
 
 ### 2a. Photo gate on `complete`
 
