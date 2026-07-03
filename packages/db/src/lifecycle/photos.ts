@@ -41,15 +41,24 @@ export async function recordSiteSnapPhoto(input: {
   r2Key: string; captureAddress: string; sitesnapPhotoId: string;
 }): Promise<{ created: boolean; documentId: string }> {
   return withTenant(input.tenantId, async (tx) => {
+    // Fast path: return the existing row if this photo was already ingested.
     const [existing] = await tx.select({ id: document.id }).from(document)
       .where(and(eq(document.tenantId, input.tenantId), eq(document.sitesnapPhotoId, input.sitesnapPhotoId)));
     if (existing) return { created: false, documentId: existing.id };
-    const [row] = await tx.insert(document).values({
+
+    // Atomic insert: a concurrent duplicate loses the race to the partial-unique
+    // index and inserts nothing (onConflictDoNothing) rather than throwing 23505.
+    const inserted = await tx.insert(document).values({
       tenantId: input.tenantId, jobId: input.jobId, kind: "photo", source: "sitesnap",
       label: input.category, r2Key: input.r2Key, captureAddress: input.captureAddress,
       sitesnapPhotoId: input.sitesnapPhotoId, qcStatus: "pending",
-    }).returning({ id: document.id });
-    return { created: true, documentId: row!.id };
+    }).onConflictDoNothing().returning({ id: document.id });
+    if (inserted[0]) return { created: true, documentId: inserted[0].id };
+
+    // Lost the race: the winner's row now exists — return it as created:false.
+    const [winner] = await tx.select({ id: document.id }).from(document)
+      .where(and(eq(document.tenantId, input.tenantId), eq(document.sitesnapPhotoId, input.sitesnapPhotoId)));
+    return { created: false, documentId: winner!.id };
   });
 }
 
