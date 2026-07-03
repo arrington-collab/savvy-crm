@@ -1,6 +1,6 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, eq, or, and, inArray, sql } from "@savvy/db";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -177,6 +177,16 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       occurredAt: r.createdAt,
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched });
+    // --- AI-flagged photos: qcStatus='flagged' (blurry, wrong category, duplicate) ---
+    const flaggedRows = await listFlaggedPhotos(tenantId);
+    const photoQuality: PhotoQualityInput[] = flaggedRows.map((r) => ({
+      documentId: r.documentId,
+      jobId: r.jobId,
+      label: r.label,
+      reason: r.reason,
+      occurredAt: r.occurredAt,
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality });
   });
 }
