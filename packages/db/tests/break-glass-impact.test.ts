@@ -8,7 +8,13 @@ import {
 
 // Tasks: BIG/SMALL are done-but-wrong (verification_mismatch) with invoice evidence;
 // COMMS is done-but-wrong but its evidence is not an invoice; STALE is task_stale.
-const BIG = 9651, SMALL = 9652, COMMS = 9653, STALE = 9654;
+// Synthetic task_registry ids are RANDOMIZED per run: CI runs the two duplicate build jobs
+// (branch push + PR) concurrently against the SAME database, so fixed ids made the two runs
+// of THIS file collide — one run's afterAll deleted a taskRegistry row the other run's
+// job_task still referenced (FK 23503). A unique per-run base makes concurrent runs disjoint.
+// Base is far from the real registry (1–212) and other test files' 96xx ids.
+const BASE = 9_000_000 + Math.floor(Math.random() * 900_000);
+const BIG = BASE, SMALL = BASE + 1, COMMS = BASE + 2, STALE = BASE + 3;
 const SYN = [BIG, SMALL, COMMS, STALE];
 const MIN_DOLLARS = 1000; // break-glass threshold => 100_000 cents
 
