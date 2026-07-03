@@ -58,11 +58,13 @@ afterAll(async () => {
   await adminDb.delete(jobTask).where(eq(jobTask.tenantId, tenantId));
   await adminDb.delete(verificationRun).where(eq(verificationRun.tenantId, tenantId));
   await adminDb.delete(taskHealth).where(eq(taskHealth.tenantId, tenantId));
-  await adminDb.delete(taskRegistry).where(inArray(taskRegistry.id, SYN));
   await adminDb.delete(invoice).where(eq(invoice.tenantId, tenantId));
-  await adminDb.delete(job).where(eq(job.tenantId, tenantId));
+  await adminDb.delete(job).where(eq(job.tenantId, tenantId)); // cascades any remaining job_task
   await adminDb.delete(property).where(eq(property.tenantId, tenantId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
+  // Registry rows LAST — after every job_task that could reference them is gone
+  // (the explicit delete above + the job cascade), so a concurrent run can't FK-fail here.
+  await adminDb.delete(taskRegistry).where(inArray(taskRegistry.id, SYN));
   await adminDb.delete(tenant).where(eq(tenant.id, tenantId));
   await adminPool.end();
 });
