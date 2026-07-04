@@ -240,8 +240,8 @@ test("Job detail supplier-invoices panel renders guard overage", async ({ page }
 
     const panel = page.getByTestId("supplier-invoices-panel");
     await expect(panel).toBeVisible({ timeout: 15_000 });
-    // The overage badge should show the +$300.00 overage
-    await expect(panel).toContainText("over");
+    // The overage badge renders "+$300.00 over" — assert the specific dollar amount
+    await expect(panel).toContainText("$300.00");
   } finally {
     await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.id, si!.id));
     await adminDb.delete(job).where(eq(job.id, j!.id));

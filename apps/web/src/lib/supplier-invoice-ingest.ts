@@ -84,7 +84,11 @@ export async function ingestSupplierInvoice(body: InboundBody, secret: string, d
     });
 
     if (inserted) {
-      await deps.emit({ tenantId, ...inserted, emailBody: body.emailBody });
+      await deps.emit({
+        tenantId,
+        ...inserted,
+        ...(process.env.TEST_MODE === "1" ? { emailBody: body.emailBody } : {}),
+      });
       received += 1;
     }
   }
