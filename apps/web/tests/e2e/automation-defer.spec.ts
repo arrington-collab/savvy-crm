@@ -24,10 +24,10 @@ test("a deferred task appears as a Needs approval exception", async ({ page }) =
     automationLevel: "manual", status: "pending", deferredAt: new Date(),
   });
 
-  await page.goto("/exceptions");
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
 
-  const row = page.locator('[data-testid="exception-row"]', { hasText: name });
+  const row = page.locator('[data-testid="decision-card"]', { hasText: name });
   await expect(row).toContainText("Needs approval");
   await expect(row).toContainText("Needs approval: Estimate import");
   await expect(row).toHaveAttribute("data-severity", "medium");
