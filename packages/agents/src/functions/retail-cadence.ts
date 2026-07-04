@@ -2,6 +2,7 @@ import { withTenant, invoice, job, customer, tenant, communication, eq } from "@
 import { parseRetailCadenceConfig, buildRetailTouchBody, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 /**
@@ -47,8 +48,7 @@ export const retailCloseoutCadence = inngest.createFunction(
     const cfg = parseRetailCadenceConfig(setup.settings.retailCadence);
     if (!cfg.enabled) return { skipped: "disabled" };
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
-    const statusLink = `${base}/status/${signPayloadToken({ tenantId, jobId: setup.jobId }, secret)}`;
+    const statusLink = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: setup.jobId }, secret), kind: "status" });
     const reviewLink = cfg.reviewUrl || statusLink;
 
     for (let i = 0; i < cfg.steps.length; i++) {

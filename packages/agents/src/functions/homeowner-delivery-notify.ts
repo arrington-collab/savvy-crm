@@ -1,7 +1,8 @@
-import { withTenant, eq, materialOrder, job, communication, customer as customerTbl, tenant as tenantTbl, createStatusLink } from "@savvy/db";
+import { withTenant, eq, materialOrder, job, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, buildDeliveryEveTouch, signPayloadToken, requireSecret } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 /**
@@ -46,10 +47,7 @@ export const homeownerDeliveryNotify = inngest.createFunction(
 
     const gmailConnectionId = parseEmailConfig(ctx.settings.email).gmailConnectionId ?? null;
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
-    const statusToken = signPayloadToken({ tenantId, jobId: ctx.jobId }, secret);
-    const code = await createStatusLink({ tenantId, token: statusToken });
-    const link = `${base}/b/${code}`;
+    const link = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: ctx.jobId }, secret), kind: "status" });
 
     await step.sleepUntil("wait-delivery-eve", new Date(touch.fireAt as unknown as string));
 

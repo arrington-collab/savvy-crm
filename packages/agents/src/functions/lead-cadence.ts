@@ -3,6 +3,7 @@ import { parseLeadCadenceConfig, parseFinanceConfig, shouldSendChannel, nextAllo
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
 import { buildAckSms, buildAckEmail } from "./lead-intake";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 const OPEN = ["new", "contacted", "qualified", "booked"];
@@ -25,9 +26,8 @@ export const leadCadence = inngest.createFunction(
       return { cfg, tz };
     });
 
-    const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const bookingUrl = `${base}/book/${signPayloadToken({ leadId, tenantId, type: "inspection" }, secret)}`;
+    const bookingUrl = await buildShortLink({ tenantId, token: signPayloadToken({ leadId, tenantId, type: "inspection" }, secret), kind: "booking" });
 
     for (let i = 0; i < setup.cfg.steps.length; i++) {
       const touch = setup.cfg.steps[i]!;

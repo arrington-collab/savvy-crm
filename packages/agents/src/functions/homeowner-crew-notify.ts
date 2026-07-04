@@ -1,7 +1,8 @@
-import { withTenant, eq, appointment, job, communication, customer as customerTbl, tenant as tenantTbl, createStatusLink } from "@savvy/db";
+import { withTenant, eq, appointment, job, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, buildCrewDayTouches, signPayloadToken, requireSecret } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 /**
@@ -48,10 +49,7 @@ export const homeownerCrewNotify = inngest.createFunction(
     if (!cfg.enabled) return { skipped: "disabled" };
     const gmailConnectionId = parseEmailConfig(ctx.settings.email).gmailConnectionId ?? null;
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
-    const statusToken = signPayloadToken({ tenantId, jobId: ctx.jobId }, secret);
-    const code = await createStatusLink({ tenantId, token: statusToken });
-    const link = `${base}/b/${code}`;
+    const link = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: ctx.jobId }, secret), kind: "status" });
 
     // step.run serialises Dates to strings — re-hydrate startsAt before arithmetic.
     const touches = buildCrewDayTouches(new Date(ctx.startsAt as unknown as string), ctx.tz, cfg, new Date(ctx.nowMs));

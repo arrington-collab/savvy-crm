@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq, and, sql } from "@savvy/db";
+import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq, and } from "@savvy/db";
 import { evaluateTenantHomeownerNotifs } from "./homeowner-notify";
 
 async function seedTenantWithEvent(toStage: string, optOut = false, enteredAt: Date = new Date()): Promise<{ tenantId: string; eventId: string; customerId: string }> {

@@ -1,7 +1,8 @@
-import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, createStatusLink, eq } from "@savvy/db";
+import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 const LOOKBACK_MS = 2 * 3_600_000;
@@ -15,7 +16,6 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
   const smsQuiet = isWithinQuietHours(now, t?.timezone ?? "America/Phoenix", cfg.quietHours);
   const gmailConnectionId = parseEmailConfig(settings.email).gmailConnectionId ?? null;
   const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
 
   const events = await listStageEventsToNotify(tenantId, { stages: cfg.notifyStages, sinceMs: LOOKBACK_MS, now });
   let sent = 0;
@@ -27,9 +27,7 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
   }
   for (const ev of events) {
     const copy = homeownerStageCopy(ev.toStage);
-    const statusToken = signPayloadToken({ tenantId, jobId: ev.jobId }, secret);
-    const code = await createStatusLink({ tenantId, token: statusToken });
-    const link = `${base}/b/${code}`;
+    const link = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: ev.jobId }, secret), kind: "status" });
     const body = `${copy.headline} ${copy.body} Track your project: ${link}`;
     // SMS — claim-then-send: insert the communication row first (dedupe key prevents double rows);
     // only send if we won the claim. jobId links it to the job timeline.
