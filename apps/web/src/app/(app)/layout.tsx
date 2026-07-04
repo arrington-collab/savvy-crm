@@ -6,6 +6,7 @@ import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
+import { loadTenantRollup } from "@/lib/scoreboard-queries";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const authEnabled = process.env.TEST_MODE !== "1";
@@ -17,9 +18,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const status = await getOnboardingStatus();
     if (status.state.requiredCompletedAt === null) redirect("/onboarding");
   }
+  // Nav decision-count pill: the cheap nightly rollup's open-exception count.
+  // The Today screen shows the precise live queue; this badge is at-a-glance.
+  const rollup = await loadTenantRollup().catch(() => null);
+  const decisionCount = rollup?.openExceptionCount ?? 0;
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar decisionCount={decisionCount} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar authEnabled={authEnabled} />
         <main className="flex-1 p-6">{children}</main>

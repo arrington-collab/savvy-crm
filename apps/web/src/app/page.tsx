@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const userId = await getViewerUserId(); // null in TEST_MODE → landing renders (e2e-testable)
-  if (userId) redirect("/dashboard");
+  if (userId) redirect("/today"); // Operator Console home (was /dashboard)
   return <LandingPage />;
 }

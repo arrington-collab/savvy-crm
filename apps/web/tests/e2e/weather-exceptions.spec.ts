@@ -24,9 +24,9 @@ test("a weather-flagged crew appt appears as a Weather risk exception", async ({
     weatherNote: "Rain 90%", weatherFlaggedAt: new Date(),
   });
 
-  await page.goto("/exceptions");
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
-  const row = page.locator('[data-testid="exception-row"]', { hasText: name });
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
+  const row = page.locator('[data-testid="decision-card"]', { hasText: name });
   await expect(row).toContainText("Weather risk");
   await expect(row).toContainText("Rain 90% — reschedule");
   await expect(row).toHaveAttribute("data-severity", "medium");

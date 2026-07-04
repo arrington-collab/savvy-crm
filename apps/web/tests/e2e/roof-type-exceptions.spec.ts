@@ -21,9 +21,9 @@ async function seedRoofGap(stamp: string): Promise<{ name: string; leadId: strin
 
 test("a post-inspection job with no roof type appears as a Roof type exception", async ({ page }) => {
   const { name } = await seedRoofGap(randomUUID().slice(0, 8));
-  await page.goto("/exceptions");
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
-  const row = page.locator('[data-testid="exception-row"]', { hasText: name });
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
+  const row = page.locator('[data-testid="decision-card"]', { hasText: name });
   await expect(row).toContainText("Roof type");
 });
 
@@ -35,7 +35,7 @@ test("setting the roof type on the lead clears the exception", async ({ page }) 
   await page.getByTestId("roof-type-edit").selectOption("tile");
   await expect(page.getByText("Saved ✓")).toBeVisible();
 
-  await page.goto("/exceptions");
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
-  await expect(page.locator('[data-testid="exception-row"]', { hasText: name })).toHaveCount(0);
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
+  await expect(page.locator('[data-testid="decision-card"]', { hasText: name })).toHaveCount(0);
 });

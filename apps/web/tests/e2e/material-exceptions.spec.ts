@@ -54,17 +54,17 @@ test("material exceptions: misaligned and no-install orders surface on /exceptio
     lineItems: MAT_LINE_ITEMS, subtotalCents: 360000, neededByAt: new Date(Date.now() + 5 * 86_400_000),
   });
 
-  await page.goto("/exceptions");
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
 
   // Misaligned row: high severity, "Materials arrive after install".
-  const misaRow = page.locator('[data-testid="exception-row"]', { hasText: misa.name });
+  const misaRow = page.locator('[data-testid="decision-card"]', { hasText: misa.name });
   await expect(misaRow).toContainText("Materials");
   await expect(misaRow).toContainText("Materials arrive after install");
   await expect(misaRow).toHaveAttribute("data-severity", "high");
 
   // No-install row: medium severity, "No install scheduled for materials".
-  const noinRow = page.locator('[data-testid="exception-row"]', { hasText: noin.name });
+  const noinRow = page.locator('[data-testid="decision-card"]', { hasText: noin.name });
   await expect(noinRow).toContainText("No install scheduled for materials");
   await expect(noinRow).toHaveAttribute("data-severity", "medium");
 });

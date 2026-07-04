@@ -18,9 +18,9 @@ test("exceptions queue lists at-risk job, overdue invoice, missed appt, overdue 
   await adminDb.insert(appointment).values({ tenantId, jobId, customerId: cust!.id, type: "crew", status: "no_show", startsAt: past, endsAt: new Date(past.getTime() + 3_600_000) });
   await adminDb.insert(jobChecklistItem).values({ tenantId, jobId, key: "x", title: "Order materials", status: "pending", dueAt: past });
 
-  await page.goto(`/exceptions`);
-  await expect(page.getByTestId("exceptions-page")).toBeVisible();
+  await page.goto(`/today`);
+  await expect(page.getByTestId("today-page")).toBeVisible();
   // At least our four seeded exceptions are present (other tenants' rows may add more — assert >= 4 of ours by detail text).
-  await expect(page.getByTestId("exception-row").filter({ hasText: `Exc ${stamp}` })).toHaveCount(4);
-  await expect(page.getByTestId("exception-row").filter({ hasText: "Invoice overdue" }).first()).toBeVisible();
+  await expect(page.getByTestId("decision-card").filter({ hasText: `Exc ${stamp}` })).toHaveCount(4);
+  await expect(page.getByTestId("decision-card").filter({ hasText: "Invoice overdue" }).first()).toBeVisible();
 });
