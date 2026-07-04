@@ -29,11 +29,11 @@ test("wizard: complete welcome step → write lands in DB", async ({ page }) => 
   }).toPass({ timeout: 8000 });
 });
 
-test("dashboard checklist shows for an incomplete tenant, then dismisses", async ({ page }) => {
+test("onboarding checklist shows for an incomplete tenant on Today, then dismisses", async ({ page }) => {
   await adminDb.update(tenant)
     .set({ revenueBand: null, settings: { onboarding: { requiredCompletedAt: "x", dismissed: false } } })
     .where(eq(tenant.id, tenantId));
-  await page.goto("/dashboard");
+  await page.goto("/today");
   await expect(page.getByTestId("onboarding-checklist")).toBeVisible();
   await page.getByTestId("checklist-dismiss").click();
   await expect(async () => {

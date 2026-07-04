@@ -61,8 +61,9 @@ test("billing: usage is metered into a bill; dashboard shows velocity + rep perf
   // Current-period bill (computed live) is the $499.00 base with this modest usage.
   await expect(page.getByTestId("billing-total")).toContainText("$499.00");
 
-  // ---- 5) /dashboard shows the velocity + rep/team performance reports ----------
-  await page.goto("/dashboard");
+  // ---- 5) Pipeline shows the velocity + rep/team performance reports -------------
+  // (re-homed from the retired Dashboard.)
+  await page.goto("/pipeline");
   await expect(page.getByTestId("velocity-card")).toBeVisible();
   const repPerf = page.getByTestId("rep-performance");
   await expect(repPerf).toBeVisible();
