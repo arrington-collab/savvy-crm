@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { selectJobCost, type SupplierInvoiceLine } from "@savvy/core";
-import { withTenant } from "../tenant.js";
-import { document, job, materialOrder, supplierInvoice } from "../schema/index.js";
+import { withTenant } from "../tenant";
+import { document, job, materialOrder, supplierInvoice } from "../schema/index";
 
 /** Recompute job.costCents from parsed supplier-invoice actuals, falling back to the material-order estimate. */
 export async function recomputeJobActualCost(tenantId: string, jobId: string): Promise<void> {

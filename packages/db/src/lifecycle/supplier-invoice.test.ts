@@ -1,10 +1,10 @@
 import { it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
-import { adminDb, tenant, customer, property, job, estimate, materialOrder, document, supplierInvoice, eq } from "../index.js";
+import { adminDb, tenant, customer, property, job, estimate, materialOrder, document, supplierInvoice, eq } from "../index";
 import {
   recomputeJobActualCost, saveParsedSupplierInvoice,
   getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed,
-} from "./supplier-invoice.js";
+} from "./supplier-invoice";
 
 let tenantId: string, jobId: string;
 
