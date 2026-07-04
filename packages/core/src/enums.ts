@@ -60,6 +60,9 @@ export type CommissionStatus = (typeof COMMISSION_STATUS)[number];
 export const SUPPLIER_INVOICE_STATUS = ["received", "parsing", "parsed", "guarded", "parse_failed"] as const;
 export type SupplierInvoiceStatus = (typeof SUPPLIER_INVOICE_STATUS)[number];
 
+export const CREDIT_REQUEST_STATUS = ["drafted", "sent", "credited", "rejected"] as const;
+export type CreditRequestStatus = (typeof CREDIT_REQUEST_STATUS)[number];
+
 // --- Storm cert (lead enrichment) ---
 export const STORM_CERT_STATUS = ["pending", "verified", "none", "error"] as const;
 export type StormCertStatus = (typeof STORM_CERT_STATUS)[number];

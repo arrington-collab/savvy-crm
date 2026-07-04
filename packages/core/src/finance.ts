@@ -35,6 +35,13 @@ const commissionSettingsSchema = z.object({
   perRepRate: z.record(z.number().int().min(0)).default({}),
 });
 
+const priceGuardSchema = z.object({
+  minOverageCents: z.number().int().nonnegative().default(2500),  // $25 floor per line
+  overagePct: z.number().min(0).max(1).default(0.05),             // 5% of expected line cost
+  autoSendMinCents: z.number().int().nonnegative().default(2500), // min claim to unattended-send
+  highConfidence: z.number().min(0).max(1).default(0.8),          // parseConfidence gate
+});
+
 const financeSchema = z.object({
   netDays: z.number().int().positive().default(14),
   invoiceNumberPrefix: z.string().default("INV-"),
@@ -43,6 +50,7 @@ const financeSchema = z.object({
     .default("America/Phoenix"),
   dunning: dunningSchema.default({}),
   commission: commissionSettingsSchema.default({}),
+  priceGuard: priceGuardSchema.default({}),
 });
 
 export type FinanceConfig = z.infer<typeof financeSchema>;

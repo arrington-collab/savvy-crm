@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { test, it, expect } from "vitest";
 import { computeInvoiceTotal, formatInvoiceNumber, parseFinanceConfig } from "./finance";
 
 test("computeInvoiceTotal sums qty*unitAmountCents", () => {
@@ -42,4 +42,9 @@ test("finance config merges partial overrides", () => {
   expect(cfg.commission.model).toBe("tiered");
   expect(cfg.commission.rate).toBe(800);
   expect(cfg.commission.period).toBe("monthly"); // default still applied
+});
+
+it("defaults the priceGuard config", () => {
+  const f = parseFinanceConfig({});
+  expect(f.priceGuard).toEqual({ minOverageCents: 2500, overagePct: 0.05, autoSendMinCents: 2500, highConfidence: 0.8 });
 });
