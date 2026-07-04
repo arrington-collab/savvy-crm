@@ -30,18 +30,54 @@ export async function completeObject<T>(opts: {
   prompt: string;
   schema: z.ZodType<T>;
   system?: string;
+  // Optional document (e.g. a supplier-invoice PDF) sent as a file content part
+  // so the model can read the actual file, not just a text prompt.
+  file?: { bytes: Uint8Array; mediaType: string };
 }): Promise<{ object: T; model: string }> {
   const model = resolveModel(opts.capability, process.env.LITELLM_BASE_URL);
+  const anthropic = isAnthropicGateway(process.env.LITELLM_BASE_URL);
+  if (opts.file) {
+    // File attached → use the messages API (via completeObjectWith) to carry it.
+    const { object } = await completeObjectWith(gateway()(model), {
+      prompt: opts.prompt,
+      system: opts.system,
+      schema: opts.schema,
+      file: opts.file,
+      anthropic,
+    });
+    return { object, model };
+  }
   const res = await generateObject({
     model: gateway()(model),
     // Anthropic's OpenAI-compat endpoint needs tool-mode for structured output;
     // LiteLLM/OpenAI use the SDK default.
-    ...(isAnthropicGateway(process.env.LITELLM_BASE_URL) ? { mode: "tool" as const } : {}),
+    ...(anthropic ? { mode: "tool" as const } : {}),
     schema: opts.schema,
     system: opts.system,
     prompt: opts.prompt,
   });
   return { object: res.object as T, model };
+}
+
+/** Structured extraction against an explicit model, optionally carrying a file
+ *  (document/PDF) as a content part. Mirrors `classifyImageWith` for images so
+ *  the model sees the real bytes; used by the supplier-invoice parser. */
+export async function completeObjectWith<T>(
+  model: LanguageModelV1,
+  opts: { prompt: string; system?: string; schema: z.ZodType<T>; file?: { bytes: Uint8Array; mediaType: string }; anthropic?: boolean },
+): Promise<{ object: T; model: string }> {
+  const content: Array<
+    { type: "text"; text: string } | { type: "file"; data: Uint8Array; mimeType: string }
+  > = [{ type: "text", text: opts.prompt }];
+  if (opts.file) content.push({ type: "file", data: opts.file.bytes, mimeType: opts.file.mediaType });
+  const res = await generateObject({
+    model,
+    ...(opts.anthropic ? { mode: "tool" as const } : {}),
+    schema: opts.schema,
+    system: opts.system,
+    messages: [{ role: "user", content }],
+  });
+  return { object: res.object as T, model: (model as { modelId?: string }).modelId ?? "unknown" };
 }
 
 /** Vision classify against an explicit model (used by tests + the public wrapper). */

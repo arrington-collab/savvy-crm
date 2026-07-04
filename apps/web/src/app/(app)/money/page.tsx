@@ -67,7 +67,7 @@ export default async function MoneyPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="money-kpis">
         <Kpi label="Cash · wk" value={kpis.cashWkCents > 0 ? usdK(kpis.cashWkCents) : "—"} />
         <Kpi label="WIP value" value={kpis.wipCents > 0 ? usdK(kpis.wipCents) : "—"} sub={kpis.wipJobs > 0 ? `${kpis.wipJobs} job${kpis.wipJobs === 1 ? "" : "s"}` : undefined} />
-        <Kpi label="GM · MTD" value="est —" tip="Gross-margin actuals land with contract cell 14" />
+        <Kpi label="GM · MTD" value={kpis.gmMtdPct != null ? `${kpis.gmMtdPct}%` : "est —"} tip="Month-to-date gross margin from supplier-invoice cost actuals" testId="kpi-gm-mtd" />
         <Kpi label="AR outstanding" value={aging.totalCents > 0 ? usdK(aging.totalCents) : "—"} />
       </div>
 
@@ -146,11 +146,11 @@ export default async function MoneyPage() {
   );
 }
 
-function Kpi({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
+function Kpi({ label, value, sub, tip, testId }: { label: string; value: string; sub?: string; tip?: string; testId?: string }) {
   return (
     <Card className="p-3.5" title={tip}>
       <div className="eyebrow">{label}</div>
-      <div className="mono mt-1 text-xl font-semibold" style={{ color: value.startsWith("est") || value === "—" ? "var(--text-faint)" : "var(--text-primary)" }}>{value}</div>
+      <div className="mono mt-1 text-xl font-semibold" data-testid={testId} style={{ color: value.startsWith("est") || value === "—" ? "var(--text-faint)" : "var(--text-primary)" }}>{value}</div>
       {sub ? <div className="mono text-[10px]" style={{ color: "var(--text-faint)" }}>{sub}</div> : null}
     </Card>
   );

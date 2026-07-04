@@ -33,6 +33,7 @@ type Events = {
   "lead/disqualified": { data: { leadId: string; tenantId: string } };
   "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
+  "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
 };
 
 export const inngest = new Inngest({
