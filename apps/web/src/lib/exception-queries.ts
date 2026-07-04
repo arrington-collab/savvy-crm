@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, listOpenSentCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
 import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -205,16 +205,10 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       createdAt: r.createdAt,
     }));
 
-    // --- sent credit requests awaiting supplier credit memo (reconcile signal) ---
-    // listOpenSentCreditRequests(null) returns all sent requests regardless of supplier.
-    // These lack createdAt so we use a fallback of now; a future helper can add the column.
-    const sentCreditRows = await listOpenSentCreditRequests(tenantId, null);
-    const creditsToReconcile: CreditToReconcileInput[] = sentCreditRows.map((r) => ({
-      id: r.id,
-      supplierName: r.supplierName,
-      amountCents: r.claimedCents,
-      createdAt: new Date(), // listOpenSentCreditRequests doesn't return createdAt; deferred
-    }));
+    // creditsToReconcile: deferred — a correct source requires negative-total supplier_invoice
+    // (credit memo) rows with no matching credited request. Wiring to open sent requests would
+    // mislabel pending-recovery claims as memos-to-reconcile. Re-introduce in a 13c/14 follow-on.
+    const creditsToReconcile: CreditToReconcileInput[] = [];
 
     return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile });
   });

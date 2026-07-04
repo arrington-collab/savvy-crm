@@ -36,7 +36,15 @@ function LineTable({ lines }: { lines: SupplierInvoiceLine[] }) {
       <tbody>
         {lines.map((l, i) => (
           <tr key={i} className="border-b border-border/50 last:border-0">
-            <td className="py-1 pr-2">{l.description}</td>
+            <td className="py-1 pr-2">
+              <span>{l.description}</span>
+              {l.matchedItemKey && (
+                <span className="block text-[10px]" style={{ color: "var(--text-faint)" }}>{l.matchedItemKey}</span>
+              )}
+              {!l.matchedItemKey && (
+                <span className="block text-[10px]" style={{ color: "var(--text-faint)" }}>key: —</span>
+              )}
+            </td>
             <td className="py-1 text-right">{fmtUsd(l.amountBilledCents)}</td>
             <td className="py-1 text-right">
               {l.expectedUnitCostCents != null
