@@ -22,6 +22,7 @@ export {
   recordStripePayment, StripeNotConnectedError,
 } from "./lifecycle/invoices";
 export { recordCommission } from "./lifecycle/commission";
+export { recomputeJobActualCost, saveParsedSupplierInvoice } from "./lifecycle/supplier-invoice.js";
 export { markEsignBySubmission } from "./lifecycle/esign";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
