@@ -44,3 +44,24 @@ it("create → sent → credited, with recovery summary buckets", async () => {
   expect(summary.recoveredCents).toBe(30000);
   expect(summary.pendingCents).toBe(0);
 });
+
+it("listOpenSentCreditRequests filters by supplierName when provided", async () => {
+  // Create a second supplier invoice for the SRS row
+  const [si2] = await adminDb.insert(supplierInvoice).values({ tenantId, jobId, status: "received", totalCents: 100000, externalMessageId: `filter-test-${randomUUID()}` }).returning();
+
+  const { id: abcId } = await createCreditRequest(tenantId, { supplierInvoiceId: siId, jobId, supplierName: "ABC Supply", claimedCents: 10000, status: "sent", evidence: [] });
+  const { id: srsId } = await createCreditRequest(tenantId, { supplierInvoiceId: si2!.id, jobId, supplierName: "SRS Distribution", claimedCents: 20000, status: "sent", evidence: [] });
+
+  const abcOnly = await listOpenSentCreditRequests(tenantId, "ABC Supply");
+  const ids = abcOnly.map((r) => r.id);
+  expect(ids).toContain(abcId);
+  expect(ids).not.toContain(srsId);
+
+  // null returns all sent (including both)
+  const allSent = await listOpenSentCreditRequests(tenantId, null);
+  const allIds = allSent.map((r) => r.id);
+  expect(allIds).toContain(abcId);
+  expect(allIds).toContain(srsId);
+
+  // afterAll deletes all creditRequest rows for tenantId — no explicit teardown needed
+});

@@ -30,7 +30,11 @@ export async function listOpenSentCreditRequests(tenantId: string, supplierName:
   return withTenant(tenantId, (tx) =>
     tx.select({ id: creditRequest.id, supplierName: creditRequest.supplierName, claimedCents: creditRequest.claimedCents })
       .from(creditRequest)
-      .where(and(eq(creditRequest.tenantId, tenantId), eq(creditRequest.status, "sent"))),
+      .where(and(
+        eq(creditRequest.tenantId, tenantId),
+        eq(creditRequest.status, "sent"),
+        ...(supplierName ? [eq(creditRequest.supplierName, supplierName)] : []),
+      )),
   );
 }
 
@@ -46,7 +50,7 @@ export async function getCreditRecoverySummary(tenantId: string, window: { start
   return withTenant(tenantId, async (tx) => {
     const [rec] = await tx.select({ total: sql<number>`coalesce(sum(${creditRequest.recoveredCents}), 0)::int` })
       .from(creditRequest)
-      .where(and(eq(creditRequest.status, "credited"), gte(creditRequest.resolvedAt, window.start), lte(creditRequest.resolvedAt, window.end)));
+      .where(and(eq(creditRequest.tenantId, tenantId), eq(creditRequest.status, "credited"), gte(creditRequest.resolvedAt, window.start), lte(creditRequest.resolvedAt, window.end)));
     const [pend] = await tx.select({ total: sql<number>`coalesce(sum(${creditRequest.claimedCents}), 0)::int` })
       .from(creditRequest)
       .where(and(eq(creditRequest.tenantId, tenantId), eq(creditRequest.status, "sent")));
