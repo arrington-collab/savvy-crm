@@ -51,6 +51,7 @@ import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { PropertyMap } from "@/components/PropertyMap";
 import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
+import { SupplierInvoicesPanel } from "./SupplierInvoicesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -524,6 +525,9 @@ export default async function JobDetailPage({
           <MaterialsPanel jobId={id} orders={materialOrdersForClient} />
         </CardContent>
       </Card>
+
+      {/* Supplier invoices section — actual billed amounts vs material-order snapshot */}
+      <SupplierInvoicesPanel jobId={id} />
 
       {/* Insurance claim section (insurance jobs only) */}
       {jobRow.type === "insurance" && (

@@ -20,6 +20,9 @@ const KIND_LABEL: Record<string, string> = {
   weather_at_risk: "Weather risk", roof_type_needed: "Roof type", margin_outlier: "Margin",
   photo_incomplete: "Photos", photo_quality: "Photo QC", photo_unmatched: "Unmatched photo",
   verification_mismatch: "Done-but-wrong", task_stale: "Stale check", task_regression: "Regressed",
+  supplier_invoice_unmatched: "Unmatched invoice",
+  supplier_credit_review: "Credit request",
+  supplier_credit_reconcile: "Reconcile credit",
 };
 
 type Decision = { kind: string; severity: "high" | "medium"; title: string; detail: string; href: string; occurredAt: Date | null };

@@ -1,6 +1,6 @@
 import "server-only";
-import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput } from "@savvy/core";
+import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, listOpenSentCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -187,6 +187,35 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       occurredAt: r.occurredAt,
     }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality });
+    // --- unmatched supplier invoices (jobId null, parsed/guarded) ---
+    const unmatchedInvoiceRows = await listUnmatchedSupplierInvoices(tenantId);
+    const supplierInvoicesUnmatched: SupplierInvoiceUnmatchedInput[] = unmatchedInvoiceRows.map((r) => ({
+      id: r.id,
+      supplierName: r.supplierName,
+      createdAt: r.createdAt,
+    }));
+
+    // --- drafted credit requests: human must review + send before the supplier credits back ---
+    const draftedCreditRows = await listDraftedCreditRequests(tenantId);
+    const creditsToReview: CreditToReviewInput[] = draftedCreditRows.map((r) => ({
+      id: r.id,
+      jobId: r.jobId,
+      supplierName: r.supplierName,
+      claimedCents: r.claimedCents,
+      createdAt: r.createdAt,
+    }));
+
+    // --- sent credit requests awaiting supplier credit memo (reconcile signal) ---
+    // listOpenSentCreditRequests(null) returns all sent requests regardless of supplier.
+    // These lack createdAt so we use a fallback of now; a future helper can add the column.
+    const sentCreditRows = await listOpenSentCreditRequests(tenantId, null);
+    const creditsToReconcile: CreditToReconcileInput[] = sentCreditRows.map((r) => ({
+      id: r.id,
+      supplierName: r.supplierName,
+      amountCents: r.claimedCents,
+      createdAt: new Date(), // listOpenSentCreditRequests doesn't return createdAt; deferred
+    }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile });
   });
 }
