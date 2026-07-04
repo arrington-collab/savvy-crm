@@ -56,5 +56,5 @@ test("the nav collapses to 5 sections, each reachable", async ({ page }) => {
 
   await sidebar.getByTestId("nav-library").click();
   await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByTestId("section-stub")).toBeVisible();
+  await expect(page.getByTestId("library-page")).toBeVisible(); // real library grid (slice 5)
 });

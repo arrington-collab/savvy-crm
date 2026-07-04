@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
+import { LockedTile } from "@/components/cockpit/LockedTile";
 import { getExceptionQueue } from "@/lib/exception-queries";
 import { loadOpenTaskExceptions, loadTenantRollup } from "@/lib/scoreboard-queries";
 import { getTodayMoney, getTodayDigest, getTenantIdentity } from "@/lib/today-queries";
@@ -97,12 +98,14 @@ export default async function TodayPage() {
             </div>
             <p className="mt-2 text-[11px]" style={{ color: "var(--text-faint)" }}>Onboard = point a phone # + import the spine → this coverage map lights up.</p>
           </Card>
-          <Card className="hidden p-3.5 lg:block" data-testid="portfolio-placeholder">
-            <div className="flex items-center justify-between" style={{ color: "var(--text-faint)" }}>
-              <span className="font-semibold">Acquisition #3</span><span className="eyebrow">—</span>
-            </div>
-            <p className="mt-2 text-[11px]" style={{ color: "var(--text-faint)" }}>Same console. Zero new software.</p>
-          </Card>
+          <div className="hidden lg:block">
+            <LockedTile
+              phase="Phase 24"
+              title="M&A Machine"
+              tease="A roll-up engine that finds, diligences and onboards roofing companies onto this console — each acquisition lights up its own coverage map."
+              thesis="Phase 24 makes acquisition itself a workflow: source targets, run financial + ops diligence from their data, and onboard onto Savvy by pointing a phone number and importing the spine. The portfolio strip above is the endgame — one console, many companies, zero new software per acquisition."
+            />
+          </div>
         </div>
       </section>
 
