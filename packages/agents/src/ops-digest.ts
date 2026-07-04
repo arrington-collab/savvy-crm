@@ -1,5 +1,5 @@
-import { buildDigestMessage } from "@savvy/core";
-import { adminDb, computeTaskExceptions, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, recordAgentRun, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
@@ -21,6 +21,12 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const msg = buildDigestMessage(exceptions);
   if (!msg) return { sent: 0, count: 0 };
 
+  const now = new Date();
+  const window = { start: new Date(now.getTime() - 24 * 60 * 60 * 1000), end: now };
+  const recoverySummary = await getCreditRecoverySummary(tenantId, window);
+  const recoveryLine = buildRecoveryLine(recoverySummary);
+  const body = recoveryLine ? `${msg.body}\n${recoveryLine}` : msg.body;
+
   const [owner] = await adminDb
     .select({ phone: user.phone, email: user.email })
     .from(user)
@@ -31,7 +37,7 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
     const smsDep: SmsDep = deps.sms !== undefined ? deps.sms : await getTenantSms(tenantId).catch(() => null);
     if (smsDep) {
       try {
-        await smsDep.sender.sendSms({ to: owner.phone, from: smsDep.from, body: msg.body });
+        await smsDep.sender.sendSms({ to: owner.phone, from: smsDep.from, body });
       } catch {
         /* fail-soft: no SMS creds */
       }
@@ -40,7 +46,7 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   if (owner?.email) {
     const email = deps.email ?? getEmailSender({ gmailConnectionId: null });
     try {
-      await email.sendEmail({ to: owner.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: msg.subject, html: `<p>${msg.body}</p>` });
+      await email.sendEmail({ to: owner.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: msg.subject, html: `<p>${body}</p>` });
     } catch {
       /* fail-soft: no email creds */
     }

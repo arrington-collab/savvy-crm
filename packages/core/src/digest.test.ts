@@ -1,5 +1,5 @@
-import { test, expect } from "vitest";
-import { buildDigestMessage, buildBreakGlassMessage, type BreakGlassItem } from "./digest";
+import { test, expect, it } from "vitest";
+import { buildDigestMessage, buildBreakGlassMessage, buildRecoveryLine, type BreakGlassItem } from "./digest";
 import type { TaskException } from "./task-exception";
 
 const ex = (o: Partial<TaskException>): TaskException => ({
@@ -53,4 +53,9 @@ test("break-glass: uses singular phrasing for one item", () => {
   expect(msg!.count).toBe(1);
   expect(msg!.totalDollars).toBe(750);
   expect(msg!.body).toMatch(/1 break-glass issue/);
+});
+
+it("renders recovered + pending recovery dollars, null when both zero", () => {
+  expect(buildRecoveryLine({ recoveredCents: 30000, pendingCents: 45000 })).toBe("💰 Recovered $300.00 this period · $450.00 pending");
+  expect(buildRecoveryLine({ recoveredCents: 0, pendingCents: 0 })).toBeNull();
 });

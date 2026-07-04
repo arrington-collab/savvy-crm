@@ -26,6 +26,13 @@ export function buildDigestMessage(exceptions: TaskException[]): DigestMessage |
   };
 }
 
+/** One-line digest of supplier-invoice recovery: credited this period + still-pending claims. */
+export function buildRecoveryLine(input: { recoveredCents: number; pendingCents: number }): string | null {
+  if (input.recoveredCents <= 0 && input.pendingCents <= 0) return null;
+  const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+  return `💰 Recovered ${usd(input.recoveredCents)} this period · ${usd(input.pendingCents)} pending`;
+}
+
 /**
  * The break-glass page — the ONLY exception that interrupts the day instead of
  * waiting for a digest. Fired for exceptions whose dollar impact clears the
