@@ -12,6 +12,8 @@ import {
   tenant,
   eq,
   and,
+  or,
+  inArray,
   desc,
   asc,
   sql,
@@ -133,6 +135,21 @@ export default async function JobDetailPage({
       .where(eq(jobStageEvent.jobId, id))
       .orderBy(desc(jobStageEvent.enteredAt));
 
+    // This job's document ids (as text) — used to also surface document-scoped
+    // audits (e.g. photo_qc_kept) in the job Timeline. entityId is text, so compare
+    // against string ids, not a uuid subquery (avoids a text=uuid Postgres error).
+    const jobDocIds = (
+      await tx.select({ id: document.id }).from(document).where(eq(document.jobId, id))
+    ).map((r) => r.id);
+
+    const auditWhere =
+      jobDocIds.length > 0
+        ? or(
+            and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id)),
+            and(eq(auditLog.entityType, "document"), inArray(auditLog.entityId, jobDocIds)),
+          )
+        : and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id));
+
     const audits = await tx
       .select({
         id: auditLog.id,
@@ -140,7 +157,7 @@ export default async function JobDetailPage({
         createdAt: auditLog.createdAt,
       })
       .from(auditLog)
-      .where(and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id)))
+      .where(auditWhere)
       .orderBy(desc(auditLog.createdAt));
 
     const docRows = await tx
@@ -209,7 +226,7 @@ export default async function JobDetailPage({
     ...audits.map((a) => ({
       kind: "audit" as const,
       at: a.createdAt.toISOString(),
-      text: a.action,
+      text: a.action === "photo_qc_kept" ? "Kept flagged photo" : a.action,
     })),
   ].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
 
