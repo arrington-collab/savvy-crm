@@ -16,9 +16,6 @@ export function dHash(gray9x8: number[][]): string {
   return hex;
 }
 
-const HEX_BITS: Record<string, number> = {};
-for (let n = 0; n < 16; n++) HEX_BITS[n.toString(16)] = (n.toString(2).match(/1/g) ?? []).length;
-
 /** Number of differing bits between two equal-length hex hash strings. */
 export function hammingDistance(a: string, b: string): number {
   let d = 0;
