@@ -1,17 +1,29 @@
-import { SectionStub } from "@/components/cockpit/SectionStub";
+import Link from "next/link";
+import { PageHeader } from "@/components/cockpit/PageHeader";
+import { getPipelineBoard } from "@/lib/pipeline-queries";
+import { PipelineBoard } from "./PipelineBoard";
 
-// Interim landing — the merged lead→paid board lands in cell-5 slice 2.
-export default function PipelinePage() {
+export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
+
+export default async function PipelinePage() {
+  const data = await getPipelineBoard();
   return (
-    <SectionStub
-      eyebrow="Pipeline · Lead → Paid"
-      title="Pipeline"
-      blurb="One continuum — a lead and a job are stages of the same thing, not separate modules. Agents move the cards; you act on them from Today."
-      links={[
-        { href: "/jobs", label: "Jobs", desc: "The job board across production stages." },
-        { href: "/leads", label: "Leads", desc: "Inbound and enriched leads before they become jobs." },
-      ]}
-      upcoming="Full lead→paid board with waiting-on lines and filter chips lands in the next slice."
-    />
+    <div className="space-y-4" data-testid="pipeline-page">
+      <PageHeader
+        eyebrow="Pipeline · Lead → Paid"
+        title="Pipeline"
+        right={
+          <div className="mono flex gap-3 text-[11px]">
+            <Link href="/jobs" className="hover:text-accent-gold" style={{ color: "var(--text-muted)" }}>Manage board ↗</Link>
+            <Link href="/leads" className="hover:text-accent-gold" style={{ color: "var(--text-muted)" }}>Leads funnel ↗</Link>
+          </div>
+        }
+      />
+      <p className="max-w-2xl text-sm" style={{ color: "var(--text-muted)" }}>
+        One continuum — a lead and a job are stages of the same thing. Cards are read-mostly: agents move them,
+        and each shows <b style={{ color: "var(--accent-gold)", fontWeight: 500 }}>what it&apos;s waiting on and who owes it</b>. Act on them from Today.
+      </p>
+      <PipelineBoard data={data} />
+    </div>
   );
 }

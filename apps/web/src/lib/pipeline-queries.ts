@@ -1,6 +1,8 @@
-import { withTenant, job, jobStageEvent, customer, property, invoice, tenant, eq, and, desc, sql } from "@savvy/db";
-import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, type JobHealth, type JobStage, type JobType } from "@savvy/core";
+import { withTenant, job, jobStageEvent, jobChecklistItem, customer, property, invoice, tenant, eq, and, desc, isNull, sql } from "@savvy/db";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, PIPELINE_COLUMNS, type PipelineColumn, type Agent, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
+import { getLeads } from "./leads-queries";
+import { resolveAgent, resolveAgentForStage, agentLabel } from "./agents";
 
 export type BoardCard = {
   id: string; stage: string; customerName: string; address: string;
@@ -54,6 +56,90 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
     });
   }
   return byStage;
+}
+
+export type PipelineBoardCard = {
+  id: string; kind: "job" | "lead"; column: PipelineColumn;
+  name: string; address: string; valueCents: number | null;
+  isClaim: boolean; isStuck: boolean;
+  waitingLabel: string; waitingOwner: string; waitingIsHuman: boolean;
+  href: string;
+};
+export type PipelineBoardData = {
+  columns: Record<PipelineColumn, PipelineBoardCard[]>;
+  velocityDays: Record<string, number>;
+};
+
+// Pre-job leads that still belong on the board (won → became a job; lost → hidden).
+const LEAD_WAITING: Record<string, string> = {
+  new: "qualify & score", contacted: "awaiting reply", qualified: "book inspection", booked: "inspection booked",
+};
+
+/**
+ * The merged Pipeline board — jobs (by stage) + open leads folded onto 7 columns
+ * (lead→paid), each card carrying its waiting-on line. Read-mostly: the board is
+ * an overview; actions happen from Today. Reuses getBoard()/getStageVelocity()
+ * and the tested pure mapping/derivation in @savvy/core.
+ */
+export async function getPipelineBoard(): Promise<PipelineBoardData> {
+  const tenantId = await getTenantId();
+  const [board, velocityDays, nextTasks, leads] = await Promise.all([
+    getBoard(),
+    getStageVelocity(),
+    // Next pending, non-deferred checklist item per job (earliest due first).
+    withTenant(tenantId, (tx) =>
+      tx
+        .select({ jobId: jobChecklistItem.jobId, title: jobChecklistItem.title, automationLevel: jobChecklistItem.automationLevel, ownerAgent: jobChecklistItem.ownerAgent, dueAt: jobChecklistItem.dueAt })
+        .from(jobChecklistItem)
+        .where(and(eq(jobChecklistItem.tenantId, tenantId), eq(jobChecklistItem.status, "pending"), isNull(jobChecklistItem.deferredAt)))
+        .orderBy(sql`${jobChecklistItem.dueAt} asc nulls last`),
+    ),
+    getLeads(),
+  ]);
+
+  const nextByJob = new Map<string, (typeof nextTasks)[number]>();
+  for (const t of nextTasks) if (!nextByJob.has(t.jobId)) nextByJob.set(t.jobId, t);
+
+  const columns = Object.fromEntries(PIPELINE_COLUMNS.map((c) => [c, [] as PipelineBoardCard[]])) as Record<PipelineColumn, PipelineBoardCard[]>;
+
+  // Jobs
+  for (const [stage, cards] of Object.entries(board)) {
+    const column = jobStageToColumn(stage as JobStage);
+    if (!column) continue; // lost — hidden
+    for (const c of cards) {
+      const t = nextByJob.get(c.id);
+      const nextTask = t && t.ownerAgent ? { title: t.title, automationLevel: t.automationLevel ?? "manual", ownerAgent: t.ownerAgent as Agent } : null;
+      const w = deriveWaitingOn({ nextTask, column });
+      const owner = w.isHuman
+        ? "You"
+        : agentLabel(w.ownerAgent ? resolveAgent({ agent: w.ownerAgent, taskKey: null }) : resolveAgentForStage(c.stage));
+      columns[column].push({
+        id: c.id, kind: "job", column,
+        name: c.customerName, address: c.address, valueCents: c.valueEstimate,
+        isClaim: c.type === "insurance", isStuck: c.health.stuck || c.health.late,
+        waitingLabel: w.label, waitingOwner: owner, waitingIsHuman: w.isHuman,
+        href: `/jobs/${c.id}`,
+      });
+    }
+  }
+
+  // Open leads (pre-job) land in the lead column.
+  for (const l of leads) {
+    if (!(l.status in LEAD_WAITING)) continue; // won/lost excluded
+    columns.lead.push({
+      id: l.id, kind: "lead", column: "lead",
+      name: l.customerName ?? "—", address: l.address ?? "—", valueCents: null,
+      isClaim: false, isStuck: false,
+      waitingLabel: LEAD_WAITING[l.status], waitingOwner: "agents", waitingIsHuman: false,
+      href: `/leads/${l.id}`,
+    });
+  }
+
+  // Stuck cards first within each column, then by value desc.
+  for (const col of PIPELINE_COLUMNS) {
+    columns[col].sort((a, b) => Number(b.isStuck) - Number(a.isStuck) || (b.valueCents ?? 0) - (a.valueCents ?? 0));
+  }
+  return { columns, velocityDays };
 }
 
 /** Jobs with a DRAFT (unsent) invoice — feeds the Jobs "Sage suggestions" rail. */
