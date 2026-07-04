@@ -298,7 +298,7 @@ export default async function JobDetailPage({
   const dollars = (cents: number) => `$${(cents / 100).toLocaleString()}`;
 
   // Fetch estimate, measurement, change orders, crew check-ins, material orders, and claim data in parallel.
-  const [estimates, measurement, changeOrders, checkins, materialOrders, installDate, claimRow, adjusterAppt] = await Promise.all([
+  const [estimates, measurement, changeOrders, checkins, materialOrders, installDate, claimRow, adjusterAppt, flaggedPhotos] = await Promise.all([
     listEstimatesForJob(id),
     getLatestMeasurementForJob(id),
     listChangeOrdersForJob(id),
@@ -307,9 +307,8 @@ export default async function JobDetailPage({
     getJobInstallDateForJob(id),
     jobRow.type === "insurance" ? getClaimForJob(tenantId, id) : Promise.resolve(null),
     jobRow.type === "insurance" ? getAdjusterAppointmentForJob(tenantId, id) : Promise.resolve(null),
+    listFlaggedPhotosForJob(tenantId, id),
   ]);
-
-  const flaggedPhotos = await listFlaggedPhotosForJob(tenantId, id);
 
   // Serialize checkin dates to ISO strings for client props.
   const checkinRows = checkins.map((c) => ({
