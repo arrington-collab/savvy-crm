@@ -19,11 +19,13 @@ function Thumb({ docId, alt }: { docId: string; alt: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    presignDocumentView(docId).then((res) => {
-      if (cancelled) return;
-      if ("ok" in res) setSrc(res.url);
-      else setFailed(true);
-    });
+    presignDocumentView(docId)
+      .then((res) => {
+        if (cancelled) return;
+        if ("ok" in res) setSrc(res.url);
+        else setFailed(true);
+      })
+      .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
   }, [docId]);
   if (failed) return <div className="flex h-24 w-24 items-center justify-center rounded-md border border-border bg-muted text-xs text-muted-foreground">unavailable</div>;

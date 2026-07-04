@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { adminDb, tenant, customer, property, job, document, withTenant, eq } from "@savvy/db";
 import { Jimp, JimpMime } from "jimp";
 import type { PhotoQcVision } from "@savvy/core";
-import { runPhotoQc } from "./photo-qc";
+import { runPhotoQc, photoQcHandler } from "./photo-qc";
 
 /** Generate a tiny deterministic 9×8 white PNG so jimp decode is predictable. */
 async function makeTinyPng(): Promise<Uint8Array> {
@@ -154,5 +154,46 @@ describe("runPhotoQc", () => {
       tx.select({ qcStatus: document.qcStatus }).from(document).where(eq(document.id, doc.id)),
     );
     expect(updated?.qcStatus).toBe("skipped");
+  });
+});
+
+describe("photoQcHandler (durable guards)", () => {
+  // step.run stub: just invoke the work function (no Inngest runtime needed).
+  const stubStep = { run: async <T>(_name: string, fn: () => T | Promise<T>) => fn() };
+
+  it("HAND-OFF CONTRACT: skips a photo with no job (jobId null), no DB/step needed", async () => {
+    const result = await photoQcHandler({
+      event: { data: { tenantId: "t", documentId: "d", jobId: null } },
+      step: stubStep,
+    });
+    expect(result).toEqual({ skipped: "no_job" });
+  });
+
+  it("skips when the tenant has photoQc disabled in settings", async () => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({
+        name: "QCoff",
+        publicKey: `pk-${crypto.randomUUID()}`,
+        clerkOrgId: `org-${crypto.randomUUID()}`,
+        settings: { jobs: { photoQc: { enabled: false } } } as never,
+      })
+      .returning();
+    const [c] = await adminDb.insert(customer).values({ tenantId: t!.id, name: "C" }).returning();
+    const [p] = await adminDb
+      .insert(property)
+      .values({ tenantId: t!.id, customerId: c!.id, address: "1 A St" })
+      .returning();
+    const [j] = await adminDb
+      .insert(job)
+      .values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" })
+      .returning();
+    const doc = await seedPhoto(t!.id, j!.id, { qcStatus: "pending" });
+
+    const result = await photoQcHandler({
+      event: { data: { tenantId: t!.id, documentId: doc.id, jobId: j!.id } },
+      step: stubStep,
+    });
+    expect(result).toEqual({ skipped: "disabled" });
   });
 });
