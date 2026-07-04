@@ -79,3 +79,35 @@ describe("priceGuardHandler", () => {
     expect(res.status).toBe("guard_skipped");
   });
 });
+
+import { recoverCreditMemoHandler } from "./supplier-invoice-guard";
+
+const memoDeps = () => ({
+  loadInvoice: vi.fn().mockResolvedValue({ supplierName: "ABC Supply", totalCents: -30000 }),
+  listOpen: vi.fn().mockResolvedValue([{ id: "cr-1", supplierName: "ABC Supply", claimedCents: 30000 }]),
+  markCredited: vi.fn().mockResolvedValue(undefined),
+  raiseReconcileCard: vi.fn().mockResolvedValue(undefined),
+});
+
+describe("recoverCreditMemoHandler", () => {
+  it("auto-credits the one matching open request", async () => {
+    const deps = memoDeps();
+    const res = await recoverCreditMemoHandler({ tenantId: "t", supplierInvoiceId: "memo" }, deps);
+    expect(res.status).toBe("credited");
+    expect(deps.markCredited).toHaveBeenCalledWith("t", "cr-1", 30000);
+    expect(deps.raiseReconcileCard).not.toHaveBeenCalled();
+  });
+  it("raises a reconcile card when no unique match", async () => {
+    const deps = memoDeps();
+    deps.listOpen = vi.fn().mockResolvedValue([]);
+    const res = await recoverCreditMemoHandler({ tenantId: "t", supplierInvoiceId: "memo" }, deps);
+    expect(res.status).toBe("reconcile");
+    expect(deps.raiseReconcileCard).toHaveBeenCalled();
+  });
+  it("skips a non-memo (positive total)", async () => {
+    const deps = memoDeps();
+    deps.loadInvoice = vi.fn().mockResolvedValue({ supplierName: "ABC", totalCents: 500 });
+    const res = await recoverCreditMemoHandler({ tenantId: "t", supplierInvoiceId: "x" }, deps);
+    expect(res.status).toBe("skipped");
+  });
+});

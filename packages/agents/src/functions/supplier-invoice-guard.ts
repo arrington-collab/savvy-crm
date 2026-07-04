@@ -8,12 +8,15 @@ import {
   supplierInvoice,
   tenant,
   eq,
+  listOpenSentCreditRequests,
+  markCreditRequestCredited,
 } from "@savvy/db";
 import {
   matchInvoiceLines,
   computeLineOverage,
   shouldAutoSendCredit,
   parseFinanceConfig,
+  matchCreditMemo,
   type SupplierInvoiceLine,
   type SnapshotLine,
 } from "@savvy/core";
@@ -197,14 +200,70 @@ export async function priceGuardHandler(
   }
 }
 
+export type RecoverDeps = {
+  loadInvoice: (tenantId: string, id: string) => Promise<{ supplierName: string | null; totalCents: number | null }>;
+  listOpen: (tenantId: string, supplierName: string | null) => Promise<{ id: string; supplierName: string | null; claimedCents: number }[]>;
+  markCredited: (tenantId: string, id: string, recoveredCents: number) => Promise<void>;
+  raiseReconcileCard: (tenantId: string, args: { supplierInvoiceId: string; supplierName: string | null; amountCents: number }) => Promise<void>;
+};
+
+/** Credit-memo recovery: match a negative-total invoice to one open sent request → credited. FAIL-SOFT. */
+export async function recoverCreditMemoHandler(
+  input: { tenantId: string; supplierInvoiceId: string },
+  deps: RecoverDeps,
+): Promise<{ status: "credited" | "reconcile" | "skipped" }> {
+  const { tenantId, supplierInvoiceId } = input;
+  try {
+    const inv = await deps.loadInvoice(tenantId, supplierInvoiceId);
+    if ((inv.totalCents ?? 0) >= 0) return { status: "skipped" };
+    const amountCents = Math.abs(inv.totalCents ?? 0);
+    const open = await deps.listOpen(tenantId, inv.supplierName);
+    const matchId = matchCreditMemo({ supplierName: inv.supplierName, amountCents }, open);
+    if (matchId) {
+      await deps.markCredited(tenantId, matchId, amountCents);
+      return { status: "credited" };
+    }
+    await deps.raiseReconcileCard(tenantId, { supplierInvoiceId, supplierName: inv.supplierName, amountCents });
+    return { status: "reconcile" };
+  } catch {
+    return { status: "skipped" };
+  }
+}
+
 // Per-tenant concurrency key so one tenant's invoice burst can't starve others' guarding.
 export const priceGuardSupplierInvoice = inngest.createFunction(
   { id: "price-guard-supplier-invoice", concurrency: { limit: 5, key: "event.data.tenantId" }, retries: 2 },
   { event: "supplier-invoice/parsed" },
   async ({ event, step }) => {
-    return step.run("guard", () => {
-      const { tenantId, supplierInvoiceId } = event.data as { tenantId: string; supplierInvoiceId: string };
-      return priceGuardHandler({ tenantId, supplierInvoiceId }, {
+    const { tenantId, supplierInvoiceId } = event.data as { tenantId: string; supplierInvoiceId: string };
+    const isMemo = await step.run("peek", () =>
+      withTenant(tenantId, async (tx) => {
+        const [r] = await tx
+          .select({ totalCents: supplierInvoice.totalCents })
+          .from(supplierInvoice)
+          .where(eq(supplierInvoice.id, supplierInvoiceId));
+        return (r?.totalCents ?? 0) < 0;
+      }),
+    );
+    if (isMemo) {
+      return step.run("recover", () =>
+        recoverCreditMemoHandler({ tenantId, supplierInvoiceId }, {
+          loadInvoice: (t, id) =>
+            withTenant(t, async (tx) => {
+              const [r] = await tx
+                .select({ supplierName: supplierInvoice.supplierName, totalCents: supplierInvoice.totalCents })
+                .from(supplierInvoice)
+                .where(eq(supplierInvoice.id, id));
+              return { supplierName: r!.supplierName, totalCents: r!.totalCents };
+            }),
+          listOpen: (t, s) => listOpenSentCreditRequests(t, s),
+          markCredited: (t, id, c) => markCreditRequestCredited(t, id, c),
+          raiseReconcileCard: async () => {}, // Feed A is query-driven (Task 8)
+        }),
+      );
+    }
+    return step.run("guard", () =>
+      priceGuardHandler({ tenantId, supplierInvoiceId }, {
         loadInvoice: (t, id) =>
           withTenant(t, async (tx) => {
             const [r] = await tx
@@ -261,7 +320,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         // Feed A (Today) is query-driven: Task 8 selects drafted credit_requests and
         // unmatched supplier invoices. No imperative insert is needed here.
         raiseDraftCard: async () => {},
-      });
-    });
+      }),
+    );
   },
 );
