@@ -106,40 +106,59 @@ async function loadPhotoQcConfig(tenantId: string) {
  * HAND-OFF CONTRACT: skip photos with no job (jobId===null) — they live in the unmatched
  * tray until manually matched. Config-gated per tenant; the QC step is itself fail-soft.
  */
+type PhotoIngestedEvent = { data: { tenantId: string; documentId: string; jobId: string | null } };
+type StepRunner = { run: <T>(name: string, fn: () => T | Promise<T>) => Promise<T> };
+
+/**
+ * Testable durable handler for `photo/ingested`. Early-returns on the HAND-OFF CONTRACT
+ * (jobId===null → unmatched photo) and the per-tenant enable gate before the fail-soft QC step.
+ * Extracted so the guards can be unit-tested without the Inngest runtime.
+ */
+export async function photoQcHandler({
+  event,
+  step,
+}: {
+  event: PhotoIngestedEvent;
+  step: StepRunner;
+}): Promise<{ skipped: string } | PhotoQcResult> {
+  const { tenantId, documentId, jobId } = event.data;
+  if (jobId == null) return { skipped: "no_job" };
+
+  const cfg = await step.run("load-config", () => loadPhotoQcConfig(tenantId));
+  if (!cfg.enabled) return { skipped: "disabled" };
+
+  return step.run("qc", () =>
+    runPhotoQc({
+      tenantId,
+      documentId,
+      jobId,
+      cfg: { dupeMaxDistance: cfg.dupeMaxDistance },
+      fetchBytes: async (key) => {
+        const { url } = await r2Storage.presignDownload({ key });
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      },
+      classify: async (bytes, label) => {
+        const { object } = await classifyImage({
+          capability: "reflex",
+          image: { bytes },
+          schema: visionSchema,
+          prompt:
+            `This is a roofing job-site photo categorized as "${label ?? "unknown"}". ` +
+            `Judge if it is usable (sharp, well-lit, unobstructed) and whether it depicts a ${label ?? "roof feature"}.`,
+        });
+        return object;
+      },
+    }),
+  );
+}
+
+// Per-tenant concurrency key so one tenant's photo burst can't starve others' QC.
 export const photoQc = inngest.createFunction(
-  { id: "photo-qc", concurrency: { limit: 5 } },
+  { id: "photo-qc", concurrency: { limit: 5, key: "event.data.tenantId" } },
   { event: "photo/ingested" },
-  async ({ event, step }) => {
-    const { tenantId, documentId, jobId } = event.data;
-    if (jobId == null) return { skipped: "no_job" };
-
-    const cfg = await step.run("load-config", () => loadPhotoQcConfig(tenantId));
-    if (!cfg.enabled) return { skipped: "disabled" };
-
-    return step.run("qc", () =>
-      runPhotoQc({
-        tenantId,
-        documentId,
-        jobId,
-        cfg: { dupeMaxDistance: cfg.dupeMaxDistance },
-        fetchBytes: async (key) => {
-          const { url } = await r2Storage.presignDownload({ key });
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`fetch ${res.status}`);
-          return new Uint8Array(await res.arrayBuffer());
-        },
-        classify: async (bytes, label) => {
-          const { object } = await classifyImage({
-            capability: "reflex",
-            image: { bytes },
-            schema: visionSchema,
-            prompt:
-              `This is a roofing job-site photo categorized as "${label ?? "unknown"}". ` +
-              `Judge if it is usable (sharp, well-lit, unobstructed) and whether it depicts a ${label ?? "roof feature"}.`,
-          });
-          return object;
-        },
-      }),
-    );
-  },
+  // step is cast to the simplified StepRunner the testable handler uses; the only gap is
+  // Inngest's Jsonify<> return wrapper, which is compile-time-only (all QC step results are plain JSON).
+  ({ event, step }) => photoQcHandler({ event, step: step as unknown as StepRunner }),
 );
