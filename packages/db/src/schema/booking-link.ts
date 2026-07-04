@@ -7,6 +7,7 @@ export const bookingLink = pgTable("booking_link", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   code: text("code").notNull().unique(),
   token: text("token").notNull(),
+  kind: text("kind").notNull().default("booking"), // 'booking' | 'status'
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [

@@ -323,6 +323,13 @@
       "when": 1783113439242,
       "tag": "0045_typical_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1783138604376,
+      "tag": "0046_chemical_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

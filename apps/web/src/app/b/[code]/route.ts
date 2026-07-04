@@ -8,9 +8,10 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> },
 ) {
   const { code } = await params;
-  const token = await resolveBookingLink(code);
-  if (!token) {
+  const link = await resolveBookingLink(code);
+  if (!link) {
     return new NextResponse("not found", { status: 404 });
   }
-  return NextResponse.redirect(new URL(`/book/${token}`, req.url), 307);
+  const path = link.kind === "status" ? `/status/${link.token}` : `/book/${link.token}`;
+  return NextResponse.redirect(new URL(path, req.url), 307);
 }

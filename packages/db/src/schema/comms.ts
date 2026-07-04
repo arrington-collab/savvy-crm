@@ -23,8 +23,13 @@ export const communication = pgTable("communication", {
   twilioSid: text("twilio_sid"),
   aiHandled: boolean("ai_handled").default(false).notNull(),
   durationSeconds: integer("duration_seconds"),
+  dedupeKey: text("dedupe_key"),
   createdAt: createdAt(),
-}, (t) => [index("comm_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
+}, (t) => [
+  index("comm_tenant_job_idx").on(t.tenantId, t.jobId),
+  uniqueIndex("communication_dedupe_uniq").on(t.tenantId, t.dedupeKey).where(sql`dedupe_key is not null`),
+  tenantIsolation(),
+]);
 
 export const appointment = pgTable("appointment", {
   id: idCol(),

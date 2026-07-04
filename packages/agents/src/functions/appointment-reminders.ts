@@ -2,6 +2,7 @@ import { withTenant, eq, appointment, communication, customer as customerTbl, te
 import { parseSchedulingConfig, signPayloadToken, requireSecret, parseEmailConfig } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
 export function buildReminderMessage(
@@ -45,7 +46,7 @@ export const appointmentReminders = inngest.createFunction(
     const cfg = parseSchedulingConfig(ctx.settings);
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
     const token = signPayloadToken({ appointmentId, tenantId, type: ctx.type }, secret);
-    const bookUrl = `${process.env.APP_BASE_URL ?? "http://localhost:3000"}/book/${token}`;
+    const bookUrl = await step.run("mint-short-link", () => buildShortLink({ tenantId, token, kind: "booking" }));
 
     // Sort reminders soonest-fire first (largest offsetH fires earliest relative to appointment).
     const reminders = [...cfg.reminders].sort((a, b) => b.offsetH - a.offsetH);
