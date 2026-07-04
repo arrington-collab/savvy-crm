@@ -1,8 +1,9 @@
 "use server";
-import { withTenant, job, document, eq } from "@savvy/db";
+import { withTenant, job, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
+import { getCurrentUser } from "./current-user";
 
 export async function presignDocumentUpload(input: {
   jobId: string;
@@ -89,4 +90,23 @@ export async function presignDocumentView(
   } catch {
     return { error: "storage_not_configured" };
   }
+}
+
+/**
+ * Accept a flagged photo ("Keep"). Flips qc_status flagged→passed + writes an audit row
+ * (via the db layer), then revalidates the job page and the exceptions queue so the
+ * photo_quality exception clears. Idempotent — a non-flagged/foreign doc returns not_found.
+ */
+export async function keepFlaggedPhoto(
+  documentId: string,
+): Promise<{ ok: true } | { error: "not_found" }> {
+  const { tenantId, userId } = await getCurrentUser();
+  // TEST_MODE's getCurrentUser returns the non-UUID sentinel "test-user"; the audit
+  // user_id FK is nullable, so record null rather than a fake id.
+  const auditUserId = userId === "test-user" ? null : userId;
+  const res = await dbKeepFlaggedPhoto({ tenantId, userId: auditUserId, documentId });
+  if (!res) return { error: "not_found" };
+  revalidatePath(`/jobs/${res.jobId}`);
+  revalidatePath("/exceptions");
+  return { ok: true };
 }

@@ -50,7 +50,7 @@ export {
 } from "./lifecycle/enrichment";
 export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
-export { resolvePhotoJob, resolveTenantByIngestKey, recordSiteSnapPhoto, listUnmatchedPhotos, matchPhotoToJob, getPhotoForQc, getJobPhotoHashes, setPhotoQc, listFlaggedPhotos } from "./lifecycle/photos";
+export { resolvePhotoJob, resolveTenantByIngestKey, recordSiteSnapPhoto, listUnmatchedPhotos, matchPhotoToJob, getPhotoForQc, getJobPhotoHashes, setPhotoQc, listFlaggedPhotos, listFlaggedPhotosForJob, keepFlaggedPhoto } from "./lifecycle/photos";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";

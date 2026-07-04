@@ -12,6 +12,8 @@ import {
   tenant,
   eq,
   and,
+  or,
+  inArray,
   desc,
   asc,
   sql,
@@ -19,6 +21,7 @@ import {
   getAdjusterAppointmentForJob,
   getJobLedger,
   DEPRECIATION_APPROVAL_TASK_KEY,
+  listFlaggedPhotosForJob,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
@@ -47,6 +50,7 @@ import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { PropertyMap } from "@/components/PropertyMap";
+import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +135,21 @@ export default async function JobDetailPage({
       .where(eq(jobStageEvent.jobId, id))
       .orderBy(desc(jobStageEvent.enteredAt));
 
+    // This job's document ids (as text) — used to also surface document-scoped
+    // audits (e.g. photo_qc_kept) in the job Timeline. entityId is text, so compare
+    // against string ids, not a uuid subquery (avoids a text=uuid Postgres error).
+    const jobDocIds = (
+      await tx.select({ id: document.id }).from(document).where(eq(document.jobId, id))
+    ).map((r) => r.id);
+
+    const auditWhere =
+      jobDocIds.length > 0
+        ? or(
+            and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id)),
+            and(eq(auditLog.entityType, "document"), inArray(auditLog.entityId, jobDocIds)),
+          )
+        : and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id));
+
     const audits = await tx
       .select({
         id: auditLog.id,
@@ -138,7 +157,7 @@ export default async function JobDetailPage({
         createdAt: auditLog.createdAt,
       })
       .from(auditLog)
-      .where(and(eq(auditLog.entityType, "job"), eq(auditLog.entityId, id)))
+      .where(auditWhere)
       .orderBy(desc(auditLog.createdAt));
 
     const docRows = await tx
@@ -207,7 +226,7 @@ export default async function JobDetailPage({
     ...audits.map((a) => ({
       kind: "audit" as const,
       at: a.createdAt.toISOString(),
-      text: a.action,
+      text: a.action === "photo_qc_kept" ? "Kept flagged photo" : a.action,
     })),
   ].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
 
@@ -289,6 +308,8 @@ export default async function JobDetailPage({
     jobRow.type === "insurance" ? getClaimForJob(tenantId, id) : Promise.resolve(null),
     jobRow.type === "insurance" ? getAdjusterAppointmentForJob(tenantId, id) : Promise.resolve(null),
   ]);
+
+  const flaggedPhotos = await listFlaggedPhotosForJob(tenantId, id);
 
   // Serialize checkin dates to ISO strings for client props.
   const checkinRows = checkins.map((c) => ({
@@ -433,6 +454,8 @@ export default async function JobDetailPage({
       </Card>
 
       <AutomationModule summary={automationSummary} />
+
+      <FlaggedPhotosPanel jobId={id} documents={flaggedPhotos} />
 
       <JobTabs
         tasksByPhase={tasksByPhase}

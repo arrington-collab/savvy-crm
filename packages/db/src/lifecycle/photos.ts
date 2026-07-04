@@ -1,6 +1,6 @@
 import { adminDb } from "../admin-client";
 import { withTenant } from "../tenant";
-import { property, job, document } from "../schema/index";
+import { property, job, document, auditLog } from "../schema/index";
 import { tenant } from "../schema/index";
 import { eq, and, desc, sql, isNull, isNotNull, ne } from "drizzle-orm";
 import { normalizeAddressForMatch } from "@savvy/core";
@@ -129,4 +129,56 @@ function reasonText(raw: unknown): string {
   if (r.wrongCategory) parts.push("wrong category");
   if (r.duplicateOf) parts.push("duplicate");
   return parts.join(", ") || "flagged";
+}
+
+/** Flagged photos on ONE job, for the job page's resolution panel. reason via reasonText. */
+export async function listFlaggedPhotosForJob(
+  tenantId: string,
+  jobId: string,
+): Promise<{ documentId: string; label: string | null; reason: string }[]> {
+  return withTenant(tenantId, async (tx) => {
+    const rows = await tx
+      .select({ id: document.id, label: document.label, qcReasons: document.qcReasons })
+      .from(document)
+      .where(and(eq(document.jobId, jobId), eq(document.kind, "photo"), eq(document.qcStatus, "flagged")))
+      .orderBy(desc(document.createdAt));
+    return rows.map((r) => ({ documentId: r.id, label: r.label, reason: reasonText(r.qcReasons) }));
+  });
+}
+
+/**
+ * Accept a flagged photo: flip qc_status flagged→passed AND record a photo_qc_kept
+ * audit entry, atomically. The WHERE guard (flagged + non-null job + tenant) makes this
+ * idempotent and safe — a non-flagged/missing/other-tenant doc updates 0 rows → null, no audit.
+ */
+export async function keepFlaggedPhoto(input: {
+  tenantId: string;
+  userId: string | null;
+  documentId: string;
+}): Promise<{ jobId: string } | null> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [updated] = await tx
+      .update(document)
+      .set({ qcStatus: "passed" })
+      .where(
+        and(
+          eq(document.id, input.documentId),
+          eq(document.tenantId, input.tenantId),
+          eq(document.kind, "photo"),
+          eq(document.qcStatus, "flagged"),
+          isNotNull(document.jobId),
+        ),
+      )
+      .returning({ jobId: document.jobId, qcReasons: document.qcReasons });
+    if (!updated || !updated.jobId) return null;
+    await tx.insert(auditLog).values({
+      tenantId: input.tenantId,
+      userId: input.userId,
+      entityType: "document",
+      entityId: input.documentId,
+      action: "photo_qc_kept",
+      diff: { from: "flagged", reasons: (updated.qcReasons ?? {}) as Record<string, unknown> },
+    });
+    return { jobId: updated.jobId };
+  });
 }
