@@ -32,7 +32,7 @@ describe("createBookingLink + resolveBookingLink", () => {
     const code = await createBookingLink({ tenantId: t.id, token });
     expect(code).toMatch(/^[0-9A-Za-z]{8}$/);
     const resolved = await resolveBookingLink(code);
-    expect(resolved).toBe(token);
+    expect(resolved).toEqual({ token, kind: "booking" });
   });
 
   it("returns null for an unknown code", async () => {
@@ -54,6 +54,6 @@ describe("createBookingLink + resolveBookingLink", () => {
     const token = "no-expiry.token";
     const code = await createBookingLink({ tenantId: t.id, token, expiresAt: null });
     const resolved = await resolveBookingLink(code);
-    expect(resolved).toBe(token);
+    expect(resolved).toEqual({ token, kind: "booking" });
   });
 });
