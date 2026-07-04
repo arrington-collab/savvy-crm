@@ -12,6 +12,7 @@ export * from "./production";
 export * from "./esign";
 export * from "./estimate-settings";
 export * from "./measurement";
+export * from "./roof-sketch";
 export * from "./estimate-engine";
 export * from "./estimate";
 export * from "./price-book";

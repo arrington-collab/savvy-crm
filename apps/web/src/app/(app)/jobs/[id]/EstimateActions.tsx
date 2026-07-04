@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +21,12 @@ interface EstimateActionsProps {
   measurement: MeasurementSummary | null;
 }
 
-/** Squares from Roofr areas object — sum of area values in sq ft, convert to roofing squares. */
+/** Squares from a measurement areas object. Engine-shaped areas (DIY sketches,
+ *  parsed Roofr reports) store `squares` directly; legacy payloads are summed. */
 function squaresFromAreas(areas: Record<string, unknown>): string {
+  if (typeof areas.squares === "number" && areas.squares > 0) {
+    return areas.squares.toFixed(1);
+  }
   const total = Object.values(areas).reduce<number>((sum, v) => {
     if (typeof v === "number") return sum + v;
     if (typeof v === "object" && v !== null && "area" in v && typeof (v as { area: unknown }).area === "number") {
@@ -64,6 +69,15 @@ export function EstimateActions({
         <Button
           variant="outline"
           size="sm"
+          onClick={() => router.push(`/jobs/${jobId}/measure`)}
+          data-testid="sketch-roof-btn"
+        >
+          {measurement && "sketch" in measurement.areas ? "Edit roof sketch" : "Sketch roof"}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
           disabled={orderPending}
           onClick={handleOrder}
           data-testid="order-measurement-btn"
@@ -89,6 +103,18 @@ export function EstimateActions({
           <span className="text-muted-foreground">
             {squaresFromAreas(measurement.areas)} sq
             {measurement.pitch ? ` · ${measurement.pitch} pitch` : ""}
+            {"sketch" in measurement.areas && (
+              <>
+                {" · "}
+                <Link
+                  href={`/jobs/${jobId}/measure/report`}
+                  className="underline underline-offset-2 hover:text-foreground"
+                  data-testid="view-measure-report-link"
+                >
+                  View report
+                </Link>
+              </>
+            )}
           </span>
         </div>
       )}

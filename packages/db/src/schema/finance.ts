@@ -10,7 +10,7 @@ export const estimate = pgTable("estimate", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").notNull().references(() => job.id),
-  source: text("source").notNull().default("manual"), // roofr|manual|carrier
+  source: text("source").notNull().default("manual"), // roofr|diy|manual|carrier
   status: text("status").notNull().default("draft"),  // draft|sent|accepted
   lineItems: jsonb("line_items").$type<unknown[]>().default([]).notNull(),
   subtotal: integer("subtotal"),

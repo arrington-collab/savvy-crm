@@ -45,7 +45,7 @@ export async function createEstimateFromMeasurement(input: {
       .values({
         tenantId: input.tenantId,
         jobId: input.jobId,
-        source: "roofr",
+        source: m.provider === "diy" ? "diy" : "roofr",
         status: "draft",
         lineItems,
         subtotal: totals.subtotalCents,
