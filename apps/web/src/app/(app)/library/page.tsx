@@ -2,11 +2,12 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { getLibraryData } from "@/lib/library-queries";
+import { ensureSupplierInboxAddress } from "@/lib/supplier-inbox";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
 export default async function LibraryPage() {
-  const lib = await getLibraryData();
+  const [lib, supplierInbox] = await Promise.all([getLibraryData(), ensureSupplierInboxAddress()]);
 
   const cards = [
     {
@@ -56,6 +57,21 @@ export default async function LibraryPage() {
           </Link>
         ))}
       </div>
+
+      {/* Supplier-invoice forwarding address — auto-ingest into the price-guard (cell 13). */}
+      <Card className="p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="font-semibold">Supplier invoices</span>
+          <span className="mono text-[10px]" style={{ color: "var(--text-faint)" }}>auto-ingest · price-guard</span>
+        </div>
+        <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          Forward supplier invoices (ABC Supply, SRS, Beacon…) to this address and Savvy parses them into real job
+          costs and checks every line against what you expected to pay:
+        </p>
+        <code className="mono mt-2 inline-block rounded px-2 py-1 text-[12px] text-accent-gold" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-panel)" }} data-testid="supplier-inbox-address">
+          {supplierInbox}
+        </code>
+      </Card>
     </div>
   );
 }

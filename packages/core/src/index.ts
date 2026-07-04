@@ -79,5 +79,6 @@ export * from "./weather-notify";
 export * from "./photo-qc";
 export * from "./homeowner";
 export * from "./money-strip";
+export * from "./supplier-invoice";
 export * from "./money-aging";
 export * from "./pipeline-board";

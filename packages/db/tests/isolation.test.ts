@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest, supplierInvoice } from "../src/schema/index.js";
 import { commission, invoice, changeOrder } from "../src/schema/finance.js";
 import { priceBookItem } from "../src/schema/pricing.js";
 import { usageSnapshot } from "../src/schema/billing.js";
@@ -219,6 +219,19 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
       expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
     } finally {
       await adminDb.delete(esignRequest).where(eq(esignRequest.id, er!.id));
+    }
+  });
+
+  it("SELECT on supplier_invoice is tenant-scoped (A cannot see B's supplier invoices)", async () => {
+    const [si] = await adminDb
+      .insert(supplierInvoice)
+      .values({ tenantId: tenantBId, jobId: jobBId, supplierName: "ABC Supply", externalMessageId: "iso-msg-b-1", status: "received" })
+      .returning();
+    try {
+      const rows = await withTenant(tenantAId, (tx) => tx.select().from(supplierInvoice));
+      expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+    } finally {
+      await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.id, si!.id));
     }
   });
 
