@@ -14,9 +14,11 @@ import {
   TASK_OWNER, TASK_MODE, TASK_SCOPE, VERIFICATION_TIER,
   JOB_TASK_STATUS, EVIDENCE_STATUS, TASK_HEALTH_STATUS,
   SUPPLIER_INVOICE_STATUS,
+  CREDIT_REQUEST_STATUS,
 } from "@savvy/core";
 
 export const supplierInvoiceStatusEnum = pgEnum("supplier_invoice_status", SUPPLIER_INVOICE_STATUS);
+export const creditRequestStatusEnum = pgEnum("credit_request_status", CREDIT_REQUEST_STATUS);
 export const jobTypeEnum = pgEnum("job_type", JOB_TYPE);
 export const jobStageEnum = pgEnum("job_stage", JOB_STAGE);
 export const taskStatusEnum = pgEnum("task_status", TASK_STATUS);
