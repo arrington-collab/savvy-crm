@@ -32,12 +32,40 @@ export async function createBookingLink(args: {
 }
 
 /**
- * Resolves a short code to its token. Returns null if not found or expired.
+ * Creates a short status link. Retries up to 5 times on unique-code collision.
+ * Returns the generated code.
  */
-export async function resolveBookingLink(code: string): Promise<string | null> {
+export async function createStatusLink(args: {
+  tenantId: string;
+  token: string;
+  expiresAt?: Date | null;
+}): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = randomShortCode();
+    try {
+      await adminDb.insert(bookingLink).values({
+        tenantId: args.tenantId,
+        code,
+        token: args.token,
+        kind: "status",
+        expiresAt: args.expiresAt ?? null,
+      });
+      return code;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("23505")) continue;
+      throw err;
+    }
+  }
+  throw new Error("Failed to generate unique status link code after 5 attempts");
+}
+
+/**
+ * Resolves a short code to its token and kind. Returns null if not found or expired.
+ */
+export async function resolveBookingLink(code: string): Promise<{ token: string; kind: string } | null> {
   const now = new Date();
   const [row] = await adminDb
-    .select({ token: bookingLink.token })
+    .select({ token: bookingLink.token, kind: bookingLink.kind })
     .from(bookingLink)
     .where(
       and(
@@ -45,5 +73,5 @@ export async function resolveBookingLink(code: string): Promise<string | null> {
         or(isNull(bookingLink.expiresAt), gte(bookingLink.expiresAt, now)),
       ),
     );
-  return row?.token ?? null;
+  return row ? { token: row.token, kind: row.kind } : null;
 }
