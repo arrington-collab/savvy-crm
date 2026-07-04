@@ -63,12 +63,16 @@ test("job detail shows a breadcrumb that returns to the board", async ({ page })
   await expect(page).toHaveURL(/\/jobs$/);
 });
 
-test("dashboard pipeline card drills into the focused board column", async ({ page }) => {
-  await seedJob(); // ensure there's at least one job so the pipeline renders
-  await page.goto("/dashboard");
-  await page.getByTestId("pipeline-link-lead").click();
-  await expect(page).toHaveURL(/\/jobs\?stage=lead/);
+test("a stage-scoped jobs URL focuses that board column", async ({ page }) => {
+  await seedJob(); // ensure there's at least one job so the board renders
+  // The ?stage= deep-link (e.g. from a Pipeline column) focuses that column.
+  await page.goto("/jobs?stage=lead");
   await expect(page.getByTestId("col-lead")).toHaveAttribute("data-focused", "true");
+});
+
+test("the retired /dashboard route redirects to Today", async ({ page }) => {
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/today$/);
 });
 
 test("lead detail shows a breadcrumb that returns to the leads list", async ({ page }) => {
