@@ -471,7 +471,7 @@ export default async function JobDetailPage({
 
       {/* Job Ledger — the scoreboard proof surface for this job */}
       <JobLedgerAskSage jobId={jobRow.id} rows={ledger} />
-      <JobLedgerCard rows={ledger} />
+      <JobLedgerCard rows={ledger} timeline={timeline} />
 
       {/* Estimates section */}
       <Card>
