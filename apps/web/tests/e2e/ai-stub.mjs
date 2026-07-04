@@ -10,10 +10,32 @@ const server = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
-    // The supplier-invoice parser's schema uniquely carries `unitBilledCents`.
+    // Guard-spec sentinel: guard invoice (sku shingle-hdz, 8000 \$/unit, qty 30 → 30k overage at 7k baseline)
+    const isGuardSentinel = body.includes("GUARD-SENTINEL");
+    // Credit-memo sentinel: negative-total recovery invoice
+    const isCreditMemoSentinel = body.includes("CREDIT-MEMO-SENTINEL");
+    // The supplier-invoice parser's schema uniquely carries .
     const isSupplierInvoiceParse = body.includes("unitBilledCents") || body.includes("amountBilledCents");
     const isScopeDraft = body.includes("Scope change") || body.includes('"items"');
-    const payload = isSupplierInvoiceParse
+    const payload = isGuardSentinel
+      ? {
+          supplierName: "ABC Supply",
+          invoiceNumber: "INV-GUARD-E2E",
+          invoiceDate: "2026-07-04",
+          totalCents: 240000,
+          lines: [{ description: "GAF Timberline HDZ", sku: "shingle-hdz", quantity: 30, unit: "SQ", unitBilledCents: 8000, amountBilledCents: 240000 }],
+          confidence: 0.95,
+        }
+      : isCreditMemoSentinel
+      ? {
+          supplierName: "ABC Supply",
+          invoiceNumber: null,
+          invoiceDate: "2026-07-04",
+          totalCents: -30000,
+          lines: [],
+          confidence: 0.95,
+        }
+      : isSupplierInvoiceParse
       ? {
           supplierName: "ABC Supply",
           invoiceNumber: "INV-E2E-1",

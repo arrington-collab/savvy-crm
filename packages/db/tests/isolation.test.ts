@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { db, pool } from "../src/client.js";
 import { withTenant } from "../src/tenant.js";
-import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest, supplierInvoice } from "../src/schema/index.js";
+import { tenant, user, customer, property, job, jobStageEvent, messageTemplate, drip, dripEnrollment, document, esignRequest, supplierInvoice, creditRequest } from "../src/schema/index.js";
 import { commission, invoice, changeOrder } from "../src/schema/finance.js";
 import { priceBookItem } from "../src/schema/pricing.js";
 import { usageSnapshot } from "../src/schema/billing.js";
@@ -254,6 +254,25 @@ describe("RLS tenant isolation (connected as savvy_app)", () => {
       expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
     } finally {
       await adminDb.delete(changeOrder).where(eq(changeOrder.id, co!.id));
+    }
+  });
+
+  it("SELECT on credit_request is tenant-scoped (A cannot see B's credit requests)", async () => {
+    // Seed a supplier_invoice under B first (FK required by credit_request).
+    const [si] = await adminDb
+      .insert(supplierInvoice)
+      .values({ tenantId: tenantBId, jobId: jobBId, externalMessageId: "iso-msg-cr-b-1", status: "parsed" })
+      .returning();
+    const [cr] = await adminDb
+      .insert(creditRequest)
+      .values({ tenantId: tenantBId, supplierInvoiceId: si!.id, claimedCents: 50000, status: "drafted", evidence: [] })
+      .returning();
+    try {
+      const rows = await withTenant(tenantAId, (tx) => tx.select().from(creditRequest));
+      expect(rows.some((r) => r.tenantId === tenantBId)).toBe(false);
+    } finally {
+      await adminDb.delete(creditRequest).where(eq(creditRequest.id, cr!.id));
+      await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.id, si!.id));
     }
   });
 });

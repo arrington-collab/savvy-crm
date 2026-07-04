@@ -8,13 +8,16 @@ export type InboundBody = {
   messageId: string;
   to: string;
   from?: string;
+  /** Optional email body/subject text forwarded by the provider. Used as extra context
+   *  when building the AI parse prompt (e.g. e2e sentinel injection, future: subject hints). */
+  emailBody?: string;
   attachments: { filename: string; contentType: string; bytesBase64: string }[];
 };
 
 type Deps = {
   expectedSecret: string;
   storage: StorageGateway;
-  emit: (e: { tenantId: string; supplierInvoiceId: string; documentId: string }) => Promise<void>;
+  emit: (e: { tenantId: string; supplierInvoiceId: string; documentId: string; emailBody?: string }) => Promise<void>;
 };
 
 const isPdf = (a: InboundBody["attachments"][number]) =>
@@ -81,7 +84,7 @@ export async function ingestSupplierInvoice(body: InboundBody, secret: string, d
     });
 
     if (inserted) {
-      await deps.emit({ tenantId, ...inserted });
+      await deps.emit({ tenantId, ...inserted, emailBody: body.emailBody });
       received += 1;
     }
   }
