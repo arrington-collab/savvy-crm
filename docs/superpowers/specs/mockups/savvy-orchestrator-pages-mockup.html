@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savvy — Orchestrator Pages (Pipeline · Money · Agents · Library · Job Ledger)</title>
+<style>
+  :root{
+    --bg:#141009; --bg2:#1b1610; --panel:#221c13; --panel2:#2a2318;
+    --line:#3a3122; --gold:#e3c185; --gold-dim:#a98d5e; --text:#efe7d8;
+    --muted:#9a8c72; --faint:#6e6350; --green:#8fc98f; --red:#e08a7a; --amber:#e0b56a; --blue:#7fb5d1;
+    --mono:'SF Mono',ui-monospace,Menlo,monospace;
+    --sans:-apple-system,'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+  .label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .app{display:grid;grid-template-columns:200px 1fr;min-height:100vh}
+  nav{border-right:1px solid var(--line);padding:20px 12px;background:var(--bg2)}
+  .logo{display:flex;align-items:center;gap:8px;color:var(--gold);font-weight:600;margin-bottom:6px;padding:0 10px}
+  .co-switch{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin:10px 0 22px;display:flex;justify-content:space-between;cursor:pointer}
+  .nav-item{font-family:var(--mono);font-size:13px;color:var(--muted);padding:9px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between}
+  .nav-item:hover{color:var(--text)}
+  .nav-item.active{color:var(--gold);background:var(--panel);border:1px solid var(--line)}
+  .pill{font-family:var(--mono);font-size:10px;background:#4a3820;color:var(--gold);border-radius:9px;padding:1px 7px}
+  main{padding:22px 30px 60px;max-width:1220px}
+  h1{font-size:22px;font-weight:600;margin:4px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .sub b{color:var(--gold);font-weight:500}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .page{display:none}.page.on{display:block}
+
+  /* PIPELINE */
+  .stage-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
+  .stage{min-width:215px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .stage-h{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);padding:2px 4px 10px}
+  .jcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .jcard .nm{font-weight:600;font-size:13px;display:flex;justify-content:space-between}
+  .jcard .val{font-family:var(--mono);color:var(--gold);font-size:12px}
+  .jcard .addr{color:var(--faint);font-size:11px;margin:3px 0 8px}
+  .wait{font-family:var(--mono);font-size:10px;padding:5px 7px;border-radius:5px;background:#241f14;border:1px solid var(--line);color:var(--muted);line-height:1.5}
+  .wait .who{color:var(--blue)} .wait .who.human{color:var(--amber)}
+  .stuck{border-color:#5a3325}
+  .stuck .wait{border-color:#5a3325;color:var(--red)}
+  .filters{display:flex;gap:8px;margin-bottom:14px}
+  .chip{font-family:var(--mono);font-size:11px;padding:5px 12px;border:1px solid var(--line);border-radius:14px;color:var(--muted);cursor:pointer}
+  .chip.on{color:var(--gold);border-color:var(--gold-dim);background:var(--panel)}
+
+  /* MONEY */
+  .kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .kpi .v{font-family:var(--mono);font-size:22px;margin-top:4px}
+  .kpi .d{font-family:var(--mono);font-size:10px;color:var(--green);margin-top:2px}
+  .kpi .d.bad{color:var(--red)}
+  .m2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .ladder{display:flex;gap:8px;align-items:flex-end;height:90px;margin:14px 4px 6px}
+  .bar{flex:1;background:#3d3320;border-radius:4px 4px 0 0;position:relative}
+  .bar span{position:absolute;top:-18px;width:100%;text-align:center;font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .bar em{position:absolute;bottom:-18px;width:100%;text-align:center;font-family:var(--mono);font-size:9px;color:var(--faint);font-style:normal}
+  .check{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #2b2417;font-size:13px;color:var(--muted)}
+  .check:last-child{border:none}
+  .ok{color:var(--green);font-family:var(--mono);font-size:11px}
+  .fail{color:var(--red);font-family:var(--mono);font-size:11px}
+  .note{color:var(--faint);font-size:12px;margin-top:10px;line-height:1.5}
+  .note b{color:var(--muted);font-weight:500}
+
+  /* AGENTS */
+  .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+  .agent .top{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .av{width:34px;height:34px;border-radius:50%;background:#3d3320;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--gold)}
+  .agent .role{color:var(--faint);font-size:11px}
+  .stat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);padding:4px 0}
+  .stat b{color:var(--text);font-weight:500}
+  .aud{color:var(--green)} .aud.warn{color:var(--amber)}
+
+  /* LIBRARY */
+  .lgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .lib .t{font-weight:600;display:flex;justify-content:space-between;align-items:baseline}
+  .lib .ver{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .lib p{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.55}
+  .lib p b{color:var(--gold);font-weight:500}
+
+  /* LEDGER */
+  .lhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .prog{height:5px;background:#33291a;border-radius:3px;margin:12px 0 18px;overflow:hidden}
+  .prog i{display:block;height:100%;width:62%;background:var(--gold);border-radius:3px}
+  .trow{display:grid;grid-template-columns:26px 52px 1fr 120px 210px;gap:10px;padding:10px 6px;border-bottom:1px solid #2b2417;align-items:baseline;font-size:13px}
+  .trow:last-child{border:none}
+  .tid{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .st{font-family:var(--mono);font-size:13px}
+  .st.done{color:var(--green)} .st.pend{color:var(--faint)} .st.exc{color:var(--amber)} .st.fail{color:var(--red)}
+  .towner{font-family:var(--mono);font-size:11px;color:var(--blue)}
+  .towner.human{color:var(--amber)}
+  .tev{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:right}
+  .tev a{color:var(--gold-dim);text-decoration:none;border-bottom:1px dotted var(--gold-dim)}
+  .sage-q{background:var(--panel2);border:1px solid var(--gold-dim);border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:13px}
+  .sage-q .q{color:var(--muted);font-family:var(--mono);font-size:11px;margin-bottom:6px}
+  .sage-q .a b{color:var(--gold);font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="logo">✦ Savvy</div>
+    <div class="co-switch"><span>ALTA ROOFING · DEN</span><span>▾</span></div>
+    <div class="nav-item" onclick="go('pipeline')" id="n-today"><span>Today</span><span class="pill">4</span></div>
+    <div class="nav-item active" data-p="pipeline" onclick="go('pipeline')"><span>Pipeline</span></div>
+    <div class="nav-item" data-p="money" onclick="go('money')"><span>Money</span></div>
+    <div class="nav-item" data-p="agents" onclick="go('agents')"><span>Agents</span></div>
+    <div class="nav-item" data-p="library" onclick="go('library')"><span>Library</span></div>
+    <div style="margin-top:26px;border-top:1px solid var(--line);padding:12px 10px">
+      <div class="label" style="font-size:9px">Drill-down (not nav)</div>
+      <div class="nav-item" data-p="ledger" onclick="go('ledger')" style="margin-top:6px"><span>Job Ledger ↳</span></div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ============ PIPELINE ============ -->
+    <section class="page on" id="pipeline">
+      <div class="label">Pipeline · Lead → Paid</div>
+      <h1>One continuum, no data entry</h1>
+      <div class="sub">Cards are read-mostly — agents move them. Every card shows <b>what it's waiting on and who owes it</b>. Actions happen in Today, not here.</div>
+      <div class="filters">
+        <span class="chip on">All · 14</span><span class="chip">Stuck &gt; 3d · 2</span><span class="chip">Waiting on human · 3</span><span class="chip">Claims · 5</span><span class="chip">$25k+ · 4</span>
+      </div>
+      <div class="stage-row">
+        <div class="stage">
+          <div class="stage-h"><span>● LEAD</span><span>3 · $—</span></div>
+          <div class="jcard"><div class="nm">Nguyen <span class="val">—</span></div><div class="addr">2210 S Clarkson St, Denver</div><div class="wait">waiting on: #12 enrich roof age · <span class="who">ATLAS</span> · tonight</div></div>
+          <div class="jcard"><div class="nm">Inbound caller <span class="val">—</span></div><div class="addr">geocoding…</div><div class="wait">waiting on: #9 reverse lookup · <span class="who">ATLAS</span> · 2h</div></div>
+        </div>
+        <div class="stage">
+          <div class="stage-h"><span>● INSPECTED</span><span>3 · $71k est</span></div>
+          <div class="jcard stuck"><div class="nm">Ferris <span class="val">$24k</span></div><div class="addr">881 Milwaukee St, Denver</div><div class="wait">waiting on: #34 roof type · <span class="who human">INSPECTOR (HUMAN)</span> · 4d ⚠</div></div>
+          <div class="jcard"><div class="nm">Hendricks <span class="val">$31k</span></div><div class="addr">1425 S Gaylord St, Denver</div><div class="wait">waiting on: #41 supplement approval · <span class="who human">YOU</span> · in Today</div></div>
+        </div>
+        <div class="stage">
+          <div class="stage-h"><span>● ESTIMATE</span><span>2 · $52k</span></div>
+          <div class="jcard"><div class="nm">Kowalski <span class="val">$32.7k</span></div><div class="addr">440 Steele St, Denver</div><div class="wait">waiting on: #44 estimate approval · <span class="who human">YOU</span> · in Today</div></div>
+          <div class="jcard"><div class="nm">Ortega <span class="val">$19.5k</span></div><div class="addr">77 S Emerson St, Denver</div><div class="wait">waiting on: #47 customer decision · <span class="who">NOVA drip 2/5/10d</span></div></div>
+        </div>
+        <div class="stage">
+          <div class="stage-h"><span>● APPROVED</span><span>2 · $48k</span></div>
+          <div class="jcard"><div class="nm">Yates <span class="val">$27k</span></div><div class="addr">3310 W 35th Ave, Denver</div><div class="wait">waiting on: #58 material order confirm · <span class="who">MILO → ABC Supply</span> · ETA Thu</div></div>
+        </div>
+        <div class="stage">
+          <div class="stage-h"><span>● PRODUCTION</span><span>2 · $61k</span></div>
+          <div class="jcard"><div class="nm">Brandt <span class="val">$38k</span></div><div class="addr">156 Adams St, Denver</div><div class="wait">waiting on: #71 crew photos EOD · <span class="who">SCOUT ← CompanyCam</span></div></div>
+        </div>
+        <div class="stage">
+          <div class="stage-h"><span>● INVOICED</span><span>2 · $42k</span></div>
+          <div class="jcard stuck"><div class="nm">Yates re-roof <span class="val">$14.9k</span></div><div class="addr">3310 W 35th Ave, Denver</div><div class="wait">waiting on: #88 collections call · <span class="who human">YOU</span> · 60d ⚠ in Today</div></div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:14px">Stage KPIs (avg days per stage, conversion) live here as a header strip once real volume flows. A card that sits &gt;N days auto-emits an exception — <b>the pipeline never needs to be "checked."</b></div>
+    </section>
+
+    <!-- ============ MONEY ============ -->
+    <section class="page" id="money">
+      <div class="label">Money · Headless</div>
+      <h1>Calculated, reconciled, proven</h1>
+      <div class="sub">No invoice CRUD, no billing screens. Agents calculate; <b>invariants and reconciliation prove it</b>. You see summaries and evidence — detail only when something fails.</div>
+      <div class="kgrid">
+        <div class="panel kpi"><div class="label">Cash · WK</div><div class="v">$41.2k</div><div class="d">▲ 18% vs 4wk avg</div></div>
+        <div class="panel kpi"><div class="label">WIP value</div><div class="v">$109k</div><div class="d">6 jobs</div></div>
+        <div class="panel kpi"><div class="label">GM · MTD</div><div class="v">38.5%</div><div class="d">est→actual variance +1.2%</div></div>
+        <div class="panel kpi"><div class="label">Commissions accrued</div><div class="v">$6.8k</div><div class="d">auto-calc · 3 reps</div></div>
+      </div>
+      <div class="m2">
+        <div class="panel">
+          <div class="label">AR aging</div>
+          <div class="ladder">
+            <div class="bar" style="height:78%"><span>$52k</span><em>0–30</em></div>
+            <div class="bar" style="height:32%"><span>$21k</span><em>31–60</em></div>
+            <div class="bar" style="height:22%;background:#4a2b22"><span>$14.9k</span><em>61+</em></div>
+          </div>
+          <div class="note" style="margin-top:26px">61+ bucket = 1 invoice (Yates) → already an exception in Today. <b>AR never waits for you to look at this chart.</b></div>
+        </div>
+        <div class="panel">
+          <div class="label">Nightly proof-of-correctness · 04:10 MT</div>
+          <div style="margin-top:8px">
+            <div class="check"><span>Savvy AR ↔ QuickBooks AR</span><span class="ok">✓ MATCH $87,900</span></div>
+            <div class="check"><span>Stripe payouts ↔ payments ledger</span><span class="ok">✓ MATCH · 5 txns</span></div>
+            <div class="check"><span>Invoice totals = line items × price book v12</span><span class="ok">✓ 14/14</span></div>
+            <div class="check"><span>Commission calc = plan % × collected GM</span><span class="ok">✓ 3/3</span></div>
+            <div class="check"><span>Every production job has deposit collected</span><span class="fail">✗ Brandt — no deposit record</span></div>
+          </div>
+          <div class="note">Failures become exceptions with evidence attached. <b>Checker ≠ doer:</b> VERA writes the numbers, deterministic SQL + QB/Stripe reconciliation verify them.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AGENTS ============ -->
+    <section class="page" id="agents">
+      <div class="label">Agents · Roster & Audit</div>
+      <h1>Who does what, and who checks them</h1>
+      <div class="sub">Absorbs the Command Center. Telemetry demoted to drill-down; the headline is <b>tasks owned, health, and audit score</b> per agent.</div>
+      <div class="agrid">
+        <div class="panel agent"><div class="top"><div class="av">SA</div><div><b>SAGE</b><div class="role">Orchestrator · routing, escalation</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>18</b></div><div class="stat"><span>actions · 24h</span><b>47</b></div><div class="stat"><span>errors / skips</span><b>0 / 2</b></div><div class="stat"><span>audit (sampled)</span><b class="aud">98% · n=50</b></div></div>
+        <div class="panel agent"><div class="top"><div class="av">AT</div><div><b>ATLAS</b><div class="role">Lead intake · qualify, enrich, score</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>31</b></div><div class="stat"><span>actions · 24h</span><b>19</b></div><div class="stat"><span>speed-to-lead</span><b>4m 12s</b></div><div class="stat"><span>audit (sampled)</span><b class="aud">96% · n=40</b></div></div>
+        <div class="panel agent"><div class="top"><div class="av">NO</div><div><b>NOVA</b><div class="role">Comms · drips, follow-up, reviews</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>26</b></div><div class="stat"><span>msgs · 24h</span><b>22 · 0 bounces</b></div><div class="stat"><span>double-send guard</span><b class="aud">✓ active</b></div><div class="stat"><span>audit (sampled)</span><b class="aud warn">91% · tone rubric</b></div></div>
+        <div class="panel agent"><div class="top"><div class="av">MI</div><div><b>MILO</b><div class="role">Scheduling · crews, materials, dispatch</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>24</b></div><div class="stat"><span>booked · wk</span><b>9</b></div><div class="stat"><span>reschedule rate</span><b>7%</b></div><div class="stat"><span>audit (sampled)</span><b class="aud">97% · n=30</b></div></div>
+        <div class="panel agent"><div class="top"><div class="av">VE</div><div><b>VERA</b><div class="role">Finance · estimates, invoices, collections</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>29</b></div><div class="stat"><span>invoiced · wk</span><b>$42k</b></div><div class="stat"><span>re-price audit</span><b class="aud">5% sample · 0 diffs</b></div><div class="stat"><span>reconciliation</span><b class="aud warn">1 open mismatch</b></div></div>
+        <div class="panel agent"><div class="top"><div class="av">SC</div><div><b>SCOUT</b><div class="role">Claims · scopes, supplements, per-peril</div></div></div>
+          <div class="stat"><span>tasks owned</span><b>21</b></div><div class="stat"><span>open claims</span><b>5 · $61k</b></div><div class="stat"><span>supplement hit rate</span><b>73%</b></div><div class="stat"><span>playbooks</span><b>CO hail · AZ wind/monsoon</b></div></div>
+      </div>
+      <div class="panel">
+        <div class="label">Audit principle</div>
+        <div class="note" style="margin-top:6px"><b>The checker is never the doer.</b> Tier 1: deterministic invariants (SQL against prod state). Tier 2: a second model re-does a random sample of judgment work — re-prices estimates, scores call transcripts. Tier 3: external truth — QuickBooks, Stripe, carrier portals. Disagreement at any tier → exception in Today. Raw run telemetry (the old Command Center) lives one click deeper, per agent.</div>
+      </div>
+    </section>
+
+    <!-- ============ LIBRARY ============ -->
+    <section class="page" id="library">
+      <div class="label">Library · Source code of the business</div>
+      <h1>Explicit, versioned, editable</h1>
+      <div class="sub">Everything Marshall calls "explication" lives here. Agents read from it; <b>changing a policy here changes behavior everywhere.</b> Every doc is versioned.</div>
+      <div class="lgrid">
+        <div class="panel lib"><div class="t">Task Registry <span class="ver">212 tasks · the scoreboard's source</span></div><p>Each task: trigger, owning agent, verification tier, evidence query, mode (auto/assisted/manual). Click a manual cell on the Coverage Map → opens its spec stub here.</p></div>
+        <div class="panel lib"><div class="t">Policies <span class="ver">v8 · changed Jun 24</span></div><p>Approval limit <b>$25k</b> · collections ladder (30d auto → 60d owner call → 75d lien) · appended-email = transactional-only · attempt caps &amp; backoff windows.</p></div>
+        <div class="panel lib"><div class="t">Claims Playbooks <span class="ver">per-peril · per-tenant</span></div><p>Alta/CO: <b>Front Range hail</b>, code items R905.2. Bloom/AZ: <b>wind + monsoon hail</b>, different carrier mix &amp; deadlines. SCOUT executes whichever the tenant + storm event selects.</p></div>
+        <div class="panel lib"><div class="t">Price Book <span class="ver">v12 · 142 items</span></div><p>Line items, assemblies, margin floors. VERA prices from it; the nightly invariant proves every invoice still matches it.</p></div>
+        <div class="panel lib"><div class="t">Comms Templates &amp; Drips <span class="ver">v6</span></div><p>SMS/email templates, drip definitions (2/5/10d), tone rubric NOVA is audited against. Short-link domain config.</p></div>
+        <div class="panel lib"><div class="t">Tenant Settings <span class="ver">Alta Roofing</span></div><p>Timezone <b>America/Denver</b> (Bloom: America/Phoenix) — drives crons, customer-facing times, business hours. Telephony numbers, team &amp; crew, CompanyCam/QB connections.</p></div>
+      </div>
+    </section>
+
+    <!-- ============ JOB LEDGER ============ -->
+    <section class="page" id="ledger">
+      <div class="label">Job Ledger · drill-down from any pipeline card</div>
+      <div class="lhead"><h1>Hendricks — 1425 S Gaylord St</h1><span class="ver" style="font-family:var(--mono);font-size:11px;color:var(--muted)">$31k est · INSPECTED · claim open</span></div>
+      <div class="sub">The 212-task list, instantiated for this job. <b>This is how "is it done?" gets answered</b> — by Sage, or by reading it yourself. Every ✓ links to evidence.</div>
+      <div class="sage-q">
+        <div class="q">YOU ASKED SAGE: "did we file the Hendricks supplement?"</div>
+        <div class="a">Not yet — it's <b>drafted and waiting on your approval</b> (task #41, in Today since 9:14 AM). The scope gap is $8,400. Everything upstream is done: inspection ✓, photos ✓, scope comparison ✓. Carrier deadline Jul 8.</div>
+      </div>
+      <div class="panel">
+        <div class="label" style="margin-bottom:4px">Task instances · 21 of 34 complete</div>
+        <div class="prog"><i></i></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#08</span><span>Lead captured &amp; deduped</span><span class="towner">ATLAS</span><span class="tev">Jun 24 09:02 · <a>lead_id</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#12</span><span>Property enriched — geocode, built 1998, county</span><span class="towner">ATLAS</span><span class="tev">Jun 24 04:00 · <a>enrichment_attempt</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#22</span><span>Inspection booked (customer picked slot)</span><span class="towner">MILO</span><span class="tev">Jun 25 · <a>cal_evt</a> · <a>sms SID</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#29</span><span>Inspection completed — 42 photos synced</span><span class="towner human">J. RAMOS</span><span class="tev">Jun 27 · <a>CompanyCam set</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#34</span><span>Roof type recorded — asphalt_shingle</span><span class="towner human">J. RAMOS</span><span class="tev">Jun 27 · <a>property.roof_type</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#38</span><span>Carrier scope received &amp; parsed</span><span class="towner">SCOUT</span><span class="tev">Jun 29 · <a>doc</a></span></div>
+        <div class="trow"><span class="st done">✓</span><span class="tid">#40</span><span>Scope vs inspection compared — gap $8,400 found</span><span class="towner">SCOUT</span><span class="tev">Jun 30 · <a>diff report</a></span></div>
+        <div class="trow"><span class="st exc">◐</span><span class="tid">#41</span><span>Supplement filed — <b style="color:var(--amber)">drafted, awaiting your approval</b></span><span class="towner human">YOU</span><span class="tev">exception · in Today · SLA Jul 8</span></div>
+        <div class="trow"><span class="st pend">○</span><span class="tid">#44</span><span>Final estimate to customer</span><span class="towner">VERA</span><span class="tev">blocked by #41</span></div>
+        <div class="trow"><span class="st pend">○</span><span class="tid">#58</span><span>Materials ordered</span><span class="towner">MILO</span><span class="tev">blocked by #44</span></div>
+      </div>
+      <div class="note">Schema: <b>job_task</b> (job_id, task_id, status, owner, evidence_ref, completed_at) — instantiated from the registry at job creation, filtered by job type (retail vs claim) and tenant. Sage's answers cite these rows, never memory.</div>
+    </section>
+  </main>
+</div>
+<script>
+  function go(p){
+    document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id===p));
+    document.querySelectorAll('.nav-item[data-p]').forEach(n=>n.classList.toggle('active',n.dataset.p===p));
+  }
+</script>
+</body>
+</html>

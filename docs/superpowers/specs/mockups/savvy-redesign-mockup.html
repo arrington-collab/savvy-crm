@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savvy — Operator Console (Redesign Mockup)</title>
+<style>
+  :root{
+    --bg:#141009; --bg2:#1b1610; --panel:#221c13; --panel2:#2a2318;
+    --line:#3a3122; --gold:#e3c185; --gold-dim:#a98d5e; --text:#efe7d8;
+    --muted:#9a8c72; --faint:#6e6350; --green:#8fc98f; --red:#e08a7a; --amber:#e0b56a; --blue:#7fb5d1;
+    --mono:'SF Mono',ui-monospace,Menlo,monospace;
+    --sans:-apple-system,'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+  .label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .app{display:grid;grid-template-columns:200px 1fr;min-height:100vh}
+
+  /* NAV */
+  nav{border-right:1px solid var(--line);padding:20px 12px;background:var(--bg2)}
+  .logo{display:flex;align-items:center;gap:8px;color:var(--gold);font-weight:600;margin-bottom:6px;padding:0 10px}
+  .co-switch{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin:10px 0 22px;display:flex;justify-content:space-between;cursor:pointer}
+  .co-switch:hover{color:var(--gold)}
+  .nav-item{font-family:var(--mono);font-size:13px;color:var(--muted);padding:9px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+  .nav-item:hover{color:var(--text)}
+  .nav-item.active{color:var(--gold);background:var(--panel);border:1px solid var(--line)}
+  .pill{font-family:var(--mono);font-size:10px;background:#4a3820;color:var(--gold);border-radius:9px;padding:1px 7px}
+  .nav-note{margin-top:26px;padding:10px;border-top:1px solid var(--line)}
+  .nav-note .label{font-size:9px}
+  .nav-was{font-family:var(--mono);font-size:10px;color:var(--faint);line-height:1.7;margin-top:6px}
+
+  /* MAIN */
+  main{padding:22px 30px 60px;max-width:1180px}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+  .topbar .right{display:flex;gap:14px;align-items:center}
+  .sage{font-family:var(--mono);font-size:11px;border:1px solid var(--line);padding:6px 12px;border-radius:7px;color:var(--gold);cursor:pointer}
+  .status{font-family:var(--mono);font-size:10px;color:var(--green)}
+
+  /* PORTFOLIO STRIP */
+  .portfolio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:26px}
+  .co{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px 14px;cursor:pointer}
+  .co.active{border-color:var(--gold-dim);background:var(--panel2)}
+  .co .name{font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  .co .stats{display:flex;gap:14px;margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .co .stats b{color:var(--text);font-weight:500}
+  .co .exc{color:var(--amber)}
+
+  h1{font-size:22px;font-weight:600;margin:4px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .sub b{color:var(--gold);font-weight:500}
+
+  /* EXCEPTION CARDS */
+  .queue{display:flex;flex-direction:column;gap:12px;margin-bottom:32px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:6px 16px}
+  .card .head{display:flex;gap:10px;align-items:baseline}
+  .sev{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:5px}
+  .sev.hi{background:#4a2b22;color:var(--red)} .sev.med{background:#46381f;color:var(--amber)} .sev.lo{background:#2e3a2e;color:var(--green)}
+  .card .title{font-weight:600;font-size:15px}
+  .card .impact{font-family:var(--mono);color:var(--gold);font-size:15px;text-align:right}
+  .card .why{color:var(--muted);font-size:13px;line-height:1.5;max-width:640px}
+  .card .why .src{color:var(--faint);font-family:var(--mono);font-size:11px}
+  .card .meta{grid-column:2;text-align:right;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .actions{grid-column:1 / -1;display:flex;gap:8px;margin-top:8px}
+  .btn{font-family:var(--mono);font-size:12px;padding:7px 14px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
+  .btn.primary{background:var(--gold);color:#1b1408;border-color:var(--gold);font-weight:600}
+  .btn:hover:not(.primary)/**/{border-color:var(--gold-dim);color:var(--gold)}
+  .btn.ghost{color:var(--muted)}
+
+  /* DIGEST + MONEY */
+  .row2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:32px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .digest li{list-style:none;padding:7px 0;border-bottom:1px solid #2b2417;color:var(--muted);font-size:13px;display:flex;gap:10px}
+  .digest li:last-child{border:none}
+  .digest .n{font-family:var(--mono);color:var(--gold);min-width:30px;text-align:right}
+  .money{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .kpi .v{font-family:var(--mono);font-size:20px;margin-top:3px}
+  .kpi .d{font-family:var(--mono);font-size:10px;color:var(--green)}
+  .kpi .d.bad{color:var(--red)}
+
+  /* COVERAGE MAP */
+  .cov-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+  .cov-score{font-family:var(--mono);color:var(--gold);font-size:15px}
+  .cov-grid{display:grid;grid-template-columns:repeat(53,1fr);gap:3px;margin-bottom:12px}
+  .c{aspect-ratio:1;border-radius:2px;background:#33291a}
+  .c.full{background:#8fc98f} .c.assist{background:#e0b56a} .c.manual{background:#4a3525}
+  .legend{display:flex;gap:18px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+  .foot{margin-top:10px;color:var(--faint);font-size:12px}
+  .foot b{color:var(--muted);font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="logo">✦ Savvy</div>
+    <div class="co-switch"><span>ALTA ROOFING · DEN</span><span>▾</span></div>
+    <div class="nav-item active"><span>Today</span><span class="pill">4</span></div>
+    <div class="nav-item"><span>Pipeline</span></div>
+    <div class="nav-item"><span>Money</span></div>
+    <div class="nav-item"><span>Agents</span></div>
+    <div class="nav-item"><span>Library</span></div>
+    <div class="nav-note">
+      <div class="label">Collapsed from 13 items</div>
+      <div class="nav-was">Pipeline ← Jobs + Leads<br>Money ← Invoices · Payments · Billing · Commissions · QuickBooks<br>Agents ← Command Center + Comms<br>Library ← Price Book · Team · Schedule · Settings</div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="topbar">
+      <span class="status">● SAGE · ONLINE · ALL SWEEPS RAN 04:00 MT</span>
+      <div class="right"><span class="sage">✦ Ask Sage ⌘K</span></div>
+    </div>
+
+    <!-- PORTFOLIO -->
+    <div class="label" style="margin-bottom:8px">Portfolio · Holding Co</div>
+    <div class="portfolio">
+      <div class="co active">
+        <div class="name">Alta Roofing <span class="label" style="color:var(--gold)">DENVER</span></div>
+        <div class="stats"><span>Cash wk <b>$41.2k</b></span><span>AR <b>$88k</b></span><span class="exc">4 exceptions</span><span>Cov <b>74%</b></span></div>
+      </div>
+      <div class="co">
+        <div class="name" style="color:var(--faint)">Acquisition #2 <span class="label">Q4 TARGET</span></div>
+        <div class="stats"><span style="color:var(--faint)">Onboard = point phone # + import spine → coverage map lights up</span></div>
+      </div>
+      <div class="co">
+        <div class="name" style="color:var(--faint)">Acquisition #3 <span class="label">—</span></div>
+        <div class="stats"><span style="color:var(--faint)">Same console. Zero new software.</span></div>
+      </div>
+    </div>
+
+    <!-- TODAY -->
+    <div class="label">Today · Wed Jul 1</div>
+    <h1>4 decisions need you</h1>
+    <div class="sub">Estimated <b>9 minutes</b> of your attention · everything else is running in the background</div>
+
+    <div class="queue">
+      <div class="card">
+        <div class="head"><span class="sev hi">SUPPLEMENT</span><span class="title">Adjuster scope is missing code-upgrade items — Hendricks, 1425 S Gaylord St</span></div>
+        <div class="impact">+$8,400</div>
+        <div class="why">SCOUT compared the approved scope against inspection data: no drip edge or ice &amp; water barrier lines, both required by Denver code R905.2. Supplement drafted with photos + Xactimate lines. <span class="src">why: scope.reviewed → gap &gt; $2k threshold</span></div>
+        <div class="meta">SLA 2d · carrier deadline Jul 8</div>
+        <div class="actions"><button class="btn primary">Review &amp; submit supplement</button><button class="btn">Edit draft</button><button class="btn ghost">Snooze 1d</button></div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="sev hi">CASH</span><span class="title">Invoice 60d past due — Yates re-roof, $14,900</span></div>
+        <div class="impact">$14,900</div>
+        <div class="why">VERA ran the 30d sequence (2 emails, 1 SMS — no response). Next step per policy is a personal call from the owner, then lien warning at 75d. <span class="src">why: collections policy escalates 60d+ to human</span></div>
+        <div class="meta">SLA today</div>
+        <div class="actions"><button class="btn primary">Call now</button><button class="btn">Send lien warning draft</button><button class="btn ghost">Payment plan</button></div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="sev med">APPROVAL</span><span class="title">Estimate over your auto-approve line — Kowalski, $32,750 @ 41% GM</span></div>
+        <div class="impact">$32,750</div>
+        <div class="why">VERA priced from the book; margin is healthy but value exceeds your $25k approval threshold. One tap sends the good/better/best proposal. <span class="src">why: estimate.value &gt; tenant.approval_limit</span></div>
+        <div class="meta">customer waiting 3h</div>
+        <div class="actions"><button class="btn primary">Approve &amp; send</button><button class="btn">Adjust pricing</button></div>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="sev lo">DATA</span><span class="title">2 post-inspection jobs missing roof type</span></div>
+        <div class="impact">—</div>
+        <div class="why">Blocks material takeoff + the area↔roof-type dataset. Field is the signal — fills auto-clear this card. MILO texted both inspectors; no reply in 24h. <span class="src">why: computed exception roof_type_needed</span></div>
+        <div class="meta">auto-escalated</div>
+        <div class="actions"><button class="btn">Fill from photos (SCOUT suggests: asphalt_shingle · 92%)</button><button class="btn ghost">Nudge inspectors again</button></div>
+      </div>
+    </div>
+
+    <!-- DIGEST + MONEY -->
+    <div class="row2">
+      <div class="panel">
+        <div class="label" style="margin-bottom:8px">While you were out · last 24h · 47 agent actions</div>
+        <ul class="digest">
+          <li><span class="n">12</span><span>leads enriched — geocode + StormProof filled year/roof/county on address-only records</span></li>
+          <li><span class="n">3</span><span>inspections booked by ATLAS (avg speed-to-lead 4m 12s)</span></li>
+          <li><span class="n">2</span><span>estimates delivered; follow-up drips scheduled at 2/5/10d</span></li>
+          <li><span class="n">5</span><span>invoices synced to QuickBooks · $23.1k collected via Stripe</span></li>
+          <li><span class="n">1</span><span>duplicate lead auto-merged (phone match, task #18)</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="label">Money</div>
+        <div class="money">
+          <div class="kpi"><div class="label">Cash · WK</div><div class="v">$41.2k</div><div class="d">▲ 18% vs 4wk avg</div></div>
+          <div class="kpi"><div class="label">AR &gt; 45D</div><div class="v">$21.4k</div><div class="d bad">2 invoices</div></div>
+          <div class="kpi"><div class="label">GM · MTD</div><div class="v">38.5%</div><div class="d">target 36%</div></div>
+          <div class="kpi"><div class="label">Founder-min / job</div><div class="v">11m</div><div class="d">▼ from 26m in May</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COVERAGE MAP -->
+    <div class="panel">
+      <div class="cov-head">
+        <div><div class="label">Coverage Map · Master Task List</div></div>
+        <div class="cov-score">156 / 212 backgrounded · 74%</div>
+      </div>
+      <div class="cov-grid" id="cov"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:#8fc98f"></span>Full auto · 118</span>
+        <span><span class="dot" style="background:#e0b56a"></span>Assisted (surfaces as exception) · 38</span>
+        <span><span class="dot" style="background:#4a3525"></span>Still manual · 56</span>
+      </div>
+      <div class="foot">Each cell is a task from the 212-task master lifecycle. <b>This is the scoreboard for “explicate → improve → backgroundize.”</b> Acquisition onboarding = a new tenant’s map lighting up. Click a manual cell → spec the automation.</div>
+    </div>
+  </main>
+</div>
+<script>
+  // deterministic-ish fill mirroring 118 full / 38 assisted / 56 manual across 212 cells
+  const g=document.getElementById('cov');const seq=[];
+  for(let i=0;i<212;i++){const r=(i*2654435761)%100;seq.push(r<56?'full':(r<74?'assist':'manual'))}
+  // bias later phases toward manual (warranty/ops/compliance came last)
+  const html=seq.map((c,i)=>{const cls=i>170&&c==='full'&&i%3?'assist':c;return `<div class="c ${cls}" title="Task #${i+1}"></div>`}).join('');
+  g.innerHTML=html;
+</script>
+</body>
+</html>

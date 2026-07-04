@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savvy — Stalk List (Multifamily & HOA Accounts)</title>
+<style>
+  :root{
+    --bg:#141009; --bg2:#1b1610; --panel:#221c13; --panel2:#2a2318;
+    --line:#3a3122; --gold:#e3c185; --gold-dim:#a98d5e; --text:#efe7d8;
+    --muted:#9a8c72; --faint:#6e6350; --green:#8fc98f; --red:#e08a7a; --amber:#e0b56a; --blue:#7fb5d1; --purple:#b89fd4;
+    --mono:'SF Mono',ui-monospace,Menlo,monospace;
+    --sans:-apple-system,'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+  .label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .app{display:grid;grid-template-columns:200px 340px 1fr;min-height:100vh}
+  nav{border-right:1px solid var(--line);padding:20px 12px;background:var(--bg2)}
+  .logo{display:flex;gap:8px;color:var(--gold);font-weight:600;margin-bottom:6px;padding:0 10px}
+  .co-switch{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin:10px 0 22px;display:flex;justify-content:space-between}
+  .nav-item{font-family:var(--mono);font-size:13px;color:var(--muted);padding:9px 10px;border-radius:6px;display:flex;justify-content:space-between}
+  .nav-item.active{color:var(--gold);background:var(--panel);border:1px solid var(--line)}
+  .nav-sub{font-family:var(--mono);font-size:11px;color:var(--gold-dim);padding:6px 10px 6px 22px}
+
+  /* ACCOUNT LIST */
+  .list{border-right:1px solid var(--line);padding:18px 14px;background:var(--bg2);overflow-y:auto}
+  .list h2{font-size:15px;margin:4px 0 2px}
+  .list .sub{color:var(--faint);font-size:11px;margin-bottom:14px}
+  .stage-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .chip{font-family:var(--mono);font-size:10px;padding:4px 9px;border:1px solid var(--line);border-radius:12px;color:var(--muted)}
+  .chip.on{color:var(--gold);border-color:var(--gold-dim)}
+  .acct{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 12px;margin-bottom:9px;cursor:pointer}
+  .acct.sel{border-color:var(--gold-dim);background:var(--panel2)}
+  .acct .nm{font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:baseline}
+  .acct .meta{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+  .stage{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px}
+  .st-mapped{background:#3a3220;color:var(--amber)} .st-rel{background:#2e3a2e;color:var(--green)} .st-ident{background:#2b2b33;color:var(--blue)} .st-bid{background:#3a2b33;color:var(--purple)}
+  .swath{color:var(--red);font-family:var(--mono);font-size:9px}
+
+  /* MAIN */
+  main{padding:22px 28px 60px;overflow-y:auto}
+  .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  h1{font-size:20px;font-weight:600}
+  .facts{display:flex;gap:16px;font-family:var(--mono);font-size:11px;color:var(--muted);margin:6px 0 18px;flex-wrap:wrap}
+  .facts b{color:var(--gold);font-weight:500}
+  .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px 17px;margin-bottom:14px}
+
+  /* ORG MAP */
+  .role{display:grid;grid-template-columns:130px 1fr auto;gap:10px;padding:10px 4px;border-bottom:1px solid #2b2417;align-items:center}
+  .role:last-child{border:none}
+  .role .r{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .role .who b{font-size:13px;font-weight:600}
+  .role .who .src{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:2px}
+  .role .who .src a{color:var(--gold-dim);text-decoration:none;border-bottom:1px dotted var(--gold-dim)}
+  .conf{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;text-align:center}
+  .c-yes{background:#2e3a2e;color:var(--green)} .c-sus{background:#3a3220;color:var(--amber)} .c-unk{background:#33291a;color:var(--faint)}
+  .btn{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
+  .btn.primary{background:var(--gold);color:#1b1408;border-color:var(--gold);font-weight:600}
+  .btn.ghost{color:var(--muted)}
+
+  /* TIMELINE */
+  .tl{position:relative;margin:14px 2px 6px;height:52px;border-bottom:1px solid var(--line)}
+  .tl .pt{position:absolute;bottom:-5px;width:9px;height:9px;border-radius:50%;background:var(--gold);border:2px solid var(--bg)}
+  .tl .lbl{position:absolute;bottom:12px;font-family:var(--mono);font-size:9px;color:var(--muted);transform:translateX(-50%);text-align:center;line-height:1.4}
+  .tl .lbl b{color:var(--gold);display:block}
+
+  /* FEED */
+  .feed li{list-style:none;padding:9px 0;border-bottom:1px solid #2b2417;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .feed li:last-child{border:none}
+  .feed .who{font-family:var(--mono);font-size:10px;color:var(--blue)} .feed .who.hum{color:var(--amber)}
+  .feed .t{font-family:var(--mono);font-size:10px;color:var(--faint);float:right}
+  .next{background:var(--panel2);border:1px solid var(--gold-dim);border-radius:9px;padding:12px 15px;margin-bottom:14px}
+  .next .q{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px}
+  .next .a{font-size:13px}
+  .next .a b{color:var(--gold);font-weight:600}
+  .memo{display:flex;gap:8px;margin-top:10px}
+  .memo input{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:8px 12px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="logo">✦ Savvy</div>
+    <div class="co-switch"><span>BLOOM ROOFING · AZ</span><span>▾</span></div>
+    <div class="nav-item"><span>Today</span><span style="font-family:var(--mono);font-size:10px;background:#4a3820;color:var(--gold);border-radius:9px;padding:1px 7px">4</span></div>
+    <div class="nav-item active"><span>Pipeline</span></div>
+    <div class="nav-sub">Residential</div>
+    <div class="nav-sub" style="color:var(--gold)">▸ Stalk List</div>
+    <div class="nav-item"><span>Money</span></div>
+    <div class="nav-item"><span>Agents</span></div>
+    <div class="nav-item"><span>Library</span></div>
+  </nav>
+
+  <!-- ACCOUNT LIST -->
+  <div class="list">
+    <h2>Stalk List</h2>
+    <div class="sub">14 accounts · 3,240 units · AI mapped 9 of 14</div>
+    <div class="stage-chips">
+      <span class="chip on">All</span><span class="chip">In swath · 3</span><span class="chip">Bid window &lt; 90d · 2</span><span class="chip">Needs trip · 4</span>
+    </div>
+
+    <div class="acct sel">
+      <div class="nm">Sunrise Palms HOA <span class="stage st-mapped">MAPPED</span></div>
+      <div class="meta"><span>212 units</span><span>clay tile · 1998</span><span class="swath">⚡ Jun 12 swath</span><span>Mesa</span></div>
+    </div>
+    <div class="acct">
+      <div class="nm">Villa Del Rey Apts <span class="stage st-rel">RELATIONSHIP</span></div>
+      <div class="meta"><span>340 units</span><span>foam · recoat due</span><span>Tempe · Greystar mgmt</span></div>
+    </div>
+    <div class="acct">
+      <div class="nm">Desert Winds Condos <span class="stage st-bid">BID LIST</span></div>
+      <div class="meta"><span>96 units</span><span>shake ⚠</span><span>annual mtg Sep 14</span></div>
+    </div>
+    <div class="acct">
+      <div class="nm">McKellips Commons <span class="stage st-ident">IDENTIFIED</span></div>
+      <div class="meta"><span>128 units</span><span>tile w/ debris pins ×4</span><span class="swath">⚡ Jun 12 swath</span></div>
+    </div>
+    <div class="acct" style="opacity:.65">
+      <div class="nm">+ 10 more <span class="stage st-ident">…</span></div>
+      <div class="meta"><span>AI inventory sweep found 41 candidates — 14 promoted by unit count × roof value</span></div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT DETAIL -->
+  <main>
+    <div class="head">
+      <h1>Sunrise Palms HOA</h1>
+      <span class="label" style="color:var(--red)">⚡ in Jun 12 hail swath · verified</span>
+    </div>
+    <div class="facts">
+      <span>212 units · 18 buildings</span><span>roof: <b>clay tile · 1998</b> (assessor + 2 spotter pins)</span><span>est. roof value <b>$2.1M</b></span><span>owner: <b>Sunrise Palms Community Assn</b> (CC&R 1998-0421887)</span>
+    </div>
+
+    <div class="next">
+      <div class="q">NEXT ACTION · WHY NOW</div>
+      <div class="a"><b>Confirm maintenance manager on-site</b> — AI has a strong candidate (below). Board meets <b>Aug 20</b>; reserve study (2024, public filing) shows roof line item funded 2027 — storm damage could pull that forward to now. Suggested: drop-in visit this week, bring the Jun 12 StormProof cert for the complex.</div>
+      <div class="memo"><input placeholder="🎙 Log a visit — talk, don't type. 'Met Frank at building 6, he confirmed…'"><button class="btn primary">Log visit</button></div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="panel">
+          <div class="label" style="margin-bottom:4px">Org map · who decides</div>
+          <div class="role">
+            <span class="r">HOA PRESIDENT</span>
+            <span class="who"><b>Linda Okafor</b><div class="src">source: <a>Mar meeting minutes (assn site)</a> · <a>DORA-equiv county filing</a></div></span>
+            <span class="conf c-sus">SUSPECTED</span>
+          </div>
+          <div class="role">
+            <span class="r">MGMT COMPANY</span>
+            <span class="who"><b>AAM LLC — Tempe office</b><div class="src">source: <a>CC&R amendment 2019</a> · <a>leasing listing</a> · portfolio: <b style="color:var(--gold)">11 more properties</b></div></span>
+            <span class="conf c-yes">CONFIRMED</span>
+          </div>
+          <div class="role">
+            <span class="r">COMMUNITY MGR (CAM)</span>
+            <span class="who"><b>R. Delgado</b><div class="src">source: <a>AAM staff page</a> · <a>LinkedIn</a></div></span>
+            <span class="conf c-sus">SUSPECTED</span>
+          </div>
+          <div class="role">
+            <span class="r">MAINTENANCE MGR</span>
+            <span class="who"><b>"Frank" — bldg 6 shop</b><div class="src">source: <a>Google review mentions</a> ×3 · unverified</div></span>
+            <span class="conf c-sus">SUSPECTED</span>
+          </div>
+          <div class="role">
+            <span class="r">BOARD (ROOF CMTE)</span>
+            <span class="who"><b>Unknown</b><div class="src">next fact to find — ask at visit, or Aug 20 meeting is open session</div></span>
+            <span class="conf c-unk">UNKNOWN</span>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px"><button class="btn">Re-run AI sweep</button><button class="btn ghost">Add person manually</button></div>
+        </div>
+
+        <div class="panel">
+          <div class="label">Decision timeline · work-back</div>
+          <div class="tl">
+            <div class="pt" style="left:8%"></div><div class="lbl" style="left:8%"><b>NOW</b>confirm Frank<br>deliver storm cert</div>
+            <div class="pt" style="left:34%"></div><div class="lbl" style="left:34%"><b>AUG 20</b>annual meeting<br>credentials packet</div>
+            <div class="pt" style="left:62%"></div><div class="lbl" style="left:62%"><b>SEP–OCT</b>budget season<br>bid list window</div>
+            <div class="pt" style="left:90%;background:var(--red)"></div><div class="lbl" style="left:90%"><b>~JUN ’27</b>reserve-funded<br>replacement (or sooner via claim)</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="label" style="margin-bottom:4px">Activity · AI + field</div>
+          <ul class="feed">
+            <li><span class="who">SCOUT</span> Matched complex to Jun 12 swath — StormProof cert generated for all 18 buildings <span class="t">2d</span></li>
+            <li><span class="who">SCOUT</span> People sweep: 4 role candidates, 9 sources cited. Board roster not public — flagged as next fact <span class="t">2d</span></li>
+            <li><span class="who">SCOUT</span> Reserve study (2024) found in county filing: roof line funded 2027, $1.8M reserve <span class="t">2d</span></li>
+            <li><span class="who">ATLAS</span> Portfolio link: AAM manages 11 more properties incl. 2 already on Stalk List <span class="t">2d</span></li>
+            <li><span class="who hum">YOU</span> Drive-by: 4 tile-debris pins tagged (Roof Tagger), valleys loaded on bldgs 3, 6, 11, 14 <span class="t">5d</span></li>
+            <li><span class="who">NOVA</span> Intro letter to AAM Tempe (PostGrid) — portfolio storm report offer <span class="t">6d</span></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <div class="label" style="margin-bottom:6px">Portfolio leverage · AAM LLC</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.55">Confirming the AAM relationship lights up <b style="color:var(--gold)">12 properties · ~2,900 units</b> on the Strike List. R. Delgado (CAM) covers 5 of them. One relationship, twelve roofs.</div>
+          <div style="margin-top:10px"><button class="btn">View AAM parent account</button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
