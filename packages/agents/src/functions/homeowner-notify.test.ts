@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq } from "@savvy/db";
+import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq, and, sql } from "@savvy/db";
 import { evaluateTenantHomeownerNotifs } from "./homeowner-notify";
 
 async function seedTenantWithEvent(toStage: string, optOut = false, enteredAt: Date = new Date()): Promise<{ tenantId: string; eventId: string; customerId: string }> {
@@ -40,5 +40,36 @@ describe("evaluateTenantHomeownerNotifs", () => {
     const comms = await withTenant(tenantId, (tx) => tx.select().from(communication).where(eq(communication.customerId, customerId)));
     expect(comms.some((c) => c.channel === "email")).toBe(true);
     expect(comms.some((c) => c.channel === "sms")).toBe(false);
+  });
+
+  it("body_quality: every outbound body contains /b/ and no raw long token", async () => {
+    // 16:00 UTC = 09:00 Arizona — well outside the 21→08 quiet window.
+    const midMorning = new Date("2026-07-15T16:00:00Z");
+    const { tenantId } = await seedTenantWithEvent("production", false, midMorning);
+    await evaluateTenantHomeownerNotifs(tenantId, midMorning);
+    const rows = await withTenant(tenantId, (tx) =>
+      tx.select({ body: communication.body }).from(communication).where(eq(communication.tenantId, tenantId)),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.body).toContain("/b/");
+      expect(r.body).not.toMatch(/https?:\/\/[^\s]{33,}/); // same rule as comms.body_quality
+    }
+  });
+
+  it("dedupe: two runs over the same unstamped stage event produce exactly one SMS row", async () => {
+    // 16:00 UTC = 09:00 Arizona — well outside the 21→08 quiet window so SMS is not suppressed.
+    const midMorning = new Date("2026-07-15T16:00:00Z");
+    const { tenantId, eventId } = await seedTenantWithEvent("production", false, midMorning);
+    // First run: claims + marks notified
+    await evaluateTenantHomeownerNotifs(tenantId, midMorning);
+    // Simulate a ledger race: clear homeownerNotifiedAt so the cron sees the event again
+    await adminDb.update(jobStageEvent).set({ homeownerNotifiedAt: null }).where(eq(jobStageEvent.id, eventId));
+    // Second run: claim-then-send finds the dedupeKey already used → no second row
+    await evaluateTenantHomeownerNotifs(tenantId, midMorning);
+    const smsRows = await withTenant(tenantId, (tx) =>
+      tx.select().from(communication).where(and(eq(communication.tenantId, tenantId), eq(communication.channel, "sms"))),
+    );
+    expect(smsRows).toHaveLength(1);
   });
 });

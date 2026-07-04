@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, communication, listStageEventsToNotify, markStageEventNotified, eq } from "@savvy/db";
+import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, createStatusLink, eq } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
@@ -27,18 +27,24 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
   }
   for (const ev of events) {
     const copy = homeownerStageCopy(ev.toStage);
-    const link = `${base}/status/${signPayloadToken({ tenantId, jobId: ev.jobId }, secret)}`;
+    const statusToken = signPayloadToken({ tenantId, jobId: ev.jobId }, secret);
+    const code = await createStatusLink({ tenantId, token: statusToken });
+    const link = `${base}/b/${code}`;
     const body = `${copy.headline} ${copy.body} Track your project: ${link}`;
-    // SMS — send is fail-soft (no creds in dev/test); the communication row records the
-    // intent-to-send regardless, matching appointment-reminders. jobId links it to the job timeline.
+    // SMS — claim-then-send: insert the communication row first (dedupe key prevents double rows);
+    // only send if we won the claim. jobId links it to the job timeline.
     if (ev.phone && !ev.smsOptOut && !smsQuiet) {
-      try { if (smsSender) { const { sender, from } = smsSender; await sender.sendSms({ to: ev.phone, from, body }); } } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, aiHandled: false }));
+      const claimed = await claimCommunication({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, dedupeKey: `stage:sms:${ev.phone}:${ev.eventId}` });
+      if (claimed && smsSender) {
+        try { const { sender, from } = smsSender; await sender.sendSms({ to: ev.phone, from, body }); } catch { /* fail-soft */ }
+      }
     }
-    // Email
+    // Email — same claim-then-send pattern
     if (ev.email && !ev.emailOptOut) {
-      try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` }); } catch { /* fail-soft */ }
-      await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "email", direction: "outbound", to: ev.email, body, aiHandled: false }));
+      const claimed = await claimCommunication({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "email", direction: "outbound", to: ev.email, body, dedupeKey: `stage:email:${ev.email}:${ev.eventId}` });
+      if (claimed) {
+        try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` }); } catch { /* fail-soft */ }
+      }
     }
     await markStageEventNotified(tenantId, ev.eventId);
     sent++;
