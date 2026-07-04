@@ -46,3 +46,37 @@ test("the webhook rejects a bad secret", async ({ baseURL }) => {
   });
   expect(res.status()).toBe(401);
 });
+
+test("the webhook 404s an unknown inbox token", async ({ baseURL }) => {
+  const api = await request.newContext();
+  const res = await api.post(`${baseURL}/api/inbound/supplier-invoice`, {
+    headers: { "x-inbound-secret": "test-inbound-secret", "content-type": "application/json" },
+    data: { messageId: `e2e-${randomUUID()}`, to: "inv-nosuchtoken@inbox.getsavvy.com",
+      attachments: [{ filename: "x.pdf", contentType: "application/pdf", bytesBase64: "JVBERg==" }] },
+  });
+  expect(res.status()).toBe(404);
+});
+
+test("re-delivering the same Message-Id is idempotent (one row)", async ({ baseURL }) => {
+  const messageId = `e2e-${randomUUID()}`;
+  const payload = {
+    headers: { "x-inbound-secret": "test-inbound-secret", "content-type": "application/json" },
+    data: { messageId, to: `inv-${TOKEN}@inbox.getsavvy.com`, from: "billing@srs.com",
+      attachments: [{ filename: "srs.pdf", contentType: "application/pdf", bytesBase64: Buffer.from("%PDF dup").toString("base64") }] },
+  };
+  const api = await request.newContext();
+  await api.post(`${baseURL}/api/inbound/supplier-invoice`, payload);
+  await api.post(`${baseURL}/api/inbound/supplier-invoice`, payload);
+  const rows = await withTenant(tenantId, (tx) => tx.select().from(supplierInvoice).where(eq(supplierInvoice.externalMessageId, messageId)));
+  expect(rows).toHaveLength(1);
+});
+
+test("an email with no PDF attachment is ignored (202)", async ({ baseURL }) => {
+  const api = await request.newContext();
+  const res = await api.post(`${baseURL}/api/inbound/supplier-invoice`, {
+    headers: { "x-inbound-secret": "test-inbound-secret", "content-type": "application/json" },
+    data: { messageId: `e2e-${randomUUID()}`, to: `inv-${TOKEN}@inbox.getsavvy.com`,
+      attachments: [{ filename: "note.txt", contentType: "text/plain", bytesBase64: "aGk=" }] },
+  });
+  expect(res.status()).toBe(202);
+});

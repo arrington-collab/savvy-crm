@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseInboxToken } from "./supplier-invoice";
+import { parseInboxToken, deriveInboxAddress } from "./supplier-invoice";
+
+describe("deriveInboxAddress", () => {
+  it("builds the address from a token + default domain", () => {
+    expect(deriveInboxAddress("abc123")).toBe("inv-abc123@inbox.getsavvy.com");
+  });
+  it("round-trips with parseInboxToken", () => {
+    expect(parseInboxToken(deriveInboxAddress("Tok9Z"))).toBe("Tok9Z");
+  });
+});
 
 describe("parseInboxToken", () => {
   it("extracts the token from a well-formed inbox address", () => {

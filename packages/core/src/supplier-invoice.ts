@@ -24,3 +24,8 @@ export function parseInboxToken(toAddress: string): string | null {
   const m = INBOX_RE.exec(toAddress.trim());
   return m?.[1] ?? null;
 }
+
+/** Build a tenant's forwarding address from its token. Domain kept explicit (pure). */
+export function deriveInboxAddress(token: string, domain = "inbox.getsavvy.com"): string {
+  return `inv-${token}@${domain}`;
+}
