@@ -46,7 +46,7 @@ export const appointmentReminders = inngest.createFunction(
     const cfg = parseSchedulingConfig(ctx.settings);
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
     const token = signPayloadToken({ appointmentId, tenantId, type: ctx.type }, secret);
-    const bookUrl = await buildShortLink({ tenantId, token, kind: "booking" });
+    const bookUrl = await step.run("mint-short-link", () => buildShortLink({ tenantId, token, kind: "booking" }));
 
     // Sort reminders soonest-fire first (largest offsetH fires earliest relative to appointment).
     const reminders = [...cfg.reminders].sort((a, b) => b.offsetH - a.offsetH);

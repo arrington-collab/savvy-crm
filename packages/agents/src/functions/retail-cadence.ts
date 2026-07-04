@@ -48,7 +48,7 @@ export const retailCloseoutCadence = inngest.createFunction(
     const cfg = parseRetailCadenceConfig(setup.settings.retailCadence);
     if (!cfg.enabled) return { skipped: "disabled" };
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const statusLink = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: setup.jobId }, secret), kind: "status" });
+    const statusLink = await step.run("mint-short-link", () => buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: setup.jobId }, secret), kind: "status" }));
     const reviewLink = cfg.reviewUrl || statusLink;
 
     for (let i = 0; i < cfg.steps.length; i++) {

@@ -27,7 +27,7 @@ export const leadCadence = inngest.createFunction(
     });
 
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
-    const bookingUrl = await buildShortLink({ tenantId, token: signPayloadToken({ leadId, tenantId, type: "inspection" }, secret), kind: "booking" });
+    const bookingUrl = await step.run("mint-short-link", () => buildShortLink({ tenantId, token: signPayloadToken({ leadId, tenantId, type: "inspection" }, secret), kind: "booking" }));
 
     for (let i = 0; i < setup.cfg.steps.length; i++) {
       const touch = setup.cfg.steps[i]!;
