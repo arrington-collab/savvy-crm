@@ -4,6 +4,13 @@
 
 **Gate 0 (before cell 1):** merge #82 → #81 → #83 per the 2026-06-30 handoff (0037 collision procedure), run prod migrations from the correct worktrees, fix the stale repo root. Not a cell — unfinished business.
 
+## STATUS — repo survey 2026-07-03 (verify in code before building; do not redo)
+
+- **DONE (code on main):** 1 timezone (#105/#107) · 2 registry schema/seed (`packages/db/src/schema/task-registry.ts`, `seeds/master-task-list.ts`) · 3 evidence framework + 11 checks (`packages/core/src/verification/`) · 4 health sweep + Today exceptions + ops-digest + founder-minutes (#102–#106) · 7 comms hygiene (#125) · 9 Roofr auto-order (`auto-order-measurement.ts`) · 10 estimate auto-draft (`estimate-generate.ts`) · 15 depreciation G1+G2 (#111/#112) · 19 homeowner status page (`/status/[token]`). Bonus beyond contract: SiteSnap photo QC (#121–#124), weather auto-reschedule (#120), capacity (#118), material ordering, promotable automation levels (#113).
+- **PARTIAL:** 8 (invoice_math + commissions checks exist — confirm/add QB + Stripe reconciliation) · 12 (procurement schema + material-order exist — **cost sheets + landed-cost selector missing**) · 17 (permit gates in `production.ts` — **license matrix + SB38 template invariant missing**) · 18 (commissions page/check — confirm plan engine, statements, chargebacks).
+- **NOT BUILT:** 5 Operator Console UI (`prompts-operator-console.md` — mockups are the spec) · 6 A2P 10DLC + deliverability · 11 financing seam · 13 supplier invoice price-guard · 14 job costing actuals · 16 endorsement chase · 20 Alta provisioning script.
+- **Next up by payout:** 5 (daily driver) and 6 (possible active SMS bleed), then 13→14 (money truth), 16, 11, 12-remainder, 17-remainder, 18-remainder, 20.
+
 ---
 
 ## Wave A — Foundation (the spine everything binds to)
