@@ -16,7 +16,7 @@ describe("buildExceptionQueue", () => {
       roofTypeNeeded: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
@@ -84,7 +84,7 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0 }, total: 0, highCount: 0,
     });
   });
 
@@ -227,5 +227,73 @@ describe("buildExceptionQueue", () => {
     const row = q.items.find((i) => i.kind === "photo_quality");
     expect(row).toBeTruthy();
     expect(row!.detail).toContain("blurry");
+  });
+
+  describe("supplier_invoice_unmatched vector", () => {
+    it("emits a medium item for each unmatched invoice", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        supplierInvoicesUnmatched: [
+          { id: "si1", supplierName: "ABC Supply", createdAt: new Date("2026-07-01T00:00:00Z") },
+        ],
+      });
+      expect(q.counts.supplier_invoice_unmatched).toBe(1);
+      const item = q.items.find((i) => i.kind === "supplier_invoice_unmatched")!;
+      expect(item).toMatchObject({ severity: "medium", href: "/library" });
+      expect(item.detail).toContain("ABC Supply");
+      expect(item.detail).toContain("no job matched");
+    });
+
+    it("uses 'Unknown supplier' when supplierName is null", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        supplierInvoicesUnmatched: [
+          { id: "si2", supplierName: null, createdAt: new Date("2026-07-01T00:00:00Z") },
+        ],
+      });
+      const item = q.items.find((i) => i.kind === "supplier_invoice_unmatched")!;
+      expect(item.detail).toContain("Unknown supplier");
+    });
+  });
+
+  describe("supplier_credit_review vector", () => {
+    it("emits a high item for each drafted credit request", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        creditsToReview: [
+          { id: "cr1", jobId: "j1", supplierName: "SRS", claimedCents: 50000, createdAt: new Date("2026-07-02T00:00:00Z") },
+        ],
+      });
+      expect(q.counts.supplier_credit_review).toBe(1);
+      const item = q.items.find((i) => i.kind === "supplier_credit_review")!;
+      expect(item).toMatchObject({ severity: "high", href: "/jobs/j1" });
+      expect(item.detail).toContain("SRS");
+    });
+
+    it("links to /money when jobId is null", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        creditsToReview: [
+          { id: "cr2", jobId: null, supplierName: "SRS", claimedCents: 20000, createdAt: new Date() },
+        ],
+      });
+      const item = q.items.find((i) => i.kind === "supplier_credit_review")!;
+      expect(item.href).toBe("/money");
+    });
+  });
+
+  describe("supplier_credit_reconcile vector", () => {
+    it("emits a medium item for each sent credit request awaiting reconciliation", () => {
+      const q = buildExceptionQueue({
+        ...base,
+        creditsToReconcile: [
+          { id: "cr3", supplierName: "Beacon", amountCents: 30000, createdAt: new Date("2026-07-03T00:00:00Z") },
+        ],
+      });
+      expect(q.counts.supplier_credit_reconcile).toBe(1);
+      const item = q.items.find((i) => i.kind === "supplier_credit_reconcile")!;
+      expect(item).toMatchObject({ severity: "medium", href: "/money" });
+      expect(item.detail).toContain("Beacon");
+    });
   });
 });

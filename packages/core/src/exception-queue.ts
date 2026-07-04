@@ -1,6 +1,6 @@
 import { materialDeliveryFlag } from "./material-order";
 
-export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality";
+export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile";
 export type ExceptionSeverity = "high" | "medium";
 
 export type ExceptionItem = {
@@ -24,6 +24,9 @@ export type MarginOutlierInput = { jobId: string; customerName: string | null; m
 export type PhotoIncompleteInput = { jobId: string; customerName: string | null; missing: string[]; occurredAt: Date | null };
 export type PhotoUnmatchedInput = { documentId: string; captureAddress: string | null; occurredAt: Date | null };
 export type PhotoQualityInput = { documentId: string; jobId: string; label: string | null; reason: string; occurredAt: Date | null };
+export type SupplierInvoiceUnmatchedInput = { id: string; supplierName: string | null; createdAt: Date };
+export type CreditToReviewInput = { id: string; jobId: string | null; supplierName: string | null; claimedCents: number; createdAt: Date };
+export type CreditToReconcileInput = { id: string; supplierName: string | null; amountCents: number; createdAt: Date };
 
 export type ExceptionQueueInput = {
   atRiskJobs: AtRiskJobInput[];
@@ -38,6 +41,9 @@ export type ExceptionQueueInput = {
   photoIncomplete?: PhotoIncompleteInput[];
   photoUnmatched?: PhotoUnmatchedInput[];
   photoQuality?: PhotoQualityInput[];
+  supplierInvoicesUnmatched?: SupplierInvoiceUnmatchedInput[];
+  creditsToReview?: CreditToReviewInput[];
+  creditsToReconcile?: CreditToReconcileInput[];
 };
 
 export type ExceptionQueue = {
@@ -47,7 +53,7 @@ export type ExceptionQueue = {
   highCount: number;
 };
 
-const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval", "weather_at_risk", "roof_type_needed", "margin_outlier", "photo_incomplete", "photo_unmatched", "photo_quality"];
+const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval", "weather_at_risk", "roof_type_needed", "margin_outlier", "photo_incomplete", "photo_unmatched", "photo_quality", "supplier_invoice_unmatched", "supplier_credit_review", "supplier_credit_reconcile"];
 
 function dollars(cents: number | null): string {
   return cents == null ? "" : `$${Math.round(cents / 100).toLocaleString()}`;
@@ -186,6 +192,39 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       detail: `${p.label ? `${p.label}: ` : ""}${p.reason}`,
       href: `/jobs/${p.jobId}`,
       occurredAt: p.occurredAt,
+    });
+  }
+
+  for (const s of input.supplierInvoicesUnmatched ?? []) {
+    items.push({
+      kind: "supplier_invoice_unmatched",
+      severity: "medium",
+      title: "Unmatched supplier invoice",
+      detail: `${s.supplierName ?? "Unknown supplier"} — no job matched`,
+      href: "/library",
+      occurredAt: s.createdAt,
+    });
+  }
+
+  for (const c of input.creditsToReview ?? []) {
+    items.push({
+      kind: "supplier_credit_review",
+      severity: "high",
+      title: "Review & send credit request",
+      detail: `${dollars(c.claimedCents)} — ${c.supplierName ?? "supplier"}`,
+      href: c.jobId ? `/jobs/${c.jobId}` : "/money",
+      occurredAt: c.createdAt,
+    });
+  }
+
+  for (const c of input.creditsToReconcile ?? []) {
+    items.push({
+      kind: "supplier_credit_reconcile",
+      severity: "medium",
+      title: "Reconcile credit memo",
+      detail: `${dollars(c.amountCents)} — ${c.supplierName ?? "supplier"}`,
+      href: "/money",
+      occurredAt: c.createdAt,
     });
   }
 
