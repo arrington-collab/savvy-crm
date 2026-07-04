@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseInboxToken, deriveInboxAddress } from "./supplier-invoice";
+import { parseInboxToken, deriveInboxAddress, selectJobCost } from "./supplier-invoice";
+
+describe("selectJobCost", () => {
+  it("uses supplier-invoice actuals when present", () => {
+    expect(selectJobCost({ actualsCents: 812300, estimateCents: 790000 })).toBe(812300);
+  });
+  it("falls back to the material-order estimate when no actuals", () => {
+    expect(selectJobCost({ actualsCents: null, estimateCents: 790000 })).toBe(790000);
+    expect(selectJobCost({ actualsCents: 0, estimateCents: 790000 })).toBe(790000);
+  });
+});
 
 describe("deriveInboxAddress", () => {
   it("builds the address from a token + default domain", () => {
