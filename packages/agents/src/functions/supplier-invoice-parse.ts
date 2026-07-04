@@ -110,6 +110,10 @@ export const parseSupplierInvoice = inngest.createFunction(
           ai: { completeObject },
           loadDocKey: (t, d) => getDocumentR2Key(t, d),
           fetchBytes: async (key) => {
+            // R2 is a commodity we don't wire in e2e (the ingest route stubs storage
+            // under TEST_MODE too); return a minimal PDF header so the parse pipeline
+            // stays exercisable — the stubbed AI gateway ignores the bytes anyway.
+            if (process.env.TEST_MODE === "1") return new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
             const { url } = await r2Storage.presignDownload({ key });
             const res = await fetch(url);
             if (!res.ok) throw new Error(`fetch ${res.status}`);

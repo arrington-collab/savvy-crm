@@ -10,8 +10,19 @@ const server = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    // The supplier-invoice parser's schema uniquely carries `unitBilledCents`.
+    const isSupplierInvoiceParse = body.includes("unitBilledCents") || body.includes("amountBilledCents");
     const isScopeDraft = body.includes("Scope change") || body.includes('"items"');
-    const payload = isScopeDraft
+    const payload = isSupplierInvoiceParse
+      ? {
+          supplierName: "ABC Supply",
+          invoiceNumber: "INV-E2E-1",
+          invoiceDate: "2026-07-02",
+          totalCents: 234000,
+          lines: [{ description: "GAF Timberline HDZ", sku: "HDZ-CHAR", quantity: 30, unit: "BD", unitBilledCents: 7800, amountBilledCents: 234000 }],
+          confidence: 0.95,
+        }
+      : isScopeDraft
       ? { items: [{ key: "pipe-boots", quantity: 2 }], summary: "e2e stub: 2 pipe boots" }
       : { score: 75, reason: "e2e stub: storm zone, owner-occupied" };
     res.setHeader("content-type", "application/json");
