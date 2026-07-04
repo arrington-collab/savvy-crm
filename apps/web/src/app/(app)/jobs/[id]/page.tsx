@@ -19,6 +19,7 @@ import {
   getAdjusterAppointmentForJob,
   getJobLedger,
   DEPRECIATION_APPROVAL_TASK_KEY,
+  listFlaggedPhotosForJob,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
@@ -47,6 +48,7 @@ import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { resolveAgentForStage, personaLine, PERSONAS } from "@/lib/agents";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { PropertyMap } from "@/components/PropertyMap";
+import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -290,6 +292,8 @@ export default async function JobDetailPage({
     jobRow.type === "insurance" ? getAdjusterAppointmentForJob(tenantId, id) : Promise.resolve(null),
   ]);
 
+  const flaggedPhotos = await listFlaggedPhotosForJob(tenantId, id);
+
   // Serialize checkin dates to ISO strings for client props.
   const checkinRows = checkins.map((c) => ({
     id: c.id,
@@ -433,6 +437,8 @@ export default async function JobDetailPage({
       </Card>
 
       <AutomationModule summary={automationSummary} />
+
+      <FlaggedPhotosPanel jobId={id} documents={flaggedPhotos} />
 
       <JobTabs
         tasksByPhase={tasksByPhase}

@@ -14,6 +14,8 @@ const KIND_LABEL: Record<string, string> = {
   roof_type_needed: "Roof type",
   margin_outlier: "Margin",
   photo_incomplete: "Photos",
+  photo_quality: "Photo QC",
+  photo_unmatched: "Unmatched photo",
   // scoreboard task exceptions
   verification_mismatch: "Done-but-wrong",
   task_stale: "Stale check",
