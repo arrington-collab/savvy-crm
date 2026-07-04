@@ -1,7 +1,10 @@
 import { it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
-import { adminDb, tenant, customer, property, job, supplierInvoice, eq } from "../index.js";
-import { recomputeJobActualCost, saveParsedSupplierInvoice } from "./supplier-invoice.js";
+import { adminDb, tenant, customer, property, job, estimate, materialOrder, document, supplierInvoice, eq } from "../index.js";
+import {
+  recomputeJobActualCost, saveParsedSupplierInvoice,
+  getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed,
+} from "./supplier-invoice.js";
 
 let tenantId: string, jobId: string;
 
@@ -15,6 +18,9 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.tenantId, tenantId));
+  await adminDb.delete(document).where(eq(document.tenantId, tenantId));
+  await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
+  await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
@@ -47,4 +53,41 @@ it("recomputeJobActualCost sets job.costCents to the sum of parsed supplier-invo
   await recomputeJobActualCost(tenantId, j!.id);
   const [row] = await adminDb.select({ costCents: job.costCents }).from(job).where(eq(job.id, j!.id));
   expect(row!.costCents).toBe(812300);
+});
+
+it("getDocumentR2Key returns the tenant's document key, null when absent", async () => {
+  const [doc] = await adminDb.insert(document).values({ tenantId, kind: "evidence", r2Key: "tenant/x/supplier-invoice/y.pdf" }).returning();
+  expect(await getDocumentR2Key(tenantId, doc!.id)).toBe("tenant/x/supplier-invoice/y.pdf");
+  expect(await getDocumentR2Key(tenantId, randomUUID())).toBeNull();
+});
+
+it("markSupplierInvoiceParseFailed flips status to parse_failed", async () => {
+  const [si] = await adminDb.insert(supplierInvoice).values({ tenantId, status: "received", externalMessageId: `pf-${randomUUID()}` }).returning();
+  await markSupplierInvoiceParseFailed(tenantId, si!.id);
+  const [row] = await adminDb.select({ status: supplierInvoice.status }).from(supplierInvoice).where(eq(supplierInvoice.id, si!.id));
+  expect(row!.status).toBe("parse_failed");
+});
+
+it("matchSupplierInvoiceJob returns the unique open-order job, null when ambiguous", async () => {
+  const t3 = randomUUID();
+  await adminDb.insert(tenant).values({ id: t3, name: "Match Co", publicKey: `mc-${t3.slice(0, 8)}` });
+  const [c] = await adminDb.insert(customer).values({ tenantId: t3, name: "MC" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId: t3, customerId: c!.id, address: "9 Match St" }).returning();
+  const mkOrderedJob = async () => {
+    const [j] = await adminDb.insert(job).values({ tenantId: t3, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
+    const [e] = await adminDb.insert(estimate).values({ tenantId: t3, jobId: j!.id }).returning();
+    await adminDb.insert(materialOrder).values({ tenantId: t3, jobId: j!.id, estimateId: e!.id, status: "ordered", lineItems: [], subtotalCents: 0, costSubtotalCents: 100000 });
+    return j!.id;
+  };
+  const only = await mkOrderedJob();
+  expect(await matchSupplierInvoiceJob(t3, { supplierName: "ABC" })).toBe(only); // exactly one → match
+  await mkOrderedJob(); // second open-order job → ambiguous
+  expect(await matchSupplierInvoiceJob(t3, { supplierName: "ABC" })).toBeNull();
+
+  await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, t3));
+  await adminDb.delete(estimate).where(eq(estimate.tenantId, t3));
+  await adminDb.delete(job).where(eq(job.tenantId, t3));
+  await adminDb.delete(property).where(eq(property.tenantId, t3));
+  await adminDb.delete(customer).where(eq(customer.tenantId, t3));
+  await adminDb.delete(tenant).where(eq(tenant.id, t3));
 });
