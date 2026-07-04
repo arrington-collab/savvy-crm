@@ -68,6 +68,10 @@ export const roofSketchSchema = z.object({
   centerLat: z.number(),
   centerLng: z.number(),
   zoom: z.number().int().min(17).max(22).default(20),
+  /** Manual scale correction from calibrating against a known length.
+   *  Effective ft/px = mercator ft/px × calibration. Points are stored in
+   *  already-calibrated feet; this factor re-anchors them to image pixels. */
+  calibration: z.number().positive().default(1),
   facets: z.array(sketchFacetSchema).default([]),
 });
 export type RoofSketch = z.infer<typeof roofSketchSchema>;

@@ -29,8 +29,10 @@ const CANVAS = 640;
 const MAP_PX = 640;
 const SNAP_PX = 10;
 const DEFAULT_ZOOM = 20;
+/** Snap drawn segments to 45° multiples when within this tolerance. */
+const ANGLE_SNAP_TOLERANCE_RAD = (7 * Math.PI) / 180;
 
-type Mode = "draw" | "select" | "edges";
+type Mode = "draw" | "select" | "edges" | "pan" | "calibrate";
 
 interface SketchEditorProps {
   jobId: string;
@@ -61,6 +63,17 @@ function pointInPolygon(p: SketchPoint, poly: SketchPoint[]): boolean {
   return inside;
 }
 
+/** Offset a lat/lng by feet east (+x) and feet south (+y). */
+function offsetLatLng(lat: number, lng: number, xFt: number, yFt: number): { lat: number; lng: number } {
+  const mPerDegLat = 111320;
+  const xM = xFt / 3.28084;
+  const yM = yFt / 3.28084;
+  return {
+    lat: lat - yM / mPerDegLat,
+    lng: lng + xM / (mPerDegLat * Math.cos((lat * Math.PI) / 180)),
+  };
+}
+
 let facetSeq = 0;
 function newFacetId(): string {
   facetSeq += 1;
@@ -82,15 +95,28 @@ export function SketchEditor({
   const [zoom, setZoom] = useState<number>(initialSketch?.zoom ?? DEFAULT_ZOOM);
 
   const [facets, setFacets] = useState<SketchFacet[]>(initialSketch?.facets ?? []);
+  const [calibration, setCalibration] = useState<number>(initialSketch?.calibration ?? 1);
   const [history, setHistory] = useState<SketchFacet[][]>([]);
   const [future, setFuture] = useState<SketchFacet[][]>([]);
 
   const [mode, setMode] = useState<Mode>("draw");
   const [draft, setDraft] = useState<SketchPoint[]>([]);
   const [hover, setHover] = useState<SketchPoint | null>(null);
+  const [angleSnap, setAngleSnap] = useState(true);
   const [selectedFacetId, setSelectedFacetId] = useState<string | null>(null);
   const [edgeTool, setEdgeTool] = useState<SketchEdgeType>("eave");
   const [drag, setDrag] = useState<{ facetId: string; vertexIdx: number } | null>(null);
+
+  // Pan: `view` is the committed viewport-center offset from the sketch anchor
+  // (in feet). While dragging, `panPx` translates the layers without refetching.
+  const [view, setView] = useState<SketchPoint>({ x: 0, y: 0 });
+  const [panDrag, setPanDrag] = useState<{ startX: number; startY: number; origin: SketchPoint } | null>(null);
+  const [panPx, setPanPx] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+
+  // Calibration: two clicked points + the user-entered true length.
+  const [calPoints, setCalPoints] = useState<SketchPoint[]>([]);
+  const [calInput, setCalInput] = useState("");
+
   const [savePending, startSave] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -98,39 +124,40 @@ export function SketchEditor({
 
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // ft per CSS pixel at this zoom. Map covers MAP_PX map-pixels shown in CANVAS css px.
+  // ft per CSS pixel: web-mercator ground resolution × manual calibration.
   const ftPerPx = useMemo(
-    () => (feetPerMapPixel(centerLat, zoom) * MAP_PX) / CANVAS,
-    [centerLat, zoom],
+    () => ((feetPerMapPixel(centerLat, zoom) * MAP_PX) / CANVAS) * calibration,
+    [centerLat, zoom, calibration],
   );
 
   const toFt = useCallback(
     (px: number, py: number): SketchPoint => ({
-      x: (px - CANVAS / 2) * ftPerPx,
-      y: (py - CANVAS / 2) * ftPerPx,
+      x: (px - CANVAS / 2) * ftPerPx + view.x,
+      y: (py - CANVAS / 2) * ftPerPx + view.y,
     }),
-    [ftPerPx],
+    [ftPerPx, view],
   );
   const toPx = useCallback(
     (p: SketchPoint): { x: number; y: number } => ({
-      x: p.x / ftPerPx + CANVAS / 2,
-      y: p.y / ftPerPx + CANVAS / 2,
+      x: (p.x - view.x) / ftPerPx + CANVAS / 2,
+      y: (p.y - view.y) / ftPerPx + CANVAS / 2,
     }),
-    [ftPerPx],
+    [ftPerPx, view],
   );
 
   const mapUrl = useMemo(() => {
     if (!mapsApiKey) return null;
-    const loc = `${centerLat},${centerLng}`;
+    const c = offsetLatLng(centerLat, centerLng, view.x, view.y);
+    const loc = `${c.lat},${c.lng}`;
     return (
       `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(loc)}` +
       `&zoom=${zoom}&size=${MAP_PX}x${MAP_PX}&scale=2&maptype=satellite&key=${mapsApiKey}`
     );
-  }, [mapsApiKey, centerLat, centerLng, zoom]);
+  }, [mapsApiKey, centerLat, centerLng, view, zoom]);
 
   const sketch: RoofSketch = useMemo(
-    () => ({ version: 1, centerLat, centerLng, zoom, facets }),
-    [centerLat, centerLng, zoom, facets],
+    () => ({ version: 1, centerLat, centerLng, zoom, calibration, facets }),
+    [centerLat, centerLng, zoom, calibration, facets],
   );
   const summary = useMemo(() => summarizeSketch(sketch), [sketch]);
   const waste = useMemo(() => wasteTable(summary.totalSurfaceSqft), [summary]);
@@ -170,15 +197,45 @@ export function SketchEditor({
   }
 
   /** Snap a CSS-px point to any existing vertex (draft or facets) within SNAP_PX. */
-  function snap(px: { x: number; y: number }): { x: number; y: number } {
+  function vertexSnap(px: { x: number; y: number }): { x: number; y: number; snapped: boolean } {
     const candidates: { x: number; y: number }[] = [
       ...draft.map(toPx),
       ...facets.flatMap((f) => f.points.map(toPx)),
     ];
     for (const c of candidates) {
-      if (Math.hypot(c.x - px.x, c.y - px.y) <= SNAP_PX) return c;
+      if (Math.hypot(c.x - px.x, c.y - px.y) <= SNAP_PX) return { ...c, snapped: true };
     }
-    return px;
+    return { ...px, snapped: false };
+  }
+
+  /** Snap the segment prev→p to the nearest 45° multiple. The reference axis
+   *  is the previous draft edge when one exists, else the screen axes — so
+   *  rectangles stay square even on rotated buildings. */
+  function snapSegmentAngle(p: SketchPoint, prev: SketchPoint, prevPrev: SketchPoint | null): SketchPoint {
+    const dx = p.x - prev.x;
+    const dy = p.y - prev.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.5) return p;
+    const ref = prevPrev ? Math.atan2(prev.y - prevPrev.y, prev.x - prevPrev.x) : 0;
+    const rel = Math.atan2(dy, dx) - ref;
+    const step = Math.PI / 4;
+    const snappedRel = Math.round(rel / step) * step;
+    let diff = rel - snappedRel;
+    if (diff > Math.PI) diff -= 2 * Math.PI;
+    if (diff < -Math.PI) diff += 2 * Math.PI;
+    if (Math.abs(diff) > ANGLE_SNAP_TOLERANCE_RAD) return p;
+    const ang = ref + snappedRel;
+    return { x: prev.x + len * Math.cos(ang), y: prev.y + len * Math.sin(ang) };
+  }
+
+  /** Raw pointer px → drawing point in feet (vertex snap, then angle snap). */
+  function drawPoint(raw: { x: number; y: number }, bypassAngle: boolean): SketchPoint {
+    const vs = vertexSnap(raw);
+    const ftp = toFt(vs.x, vs.y);
+    if (vs.snapped || !angleSnap || bypassAngle || draft.length === 0) return ftp;
+    const prev = draft[draft.length - 1]!;
+    const prevPrev = draft.length >= 2 ? draft[draft.length - 2]! : null;
+    return snapSegmentAngle(ftp, prev, prevPrev);
   }
 
   function closeDraft() {
@@ -198,8 +255,54 @@ export function SketchEditor({
     setHover(null);
   }
 
+  /** Multiply every stored foot value by f so geometry stays glued to the same
+   *  image pixels when the scale factor changes. */
+  function rescaleAll(f: number) {
+    setFacets((prev) =>
+      prev.map((fa) => ({ ...fa, points: fa.points.map((p) => ({ x: p.x * f, y: p.y * f })) })),
+    );
+    setDraft((d) => d.map((p) => ({ x: p.x * f, y: p.y * f })));
+    setView((v) => ({ x: v.x * f, y: v.y * f }));
+    // Old history entries are in pre-calibration feet — drop them to avoid desync.
+    setHistory([]);
+    setFuture([]);
+  }
+
+  function applyCalibration() {
+    const trueFt = parseFloat(calInput);
+    if (!Number.isFinite(trueFt) || trueFt <= 0 || calPoints.length !== 2) return;
+    const measured = edgeLengthFt(calPoints[0]!, calPoints[1]!);
+    if (measured <= 0) return;
+    const f = trueFt / measured;
+    setCalibration((c) => c * f);
+    rescaleAll(f);
+    setCalPoints([]);
+    setCalInput("");
+    setMode("draw");
+  }
+
+  function resetCalibration() {
+    if (calibration === 1) return;
+    rescaleAll(1 / calibration);
+    setCalibration(1);
+    setCalPoints([]);
+    setCalInput("");
+  }
+
   function handlePointerDown(e: React.PointerEvent) {
     const raw = svgPoint(e);
+
+    if (mode === "pan") {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      setPanDrag({ startX: raw.x, startY: raw.y, origin: view });
+      return;
+    }
+
+    if (mode === "calibrate") {
+      if (calPoints.length >= 2) return;
+      setCalPoints((pts) => [...pts, toFt(raw.x, raw.y)]);
+      return;
+    }
 
     if (mode === "draw") {
       // Close when clicking the first draft vertex.
@@ -210,8 +313,7 @@ export function SketchEditor({
           return;
         }
       }
-      const snapped = snap(raw);
-      setDraft((d) => [...d, toFt(snapped.x, snapped.y)]);
+      setDraft((d) => [...d, drawPoint(raw, e.altKey)]);
       return;
     }
 
@@ -262,14 +364,20 @@ export function SketchEditor({
 
   function handlePointerMove(e: React.PointerEvent) {
     const raw = svgPoint(e);
+    if (panDrag) {
+      setPanPx({ dx: raw.x - panDrag.startX, dy: raw.y - panDrag.startY });
+      return;
+    }
     if (mode === "draw" && draft.length > 0) {
-      const snapped = snap(raw);
-      setHover(toFt(snapped.x, snapped.y));
+      setHover(drawPoint(raw, e.altKey));
+    }
+    if (mode === "calibrate" && calPoints.length === 1) {
+      setHover(toFt(raw.x, raw.y));
     }
     if (drag) {
       const d = drag;
-      const snapped = snap(raw);
-      const ftp = toFt(snapped.x, snapped.y);
+      const vs = vertexSnap(raw);
+      const ftp = toFt(vs.x, vs.y);
       setFacets((prev) =>
         prev.map((f) =>
           f.id === d.facetId
@@ -281,6 +389,14 @@ export function SketchEditor({
   }
 
   function handlePointerUp() {
+    if (panDrag) {
+      setView({
+        x: panDrag.origin.x - panPx.dx * ftPerPx,
+        y: panDrag.origin.y - panPx.dy * ftPerPx,
+      });
+      setPanDrag(null);
+      setPanPx({ dx: 0, dy: 0 });
+    }
     setDrag(null);
   }
 
@@ -289,6 +405,8 @@ export function SketchEditor({
       setDraft([]);
       setHover(null);
       setSelectedFacetId(null);
+      setCalPoints([]);
+      setCalInput("");
     }
     if (e.key === "Enter" && mode === "draw") closeDraft();
     if ((e.key === "Backspace" || e.key === "Delete") && selectedFacetId && mode === "select") {
@@ -335,21 +453,40 @@ export function SketchEditor({
     });
   }
 
+  function switchMode(m: Mode) {
+    setMode(m);
+    setDraft([]);
+    setHover(null);
+    setPanDrag(null);
+    setPanPx({ dx: 0, dy: 0 });
+    if (m !== "calibrate") {
+      setCalPoints([]);
+      setCalInput("");
+    }
+  }
+
   const modeBtn = (m: Mode, label: string) => (
     <Button
       key={m}
       size="sm"
       variant={mode === m ? "default" : "outline"}
-      onClick={() => {
-        setMode(m);
-        setDraft([]);
-        setHover(null);
-      }}
+      onClick={() => switchMode(m)}
       data-testid={`sketch-mode-${m}`}
     >
       {label}
     </Button>
   );
+
+  const cursor =
+    mode === "pan"
+      ? panDrag
+        ? "grabbing"
+        : "grab"
+      : mode === "draw" || mode === "calibrate"
+        ? "crosshair"
+        : "default";
+
+  const measuredCal = calPoints.length === 2 ? edgeLengthFt(calPoints[0]!, calPoints[1]!) : null;
 
   return (
     <div className="space-y-4 p-6" data-testid="sketch-editor">
@@ -402,6 +539,8 @@ export function SketchEditor({
             {modeBtn("draw", "✏️ Draw")}
             {modeBtn("select", "☝︎ Select")}
             {modeBtn("edges", "▬ Edges")}
+            {modeBtn("pan", "✋ Pan")}
+            {modeBtn("calibrate", "📏 Calibrate")}
             <span className="mx-1 h-5 w-px bg-border" />
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               Zoom
@@ -417,13 +556,39 @@ export function SketchEditor({
                 ))}
               </select>
             </label>
-            {mode === "draw" && (
-              <span className="text-xs text-muted-foreground">
-                Click to place corners · click the first corner or press Enter to close · Esc to cancel
-              </span>
+            {(view.x !== 0 || view.y !== 0) && (
+              <Button size="sm" variant="outline" onClick={() => setView({ x: 0, y: 0 })}>
+                Re-center
+              </Button>
             )}
-            {mode === "edges" && (
-              <span className="text-xs text-muted-foreground">Pick a type, then click edges</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            {mode === "draw" && (
+              <>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={angleSnap}
+                    onChange={(e) => setAngleSnap(e.target.checked)}
+                    data-testid="angle-snap-toggle"
+                  />
+                  Snap to 90°/45° (hold ⌥ to bypass)
+                </label>
+                <span>Click corners · click the first corner or press Enter to close · Esc cancels</span>
+              </>
+            )}
+            {mode === "edges" && <span>Pick a type on the right, then click edges</span>}
+            {mode === "pan" && <span>Drag the map to move around · Re-center returns to the property</span>}
+            {mode === "calibrate" && (
+              <span>Click both ends of something with a known length (driveway, fence line…)</span>
+            )}
+            {calibration !== 1 && (
+              <span>
+                Scale ×{calibration.toFixed(3)}{" "}
+                <button type="button" className="underline underline-offset-2" onClick={resetCalibration}>
+                  reset
+                </button>
+              </span>
             )}
           </div>
 
@@ -439,6 +604,7 @@ export function SketchEditor({
                 width={CANVAS}
                 height={CANVAS}
                 className="absolute inset-0 select-none"
+                style={{ transform: `translate(${panPx.dx}px, ${panPx.dy}px)` }}
                 draggable={false}
               />
             ) : (
@@ -452,7 +618,7 @@ export function SketchEditor({
               width={CANVAS}
               height={CANVAS}
               className="absolute inset-0 touch-none outline-none"
-              style={{ cursor: mode === "draw" ? "crosshair" : "default" }}
+              style={{ cursor }}
               tabIndex={0}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -460,145 +626,245 @@ export function SketchEditor({
               onKeyDown={handleKeyDown}
               data-testid="sketch-canvas"
             >
-              {/* Facets */}
-              {facets.map((f) => {
-                const pts = f.points.map(toPx);
-                const selected = f.id === selectedFacetId;
-                const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-                const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-                const surface = planAreaSqFt(f.points) * pitchFactor(f.pitch);
-                return (
-                  <g key={f.id}>
-                    <polygon
-                      points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
-                      fill={selected ? "rgba(216,168,95,0.25)" : "rgba(255,255,255,0.12)"}
-                      stroke="none"
-                    />
-                    {pts.map((a, i) => {
-                      const b = pts[(i + 1) % pts.length]!;
-                      const type = f.edges[i] ?? "unspecified";
-                      const lenFt = edgeLengthFt(f.points[i]!, f.points[(i + 1) % f.points.length]!);
-                      const mx = (a.x + b.x) / 2;
-                      const my = (a.y + b.y) / 2;
-                      return (
-                        <g key={i}>
-                          <line
-                            x1={a.x}
-                            y1={a.y}
-                            x2={b.x}
-                            y2={b.y}
-                            stroke={SKETCH_EDGE_COLORS[type]}
-                            strokeWidth={3}
-                            strokeDasharray={
-                              type === "wall_flashing" || type === "step_flashing" ? "6 4" : undefined
-                            }
+              <g transform={`translate(${panPx.dx},${panPx.dy})`}>
+                {/* Facets */}
+                {facets.map((f) => {
+                  const pts = f.points.map(toPx);
+                  const selected = f.id === selectedFacetId;
+                  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+                  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+                  const surface = planAreaSqFt(f.points) * pitchFactor(f.pitch);
+                  return (
+                    <g key={f.id}>
+                      <polygon
+                        points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
+                        fill={selected ? "rgba(216,168,95,0.25)" : "rgba(255,255,255,0.12)"}
+                        stroke="none"
+                      />
+                      {pts.map((a, i) => {
+                        const b = pts[(i + 1) % pts.length]!;
+                        const type = f.edges[i] ?? "unspecified";
+                        const lenFt = edgeLengthFt(f.points[i]!, f.points[(i + 1) % f.points.length]!);
+                        const mx = (a.x + b.x) / 2;
+                        const my = (a.y + b.y) / 2;
+                        return (
+                          <g key={i}>
+                            <line
+                              x1={a.x}
+                              y1={a.y}
+                              x2={b.x}
+                              y2={b.y}
+                              stroke={SKETCH_EDGE_COLORS[type]}
+                              strokeWidth={3}
+                              strokeDasharray={
+                                type === "wall_flashing" || type === "step_flashing" ? "6 4" : undefined
+                              }
+                            />
+                            {lenFt >= 4 && (
+                              <text
+                                x={mx}
+                                y={my - 4}
+                                fontSize={10}
+                                fill="#fff"
+                                stroke="rgba(0,0,0,0.7)"
+                                strokeWidth={2.5}
+                                paintOrder="stroke"
+                                textAnchor="middle"
+                              >
+                                {fmtFt(lenFt)}
+                              </text>
+                            )}
+                          </g>
+                        );
+                      })}
+                      {mode === "select" &&
+                        pts.map((p, i) => (
+                          <circle
+                            key={i}
+                            cx={p.x}
+                            cy={p.y}
+                            r={4.5}
+                            fill="#fff"
+                            stroke="#333"
+                            strokeWidth={1.5}
                           />
-                          {lenFt >= 4 && (
-                            <text
-                              x={mx}
-                              y={my - 4}
-                              fontSize={10}
-                              fill="#fff"
-                              stroke="rgba(0,0,0,0.7)"
-                              strokeWidth={2.5}
-                              paintOrder="stroke"
-                              textAnchor="middle"
-                            >
-                              {fmtFt(lenFt)}
-                            </text>
-                          )}
-                        </g>
-                      );
-                    })}
-                    {mode === "select" &&
-                      pts.map((p, i) => (
+                        ))}
+                      <text
+                        x={cx}
+                        y={cy}
+                        fontSize={12}
+                        fontWeight={600}
+                        fill="#fff"
+                        stroke="rgba(0,0,0,0.75)"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        textAnchor="middle"
+                      >
+                        {f.pitch === "0/12" ? "Flat" : f.pitch}
+                      </text>
+                      <text
+                        x={cx}
+                        y={cy + 14}
+                        fontSize={11}
+                        fill="#fff"
+                        stroke="rgba(0,0,0,0.75)"
+                        strokeWidth={2.5}
+                        paintOrder="stroke"
+                        textAnchor="middle"
+                      >
+                        {Math.round(surface)} sqft
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Draft polygon */}
+                {draft.length > 0 && (
+                  <g>
+                    <polyline
+                      points={[...draft.map(toPx), ...(hover && mode === "draw" ? [toPx(hover)] : [])]
+                        .map((p) => `${p.x},${p.y}`)
+                        .join(" ")}
+                      fill="none"
+                      stroke="#4fc3f7"
+                      strokeWidth={2}
+                      strokeDasharray="5 4"
+                    />
+                    {draft.map((p, i) => {
+                      const px = toPx(p);
+                      return (
                         <circle
                           key={i}
-                          cx={p.x}
-                          cy={p.y}
-                          r={4.5}
-                          fill="#fff"
-                          stroke="#333"
+                          cx={px.x}
+                          cy={px.y}
+                          r={i === 0 ? 6 : 4}
+                          fill={i === 0 ? "#4fc3f7" : "#fff"}
+                          stroke="#0369a1"
                           strokeWidth={1.5}
                         />
-                      ))}
-                    <text
-                      x={cx}
-                      y={cy}
-                      fontSize={12}
-                      fontWeight={600}
-                      fill="#fff"
-                      stroke="rgba(0,0,0,0.75)"
-                      strokeWidth={3}
-                      paintOrder="stroke"
-                      textAnchor="middle"
-                    >
-                      {f.pitch === "0/12" ? "Flat" : f.pitch}
-                    </text>
-                    <text
-                      x={cx}
-                      y={cy + 14}
-                      fontSize={11}
-                      fill="#fff"
-                      stroke="rgba(0,0,0,0.75)"
-                      strokeWidth={2.5}
-                      paintOrder="stroke"
-                      textAnchor="middle"
-                    >
-                      {Math.round(surface)} sqft
-                    </text>
+                      );
+                    })}
+                    {hover && mode === "draw" && draft.length > 0 && (
+                      <text
+                        x={(toPx(draft[draft.length - 1]!).x + toPx(hover).x) / 2}
+                        y={(toPx(draft[draft.length - 1]!).y + toPx(hover).y) / 2 - 6}
+                        fontSize={11}
+                        fill="#fff"
+                        stroke="rgba(0,0,0,0.75)"
+                        strokeWidth={2.5}
+                        paintOrder="stroke"
+                        textAnchor="middle"
+                      >
+                        {fmtFt(edgeLengthFt(draft[draft.length - 1]!, hover))}
+                      </text>
+                    )}
                   </g>
-                );
-              })}
+                )}
 
-              {/* Draft polygon */}
-              {draft.length > 0 && (
-                <g>
-                  <polyline
-                    points={[...draft.map(toPx), ...(hover ? [toPx(hover)] : [])]
-                      .map((p) => `${p.x},${p.y}`)
-                      .join(" ")}
-                    fill="none"
-                    stroke="#4fc3f7"
-                    strokeWidth={2}
-                    strokeDasharray="5 4"
-                  />
-                  {draft.map((p, i) => {
-                    const px = toPx(p);
-                    return (
-                      <circle
-                        key={i}
-                        cx={px.x}
-                        cy={px.y}
-                        r={i === 0 ? 6 : 4}
-                        fill={i === 0 ? "#4fc3f7" : "#fff"}
-                        stroke="#0369a1"
-                        strokeWidth={1.5}
-                      />
-                    );
-                  })}
-                  {hover && draft.length > 0 && (
-                    <text
-                      x={(toPx(draft[draft.length - 1]!).x + toPx(hover).x) / 2}
-                      y={(toPx(draft[draft.length - 1]!).y + toPx(hover).y) / 2 - 6}
-                      fontSize={11}
-                      fill="#fff"
-                      stroke="rgba(0,0,0,0.75)"
-                      strokeWidth={2.5}
-                      paintOrder="stroke"
-                      textAnchor="middle"
-                    >
-                      {fmtFt(edgeLengthFt(draft[draft.length - 1]!, hover))}
-                    </text>
-                  )}
-                </g>
-              )}
+                {/* Calibration line */}
+                {mode === "calibrate" && calPoints.length > 0 && (
+                  <g>
+                    {(() => {
+                      const a = toPx(calPoints[0]!);
+                      const b =
+                        calPoints.length === 2
+                          ? toPx(calPoints[1]!)
+                          : hover
+                            ? toPx(hover)
+                            : null;
+                      return (
+                        <>
+                          <circle cx={a.x} cy={a.y} r={5} fill="#fff" stroke="#e11d48" strokeWidth={2} />
+                          {b && (
+                            <>
+                              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#e11d48" strokeWidth={2.5} strokeDasharray="7 4" />
+                              <circle cx={b.x} cy={b.y} r={5} fill="#fff" stroke="#e11d48" strokeWidth={2} />
+                              <text
+                                x={(a.x + b.x) / 2}
+                                y={(a.y + b.y) / 2 - 8}
+                                fontSize={12}
+                                fontWeight={600}
+                                fill="#fff"
+                                stroke="rgba(0,0,0,0.75)"
+                                strokeWidth={3}
+                                paintOrder="stroke"
+                                textAnchor="middle"
+                              >
+                                {fmtFt(
+                                  edgeLengthFt(
+                                    calPoints[0]!,
+                                    calPoints.length === 2 ? calPoints[1]! : hover!,
+                                  ),
+                                )}
+                              </text>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </g>
+                )}
+              </g>
             </svg>
           </div>
         </div>
 
         {/* Right rail */}
         <div className="w-72 space-y-4">
+          {mode === "calibrate" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Scale calibration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {calPoints.length < 2 ? (
+                  <p className="text-muted-foreground">
+                    Click both ends of a feature whose real length you know — a driveway width, fence
+                    run, or an eave you&apos;ve tape-measured. ({calPoints.length}/2 points)
+                  </p>
+                ) : (
+                  <>
+                    <div className="text-muted-foreground">
+                      Drawn length: <span className="font-medium text-foreground">{fmtFt(measuredCal!)}</span>
+                    </div>
+                    <label className="block">
+                      <span className="text-muted-foreground">True length (ft)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step="0.1"
+                        value={calInput}
+                        onChange={(e) => setCalInput(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-border bg-transparent px-2 py-1.5 text-sm"
+                        placeholder={measuredCal!.toFixed(1)}
+                        data-testid="calibration-input"
+                      />
+                    </label>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={applyCalibration} disabled={!parseFloat(calInput)} data-testid="calibration-apply">
+                        Apply
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setCalPoints([]); setCalInput(""); }}>
+                        Redo line
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      All drawn geometry is rescaled to match. Undo history clears on apply.
+                    </p>
+                  </>
+                )}
+                {calibration !== 1 && (
+                  <div className="border-t border-border pt-2 text-xs text-muted-foreground">
+                    Current correction: ×{calibration.toFixed(4)}{" "}
+                    <button type="button" className="underline underline-offset-2" onClick={resetCalibration}>
+                      Reset to imagery scale
+                    </button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {mode === "edges" && (
             <Card>
               <CardHeader>

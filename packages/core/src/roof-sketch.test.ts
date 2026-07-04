@@ -93,6 +93,20 @@ describe("wasteTable", () => {
   });
 });
 
+describe("roofSketchSchema calibration", () => {
+  it("defaults calibration to 1 for legacy sketches", () => {
+    const s = roofSketchSchema.parse({ version: 1, centerLat: 0, centerLng: 0, zoom: 20, facets: [] });
+    expect(s.calibration).toBe(1);
+  });
+
+  it("accepts a manual calibration factor", () => {
+    const s = roofSketchSchema.parse({
+      version: 1, centerLat: 0, centerLng: 0, zoom: 20, calibration: 1.05, facets: [],
+    });
+    expect(s.calibration).toBeCloseTo(1.05, 10);
+  });
+});
+
 describe("feetPerMapPixel", () => {
   it("matches web-mercator ground resolution at the equator", () => {
     // zoom 0: 156543.03392 m/px * 3.28084 ft/m
