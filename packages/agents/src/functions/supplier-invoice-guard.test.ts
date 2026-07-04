@@ -48,9 +48,11 @@ describe("priceGuardHandler", () => {
   it("drafts (no email) when the automation gate is closed", async () => {
     const deps = baseDeps();
     deps.gate = vi.fn().mockResolvedValue({ proceed: false, level: "review" });
-    await priceGuardHandler(input, deps);
+    const res = await priceGuardHandler(input, deps);
+    expect(res.status).toBe("guarded");
     expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "drafted" }));
     expect(deps.sendEmail).not.toHaveBeenCalled();
+    expect(deps.raiseDraftCard).toHaveBeenCalled();
   });
 
   it("guards with no credit request when there is no qualifying overage", async () => {

@@ -120,24 +120,8 @@ export async function priceGuardHandler(
     const snapshot = inv.jobId ? await deps.loadSnapshot(tenantId, inv.jobId) : [];
     const matches = matchInvoiceLines(inv.lines, snapshot);
 
-    // Annotate each line with guard verdict fields.
-    const guardedLines: SupplierInvoiceLine[] = inv.lines.map((line, i) => {
-      const m = matches[i]!;
-      const { overageCents } = computeLineOverage(
-        { unitBilledCents: line.unitBilledCents, quantity: line.quantity, expectedUnitCostCents: m.expectedUnitCostCents },
-        cfg,
-      );
-      return {
-        ...line,
-        matchedItemKey: m.matchedItemKey,
-        expectedUnitCostCents: m.expectedUnitCostCents,
-        matchConfidence: m.matchConfidence,
-        overageCents,
-      };
-    });
-    await deps.saveGuarded(tenantId, supplierInvoiceId, guardedLines);
-
-    // Sum qualifying overages and build evidence array.
+    // Single pass: annotate each line with guard verdict fields AND accumulate claim totals.
+    const guardedLines: SupplierInvoiceLine[] = [];
     let claimedCents = 0;
     let allOverageLinesMatched = true;
     const evidence: EvidenceLine[] = [];
@@ -149,6 +133,13 @@ export async function priceGuardHandler(
         { unitBilledCents: line.unitBilledCents, quantity: line.quantity, expectedUnitCostCents: m.expectedUnitCostCents },
         cfg,
       );
+      guardedLines.push({
+        ...line,
+        matchedItemKey: m.matchedItemKey,
+        expectedUnitCostCents: m.expectedUnitCostCents,
+        matchConfidence: m.matchConfidence,
+        overageCents,
+      });
       if (qualifies) {
         claimedCents += overageCents;
         if (m.matchedItemKey == null) allOverageLinesMatched = false;
@@ -161,6 +152,7 @@ export async function priceGuardHandler(
         });
       }
     }
+    await deps.saveGuarded(tenantId, supplierInvoiceId, guardedLines);
 
     // No qualifying overages — guarded but nothing to claim.
     if (claimedCents <= 0) return { status: "guarded", creditRequestId: null, claimedCents: 0 };
@@ -210,9 +202,9 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
   { id: "price-guard-supplier-invoice", concurrency: { limit: 5, key: "event.data.tenantId" }, retries: 2 },
   { event: "supplier-invoice/parsed" },
   async ({ event, step }) => {
-    const { tenantId, supplierInvoiceId } = event.data as { tenantId: string; supplierInvoiceId: string };
-    return step.run("guard", () =>
-      priceGuardHandler({ tenantId, supplierInvoiceId }, {
+    return step.run("guard", () => {
+      const { tenantId, supplierInvoiceId } = event.data as { tenantId: string; supplierInvoiceId: string };
+      return priceGuardHandler({ tenantId, supplierInvoiceId }, {
         loadInvoice: (t, id) =>
           withTenant(t, async (tx) => {
             const [r] = await tx
@@ -269,7 +261,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         // Feed A (Today) is query-driven: Task 8 selects drafted credit_requests and
         // unmatched supplier invoices. No imperative insert is needed here.
         raiseDraftCard: async () => {},
-      }),
-    );
+      });
+    });
   },
 );
