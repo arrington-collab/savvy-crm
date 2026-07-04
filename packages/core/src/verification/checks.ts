@@ -205,6 +205,27 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and amount_cents <> floor(greatest(basis_cents, 0)::numeric * rate / 10000 + 0.5)`,
     { toRef: (r) => ({ type: "commission", ref: String(r.id) }) },
   ),
+
+  // Price-guard coverage: every supplier invoice for a job that has a material
+  // order must be fully guarded (status = 'guarded' AND every line carrying a
+  // matchedItemKey verdict, even if null = "no baseline"). A 5-minute grace
+  // avoids flagging an invoice that is still mid-parse/guard. Zero rows = pass.
+  "finance.price_guard": invariant(
+    "finance.price_guard",
+    `select si.id
+       from supplier_invoice si
+      where si.tenant_id = $1
+        and coalesce(si.total_cents, 0) > 0
+        and si.updated_at < now() - interval '5 minutes'
+        and exists (select 1 from material_order mo where mo.tenant_id = si.tenant_id and mo.job_id = si.job_id)
+        and (
+          si.status <> 'guarded'
+          or exists (
+            select 1 from jsonb_array_elements(si.lines) ln where not (ln ? 'matchedItemKey')
+          )
+        )`,
+    { toRef: (r) => ({ type: "supplier_invoice", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
