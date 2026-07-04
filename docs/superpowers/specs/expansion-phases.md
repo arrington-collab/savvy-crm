@@ -53,16 +53,18 @@ The cash is won after the scope: endorsements, depreciation, deductibles. All th
 
 ## Phase 19 — Production QC & Warranty Loop
 
+**Boundary (owner decision 2026-07-03): the photo software (SiteSnap) does the AI vision analysis — Savvy does NOT run its own photo models.** Savvy ingests QC verdicts/flags from the photo tool and enforces the workflow consequences (punch lists, invoice blocking, scorecards). Checker ≠ doer still holds: Savvy's invariants verify the *workflow* (every job audited, no invoice with open items), the photo tool owns the *judgment*.
+
 | # | Task | Owner | Mode | Evidence binding |
 |---|---|---|---|---|
-| 297 | Photo-audit AI: CompanyCam set per job scored against install spec checklist (drip edge, ice & water, valley treatment, flashing, ventilation); failures → punch-list exceptions | SCOUT | FA | invariant: every production job audited before invoice; sampled human re-audit ≥ 95% agreement |
-| 298 | Punch-list workflow: crew notified with photos, re-photo required, AI verifies closure | MILO | FA | invariant: no invoice sent with open punch items |
+| 297 | Photo-QC ingestion: pull audit verdicts/flags per job from the photo software (SiteSnap) behind a `PhotoQC` seam; failures → punch-list exceptions in Savvy | SCOUT | FA | invariant: every production job has an ingested QC verdict before invoice; ingestion lag < 4h |
+| 298 | Punch-list workflow: crew notified with photos, re-photo required, closure verified via re-ingested verdict | MILO | FA | invariant: no invoice sent with open punch items |
 | 299 | Final walkthrough: digital sign-off + auto-generated COC (feeds #283 depreciation submission) | MILO | FA | invariant: every completed job has signed walkthrough + COC |
 | 300 | Manufacturer warranty registration within 10 days of completion (GAF/OC portals) | VERA | FA | invariant: 100% registration; certificate stored on job |
 | 301 | Certification-tier maintenance (e.g. GAF requirements): install counts, training credits, standing tracked per tenant | SAGE | FA | renewal/requirement clocks; shortfall cards |
 | 302 | Callback tracking: warranty calls tagged root-cause → crew/sub scorecard + spec-checklist updates | SCOUT | FA | invariant: every callback linked to job + cause; scorecards refresh monthly |
 | 303 | Warranty claim flow: intake → triage (ours vs manufacturer) → schedule → cost tracked vs sub backcharge | MILO | FA | invariant: warranty intake acknowledged < 4h, scheduled < 72h |
-| 304 | Safety photo spot-checks: harness/edge-protection visible in sampled in-progress photos; violations → crew card | SCOUT | FA | weekly sample; violation rate tracked |
+| 304 | Safety spot-check ingestion: harness/edge-protection flags from the photo software's sampling; violations → crew card in Savvy | SCOUT | FA | weekly ingestion; violation rate tracked |
 
 ## Phase 20 — Maintenance & Recurring Revenue
 
@@ -99,6 +101,12 @@ Headless like the rest of Money: plans are Library documents, math is invariant-
 | 321 | Monthly rep statements auto-generated + delivered; line-item drill to jobs; disputes → exception cards with evidence attached | VERA | FA | executed monthly; every dispute resolved < 14d |
 | 322 | Payout export to QB/payroll rail; owner approval card above threshold | VERA | AS | reconciled: payouts == approved statements |
 | 323 | Commission forecast for reps ("pipeline pay"): expected commissions from their open jobs — retention tool | VERA | FA | forecast vs actual variance tracked |
+
+### Media policy (owner decision 2026-07-03)
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 341 | Media caps per project: **max 2 videos, ≤ 500MB each**; photos unlimited. Enforced at upload/ingest (reject with clear message), not by memo. No transcoding pipeline — payout-gated out; the cap alone keeps storage boring (~1.4GB/project all-in). Revisit only if R2 bill > $100/mo | MILO | FA | invariant: zero projects with > 2 videos or oversize clips; monthly storage $ in digest |
 
 ## Phase 23 — Supplier Economics
 
