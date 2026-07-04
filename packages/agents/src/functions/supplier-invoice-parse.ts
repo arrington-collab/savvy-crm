@@ -99,7 +99,14 @@ export const parseSupplierInvoice = inngest.createFunction(
   { id: "parse-supplier-invoice", concurrency: { limit: 5, key: "event.data.tenantId" }, retries: 2 },
   { event: "supplier-invoice/received" },
   async ({ event, step }) => {
-    const { tenantId, supplierInvoiceId, documentId } = event.data;
+    const { tenantId, supplierInvoiceId, documentId } = event.data as {
+      tenantId: string; supplierInvoiceId: string; documentId: string; emailBody?: string;
+    };
+    // Optional email body/subject text forwarded by the ingest route. Injected into
+    // the parse prompt ONLY under TEST_MODE so e2e stubs can branch on a sentinel
+    // string — production AI prompt behavior is intentionally left unchanged.
+    const emailBody =
+      process.env.TEST_MODE === "1" ? (event.data as { emailBody?: string }).emailBody : undefined;
 
     // The whole fail-soft parse runs inside one durable step (it never throws, so
     // it settles in a single attempt; retries guard only transient infra errors).
@@ -107,7 +114,16 @@ export const parseSupplierInvoice = inngest.createFunction(
       parseSupplierInvoiceHandler(
         { tenantId, supplierInvoiceId, documentId },
         {
-          ai: { completeObject },
+          ai: {
+            // Append emailBody as extra context only under TEST_MODE (see above); e2e
+            // stubs key on the sentinel embedded here. No-op in production (emailBody undefined).
+            completeObject: (opts) => completeObject({
+              ...opts,
+              prompt: emailBody ? `${opts.prompt}
+
+Email context: ${emailBody}` : opts.prompt,
+            }),
+          },
           loadDocKey: (t, d) => getDocumentR2Key(t, d),
           fetchBytes: async (key) => {
             // R2 is a commodity we don't wire in e2e (the ingest route stubs storage

@@ -82,5 +82,6 @@ export * from "./homeowner";
 export * from "./money-strip";
 export * from "./money-margin";
 export * from "./supplier-invoice";
+export * from "./price-guard";
 export * from "./money-aging";
 export * from "./pipeline-board";

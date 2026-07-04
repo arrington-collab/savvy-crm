@@ -1,15 +1,15 @@
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
-import { selectJobCost, type SupplierInvoiceLine } from "@savvy/core";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { selectJobCost, type SnapshotLine, type SupplierInvoiceLine } from "@savvy/core";
 import { withTenant } from "../tenant";
-import { document, job, materialOrder, supplierInvoice } from "../schema/index";
+import { document, job, materialOrder, supplierInvoice, priceBookItem } from "../schema/index";
 
-/** Recompute job.costCents from parsed supplier-invoice actuals, falling back to the material-order estimate. */
+/** Recompute job.costCents from parsed/guarded supplier-invoice actuals, falling back to the material-order estimate. */
 export async function recomputeJobActualCost(tenantId: string, jobId: string): Promise<void> {
   await withTenant(tenantId, async (tx) => {
     const [actuals] = await tx
       .select({ total: sql<number>`coalesce(sum(${supplierInvoice.totalCents}), 0)::int` })
       .from(supplierInvoice)
-      .where(and(eq(supplierInvoice.jobId, jobId), eq(supplierInvoice.status, "parsed"), gt(supplierInvoice.totalCents, 0)));
+      .where(and(eq(supplierInvoice.jobId, jobId), inArray(supplierInvoice.status, ["parsed", "guarded"]), gt(supplierInvoice.totalCents, 0)));
     const [estimate] = await tx
       .select({ total: sql<number>`coalesce(sum(${materialOrder.costSubtotalCents}), 0)::int` })
       .from(materialOrder)
@@ -65,5 +65,61 @@ export async function saveParsedSupplierInvoice(
       totalCents: parsed.totalCents, lines: parsed.lines, parseConfidence: parsed.confidence,
       jobId: parsed.jobId, status: "parsed", updatedAt: new Date(),
     }).where(eq(supplierInvoice.id, id)),
+  );
+}
+
+/** Build the cost baseline for a job: material-order lines (ordered/delivered), each with
+ *  its supplier unit cost, falling back to the price book by key when the line lacks one. */
+export async function getMaterialOrderSnapshot(tenantId: string, jobId: string): Promise<SnapshotLine[]> {
+  return withTenant(tenantId, async (tx) => {
+    const orders = await tx
+      .select({ lineItems: materialOrder.lineItems })
+      .from(materialOrder)
+      .where(and(eq(materialOrder.jobId, jobId), inArray(materialOrder.status, ["ordered", "delivered"])));
+    const book = await tx.select({ key: priceBookItem.key, unitCostCents: priceBookItem.unitCostCents }).from(priceBookItem);
+    const bookByKey = new Map(book.map((b) => [b.key, b.unitCostCents]));
+    const out: SnapshotLine[] = [];
+    for (const o of orders) {
+      for (const li of o.lineItems ?? []) {
+        const unitCostCents = li.unitCostCents ?? bookByKey.get(li.key) ?? 0;
+        out.push({ key: li.key, name: li.name, unitCostCents });
+      }
+    }
+    return out;
+  });
+}
+
+/** Persist guard-annotated lines + terminal guarded status. */
+export async function saveGuardedSupplierInvoice(tenantId: string, id: string, lines: SupplierInvoiceLine[]): Promise<void> {
+  await withTenant(tenantId, (tx) =>
+    tx.update(supplierInvoice).set({ lines, status: "guarded", updatedAt: new Date() }).where(eq(supplierInvoice.id, id)),
+  );
+}
+
+/** Unmatched (no job) parsed/guarded invoices — Today "unmatched supplier invoice" cards. */
+export async function listUnmatchedSupplierInvoices(tenantId: string): Promise<{ id: string; supplierName: string | null; createdAt: Date }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({ id: supplierInvoice.id, supplierName: supplierInvoice.supplierName, createdAt: supplierInvoice.createdAt })
+      .from(supplierInvoice)
+      .where(and(isNull(supplierInvoice.jobId), inArray(supplierInvoice.status, ["parsed", "guarded"]))),
+  );
+}
+
+/** Parsed/guarded invoices for a job — the Job-detail Supplier-invoices panel. */
+export async function listSupplierInvoicesForJob(
+  tenantId: string,
+  jobId: string,
+): Promise<{ id: string; supplierName: string | null; invoiceNumber: string | null; totalCents: number | null; status: string; lines: SupplierInvoiceLine[] }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({
+      id: supplierInvoice.id,
+      supplierName: supplierInvoice.supplierName,
+      invoiceNumber: supplierInvoice.invoiceNumber,
+      totalCents: supplierInvoice.totalCents,
+      status: supplierInvoice.status,
+      lines: supplierInvoice.lines,
+    })
+      .from(supplierInvoice)
+      .where(eq(supplierInvoice.jobId, jobId)),
   );
 }

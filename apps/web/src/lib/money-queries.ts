@@ -95,6 +95,7 @@ export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
 const CHECK_LABEL: Record<string, string> = {
   "finance.invoice_math": "Invoice totals = line items",
   "finance.commissions": "Commission = plan % × basis",
+  "finance.price_guard": "Supplier invoices 100% price-checked",
   "finance.qb_reconcile": "Savvy AR ↔ QuickBooks",
   "finance.stripe_match": "Stripe payouts ↔ payments",
   "comms.no_double_send": "No duplicate outbound messages",

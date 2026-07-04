@@ -1,9 +1,10 @@
 import { it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
-import { adminDb, tenant, customer, property, job, estimate, materialOrder, document, supplierInvoice, eq } from "../index";
+import { adminDb, tenant, customer, property, job, estimate, materialOrder, document, supplierInvoice, priceBookItem, eq } from "../index";
 import {
   recomputeJobActualCost, saveParsedSupplierInvoice,
   getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed,
+  getMaterialOrderSnapshot,
 } from "./supplier-invoice";
 
 let tenantId: string, jobId: string;
@@ -21,6 +22,7 @@ afterAll(async () => {
   await adminDb.delete(document).where(eq(document.tenantId, tenantId));
   await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
   await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
+  await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tenantId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
@@ -90,4 +92,51 @@ it("matchSupplierInvoiceJob returns the unique open-order job, null when ambiguo
   await adminDb.delete(property).where(eq(property.tenantId, t3));
   await adminDb.delete(customer).where(eq(customer.tenantId, t3));
   await adminDb.delete(tenant).where(eq(tenant.id, t3));
+});
+
+it("getMaterialOrderSnapshot returns lines with unitCostCents (line value + price-book fallback)", async () => {
+  const t4 = randomUUID();
+  await adminDb.insert(tenant).values({ id: t4, name: "Snapshot Co", publicKey: `sc-${t4.slice(0, 8)}` });
+  const [c] = await adminDb.insert(customer).values({ tenantId: t4, name: "SC" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId: t4, customerId: c!.id, address: "5 Snap St" }).returning();
+  const [j] = await adminDb.insert(job).values({ tenantId: t4, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
+  const [e] = await adminDb.insert(estimate).values({ tenantId: t4, jobId: j!.id }).returning();
+  // price book item for fallback (key "ridge-cap", no unitCostCents on the line)
+  await adminDb.insert(priceBookItem).values({ tenantId: t4, key: "ridge-cap", name: "Ridge Cap", category: "material", unit: "lf", unitPriceCents: 500, unitCostCents: 350 });
+  await adminDb.insert(materialOrder).values({
+    tenantId: t4, jobId: j!.id, estimateId: e!.id, status: "ordered",
+    lineItems: [
+      // line with explicit unitCostCents
+      { key: "shingle-30yr", name: "30yr Shingle", quantity: 20, unit: "square", unitPriceCents: 10000, amountCents: 200000, unitCostCents: 7500 },
+      // line WITHOUT unitCostCents — should fall back to price book
+      { key: "ridge-cap", name: "Ridge Cap", quantity: 10, unit: "lf", unitPriceCents: 500, amountCents: 5000 },
+    ],
+    subtotalCents: 205000, costSubtotalCents: 150000,
+  });
+
+  const snap = await getMaterialOrderSnapshot(t4, j!.id);
+  expect(snap).toHaveLength(2);
+  const shingle = snap.find((s) => s.key === "shingle-30yr");
+  expect(shingle?.unitCostCents).toBe(7500);
+  const ridge = snap.find((s) => s.key === "ridge-cap");
+  expect(ridge?.unitCostCents).toBe(350); // from price book fallback
+
+  // cleanup
+  await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, t4));
+  await adminDb.delete(estimate).where(eq(estimate.tenantId, t4));
+  await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, t4));
+  await adminDb.delete(job).where(eq(job.tenantId, t4));
+  await adminDb.delete(property).where(eq(property.tenantId, t4));
+  await adminDb.delete(customer).where(eq(customer.tenantId, t4));
+  await adminDb.delete(tenant).where(eq(tenant.id, t4));
+});
+
+it("recomputeJobActualCost counts guarded invoices as actuals", async () => {
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "CG" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "9 Guard St" }).returning();
+  const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
+  await adminDb.insert(supplierInvoice).values({ tenantId, jobId: j!.id, status: "guarded", totalCents: 444000, externalMessageId: `gd-${randomUUID()}` });
+  await recomputeJobActualCost(tenantId, j!.id);
+  const [row] = await adminDb.select({ costCents: job.costCents }).from(job).where(eq(job.id, j!.id));
+  expect(row!.costCents).toBe(444000);
 });
