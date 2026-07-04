@@ -48,7 +48,7 @@ test("the nav collapses to 5 sections, each reachable", async ({ page }) => {
 
   await sidebar.getByTestId("nav-money").click();
   await expect(page).toHaveURL(/\/money$/);
-  await expect(page.getByTestId("section-stub")).toBeVisible();
+  await expect(page.getByTestId("money-page")).toBeVisible(); // real money screen (slice 3)
 
   await sidebar.getByTestId("nav-agents").click();
   await expect(page).toHaveURL(/\/agents$/);
