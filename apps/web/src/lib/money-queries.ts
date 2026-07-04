@@ -1,6 +1,6 @@
 import "server-only";
 import { withTenant, invoice, payment, job, commission, inArray, gte, and, eq, sql } from "@savvy/db";
-import { bucketArAging, type ArAging } from "@savvy/core";
+import { bucketArAging, computeMtdGrossMargin, type ArAging } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 const WEEK_MS = 7 * 86_400_000;
@@ -11,7 +11,7 @@ export type MoneyKpis = {
   cashWkCents: number;
   wipCents: number;
   wipJobs: number;
-  gmMtdPct: number | null; // null → "estimated —" until cell 14 lands actuals
+  gmMtdPct: number | null; // real MTD gross margin from job cost actuals; null → "—" when no costed job invoiced this month
   aging: ArAging;
   commissions: { pendingCents: number; approvedCents: number; paidCents: number };
 };
@@ -19,8 +19,9 @@ export type MoneyKpis = {
 export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
   const tenantId = await getTenantId();
   const weekAgo = new Date(now.getTime() - WEEK_MS);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [invoices, cashRows, wipRows, commRows] = await Promise.all([
+  const [invoices, cashRows, wipRows, commRows, gmRows] = await Promise.all([
     withTenant(tenantId, (tx) =>
       tx
         .select({ amountDue: invoice.amountDue, amountPaid: invoice.amountPaid, dueAt: invoice.dueAt })
@@ -46,6 +47,20 @@ export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
         .where(eq(commission.tenantId, tenantId))
         .groupBy(commission.status),
     ),
+    // Jobs invoiced (non-draft invoice) this month → real MTD gross margin from
+    // job.costCents actuals. selectDistinct dedupes jobs with multiple invoices
+    // (the value/cost columns are per-job, so distinct yields one row per job).
+    withTenant(tenantId, (tx) =>
+      tx
+        .selectDistinct({ jobId: job.id, valueFinal: job.valueFinal, valueEstimate: job.valueEstimate, costCents: job.costCents })
+        .from(job)
+        .innerJoin(invoice, eq(invoice.jobId, job.id))
+        .where(and(
+          eq(job.tenantId, tenantId),
+          inArray(invoice.status, ["sent", "paid", "overdue"]),
+          gte(invoice.createdAt, monthStart),
+        )),
+    ),
   ]);
 
   const byStatus = new Map<string, number>(commRows.map((r) => [r.status, Number(r.total)]));
@@ -55,11 +70,15 @@ export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
     paidCents: byStatus.get("paid") ?? 0,
   };
 
+  const gmMtdPct = computeMtdGrossMargin(
+    gmRows.map((r) => ({ revenueCents: r.valueFinal ?? r.valueEstimate ?? 0, costCents: r.costCents ?? null })),
+  );
+
   return {
     cashWkCents: Number(cashRows[0]?.total ?? 0),
     wipCents: Number(wipRows[0]?.total ?? 0),
     wipJobs: Number(wipRows[0]?.n ?? 0),
-    gmMtdPct: null,
+    gmMtdPct,
     aging: bucketArAging({
       openInvoices: invoices.map((i) => ({
         amountDueCents: i.amountDue ?? 0,

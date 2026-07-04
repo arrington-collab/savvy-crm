@@ -23,6 +23,21 @@ test("Money screen renders the KPI grid, AR ladder, commissions, and proof panel
   await expect(page.getByTestId("money-kpis")).toContainText("est —");
 });
 
+test("GM · MTD shows a real % once a costed job is invoiced this month", async ({ page }) => {
+  const stamp = randomUUID().slice(0, 8);
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: `GM ${stamp}`, email: `gm-${stamp}@e2e.test` }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Margin Rd` }).returning();
+  // Revenue $10,000 (valueFinal) − cost $6,000 (costCents from supplier actuals) → 40% GM.
+  const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "billing", valueFinal: 1_000_000, costCents: 600_000 }).returning();
+  // A non-draft invoice created this month makes the job count toward GM·MTD.
+  await adminDb.insert(invoice).values({ tenantId, jobId: j!.id, customerId: c!.id, status: "sent", amountDue: 1_000_000 });
+
+  await page.goto("/money");
+  const gm = page.getByTestId("kpi-gm-mtd");
+  await expect(gm).toBeVisible();
+  await expect(gm).toHaveText(/^\d+%$/); // a real percentage, not "est —"
+});
+
 test("a 61+ day overdue invoice ages into the AR ladder's oldest bucket", async ({ page }) => {
   const stamp = randomUUID().slice(0, 8);
   const [c] = await adminDb.insert(customer).values({ tenantId, name: `MInv ${stamp}`, email: `minv-${stamp}@e2e.test` }).returning();
