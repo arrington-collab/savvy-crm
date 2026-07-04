@@ -45,6 +45,15 @@ export async function markCreditRequestCredited(tenantId: string, id: string, re
   );
 }
 
+/** Drafted (not yet sent) credit requests — Today "review & send" cards. */
+export async function listDraftedCreditRequests(tenantId: string): Promise<{ id: string; jobId: string | null; supplierName: string | null; claimedCents: number; createdAt: Date }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({ id: creditRequest.id, jobId: creditRequest.jobId, supplierName: creditRequest.supplierName, claimedCents: creditRequest.claimedCents, createdAt: creditRequest.createdAt })
+      .from(creditRequest)
+      .where(eq(creditRequest.status, "drafted")),
+  );
+}
+
 /** Digest buckets: recovered $ (credited, resolved in window) + pending recovery ($ sent, awaiting). */
 export async function getCreditRecoverySummary(tenantId: string, window: { start: Date; end: Date }): Promise<{ recoveredCents: number; pendingCents: number }> {
   return withTenant(tenantId, async (tx) => {

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { selectJobCost, type SnapshotLine, type SupplierInvoiceLine } from "@savvy/core";
 import { withTenant } from "../tenant";
 import { document, job, materialOrder, supplierInvoice, priceBookItem } from "../schema/index";
@@ -93,5 +93,33 @@ export async function getMaterialOrderSnapshot(tenantId: string, jobId: string):
 export async function saveGuardedSupplierInvoice(tenantId: string, id: string, lines: SupplierInvoiceLine[]): Promise<void> {
   await withTenant(tenantId, (tx) =>
     tx.update(supplierInvoice).set({ lines, status: "guarded", updatedAt: new Date() }).where(eq(supplierInvoice.id, id)),
+  );
+}
+
+/** Unmatched (no job) parsed/guarded invoices — Today "unmatched supplier invoice" cards. */
+export async function listUnmatchedSupplierInvoices(tenantId: string): Promise<{ id: string; supplierName: string | null; createdAt: Date }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({ id: supplierInvoice.id, supplierName: supplierInvoice.supplierName, createdAt: supplierInvoice.createdAt })
+      .from(supplierInvoice)
+      .where(and(isNull(supplierInvoice.jobId), inArray(supplierInvoice.status, ["parsed", "guarded"]))),
+  );
+}
+
+/** Parsed/guarded invoices for a job — the Job-detail Supplier-invoices panel. */
+export async function listSupplierInvoicesForJob(
+  tenantId: string,
+  jobId: string,
+): Promise<{ id: string; supplierName: string | null; invoiceNumber: string | null; totalCents: number | null; status: string; lines: SupplierInvoiceLine[] }[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({
+      id: supplierInvoice.id,
+      supplierName: supplierInvoice.supplierName,
+      invoiceNumber: supplierInvoice.invoiceNumber,
+      totalCents: supplierInvoice.totalCents,
+      status: supplierInvoice.status,
+      lines: supplierInvoice.lines,
+    })
+      .from(supplierInvoice)
+      .where(eq(supplierInvoice.jobId, jobId)),
   );
 }
