@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { adminDb, withTenant, tenant, document, supplierInvoice, eq, sql } from "@savvy/db";
 import type { StorageGateway } from "@savvy/integrations";
 import { parseInboxToken } from "@savvy/core";
@@ -20,6 +20,14 @@ type Deps = {
 const isPdf = (a: InboundBody["attachments"][number]) =>
   a.contentType === "application/pdf" || a.filename.toLowerCase().endsWith(".pdf");
 
+// Constant-time secret check that also rejects empty/mismatched-length inputs,
+// so an empty incoming secret never authenticates.
+function secretOk(provided: string, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided), b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /**
  * Inbound supplier-invoice email handler (provider-agnostic). Verifies the
  * shared secret, resolves the tenant from the inbox token, stores each PDF in
@@ -28,7 +36,7 @@ const isPdf = (a: InboundBody["attachments"][number]) =>
  * HTTP-shaped result so the route stays a thin wrapper (sitesnap pattern).
  */
 export async function ingestSupplierInvoice(body: InboundBody, secret: string, deps: Deps): Promise<{ status: number; body: unknown }> {
-  if (secret !== deps.expectedSecret) return { status: 401, body: { error: "unauthorized" } };
+  if (!secretOk(secret, deps.expectedSecret)) return { status: 401, body: { error: "unauthorized" } };
   if (!body?.messageId || !body?.to || !Array.isArray(body.attachments)) return { status: 400, body: { error: "bad_payload" } };
 
   const token = parseInboxToken(body.to);

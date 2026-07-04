@@ -47,6 +47,15 @@ test("the webhook rejects a bad secret", async ({ baseURL }) => {
   expect(res.status()).toBe(401);
 });
 
+test("the webhook rejects an empty secret (no fail-open)", async ({ baseURL }) => {
+  const api = await request.newContext();
+  const res = await api.post(`${baseURL}/api/inbound/supplier-invoice`, {
+    headers: { "x-inbound-secret": "", "content-type": "application/json" },
+    data: { messageId: `e2e-${randomUUID()}`, to: `inv-${TOKEN}@inbox.getsavvy.com`, attachments: [] },
+  });
+  expect(res.status()).toBe(401);
+});
+
 test("the webhook 404s an unknown inbox token", async ({ baseURL }) => {
   const api = await request.newContext();
   const res = await api.post(`${baseURL}/api/inbound/supplier-invoice`, {

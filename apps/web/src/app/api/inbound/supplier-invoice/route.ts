@@ -10,6 +10,14 @@ export const runtime = "nodejs";
 // Routing Worker (or Resend Inbound) POSTs the forwarded email here; the shared
 // secret + tenant-token resolution + storage all live in the testable lib.
 export async function POST(req: Request): Promise<NextResponse> {
+  // Fail CLOSED: never default the expected secret to "" — an unconfigured
+  // server would otherwise accept an empty incoming secret (auth bypass).
+  const expectedSecret = process.env.INBOUND_EMAIL_SECRET;
+  if (!expectedSecret) {
+    log.error("INBOUND_EMAIL_SECRET not configured", { route: "/api/inbound/supplier-invoice" });
+    return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
+  }
+
   const secret = req.headers.get("x-inbound-secret") ?? "";
   let body: InboundBody;
   try { body = (await req.json()) as InboundBody; } catch { return NextResponse.json({ error: "bad_payload" }, { status: 400 }); }
@@ -19,7 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const storage = process.env.TEST_MODE === "1" ? makeFakeStorage() : r2Storage;
 
   const res = await ingestSupplierInvoice(body, secret, {
-    expectedSecret: process.env.INBOUND_EMAIL_SECRET ?? "",
+    expectedSecret,
     storage,
     emit: (e) => inngest.send({ name: "supplier-invoice/received", data: e }).then(() => undefined),
   });
