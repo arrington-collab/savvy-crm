@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getTenantSms, getTenantVoice, type TenantSmsDeps, type TenantVoiceDeps } from "./telephony";
+import { getTenantSms, getTenantVoice, isOutboundThrottled, type TenantSmsDeps, type TenantVoiceDeps } from "./telephony";
 
 function deps(resolveResult: unknown): TenantSmsDeps {
   return {
@@ -45,6 +45,21 @@ function vdeps(result: unknown): TenantVoiceDeps {
     platformVoice: { placeOutboundCall: vi.fn().mockResolvedValue({ callId: "platform" }) },
   };
 }
+
+describe("isOutboundThrottled", () => {
+  it("throttles when rate is below floor with enough sample", async () => {
+    const query = vi.fn().mockResolvedValue({ delivered: 10, failed: 15, undelivered: 5 });
+    expect(await isOutboundThrottled("t1", query)).toBe(true);
+  });
+  it("does not throttle a healthy rate", async () => {
+    const query = vi.fn().mockResolvedValue({ delivered: 95, failed: 3, undelivered: 2 });
+    expect(await isOutboundThrottled("t1", query)).toBe(false);
+  });
+  it("fails soft to false when the query throws", async () => {
+    const query = vi.fn().mockRejectedValue(new Error("db down"));
+    expect(await isOutboundThrottled("t1", query)).toBe(false);
+  });
+});
 
 describe("getTenantVoice", () => {
   it("byo + active full creds → tenant gateway (not platform)", async () => {

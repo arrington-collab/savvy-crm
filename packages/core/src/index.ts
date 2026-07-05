@@ -89,3 +89,4 @@ export * from "./money-aging";
 export * from "./pipeline-board";
 export * from "./canvass";
 export * from "./a2p";
+export * from "./deliverability-throttle";

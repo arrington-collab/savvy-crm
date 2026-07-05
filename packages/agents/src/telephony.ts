@@ -1,5 +1,6 @@
-import { resolveTelephonyCreds, resolveVoiceCreds } from "@savvy/db";
+import { resolveTelephonyCreds, resolveVoiceCreds, adminPool } from "@savvy/db";
 import { makeTwilioSms, makeHttpVapi, sms, smsFrom, voice, type SmsSender, type VoiceGateway } from "@savvy/integrations";
+import { shouldThrottleOutbound } from "@savvy/core";
 
 export interface TenantSmsDeps {
   resolve: typeof resolveTelephonyCreds;
@@ -26,6 +27,45 @@ export async function getTenantSms(
     };
   }
   return { sender: deps.platformSms, from: deps.platformFrom() };
+}
+
+const THROTTLE_WINDOW_HOURS = 24;
+
+/** Injectable aggregate query — takes tenantId, returns terminal delivery counts. */
+export type ThrottleQuery = (tenantId: string) => Promise<{ delivered: number; failed: number; undelivered: number }>;
+
+async function defaultThrottleQuery(tenantId: string): Promise<{ delivered: number; failed: number; undelivered: number }> {
+  const cutoff = new Date(Date.now() - THROTTLE_WINDOW_HOURS * 60 * 60 * 1000);
+  const { rows } = await adminPool.query<Record<string, string>>(
+    `select
+      count(*) filter (where delivery_status = 'delivered')   as delivered,
+      count(*) filter (where delivery_status = 'failed')      as failed,
+      count(*) filter (where delivery_status = 'undelivered') as undelivered
+    from communication
+    where tenant_id = $1 and direction = 'outbound' and channel = 'sms'
+      and created_at >= $2
+      and delivery_status in ('delivered','failed','undelivered')`,
+    [tenantId, cutoff],
+  );
+  const r = rows[0] ?? { delivered: "0", failed: "0", undelivered: "0" };
+  return { delivered: Number(r.delivered), failed: Number(r.failed), undelivered: Number(r.undelivered) };
+}
+
+/**
+ * True when the tenant's recent SMS delivery rate is below the floor with
+ * enough terminal sample to trust the signal. Fail-soft: any error ⇒ false
+ * (don't block sends on a DB hiccup).
+ */
+export async function isOutboundThrottled(
+  tenantId: string,
+  query: ThrottleQuery = defaultThrottleQuery,
+): Promise<boolean> {
+  try {
+    const agg = await query(tenantId);
+    return shouldThrottleOutbound(agg);
+  } catch {
+    return false; // fail-soft: don't block sends on instrumentation errors
+  }
 }
 
 export interface TenantVoiceDeps {
