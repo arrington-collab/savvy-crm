@@ -78,3 +78,4 @@ export {
 } from "./lifecycle/telephony";
 export { listSupplierAllowlist, listAllowedDomains, addSupplierAllowlistDomain, removeSupplierAllowlistDomain } from "./lifecycle/supplier-allowlist";
 export { applyDeliveryReceipt } from "./lifecycle/delivery-status";
+export { getA2pRegistration, setA2pRegistration } from "./lifecycle/a2p";
