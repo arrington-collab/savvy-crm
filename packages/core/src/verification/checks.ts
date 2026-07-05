@@ -234,11 +234,18 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
   // or any spam error (30007) → fail. No terminal receipts → skip.
   //
   // NOTE: @savvy/core cannot import @savvy/db (db → core is the dependency
-  // direction). The placeholder loader below always returns registered:false so
-  // the check is defined and the "every bound check_key resolves to a real check"
-  // test passes. The health-sweep (packages/agents/src/health-sweep.ts) overrides
-  // this entry with the real getA2pRegistration loader before running checks.
-  "comms.deliverability": makeDeliverabilityCheck(async () => ({ registered: false })),
+  // direction). The placeholder loader below throws so any evaluation of this
+  // check without the real loader injected surfaces as status:"stale" (via
+  // runCheck's catch) rather than silently producing a false registered:false
+  // result (a fail-dangerous false positive). The health-sweep
+  // (packages/agents/src/health-sweep.ts) overrides this entry with the real
+  // getA2pRegistration loader before running checks — the production path is
+  // unaffected.
+  "comms.deliverability": makeDeliverabilityCheck(async () => {
+    throw new Error(
+      "comms.deliverability registration loader not wired — import @savvy/agents (health-sweep injects the real getA2pRegistration) before running this check",
+    );
+  }),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
