@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedCanvassOrigin, canvassContractObject } from "./canvass";
+import { allowedCanvassOrigin, canvassContractObject, canvassLoginObject, canvassRepCreateObject } from "./canvass";
 
 const valid = {
   customer: { name: "Jane Homeowner", phone: "480-555-0100", address: "12 Elm St, Mesa AZ" },
@@ -83,5 +83,27 @@ describe("allowedCanvassOrigin", () => {
   it("denies an origin that is not on the allowlist", () => {
     expect(allowedCanvassOrigin("https://evil.example", "https://other.com")).toBeNull();
     expect(allowedCanvassOrigin(null, "https://other.com")).toBeNull();
+  });
+});
+
+describe("canvass rep auth schemas", () => {
+  it("accepts a valid rep-create payload", () => {
+    const p = canvassRepCreateObject.parse({ name: "Alex R", pin: "4821" });
+    expect(p.name).toBe("Alex R");
+  });
+
+  it("accepts an optional photo data-URL on create", () => {
+    const r = canvassRepCreateObject.safeParse({ name: "Josh W", pin: "123456", photoUrl: "data:image/png;base64,iVBOR" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects PINs that are not 4–6 digits", () => {
+    for (const pin of ["123", "1234567", "12a4", ""]) {
+      expect(canvassLoginObject.safeParse({ name: "Alex R", pin }).success).toBe(false);
+    }
+  });
+
+  it("accepts a valid login payload", () => {
+    expect(canvassLoginObject.safeParse({ name: "Alex R", pin: "0000" }).success).toBe(true);
   });
 });

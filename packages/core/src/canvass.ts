@@ -50,3 +50,24 @@ export function allowedCanvassOrigin(
   if (list.length === 0 || list.includes("*")) return origin ?? "*";
   return origin && list.includes(origin) ? origin : null;
 }
+
+// ── Rep auth (Slice 1: field-app name + PIN login) ───────────────────────
+// PIN is 4–6 digits; hashed server-side with scrypt (@savvy/core hashPin).
+export const canvassPinSchema = z.string().regex(/^\d{4,6}$/);
+
+// Manager creates a rep (POST /api/canvass/reps). photoUrl may be a hosted URL
+// or a small data: URL (avatar); capped so it can live in a text column.
+export const canvassRepCreateObject = z.object({
+  name: z.string().min(1).max(80),
+  pin: canvassPinSchema,
+  photoUrl: z.string().max(300_000).optional(),
+});
+
+// Rep logs in (POST /api/canvass/login): taps their name + enters their PIN.
+export const canvassLoginObject = z.object({
+  name: z.string().min(1).max(80),
+  pin: canvassPinSchema,
+});
+
+export type CanvassRepCreateInput = z.infer<typeof canvassRepCreateObject>;
+export type CanvassLoginInput = z.infer<typeof canvassLoginObject>;

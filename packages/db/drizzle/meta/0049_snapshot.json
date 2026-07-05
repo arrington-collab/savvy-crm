@@ -1,5 +1,5 @@
 {
-  "id": "a4d71ca1-ae72-4463-bb0c-ad456cf0653e",
+  "id": "a660bab1-5b2c-4d61-b3c9-1a7594e19d8e",
   "prevId": "9c06a3b4-6f15-44f1-bb2a-642473be550f",
   "version": "7",
   "dialect": "postgresql",
@@ -3568,12 +3568,6 @@
         },
         "external_message_id": {
           "name": "external_message_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sender_email": {
-          "name": "sender_email",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -7343,6 +7337,104 @@
           "tableTo": "job",
           "columnsFrom": [
             "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenant_isolation": {
+          "name": "tenant_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "savvy_app"
+          ],
+          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
+          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.canvass_rep": {
+      "name": "canvass_rep",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pin_hash": {
+          "name": "pin_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "canvass_rep_tenant_idx": {
+          "name": "canvass_rep_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "canvass_rep_tenant_id_tenant_id_fk": {
+          "name": "canvass_rep_tenant_id_tenant_id_fk",
+          "tableFrom": "canvass_rep",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
           ],
           "columnsTo": [
             "id"

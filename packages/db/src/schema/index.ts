@@ -18,3 +18,4 @@ export * from "./integrations";
 export * from "./enrichment";
 export * from "./task-registry";
 export * from "./credit-request";
+export * from "./canvass";

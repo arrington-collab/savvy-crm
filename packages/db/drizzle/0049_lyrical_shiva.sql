@@ -1,1 +1,0 @@
-ALTER TABLE "supplier_invoice" ADD COLUMN "sender_email" text;
