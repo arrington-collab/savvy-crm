@@ -1,9 +1,17 @@
-import { evidenceChecks, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
+import { evidenceChecks, makeDeliverabilityCheck, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
 import {
   adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recomputeFounderMinutes, recordAgentRun, and, eq,
-  taskRegistry, tenantTaskConfig, verificationRun,
+  taskRegistry, tenantTaskConfig, verificationRun, getA2pRegistration,
 } from "@savvy/db";
 import { pageBreakGlass } from "./break-glass";
+
+// Wire the real A2P registration loader. @savvy/core cannot import @savvy/db
+// (db → core is the dependency direction), so the real loader is injected here
+// where both packages are available. This override runs once at module load time
+// before any sweep executes.
+evidenceChecks["comms.deliverability"] = makeDeliverabilityCheck((tenantId) =>
+  getA2pRegistration(tenantId).then((r) => ({ registered: r.registered })),
+);
 
 const CHECK_TIMEOUT_MS = 10_000;
 const WINDOW_MS = 86_400_000; // the sweep evaluates the last 24h

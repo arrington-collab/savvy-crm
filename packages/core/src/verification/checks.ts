@@ -1,5 +1,6 @@
 import { invariant } from "./builders";
 import type { EvidenceCtx, EvidenceCheck } from "./types";
+import { makeDeliverabilityCheck } from "./deliverability";
 
 /**
  * Concrete evidence checks, keyed by task_registry.check_key. The registry
@@ -226,6 +227,18 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "supplier_invoice", ref: String(r.id) }) },
   ),
+
+  // SMS deliverability monitoring: checks A2P 10DLC registration status and
+  // delivery rate over the window. Tenant not registered → break-glass fail
+  // (unregistered tenants risk silent SMS filtering). Rate below DELIVERY_RATE_FLOOR
+  // or any spam error (30007) → fail. No terminal receipts → skip.
+  //
+  // NOTE: @savvy/core cannot import @savvy/db (db → core is the dependency
+  // direction). The placeholder loader below always returns registered:false so
+  // the check is defined and the "every bound check_key resolves to a real check"
+  // test passes. The health-sweep (packages/agents/src/health-sweep.ts) overrides
+  // this entry with the real getA2pRegistration loader before running checks.
+  "comms.deliverability": makeDeliverabilityCheck(async () => ({ registered: false })),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

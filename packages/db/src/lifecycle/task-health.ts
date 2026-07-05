@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
-  computeTaskHealth, buildTaskExceptions, sumFounderMinutes,
+  computeTaskHealth, buildTaskExceptions, sumFounderMinutes, BREAK_GLASS_ON_FAIL_CHECK_KEYS,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
@@ -262,15 +262,31 @@ export async function reconcileTaskExceptions(
       .where(and(eq(taskException.tenantId, tenantId), isNull(taskException.resolvedAt)));
     const openByTask = new Map(open.map((r) => [r.taskId, r]));
 
+    // Fetch check_key for each unhealthy task so we can apply the non-dollar
+    // break-glass policy (BREAK_GLASS_ON_FAIL_CHECK_KEYS from @savvy/core).
+    const taskIds = [...byTask.keys()];
+    const checkKeyRows = taskIds.length > 0
+      ? await tx
+          .select({ id: taskRegistry.id, checkKey: taskRegistry.checkKey })
+          .from(taskRegistry)
+          .where(inArray(taskRegistry.id, taskIds))
+      : [];
+    const checkKeyByTask = new Map(checkKeyRows.map((r) => [r.id, r.checkKey]));
+
     let opened = 0, resolved = 0;
     for (const [taskId, ex] of byTask) {
       const dollarImpactCents = await computeDollarImpactCents(tx, tenantId, taskId, ex.kind);
-      const breakGlass = thresholdCents !== null && dollarImpactCents >= thresholdCents;
+      const checkKey = checkKeyByTask.get(taskId) ?? null;
+      // Non-dollar break-glass: customer-facing delivery failures must surface
+      // immediately regardless of invoice value (Cell 6).
+      const forced = checkKey != null && BREAK_GLASS_ON_FAIL_CHECK_KEYS.has(checkKey);
+      const breakGlass = forced || (thresholdCents !== null && dollarImpactCents >= thresholdCents);
+      const severity = forced ? "high" : ex.severity;
       const existing = openByTask.get(taskId);
       if (existing) {
-        await tx.update(taskException).set({ kind: ex.kind, severity: ex.severity, dollarImpactCents, breakGlass, updatedAt: now }).where(eq(taskException.id, existing.id));
+        await tx.update(taskException).set({ kind: ex.kind, severity, dollarImpactCents, breakGlass, updatedAt: now }).where(eq(taskException.id, existing.id));
       } else {
-        await tx.insert(taskException).values({ tenantId, taskId, kind: ex.kind, severity: ex.severity, dollarImpactCents, breakGlass, openedAt: now });
+        await tx.insert(taskException).values({ tenantId, taskId, kind: ex.kind, severity, dollarImpactCents, breakGlass, openedAt: now });
         opened++;
       }
     }
