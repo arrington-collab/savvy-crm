@@ -2,6 +2,7 @@ import { adminDb, adminPool } from "./admin-client";
 import { tenant, user, customer, property, job, messageTemplate, drip, license } from "./schema/index";
 import { parseSchedulingConfig } from "@savvy/core";
 import { seedTaskRegistry } from "../seeds/master-task-list";
+import { eq } from "drizzle-orm";
 
 async function seedTenant(opts: {
   name: string; clerkOrgId: string; publicKey: string; inboundPhone: string;
@@ -64,7 +65,7 @@ async function main() {
   // Cell 17a: seed the demo tenant's operating-state licenses (AZ, NV, CO) so seeded
   // jobs are schedulable in each. city: null = state-level (covers all cities in state).
   // Clear before inserting so re-runs stay idempotent (license rows are pure seed data).
-  await adminDb.delete(license);
+  await adminDb.delete(license).where(eq(license.tenantId, demoTenant!.id));
   await adminDb.insert(license).values([
     { tenantId: demoTenant!.id, state: "AZ", city: null, authority: "AZ ROC",               licenseNumber: "ROC-DEMO-0001", status: "active", expiresAt: null },
     { tenantId: demoTenant!.id, state: "NV", city: null, authority: "NV State Contractors",  licenseNumber: "NV-DEMO-0001",  status: "active", expiresAt: null },
