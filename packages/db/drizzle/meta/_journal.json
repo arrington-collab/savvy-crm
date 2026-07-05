@@ -358,6 +358,13 @@
       "when": 1783217787469,
       "tag": "0050_powerful_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1783235408383,
+      "tag": "0051_neat_phalanx",
+      "breakpoints": true
     }
   ]
 }
