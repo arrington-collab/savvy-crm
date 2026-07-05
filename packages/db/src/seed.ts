@@ -1,5 +1,5 @@
 import { adminDb, adminPool } from "./admin-client";
-import { tenant, user, customer, property, job, messageTemplate, drip } from "./schema/index";
+import { tenant, user, customer, property, job, messageTemplate, drip, license } from "./schema/index";
 import { parseSchedulingConfig } from "@savvy/core";
 import { seedTaskRegistry } from "../seeds/master-task-list";
 
@@ -57,9 +57,21 @@ async function seedTenant(opts: {
 async function main() {
   const n = await seedTaskRegistry(adminDb);
   console.log(`seeded task_registry (${n} tasks)`);
-  await seedTenant({ name: "Acme Roofing", clerkOrgId: "org_acme", publicKey: "acme", inboundPhone: "+15555550111" });
+  const demoTenant = await seedTenant({ name: "Acme Roofing", clerkOrgId: "org_acme", publicKey: "acme", inboundPhone: "+15555550111" });
   await seedTenant({ name: "Best Roofers", clerkOrgId: "org_best", publicKey: "best", inboundPhone: "+15555550222" });
   console.log("seeded 2 tenants");
+
+  // Cell 17a: seed the demo tenant's operating-state licenses (AZ, NV, CO) so seeded
+  // jobs are schedulable in each. city: null = state-level (covers all cities in state).
+  // Clear before inserting so re-runs stay idempotent (license rows are pure seed data).
+  await adminDb.delete(license);
+  await adminDb.insert(license).values([
+    { tenantId: demoTenant!.id, state: "AZ", city: null, authority: "AZ ROC",               licenseNumber: "ROC-DEMO-0001", status: "active", expiresAt: null },
+    { tenantId: demoTenant!.id, state: "NV", city: null, authority: "NV State Contractors",  licenseNumber: "NV-DEMO-0001",  status: "active", expiresAt: null },
+    { tenantId: demoTenant!.id, state: "CO", city: null, authority: "CO SoS",               licenseNumber: "CO-DEMO-0001",  status: "active", expiresAt: null },
+  ]);
+  console.log("seeded 3 demo licenses (AZ, NV, CO)");
+
   await adminPool.end();
 }
 main().catch((e) => { console.error(e); process.exit(1); });
