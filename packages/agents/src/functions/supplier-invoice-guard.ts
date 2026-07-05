@@ -17,6 +17,8 @@ import {
   shouldAutoSendCredit,
   parseFinanceConfig,
   matchCreditMemo,
+  resolveSupplierRecipient,
+  SUPPLIER_SELF_DOMAINS,
   type SupplierInvoiceLine,
   type SnapshotLine,
 } from "@savvy/core";
@@ -33,6 +35,7 @@ type ParsedInvoice = {
   parseConfidence: number | null;
   totalCents: number | null;
   lines: SupplierInvoiceLine[];
+  senderEmail: string | null;
 };
 
 type PriceGuardConfig = {
@@ -62,6 +65,7 @@ export type PriceGuardDeps = {
   sendEmail: (opts: { to: string; subject: string; html: string }) => Promise<{ id: string }>;
   recordRun: (opts: { tenantId: string; jobId: string | null; status: "ok" | "error"; error?: string | null }) => Promise<void>;
   gate: (tenantId: string, jobId: string) => Promise<{ proceed: boolean; level: string }>;
+  resolveRecipient: (senderEmail: string | null) => string | null;
   raiseDraftCard: (
     tenantId: string,
     args: { supplierInvoiceId: string; supplierName: string | null; claimedCents: number },
@@ -81,6 +85,7 @@ function buildCreditEmail(
   inv: ParsedInvoice,
   claimedCents: number,
   evidence: EvidenceLine[],
+  to: string,
 ): { to: string; subject: string; html: string } {
   const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
   const rows = evidence
@@ -91,9 +96,7 @@ function buildCreditEmail(
     )
     .join("");
   return {
-    // Real recipient is resolved from the supplier's inbound reply-to / from address.
-    // For the gated auto-send MVP, the email wiring stub handles this in e2e.
-    to: "",
+    to,
     subject: `Credit request — invoice ${inv.invoiceNumber ?? ""} (${usd(claimedCents)} overbilled)`,
     html:
       `<p>We identified an overbilling on invoice ${inv.invoiceNumber ?? ""} totaling <strong>${usd(claimedCents)}</strong>.</p>` +
@@ -165,12 +168,14 @@ export async function priceGuardHandler(
       ? await deps.gate(tenantId, inv.jobId)
       : { proceed: false, level: "no_job" };
 
+    const recipient = deps.resolveRecipient(inv.senderEmail);
     const autoSend =
       shouldAutoSendCredit({ claimedCents, parseConfidence: inv.parseConfidence, allOverageLinesMatched, cfg }) &&
-      gate.proceed;
+      gate.proceed &&
+      recipient !== null;
 
     if (autoSend) {
-      const email = await deps.sendEmail(buildCreditEmail(inv, claimedCents, evidence));
+      const email = await deps.sendEmail(buildCreditEmail(inv, claimedCents, evidence, recipient!));
       const cr = await deps.createCredit(tenantId, {
         supplierInvoiceId,
         jobId: inv.jobId,
@@ -274,6 +279,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
                 parseConfidence: supplierInvoice.parseConfidence,
                 totalCents: supplierInvoice.totalCents,
                 lines: supplierInvoice.lines,
+                senderEmail: supplierInvoice.senderEmail,
               })
               .from(supplierInvoice)
               .where(eq(supplierInvoice.id, id));
@@ -285,6 +291,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
               parseConfidence: r.parseConfidence,
               totalCents: r.totalCents,
               lines: r.lines ?? [],
+              senderEmail: r.senderEmail,
             };
           }),
         loadSnapshot: (t, jobId) => getMaterialOrderSnapshot(t, jobId),
@@ -317,6 +324,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
           }),
         gate: (t, jobId) =>
           gateAgentAutomation({ tenantId: t, jobId, taskKey: GUARD_TASK_KEY, agent: "finance" }),
+        resolveRecipient: (senderEmail) => resolveSupplierRecipient(senderEmail, { selfDomains: SUPPLIER_SELF_DOMAINS }),
         // Feed A (Today) is query-driven: Task 8 selects drafted credit_requests and
         // unmatched supplier invoices. No imperative insert is needed here.
         raiseDraftCard: async () => {},
