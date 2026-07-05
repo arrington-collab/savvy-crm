@@ -427,6 +427,8 @@ export type OpenTaskException = {
   breakGlass: boolean;
   openedAt: Date;
   firstViewedAt: Date | null;
+  /** The evidence check key bound to this task, if any (e.g. "comms.deliverability"). */
+  checkKey: string | null;
 };
 
 /**
@@ -447,6 +449,7 @@ export async function listOpenTaskExceptions(tenantId: string): Promise<OpenTask
         breakGlass: taskException.breakGlass,
         openedAt: taskException.openedAt,
         firstViewedAt: taskException.firstViewedAt,
+        checkKey: taskRegistry.checkKey,
       })
       .from(taskException)
       .innerJoin(taskRegistry, eq(taskRegistry.id, taskException.taskId))
