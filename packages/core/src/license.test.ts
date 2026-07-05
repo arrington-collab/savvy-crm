@@ -37,6 +37,16 @@ describe("resolveActiveLicense", () => {
     const licenses = [lic({ state: "co", city: "denver " })];
     expect(resolveActiveLicense(licenses, { state: " CO", city: "Denver" }, NOW)).not.toBeNull();
   });
+
+  it("prefers a city-specific license over a state-level one for the same state", () => {
+    const licenses = [lic({ state: "AZ", city: null }), lic({ state: "AZ", city: "Mesa" })];
+    const got = resolveActiveLicense(licenses, { state: "AZ", city: "Mesa" }, NOW);
+    expect(got?.city).toBe("Mesa");
+  });
+
+  it("returns null for an undefined state (escape-valve path)", () => {
+    expect(resolveActiveLicense([lic({ state: "AZ" })], { state: undefined, city: null }, NOW)).toBeNull();
+  });
 });
 
 describe("licenseRenewalStatus", () => {
@@ -51,5 +61,9 @@ describe("licenseRenewalStatus", () => {
   });
   it("ok beyond 60 days", () => {
     expect(licenseRenewalStatus({ expiresAt: new Date("2026-12-01T00:00:00Z") }, NOW)).toBe("ok");
+  });
+
+  it("treats exactly 60 days out as expiring_soon (inclusive boundary)", () => {
+    expect(licenseRenewalStatus({ expiresAt: new Date("2026-09-03T00:00:00Z") }, NOW)).toBe("expiring_soon");
   });
 });
