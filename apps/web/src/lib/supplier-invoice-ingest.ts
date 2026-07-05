@@ -71,7 +71,7 @@ export async function ingestSupplierInvoice(body: InboundBody, secret: string, d
       }).returning({ id: document.id });
 
       const [inv] = await tx.insert(supplierInvoice).values({
-        tenantId, documentId: doc!.id, supplierName, externalMessageId: body.messageId, status: "received",
+        tenantId, documentId: doc!.id, supplierName, senderEmail: body.from ?? null, externalMessageId: body.messageId, status: "received",
       }).onConflictDoNothing({ target: [supplierInvoice.tenantId, supplierInvoice.externalMessageId] }).returning({ id: supplierInvoice.id });
 
       // Already ingested (re-delivery, or a 2nd PDF in the same email) → drop the
