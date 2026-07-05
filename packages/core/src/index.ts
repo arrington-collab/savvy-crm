@@ -90,3 +90,4 @@ export * from "./pipeline-board";
 export * from "./canvass";
 export * from "./a2p";
 export * from "./deliverability-throttle";
+export * from "./license";
