@@ -19,6 +19,8 @@ const baseDeps = () => ({
   recordRun: vi.fn().mockResolvedValue(undefined),
   gate: vi.fn().mockResolvedValue({ proceed: true, level: "full" }),
   raiseDraftCard: vi.fn().mockResolvedValue(undefined),
+  loadAllowedDomains: vi.fn().mockResolvedValue([]),
+  logAudit: vi.fn(),
 });
 const input = { tenantId: "t", supplierInvoiceId: "si" };
 
@@ -91,6 +93,24 @@ describe("priceGuardHandler", () => {
   it("drafts (no email) when the recipient does not resolve, even if confident + gated open", async () => {
     const deps = baseDeps();
     deps.resolveRecipient = vi.fn().mockReturnValue(null); // e.g. self-domain / missing sender
+    const res = await priceGuardHandler(input, deps);
+    expect(res.status).toBe("guarded");
+    expect(deps.sendEmail).not.toHaveBeenCalled();
+    expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "drafted" }));
+    expect(deps.raiseDraftCard).toHaveBeenCalled();
+  });
+
+  it("auto-sends when the recipient domain is allow-listed", async () => {
+    const deps = baseDeps();
+    deps.loadAllowedDomains = vi.fn().mockResolvedValue(["abcsupply.com"]); // recipient ar@abcsupply.com
+    await priceGuardHandler(input, deps);
+    expect(deps.sendEmail).toHaveBeenCalled();
+    expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "sent" }));
+  });
+
+  it("drafts (no email) when a non-empty allow-list excludes the recipient domain", async () => {
+    const deps = baseDeps();
+    deps.loadAllowedDomains = vi.fn().mockResolvedValue(["srs.com"]); // recipient ar@abcsupply.com NOT listed
     const res = await priceGuardHandler(input, deps);
     expect(res.status).toBe("guarded");
     expect(deps.sendEmail).not.toHaveBeenCalled();
