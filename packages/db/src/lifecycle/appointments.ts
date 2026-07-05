@@ -45,20 +45,19 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
         .select({ propertyId: job.propertyId })
         .from(job)
         .where(eq(job.id, input.jobId));
-      if (jrow) {
-        const [prop] = await tx
-          .select({ state: property.state, city: property.city })
-          .from(property)
-          .where(eq(property.id, jrow.propertyId));
-        const state = (prop?.state ?? "").trim();
-        if (state !== "") {
-          const lics = await tx
-            .select({ state: license.state, city: license.city, status: license.status, expiresAt: license.expiresAt })
-            .from(license)
-            .where(eq(license.tenantId, tenantId));
-          const active = resolveActiveLicense(lics, { state, city: prop?.city ?? null }, new Date());
-          if (active === null) throw new LicenseRequiredError(state, prop?.city ?? null);
-        }
+      if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
+      const [prop] = await tx
+        .select({ state: property.state, city: property.city })
+        .from(property)
+        .where(eq(property.id, jrow.propertyId));
+      const state = (prop?.state ?? "").trim();
+      if (state !== "") {
+        const lics = await tx
+          .select({ state: license.state, city: license.city, status: license.status, expiresAt: license.expiresAt })
+          .from(license)
+          .where(eq(license.tenantId, tenantId));
+        const active = resolveActiveLicense(lics, { state, city: prop?.city ?? null }, new Date());
+        if (!active) throw new LicenseRequiredError(state, prop?.city ?? null);
       }
 
       const [row] = await tx.insert(appointment).values({
