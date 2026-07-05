@@ -3,7 +3,7 @@ import { priceGuardHandler } from "./supplier-invoice-guard";
 
 const cfg = { minOverageCents: 2500, overagePct: 0.05, autoSendMinCents: 2500, highConfidence: 0.8 };
 const invoice = {
-  jobId: "job-1", supplierName: "ABC Supply", invoiceNumber: "INV-9", parseConfidence: 0.92, totalCents: 240000,
+  jobId: "job-1", supplierName: "ABC Supply", invoiceNumber: "INV-9", parseConfidence: 0.92, totalCents: 240000, senderEmail: "ar@abcsupply.com",
   lines: [{ description: "GAF Timberline HDZ", sku: "shingle-hdz", quantity: 30, unitBilledCents: 8000, amountBilledCents: 240000 }],
 };
 const snapshot = [{ key: "shingle-hdz", name: "GAF Timberline HDZ", unitCostCents: 7000 }];
@@ -15,6 +15,7 @@ const baseDeps = () => ({
   saveGuarded: vi.fn().mockResolvedValue(undefined),
   createCredit: vi.fn().mockResolvedValue({ id: "cr-1" }),
   sendEmail: vi.fn().mockResolvedValue({ id: "email-1" }),
+  resolveRecipient: vi.fn().mockReturnValue("ar@abcsupply.com"),
   recordRun: vi.fn().mockResolvedValue(undefined),
   gate: vi.fn().mockResolvedValue({ proceed: true, level: "full" }),
   raiseDraftCard: vi.fn().mockResolvedValue(undefined),
@@ -77,6 +78,24 @@ describe("priceGuardHandler", () => {
     deps.loadInvoice = vi.fn().mockRejectedValue(new Error("db down"));
     const res = await priceGuardHandler(input, deps);
     expect(res.status).toBe("guard_skipped");
+  });
+
+  it("auto-sends to the resolved recipient address", async () => {
+    const deps = baseDeps();
+    await priceGuardHandler(input, deps);
+    expect(deps.resolveRecipient).toHaveBeenCalledWith("ar@abcsupply.com");
+    expect(deps.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ar@abcsupply.com" }));
+    expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "sent" }));
+  });
+
+  it("drafts (no email) when the recipient does not resolve, even if confident + gated open", async () => {
+    const deps = baseDeps();
+    deps.resolveRecipient = vi.fn().mockReturnValue(null); // e.g. self-domain / missing sender
+    const res = await priceGuardHandler(input, deps);
+    expect(res.status).toBe("guarded");
+    expect(deps.sendEmail).not.toHaveBeenCalled();
+    expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "drafted" }));
+    expect(deps.raiseDraftCard).toHaveBeenCalled();
   });
 });
 

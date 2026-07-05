@@ -23,6 +23,7 @@ export const supplierInvoice = pgTable("supplier_invoice", {
   status: supplierInvoiceStatusEnum("status").notNull().default("received"),
   parseConfidence: real("parse_confidence"),
   externalMessageId: text("external_message_id"),
+  senderEmail: text("sender_email"), // inbound `from` — resolved to the auto-send recipient (13c follow-on)
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (t) => [

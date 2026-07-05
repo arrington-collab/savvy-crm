@@ -85,9 +85,17 @@ test("price-guard: guarded invoice creates credit request; credit memo marks it 
     // Poll: parse → guard should both complete; final status = "guarded"
     const guarded = await waitFor(async () => {
       const [row] = await withTenant(tenantId, (tx) =>
-        tx.select().from(supplierInvoice).where(eq(supplierInvoice.externalMessageId, guardMessageId)));
+        tx.select({
+          id: supplierInvoice.id,
+          status: supplierInvoice.status,
+          lines: supplierInvoice.lines,
+          senderEmail: supplierInvoice.senderEmail,
+        }).from(supplierInvoice).where(eq(supplierInvoice.externalMessageId, guardMessageId)));
       return row?.status === "guarded" ? row : undefined;
     });
+
+    // Assert sender_email was persisted from the inbound `from` field
+    expect(guarded.senderEmail).toBe("billing@abcsupply.com");
 
     // Assert guard annotations on line 0
     const lines = (guarded.lines ?? []) as SupplierInvoiceLine[];
@@ -101,7 +109,11 @@ test("price-guard: guarded invoice creates credit request; credit memo marks it 
       tx.select().from(creditRequest).where(eq(creditRequest.supplierInvoiceId, guarded.id)));
     expect(cr).toBeTruthy();
     expect(cr!.claimedCents).toBe(30000);
-    expect(["sent", "drafted"]).toContain(cr!.status);
+    // Gate defaults to "full" (no jobChecklistItem row for "close-out-133" seeded here),
+    // recipient resolves from the external `from` ("billing@abcsupply.com"), and
+    // shouldAutoSendCredit passes (claimed=$300 ≥ $25, confidence=0.95 ≥ 0.8, all matched).
+    // sendEmail is stubbed under TEST_MODE so no real email is sent.
+    expect(cr!.status).toBe("sent");
 
     // ---- Part 2: POST credit memo (CREDIT-MEMO-SENTINEL → stub returns totalCents=-30000) ----
     const creditMemoMessageId = `e2e-credit-memo-${randomUUID()}`;

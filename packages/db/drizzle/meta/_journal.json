@@ -351,6 +351,13 @@
       "when": 1783217321338,
       "tag": "0049_slow_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1783217787469,
+      "tag": "0050_powerful_black_tarantula",
+      "breakpoints": true
     }
   ]
 }
