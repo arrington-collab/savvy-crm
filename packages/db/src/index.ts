@@ -76,3 +76,4 @@ export {
   upsertVapiConnection, getVapiConnection, getVapiSecret, resolveVoiceCreds, tenantByVapiAssistant,
   type VapiSecret, type VapiConnectionView, type VoiceResolution,
 } from "./lifecycle/telephony";
+export { listSupplierAllowlist, listAllowedDomains, addSupplierAllowlistDomain, removeSupplierAllowlistDomain } from "./lifecycle/supplier-allowlist";
