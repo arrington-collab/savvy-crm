@@ -77,3 +77,4 @@ export {
   type VapiSecret, type VapiConnectionView, type VoiceResolution,
 } from "./lifecycle/telephony";
 export { listSupplierAllowlist, listAllowedDomains, addSupplierAllowlistDomain, removeSupplierAllowlistDomain } from "./lifecycle/supplier-allowlist";
+export { applyDeliveryReceipt } from "./lifecycle/delivery-status";

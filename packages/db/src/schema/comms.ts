@@ -21,6 +21,8 @@ export const communication = pgTable("communication", {
   recordingUrl: text("recording_url"),
   transcript: text("transcript"),
   twilioSid: text("twilio_sid"),
+  deliveryStatus: text("delivery_status"),      // raw Twilio MessageStatus of the last receipt
+  deliveryErrorCode: text("delivery_error_code"), // Twilio ErrorCode on failed/undelivered (e.g. 30007)
   aiHandled: boolean("ai_handled").default(false).notNull(),
   durationSeconds: integer("duration_seconds"),
   dedupeKey: text("dedupe_key"),
