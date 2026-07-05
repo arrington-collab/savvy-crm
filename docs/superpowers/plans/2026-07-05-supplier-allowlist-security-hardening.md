@@ -289,9 +289,11 @@ git commit -m "feat(db): supplier-allowlist lifecycle writers + RLS cross-tenant
 
 **Interfaces:**
 - Consumes: `isRecipientAllowed` (Task 2), `listAllowedDomains` (Task 4).
-- Produces: `PriceGuardDeps.loadAllowedDomains: (tenantId: string) => Promise<string[]>`.
+- Produces: `PriceGuardDeps.loadAllowedDomains: (tenantId: string) => Promise<string[]>`; `PriceGuardDeps.logAudit: (o: { tenantId: string; recipientDomain: string; claimedCents: number; outcome: "sent" | "blocked_not_allowlisted" }) => void`.
 
-- [ ] **Step 1: Write failing tests** — in `packages/agents/src/functions/supplier-invoice-guard.test.ts`, add `loadAllowedDomains: vi.fn().mockResolvedValue([])` to `baseDeps` (empty = current behavior, keeps existing cases green), then add two cases inside `describe("priceGuardHandler", …)`:
+**Observability approach:** the handler is a pure DI unit; direct `console.log`/logger calls inside it would pollute unit-test output. So observability is a **dependency** (`logAudit`), injected as a `vi.fn()` no-op in tests and as a real structured emitter in the Inngest wiring — keeping test output pristine and the emit assertable.
+
+- [ ] **Step 1: Write failing tests** — in `packages/agents/src/functions/supplier-invoice-guard.test.ts`, add `loadAllowedDomains: vi.fn().mockResolvedValue([])` and `logAudit: vi.fn()` to `baseDeps` (empty list = current behavior, keeps existing cases green), then add two cases inside `describe("priceGuardHandler", …)`:
 
 ```ts
   it("auto-sends when the recipient domain is allow-listed", async () => {
@@ -317,12 +319,13 @@ git commit -m "feat(db): supplier-allowlist lifecycle writers + RLS cross-tenant
 
 - [ ] **Step 2: Run to verify fail** — `cd packages/agents && pnpm exec vitest run src/functions/supplier-invoice-guard.test.ts`. Expected: the "drafts when excluded" case FAILS (currently sends).
 
-- [ ] **Step 3: Add the dep** — in `packages/agents/src/functions/supplier-invoice-guard.ts`, add to `PriceGuardDeps`:
+- [ ] **Step 3: Add the deps** — in `packages/agents/src/functions/supplier-invoice-guard.ts`, add to `PriceGuardDeps`:
 ```ts
   loadAllowedDomains: (tenantId: string) => Promise<string[]>;
+  logAudit: (o: { tenantId: string; recipientDomain: string; claimedCents: number; outcome: "sent" | "blocked_not_allowlisted" }) => void;
 ```
 
-- [ ] **Step 4: Gate auto-send + log** — the current block reads:
+- [ ] **Step 4: Gate auto-send + audit** — the current block reads:
 ```ts
     const recipient = deps.resolveRecipient(inv.senderEmail);
     const autoSend =
@@ -333,11 +336,12 @@ git commit -m "feat(db): supplier-allowlist lifecycle writers + RLS cross-tenant
     if (autoSend) {
       const email = await deps.sendEmail(buildCreditEmail(inv, claimedCents, evidence, recipient!));
 ```
-Change to load the allow-list, add it as a 5th conjunct, and log on send + block:
+Change to load the allow-list, add it as a 5th conjunct, and emit an audit event via the `logAudit` dep (NOT a direct logger call — keep the handler pure):
 ```ts
     const recipient = deps.resolveRecipient(inv.senderEmail);
     const allowedDomains = await deps.loadAllowedDomains(tenantId);
     const allowed = recipient !== null && isRecipientAllowed(recipient, allowedDomains);
+    const domainOf = (e: string) => e.slice(e.lastIndexOf("@") + 1);
     const autoSend =
       shouldAutoSendCredit({ claimedCents, parseConfidence: inv.parseConfidence, allOverageLinesMatched, cfg }) &&
       gate.proceed &&
@@ -346,21 +350,22 @@ Change to load the allow-list, add it as a 5th conjunct, and log on send + block
 
     if (autoSend) {
       const email = await deps.sendEmail(buildCreditEmail(inv, claimedCents, evidence, recipient!));
-      log.info("credit-request auto-sent", { tenantId, recipientDomain: recipient!.slice(recipient!.lastIndexOf("@") + 1), claimedCents });
+      deps.logAudit({ tenantId, recipientDomain: domainOf(recipient!), claimedCents, outcome: "sent" });
 ```
-And in the draft branch (just before `createCredit(... status:"drafted" ...)`), add an observability line when a resolved recipient was blocked by a non-empty list:
+And in the draft branch (just before `createCredit(... status:"drafted" ...)`), audit a recipient blocked by a non-empty list:
 ```ts
     if (recipient !== null && allowedDomains.length > 0 && !allowed) {
-      log.info("credit-request drafted: recipient not allow-listed", { tenantId, recipientDomain: recipient.slice(recipient.lastIndexOf("@") + 1) });
+      deps.logAudit({ tenantId, recipientDomain: domainOf(recipient), claimedCents, outcome: "blocked_not_allowlisted" });
     }
 ```
-Add imports at the top: `isRecipientAllowed` from `@savvy/core`, and confirm `log` is imported (import from the same logger the file/agents package uses — check existing imports; if absent, import `{ log }` from the agents logger used elsewhere, e.g. `../log` or `@savvy/…` — match a sibling function's import).
+Add import at the top: `isRecipientAllowed` from `@savvy/core`.
 
-- [ ] **Step 5: Wire the real dep in the Inngest fn** — in the deps object that supplies `resolveRecipient`, add:
+- [ ] **Step 5: Wire the real deps in the Inngest fn** — in the deps object that supplies `resolveRecipient`, add:
 ```ts
         loadAllowedDomains: (t) => listAllowedDomains(t),
+        logAudit: (o) => console.log(JSON.stringify({ evt: "credit-request", ...o })),
 ```
-Import `listAllowedDomains` from `@savvy/db`.
+Import `listAllowedDomains` from `@savvy/db`. (`console.log` is captured by the Inngest run logs; structured JSON keeps it queryable. This is the ONLY place a raw logger call lives — the pure handler stays side-effect-free via the dep.)
 
 - [ ] **Step 6: Verify pass + full suite + typecheck + commit**
 
