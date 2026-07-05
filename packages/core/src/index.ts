@@ -86,3 +86,4 @@ export * from "./supplier-recipient";
 export * from "./price-guard";
 export * from "./money-aging";
 export * from "./pipeline-board";
+export * from "./canvass";

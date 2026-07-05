@@ -1,4 +1,5 @@
 import { EventSchemas, Inngest } from "inngest";
+import type { CanvassContract } from "@savvy/core";
 
 // Event types the app emits. Add new events here as workflows grow.
 type Events = {
@@ -34,6 +35,7 @@ type Events = {
   "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
+  "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract } };
 };
 
 export const inngest = new Inngest({
