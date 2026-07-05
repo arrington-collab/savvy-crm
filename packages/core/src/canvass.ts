@@ -71,3 +71,53 @@ export const canvassLoginObject = z.object({
 
 export type CanvassRepCreateInput = z.infer<typeof canvassRepCreateObject>;
 export type CanvassLoginInput = z.infer<typeof canvassLoginObject>;
+
+// ── Knock / territory sync (Slices 2–4) ──────────────────────────────────
+export const CANVASS_OUTCOMES = ["noanswer", "notint", "callback", "appt", "sale"] as const;
+
+// A knock synced from the field app. clientId = the app's local id (idempotency).
+// deviceLat/Lng = the rep's live GPS when they marked the door, used server-side
+// for the door-vs-GPS mismatch flag.
+export const canvassKnockObject = z.object({
+  clientId: z.string().min(1).max(64),
+  lat: z.number(),
+  lng: z.number(),
+  outcome: z.enum(CANVASS_OUTCOMES),
+  address: z.string().max(300).optional(),
+  contactName: z.string().max(120).optional(),
+  contactPhone: z.string().max(40).optional(),
+  notes: z.string().max(2000).optional(),
+  amount: z.number().nonnegative().max(100_000_000).optional(),
+  scheduledAt: z.string().datetime({ offset: true }).optional(),
+  deviceLat: z.number().optional(),
+  deviceLng: z.number().optional(),
+});
+
+export const canvassTerritoryObject = z.object({
+  clientId: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  color: z.string().max(20).optional(),
+  points: z.array(z.array(z.number()).length(2)).min(3).max(500),
+});
+
+export const canvassDeactivateObject = z.object({
+  repId: z.string().uuid(),
+  active: z.boolean(),
+});
+
+// Great-circle distance in metres — for the door-vs-GPS flag.
+// Named canvassHaversineMeters to avoid collision with the scheduling.ts haversineMeters
+// (which uses a different 2-arg object signature).
+export function canvassHaversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6_371_000;
+  const toRad = (d: number): number => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.min(1, Math.sqrt(s))));
+}
+// Door marked more than this far from the rep's GPS → flagged for the manager.
+export const CANVASS_GPS_FLAG_METERS = 75;
+
+export type CanvassKnockInput = z.infer<typeof canvassKnockObject>;
+export type CanvassTerritoryInput = z.infer<typeof canvassTerritoryObject>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedCanvassOrigin, canvassContractObject, canvassLoginObject, canvassRepCreateObject } from "./canvass";
+import { allowedCanvassOrigin, canvassContractObject, canvassKnockObject, canvassLoginObject, canvassRepCreateObject, canvassHaversineMeters as haversineMeters, CANVASS_GPS_FLAG_METERS } from "./canvass";
 
 const valid = {
   customer: { name: "Jane Homeowner", phone: "480-555-0100", address: "12 Elm St, Mesa AZ" },
@@ -105,5 +105,27 @@ describe("canvass rep auth schemas", () => {
 
   it("accepts a valid login payload", () => {
     expect(canvassLoginObject.safeParse({ name: "Alex R", pin: "0000" }).success).toBe(true);
+  });
+});
+
+describe("haversineMeters + knock schema", () => {
+  it("is 0 for the same point", () => {
+    expect(haversineMeters(33.4, -111.8, 33.4, -111.8)).toBe(0);
+  });
+
+  it("computes ~111 m for 0.001° of latitude", () => {
+    const d = haversineMeters(33.4, -111.8, 33.401, -111.8);
+    expect(d).toBeGreaterThan(100);
+    expect(d).toBeLessThan(120);
+  });
+
+  it("flags a door marked far from the rep", () => {
+    const d = haversineMeters(33.4, -111.8, 33.42, -111.8); // ~2.2 km
+    expect(d).toBeGreaterThan(CANVASS_GPS_FLAG_METERS);
+  });
+
+  it("accepts a valid knock and rejects a bad outcome", () => {
+    expect(canvassKnockObject.safeParse({ clientId: "k1", lat: 33.4, lng: -111.8, outcome: "sale", amount: 5000 }).success).toBe(true);
+    expect(canvassKnockObject.safeParse({ clientId: "k1", lat: 33.4, lng: -111.8, outcome: "nope" }).success).toBe(false);
   });
 });

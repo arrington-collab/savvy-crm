@@ -1,0 +1,108 @@
+import { NextResponse } from "next/server";
+import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
+import { withTenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { tenantByKey } from "@/lib/intake";
+import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
+import { canvassCors } from "@/lib/canvass-cors";
+import { log } from "@/lib/log";
+
+export const runtime = "nodejs";
+
+// POST — a rep logs a knock (bearer session). The client also sends its live GPS
+//   (deviceLat/Lng); the server flags the knock if the marked door is far from it.
+//   Idempotent on (tenant, clientId).
+// GET  — the whole team's knocks for the shared map (bearer session, or ?key=).
+export function OPTIONS(req: Request): NextResponse {
+  return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, OPTIONS") });
+}
+
+export async function POST(req: Request): Promise<NextResponse> {
+  const headers = canvassCors(req, "GET, POST, OPTIONS");
+  const reply = (b: unknown, s: number) => NextResponse.json(b, { status: s, headers });
+
+  const sess = verifyCanvassToken(bearerToken(req.headers));
+  if (!sess) return reply({ error: "unauthorized" }, 401);
+
+  let json: unknown;
+  try {
+    json = await req.json();
+  } catch {
+    return reply({ error: "invalid json" }, 400);
+  }
+  const parsed = canvassKnockObject.safeParse(json);
+  if (!parsed.success) return reply({ error: parsed.error.flatten() }, 400);
+  const k = parsed.data;
+
+  let gpsFlagged = false;
+  let gpsDistanceM: number | undefined = undefined;
+  if (typeof k.deviceLat === "number" && typeof k.deviceLng === "number") {
+    gpsDistanceM = canvassHaversineMeters(k.lat, k.lng, k.deviceLat, k.deviceLng);
+    gpsFlagged = gpsDistanceM > CANVASS_GPS_FLAG_METERS;
+  }
+
+  const rows = await withTenant(sess.tenantId, (tx) =>
+    tx
+      .insert(canvassKnock)
+      .values({
+        tenantId: sess.tenantId,
+        repId: sess.repId,
+        clientId: k.clientId,
+        lat: k.lat,
+        lng: k.lng,
+        outcome: k.outcome,
+        address: k.address ?? null,
+        contactName: k.contactName ?? null,
+        contactPhone: k.contactPhone ?? null,
+        notes: k.notes ?? null,
+        amount: k.amount ?? null,
+        scheduledAt: k.scheduledAt ? new Date(k.scheduledAt) : null,
+        gpsFlagged,
+        gpsDistanceM,
+      })
+      .onConflictDoNothing({ target: [canvassKnock.tenantId, canvassKnock.clientId] })
+      .returning({ id: canvassKnock.id }),
+  );
+  if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
+  return reply({ ok: true, id: rows[0]?.id ?? null, gpsFlagged, gpsDistanceM }, 201);
+}
+
+export async function GET(req: Request): Promise<NextResponse> {
+  const headers = canvassCors(req, "GET, POST, OPTIONS");
+  const url = new URL(req.url);
+
+  const sess = verifyCanvassToken(bearerToken(req.headers));
+  let tenantId = sess?.tenantId;
+  if (!tenantId) {
+    const key = url.searchParams.get("key");
+    if (key) tenantId = (await tenantByKey(key))?.id;
+  }
+  if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
+
+  const since = Number(url.searchParams.get("since") || 0);
+  const knocks = await withTenant(tenantId, (tx) => {
+    const base = tx
+      .select({
+        id: canvassKnock.id,
+        clientId: canvassKnock.clientId,
+        repId: canvassKnock.repId,
+        repName: canvassRep.name,
+        lat: canvassKnock.lat,
+        lng: canvassKnock.lng,
+        outcome: canvassKnock.outcome,
+        address: canvassKnock.address,
+        contactName: canvassKnock.contactName,
+        notes: canvassKnock.notes,
+        amount: canvassKnock.amount,
+        scheduledAt: canvassKnock.scheduledAt,
+        gpsFlagged: canvassKnock.gpsFlagged,
+        gpsDistanceM: canvassKnock.gpsDistanceM,
+        createdAt: canvassKnock.createdAt,
+      })
+      .from(canvassKnock)
+      .leftJoin(canvassRep, eq(canvassRep.id, canvassKnock.repId))
+      .$dynamic();
+    const q = since ? base.where(gt(canvassKnock.createdAt, new Date(since))) : base;
+    return q.orderBy(desc(canvassKnock.createdAt)).limit(2000);
+  });
+  return NextResponse.json({ knocks }, { status: 200, headers });
+}

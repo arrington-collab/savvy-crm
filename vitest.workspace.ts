@@ -1,3 +1,3 @@
-// Vitest runs package unit/integration tests only. apps/web uses Playwright
-// (tests/e2e/*.spec.ts) which must NOT be picked up by vitest.
-export default ["packages/*"];
+// Vitest runs package unit/integration tests and web route handler unit tests.
+// apps/web e2e tests use Playwright (tests/e2e/*.spec.ts) and are separate.
+export default ["packages/*", "apps/web"];
