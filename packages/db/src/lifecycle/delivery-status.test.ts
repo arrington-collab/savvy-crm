@@ -2,6 +2,7 @@ import { it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { adminDb, tenant, communication, eq } from "../index";
 import { applyDeliveryReceipt } from "./delivery-status";
+import { and } from "drizzle-orm";
 
 let tenantId: string; let sid: string;
 beforeAll(async () => {
@@ -29,4 +30,27 @@ it("records error code on failure", async () => {
 it("returns 0 for an unknown sid (no throw)", async () => {
   const r = await applyDeliveryReceipt({ twilioSid: "SMnope", status: "delivered" });
   expect(r.updated).toBe(0);
+});
+
+it("mock SID guard: returns 0 and does NOT modify a seeded 'mock' row", async () => {
+  // Seed a communication row with the dev sentinel SID "mock"
+  await adminDb.insert(communication).values({
+    tenantId,
+    channel: "sms",
+    direction: "outbound",
+    to: "+15550001111",
+    body: "mock send",
+    twilioSid: "mock",
+    deliveryStatus: "sent",
+  });
+
+  const r = await applyDeliveryReceipt({ twilioSid: "mock", status: "undelivered", errorCode: "30007" });
+  expect(r.updated).toBe(0);
+
+  const [row] = await adminDb.select().from(communication).where(
+    and(eq(communication.tenantId, tenantId), eq(communication.twilioSid, "mock")),
+  );
+  // Row should be untouched — still "sent", no error code written
+  expect(row!.deliveryStatus).toBe("sent");
+  expect(row!.deliveryErrorCode).toBeNull();
 });

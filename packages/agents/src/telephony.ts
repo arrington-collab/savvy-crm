@@ -2,6 +2,25 @@ import { resolveTelephonyCreds, resolveVoiceCreds, adminPool } from "@savvy/db";
 import { makeTwilioSms, makeHttpVapi, sms, smsFrom, voice, type SmsSender, type VoiceGateway } from "@savvy/integrations";
 import { shouldThrottleOutbound } from "@savvy/core";
 
+/** Build the Twilio statusCallback URL from APP_BASE_URL, or undefined when the env is absent. */
+function statusCallbackUrl(): string | undefined {
+  const base = process.env.APP_BASE_URL;
+  if (!base) return undefined;
+  return `${base.replace(/\/$/, "")}/api/twilio/status`;
+}
+
+/** Wrap a sender so every sendSms call includes statusCallback when APP_BASE_URL is set.
+ *  An explicit caller-supplied statusCallback always wins. */
+function withStatusCallback(sender: SmsSender): SmsSender {
+  const cb = statusCallbackUrl();
+  if (!cb) return sender; // dev/test: no env set — pass through unchanged
+  return {
+    sendSms(opts) {
+      return sender.sendSms({ ...opts, statusCallback: opts.statusCallback ?? cb });
+    },
+  };
+}
+
 export interface TenantSmsDeps {
   resolve: typeof resolveTelephonyCreds;
   platformSms: SmsSender;
@@ -22,11 +41,11 @@ export async function getTenantSms(
   const r = await deps.resolve(tenantId);
   if (r.source === "tenant" && r.twilio.accountSid && r.twilio.from) {
     return {
-      sender: makeTwilioSms({ accountSid: r.twilio.accountSid, authToken: r.twilio.authToken }),
+      sender: withStatusCallback(makeTwilioSms({ accountSid: r.twilio.accountSid, authToken: r.twilio.authToken })),
       from: r.twilio.from,
     };
   }
-  return { sender: deps.platformSms, from: deps.platformFrom() };
+  return { sender: withStatusCallback(deps.platformSms), from: deps.platformFrom() };
 }
 
 const THROTTLE_WINDOW_HOURS = 24;

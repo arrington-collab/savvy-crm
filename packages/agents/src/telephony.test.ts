@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { getTenantSms, getTenantVoice, isOutboundThrottled, type TenantSmsDeps, type TenantVoiceDeps } from "./telephony";
 
 function deps(resolveResult: unknown): TenantSmsDeps {
@@ -36,6 +36,59 @@ describe("getTenantSms", () => {
     const d = deps({ source: "tenant", twilio: { accountSid: "", authToken: "", from: "" } });
     const r = await getTenantSms("t1", d);
     expect(r.sender).toBe(d.platformSms);
+  });
+});
+
+describe("statusCallback injection", () => {
+  const origEnv = process.env.APP_BASE_URL;
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.APP_BASE_URL;
+    else process.env.APP_BASE_URL = origEnv;
+  });
+
+  it("injects statusCallback = APP_BASE_URL/api/twilio/status when env is set", async () => {
+    process.env.APP_BASE_URL = "https://app.example.com";
+    const underlying = vi.fn().mockResolvedValue({ sid: "SM123" });
+    const d: TenantSmsDeps = {
+      resolve: vi.fn().mockResolvedValue({ source: "platform", twilio: { accountSid: "ACenv", authToken: "tok", from: "+19999999999" } }) as unknown as TenantSmsDeps["resolve"],
+      platformSms: { sendSms: underlying },
+      platformFrom: () => "+15550000000",
+    };
+    const { sender } = await getTenantSms("t1", d);
+    await sender.sendSms({ to: "+12223334444", from: "+15550000000", body: "hello" });
+    expect(underlying).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCallback: "https://app.example.com/api/twilio/status" }),
+    );
+  });
+
+  it("caller-supplied statusCallback wins over injected one", async () => {
+    process.env.APP_BASE_URL = "https://app.example.com";
+    const underlying = vi.fn().mockResolvedValue({ sid: "SM456" });
+    const d: TenantSmsDeps = {
+      resolve: vi.fn().mockResolvedValue({ source: "platform", twilio: {} }) as unknown as TenantSmsDeps["resolve"],
+      platformSms: { sendSms: underlying },
+      platformFrom: () => "+15550000000",
+    };
+    const { sender } = await getTenantSms("t1", d);
+    await sender.sendSms({ to: "+12223334444", from: "+15550000000", body: "hello", statusCallback: "https://custom.example.com/cb" });
+    expect(underlying).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCallback: "https://custom.example.com/cb" }),
+    );
+  });
+
+  it("does NOT inject statusCallback when APP_BASE_URL is unset", async () => {
+    delete process.env.APP_BASE_URL;
+    const underlying = vi.fn().mockResolvedValue({ sid: "SM789" });
+    const d: TenantSmsDeps = {
+      resolve: vi.fn().mockResolvedValue({ source: "platform", twilio: {} }) as unknown as TenantSmsDeps["resolve"],
+      platformSms: { sendSms: underlying },
+      platformFrom: () => "+15550000000",
+    };
+    const { sender } = await getTenantSms("t1", d);
+    await sender.sendSms({ to: "+12223334444", from: "+15550000000", body: "hello" });
+    const call = underlying.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.statusCallback).toBeUndefined();
   });
 });
 
