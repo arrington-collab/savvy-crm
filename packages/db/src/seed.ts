@@ -62,8 +62,11 @@ async function main() {
   await seedTenant({ name: "Best Roofers", clerkOrgId: "org_best", publicKey: "best", inboundPhone: "+15555550222" });
   console.log("seeded 2 tenants");
 
-  // Cell 17a: seed the demo tenant's operating-state licenses (AZ, NV, CO) so seeded
-  // jobs are schedulable in each. city: null = state-level (covers all cities in state).
+  // Cell 17a: seed the demo tenant's operating-state licenses (AZ, NV, CO) as a
+  // realistic license matrix and a template for Cell 20 (Alta) provisioning. Note:
+  // seeded properties carry no `state`, so seeded jobs schedule via the null-state
+  // escape valve regardless — these rows gate real jobs whose property has a state.
+  // city: null = state-level (covers all cities in that state).
   // Clear before inserting so re-runs stay idempotent (license rows are pure seed data).
   await adminDb.delete(license).where(eq(license.tenantId, demoTenant!.id));
   await adminDb.insert(license).values([
