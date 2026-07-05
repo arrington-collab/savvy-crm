@@ -1,7 +1,13 @@
 import twilio from "twilio";
 
 export interface SmsSender {
-  sendSms(opts: { to: string; from: string; body: string }): Promise<{ sid: string }>;
+  sendSms(opts: {
+    to: string;
+    from: string;
+    body: string;
+    statusCallback?: string;
+    messagingServiceSid?: string;
+  }): Promise<{ sid: string }>;
 }
 
 export interface TwilioApiCreds {
@@ -9,13 +15,35 @@ export interface TwilioApiCreds {
   authToken: string;
 }
 
+// Minimal type for the Twilio messages resource needed by this module.
+interface TwilioMessagesClient {
+  messages: {
+    create(payload: Record<string, unknown>): Promise<{ sid: string }>;
+  };
+}
+
+/**
+ * Build an SmsSender from a pre-constructed Twilio client.
+ * Exported for testing — keeps makeTwilioSms(creds) and twilioSms unchanged.
+ */
+export function makeTwilioSmsWithClient(client: TwilioMessagesClient): SmsSender {
+  return {
+    async sendSms({ to, from, body, statusCallback, messagingServiceSid }) {
+      const payload: Record<string, unknown> = { to, from, body };
+      if (statusCallback) payload.statusCallback = statusCallback;
+      if (messagingServiceSid) payload.messagingServiceSid = messagingServiceSid;
+      const msg = await client.messages.create(payload);
+      return { sid: msg.sid };
+    },
+  };
+}
+
 /** Build an SmsSender from explicit creds (per-tenant BYO or platform env). */
 export function makeTwilioSms(creds: TwilioApiCreds): SmsSender {
   return {
-    async sendSms({ to, from, body }) {
+    async sendSms(opts) {
       const client = twilio(creds.accountSid, creds.authToken);
-      const msg = await client.messages.create({ to, from, body });
-      return { sid: msg.sid };
+      return makeTwilioSmsWithClient(client as unknown as TwilioMessagesClient).sendSms(opts);
     },
   };
 }

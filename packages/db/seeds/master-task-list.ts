@@ -51,6 +51,7 @@ export const CHECK_BINDINGS: Record<number, string> = {
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation
   151: "finance.commissions", // Sales commission calculation
+  213: "comms.deliverability", // SMS deliverability monitoring (cell 6)
 };
 
 // PDF "Automation Level" -> registry default_mode.

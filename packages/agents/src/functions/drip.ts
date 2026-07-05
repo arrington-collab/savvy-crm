@@ -6,7 +6,7 @@ import {
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getEmailSender } from "@savvy/integrations";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, isOutboundThrottled } from "../telephony";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -34,7 +34,14 @@ export async function draftMessage(
   return { body: renderTemplate(templateBody ?? "", vars), aiHandled: false };
 }
 
-export type SendDeps = { sms: SmsSender; from: string; email: EmailSender; ai?: Pick<typeof ai, "complete"> };
+export type SendDeps = {
+  sms: SmsSender;
+  from: string;
+  email: EmailSender;
+  ai?: Pick<typeof ai, "complete">;
+  /** Injectable throttle check — defaults to the DB-backed isOutboundThrottled. */
+  isThrottled?: (tenantId: string) => Promise<boolean>;
+};
 
 function firstNameOf(name: string): string {
   return name.split(/\s+/)[0] ?? name;
@@ -89,13 +96,17 @@ export async function sendDripStep(
   const drafted = await draftMessage({ step, templateBody, ctx }, deps.ai ?? ai);
 
   let providerId = "mock";
+  // Throttle: when the tenant's SMS delivery rate is below the floor, skip the
+  // actual send (mirroring the fail-soft mock-SID path) so we don't deepen a
+  // carrier-filtering problem. Email is unaffected. Fail-soft ⇒ false.
+  const smsThrottled = step.channel === "sms" && await (deps.isThrottled ?? isOutboundThrottled)(tenantId);
   try {
-    if (step.channel === "sms") {
+    if (step.channel === "sms" && !smsThrottled) {
       // to is non-null here: the suppress guard returned when the address was missing.
       ({ sid: providerId } = await deps.sms.sendSms({
         to: to!, from: deps.from, body: drafted.body,
       }));
-    } else {
+    } else if (step.channel === "email") {
       ({ id: providerId } = await deps.email.sendEmail({
         to: to!, from: process.env.EMAIL_FROM ?? "noreply@example.com",
         subject: "A note from your roofing team", html: drafted.body,

@@ -8,6 +8,7 @@ import { getTodayMoney, getTodayDigest, getTenantIdentity } from "@/lib/today-qu
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete } from "@savvy/core";
+import { A2P_REGISTRATION_STEPS } from "@/lib/deliverability-copy";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -23,9 +24,10 @@ const KIND_LABEL: Record<string, string> = {
   supplier_invoice_unmatched: "Unmatched invoice",
   supplier_credit_review: "Credit request",
   supplier_credit_reconcile: "Reconcile credit",
+  comms_deliverability: "SMS deliverability",
 };
 
-type Decision = { kind: string; severity: "high" | "medium"; title: string; detail: string; href: string; occurredAt: Date | null };
+type Decision = { kind: string; severity: "high" | "medium"; title: string; detail: string; href: string; occurredAt: Date | null; checkKey?: string | null };
 
 function usd(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -68,6 +70,7 @@ export default async function TodayPage() {
       detail: e.dollarImpactCents > 0 ? `${usd(e.dollarImpactCents)} at risk` : KIND_LABEL[e.kind] ?? e.kind,
       href: `/tasks/${e.taskId}`,
       occurredAt: null,
+      checkKey: e.checkKey,
     })),
   ];
   decisions.sort((a, b) => (a.severity === "high" ? 0 : 1) - (b.severity === "high" ? 0 : 1));
@@ -164,6 +167,19 @@ export default async function TodayPage() {
                   Resolve →
                 </Link>
               </div>
+              {d.checkKey === "comms.deliverability" && (
+                <ol className="mono mt-3 space-y-1.5 border-t pt-3 text-[11px]">
+                  {A2P_REGISTRATION_STEPS.map((step, i) => (
+                    <li key={step.title} className="flex gap-2">
+                      <span className="shrink-0 font-semibold" style={{ color: "var(--accent-gold)" }}>{i + 1}.</span>
+                      <div>
+                        <b style={{ color: "var(--text-body)", fontWeight: 500 }}>{step.title}</b>
+                        <span style={{ color: "var(--text-muted)" }}> — {step.detail}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </Card>
           ))
         )}

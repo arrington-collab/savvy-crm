@@ -5,34 +5,35 @@ import { adminDb, adminPool } from "../src/admin-client.js";
 import { taskRegistry } from "../src/schema/index.js";
 import { buildTaskRegistrySeed, toAppliesTo, seedTaskRegistry, CHECK_BINDINGS } from "../seeds/master-task-list.js";
 
-// Expected task count per phase (from the code-reviewed extraction of the PDF).
+// Expected task count per phase (from the code-reviewed extraction of the PDF +
+// cell-6 deliverability monitoring task added to phase 14).
 const EXPECTED_PHASE_COUNTS: Record<number, number> = {
   1: 18, 2: 14, 3: 16, 4: 16, 5: 20, 6: 20, 7: 20, 8: 14,
-  9: 14, 10: 10, 11: 10, 12: 14, 13: 10, 14: 10, 15: 6,
+  9: 14, 10: 10, 11: 10, 12: 14, 13: 10, 14: 11, 15: 6,
 };
 
 describe("master task list seed (transform)", () => {
   const rows = buildTaskRegistrySeed();
 
-  it("has exactly 212 tasks with contiguous ids 1..212", () => {
-    expect(rows.length).toBe(212);
+  it("has exactly 213 tasks (212 PDF tasks + task 213 SMS deliverability)", () => {
+    expect(rows.length).toBe(213);
     const ids = rows.map((r) => r.id).sort((a, b) => a - b);
     expect(ids[0]).toBe(1);
-    expect(ids[211]).toBe(212);
-    expect(new Set(ids).size).toBe(212);
+    expect(ids[212]).toBe(213);
+    expect(new Set(ids).size).toBe(213);
   });
 
-  it("phases sum to 212 with the expected per-phase counts", () => {
+  it("phases sum to 213 with the expected per-phase counts", () => {
     const counts: Record<number, number> = {};
     for (const r of rows) counts[r.phase] = (counts[r.phase] ?? 0) + 1;
     expect(counts).toEqual(EXPECTED_PHASE_COUNTS);
-    expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(212);
+    expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(213);
     expect(Object.keys(counts).length).toBe(15);
   });
 
   it("slugs are unique", () => {
     const slugs = rows.map((r) => r.slug);
-    expect(new Set(slugs).size).toBe(212);
+    expect(new Set(slugs).size).toBe(213);
     expect(slugs.every((s) => /^[a-z0-9.-]+$/.test(s))).toBe(true);
   });
 
@@ -66,10 +67,11 @@ describe("master task list seed (transform)", () => {
     expect(byId(133).checkKey).toBe("finance.price_guard"); // Job cost reconciliation (supplier-invoice price guard)
     expect(byId(139).checkKey).toBe("finance.invoice_math"); // Invoice generation
     expect(byId(151).checkKey).toBe("finance.commissions"); // Sales commission calculation
+    expect(byId(213).checkKey).toBe("comms.deliverability"); // SMS deliverability monitoring (cell 6)
     expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
     // Exactly the bound set carries a check_key; everything else is null.
     const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
-    expect(bound).toEqual([18, 19, 24, 32, 133, 139, 151]);
+    expect(bound).toEqual([18, 19, 24, 32, 133, 139, 151, 213]);
   });
 
   it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {
@@ -89,15 +91,15 @@ describe("master task list seed (database, idempotent)", () => {
     await adminPool.end();
   });
 
-  it("seeds all 212 rows and is safe to re-run (upsert)", async () => {
+  it("seeds all 213 rows and is safe to re-run (upsert)", async () => {
     const first = await seedTaskRegistry(adminDb);
-    expect(first).toBe(212);
+    expect(first).toBe(213);
     const again = await seedTaskRegistry(adminDb); // must not throw or duplicate
-    expect(again).toBe(212);
+    expect(again).toBe(213);
 
     const ids = buildTaskRegistrySeed().map((r) => r.id);
     const stored = await adminDb.select().from(taskRegistry).where(inArray(taskRegistry.id, ids));
-    expect(stored.length).toBe(212);
+    expect(stored.length).toBe(213);
     const t1 = stored.find((r) => r.id === 1)!;
     expect(t1.slug).toBeTruthy();
     expect(t1.defaultMode).toBe("full_auto");

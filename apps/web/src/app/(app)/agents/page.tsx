@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/cockpit/PageHeader";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { LockedTile } from "@/components/cockpit/LockedTile";
 import { getAgentRoster } from "@/lib/agent-roster-queries";
+import { getDeliverabilityStatus } from "@/lib/deliverability-queries";
+import { DeliverabilityTile } from "./DeliverabilityTile";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -18,7 +20,7 @@ function ago(d: Date | null): string {
 }
 
 export default async function AgentsPage() {
-  const roster = await getAgentRoster();
+  const [roster, deliverability] = await Promise.all([getAgentRoster(), getDeliverabilityStatus()]);
 
   return (
     <div className="space-y-6" data-testid="agents-page">
@@ -57,6 +59,9 @@ export default async function AgentsPage() {
           </Card>
         ))}
       </div>
+
+      {/* DELIVERABILITY */}
+      <DeliverabilityTile status={deliverability} />
 
       {/* AUDIT PRINCIPLE + LOCKED TILE */}
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">

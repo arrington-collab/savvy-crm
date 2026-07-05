@@ -108,6 +108,47 @@ describe("sendDripStep", () => {
     expect(comms.some((r) => r.body === "[suppressed: appended email (transactional-only)]")).toBe(true);
   });
 
+  it("throttled tenant: sendSms is NOT called, comm still logged with mock sid", async () => {
+    // Reset smsOptOut from the earlier opt-out test.
+    await adminDb.update(customer).set({ smsOptOut: false }).where(eq(customer.id, custId));
+    const sms = { sendSms: vi.fn() };
+    await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: enrId, customerId: custId,
+        step: { stepNum: 3, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Hi {{firstName}}!",
+      },
+      {
+        sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never,
+        isThrottled: vi.fn().mockResolvedValue(true),
+      },
+    );
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    const comms = await adminDb.select().from(communication).where(
+      and(eq(communication.customerId, custId), eq(communication.twilioSid, "mock")),
+    );
+    // Comm row was inserted (fail-soft sentinel), step was advanced — pipeline intact.
+    expect(comms.length).toBeGreaterThan(0);
+  });
+
+  it("healthy tenant: sendSms IS called when throttle check returns false", async () => {
+    const [c4] = await adminDb.insert(customer).values({ tenantId: tId, name: "Healthy Owner", phone: "+15555558888" }).returning();
+    const [e4] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c4!.id, status: "active" }).returning();
+    const sms = { sendSms: vi.fn().mockResolvedValue({ sid: "sm-healthy" }) };
+    await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: e4!.id, customerId: c4!.id,
+        step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Hello {{firstName}}!",
+      },
+      {
+        sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never,
+        isThrottled: vi.fn().mockResolvedValue(false),
+      },
+    );
+    expect(sms.sendSms).toHaveBeenCalledOnce();
+  });
+
   it("marks lead_task 24 (follow-up sequence) done with the communication ref when a leadId is present", async () => {
     const [c5] = await adminDb.insert(customer).values({ tenantId: tId, name: "Lead Owner", phone: "+15555559000" }).returning();
     const [p5] = await adminDb.insert(property).values({ tenantId: tId, customerId: c5!.id, address: "5 Drip Ln" }).returning();
