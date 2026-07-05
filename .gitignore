@@ -21,3 +21,7 @@ playwright-report/
 .claude/
 .vercel
 .superpowers/
+
+# Local canvass provisioning scripts — contain real tenant publicKeys; never commit
+canvass-app/
+packages/db/src/setup-canvass.ts

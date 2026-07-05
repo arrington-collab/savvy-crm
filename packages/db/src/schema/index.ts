@@ -19,3 +19,4 @@ export * from "./enrichment";
 export * from "./task-registry";
 export * from "./credit-request";
 export * from "./canvass";
+export * from "./supplier-allowlist";

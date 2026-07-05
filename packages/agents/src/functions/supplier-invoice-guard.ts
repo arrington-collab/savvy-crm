@@ -10,6 +10,7 @@ import {
   eq,
   listOpenSentCreditRequests,
   markCreditRequestCredited,
+  listAllowedDomains,
 } from "@savvy/db";
 import {
   matchInvoiceLines,
@@ -18,6 +19,7 @@ import {
   parseFinanceConfig,
   matchCreditMemo,
   resolveSupplierRecipient,
+  isRecipientAllowed,
   SUPPLIER_SELF_DOMAINS,
   type SupplierInvoiceLine,
   type SnapshotLine,
@@ -66,6 +68,8 @@ export type PriceGuardDeps = {
   recordRun: (opts: { tenantId: string; jobId: string | null; status: "ok" | "error"; error?: string | null }) => Promise<void>;
   gate: (tenantId: string, jobId: string) => Promise<{ proceed: boolean; level: string }>;
   resolveRecipient: (senderEmail: string | null) => string | null;
+  loadAllowedDomains: (tenantId: string) => Promise<string[]>;
+  logAudit: (o: { tenantId: string; recipientDomain: string; claimedCents: number; outcome: "sent" | "blocked_not_allowlisted" }) => void;
   raiseDraftCard: (
     tenantId: string,
     args: { supplierInvoiceId: string; supplierName: string | null; claimedCents: number },
@@ -169,13 +173,18 @@ export async function priceGuardHandler(
       : { proceed: false, level: "no_job" };
 
     const recipient = deps.resolveRecipient(inv.senderEmail);
+    const allowedDomains = await deps.loadAllowedDomains(tenantId);
+    const allowed = recipient !== null && isRecipientAllowed(recipient, allowedDomains);
+    const domainOf = (e: string) => e.slice(e.lastIndexOf("@") + 1);
     const autoSend =
       shouldAutoSendCredit({ claimedCents, parseConfidence: inv.parseConfidence, allOverageLinesMatched, cfg }) &&
       gate.proceed &&
-      recipient !== null;
+      recipient !== null &&
+      allowed;
 
     if (autoSend) {
       const email = await deps.sendEmail(buildCreditEmail(inv, claimedCents, evidence, recipient!));
+      deps.logAudit({ tenantId, recipientDomain: domainOf(recipient!), claimedCents, outcome: "sent" });
       const cr = await deps.createCredit(tenantId, {
         supplierInvoiceId,
         jobId: inv.jobId,
@@ -187,6 +196,10 @@ export async function priceGuardHandler(
       });
       await deps.recordRun({ tenantId, jobId: inv.jobId, status: "ok" });
       return { status: "guarded", creditRequestId: cr.id, claimedCents };
+    }
+
+    if (recipient !== null && allowedDomains.length > 0 && !allowed) {
+      deps.logAudit({ tenantId, recipientDomain: domainOf(recipient), claimedCents, outcome: "blocked_not_allowlisted" });
     }
 
     // Draft: create credit request + surface to the Today card feed (query-driven via drafted status).
@@ -325,6 +338,8 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         gate: (t, jobId) =>
           gateAgentAutomation({ tenantId: t, jobId, taskKey: GUARD_TASK_KEY, agent: "finance" }),
         resolveRecipient: (senderEmail) => resolveSupplierRecipient(senderEmail, { selfDomains: SUPPLIER_SELF_DOMAINS }),
+        loadAllowedDomains: (t) => listAllowedDomains(t),
+        logAudit: (o) => console.log(JSON.stringify({ evt: "credit-request", ...o })),
         // Feed A (Today) is query-driven: Task 8 selects drafted credit_requests and
         // unmatched supplier invoices. No imperative insert is needed here.
         raiseDraftCard: async () => {},

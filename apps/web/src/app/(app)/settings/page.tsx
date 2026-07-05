@@ -12,6 +12,7 @@ const SECTIONS: { href: string; label: string; desc: string }[] = [
   { href: "/settings/scheduling", label: "Scheduling", desc: "Business hours and appointment defaults." },
   { href: "/settings/price-book", label: "Price Book", desc: "Estimate line items and pricing rules." },
   { href: "/settings/assignment", label: "Lead Assignment", desc: "Auto-route new leads to reps by round-robin, load, territory, or score." },
+  { href: "/settings/suppliers", label: "Supplier allow-list", desc: "Restrict which supplier domains receive automated credit requests." },
 ];
 
 export default function SettingsPage() {

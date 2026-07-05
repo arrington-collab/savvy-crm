@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import {
   adminDb, tenant, customer, property, job, estimate, materialOrder,
   priceBookItem, supplierInvoice, creditRequest, agentRun, document,
-  verificationRun, taskRegistry, withTenant, eq,
+  verificationRun, taskRegistry, supplierAllowlist, withTenant, eq,
 } from "@savvy/db";
 import type { SupplierInvoiceLine } from "@savvy/core";
 
@@ -159,6 +159,95 @@ test("price-guard: guarded invoice creates credit request; credit memo marks it 
     await adminDb.delete(property).where(eq(property.tenantId, tenantId));
     await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
     await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tenantId));
+    await adminDb.delete(tenant).where(eq(tenant.id, tenantId));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Pipeline test: non-matching allow-list → credit_request is drafted, not sent
+// ---------------------------------------------------------------------------
+test("price-guard: non-matching supplier allow-list drafts credit request instead of auto-sending", async ({ baseURL }) => {
+  const stamp = randomUUID().slice(0, 8);
+  const token = `al${stamp}`;
+  const tenantId = randomUUID();
+
+  // Seed isolated tenant
+  await adminDb.insert(tenant).values({
+    id: tenantId, name: `AllowList Co ${stamp}`, publicKey: `al-${stamp}`, clerkOrgId: `org-allowlist-${stamp}`,
+    settings: { supplierInbox: { token } },
+  });
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "ALC" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Allow Ave` }).returning();
+  const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
+  const [e] = await adminDb.insert(estimate).values({ tenantId, jobId: j!.id }).returning();
+
+  // Material order with shingle-hdz at $70/unit cost (same guard baseline)
+  await adminDb.insert(materialOrder).values({
+    tenantId, jobId: j!.id, estimateId: e!.id, status: "ordered",
+    lineItems: [{ key: "shingle-hdz", name: "GAF Timberline HDZ", quantity: 30, unit: "square" as const, unitPriceCents: 9500, amountCents: 285000, unitCostCents: 7000, lineCostCents: 210000 }],
+    subtotalCents: 285000, costSubtotalCents: 210000,
+  });
+
+  await adminDb.insert(priceBookItem).values({
+    tenantId, key: "shingle-hdz", name: "GAF Timberline HDZ", category: "material",
+    unit: "square", unitPriceCents: 9500, unitCostCents: 7000,
+    sourceFields: ["squares"], wasteApplies: true,
+  });
+
+  // Seed a non-matching allow-list domain. The invoice sender is billing@abcsupply.com,
+  // so inserting "srs.com" means no match → auto-send must be blocked → status="drafted".
+  await adminDb.insert(supplierAllowlist).values({ tenantId, domain: "srs.com" });
+
+  try {
+    const api = await request.newContext();
+
+    const guardMessageId = `e2e-allowlist-${randomUUID()}`;
+    const res = await api.post(`${baseURL}/api/inbound/supplier-invoice`, {
+      headers: { "x-inbound-secret": "test-inbound-secret", "content-type": "application/json" },
+      data: {
+        messageId: guardMessageId,
+        to: `inv-${token}@inbox.getsavvy.com`,
+        from: "billing@abcsupply.com",
+        emailBody: "GUARD-SENTINEL",
+        attachments: [{
+          filename: "invoice.pdf",
+          contentType: "application/pdf",
+          bytesBase64: Buffer.from("%PDF-1.4 guard-invoice-allowlist-e2e").toString("base64"),
+        }],
+      },
+    });
+    expect(res.status()).toBe(200);
+
+    // Poll until supplier_invoice reaches "guarded" status
+    const guarded = await waitFor(async () => {
+      const [row] = await withTenant(tenantId, (tx) =>
+        tx.select({ id: supplierInvoice.id, status: supplierInvoice.status })
+          .from(supplierInvoice).where(eq(supplierInvoice.externalMessageId, guardMessageId)));
+      return row?.status === "guarded" ? row : undefined;
+    });
+
+    // Assert the credit_request was created but is drafted (not sent) — allow-list blocked auto-send
+    const [cr] = await withTenant(tenantId, (tx) =>
+      tx.select({ status: creditRequest.status, claimedCents: creditRequest.claimedCents })
+        .from(creditRequest).where(eq(creditRequest.supplierInvoiceId, guarded.id)));
+    expect(cr).toBeTruthy();
+    expect(cr!.claimedCents).toBe(30000);
+    // The tenant's allow-list contains only "srs.com"; sender domain is "abcsupply.com" → no match → drafted
+    expect(cr!.status).toBe("drafted");
+
+  } finally {
+    // Teardown in FK order
+    await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tenantId));
+    await adminDb.delete(creditRequest).where(eq(creditRequest.tenantId, tenantId));
+    await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.tenantId, tenantId));
+    await adminDb.delete(document).where(eq(document.tenantId, tenantId));
+    await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
+    await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
+    await adminDb.delete(job).where(eq(job.tenantId, tenantId));
+    await adminDb.delete(property).where(eq(property.tenantId, tenantId));
+    await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));
+    await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tenantId));
+    await adminDb.delete(supplierAllowlist).where(eq(supplierAllowlist.tenantId, tenantId));
     await adminDb.delete(tenant).where(eq(tenant.id, tenantId));
   }
 });

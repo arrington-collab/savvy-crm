@@ -83,6 +83,7 @@ export * from "./money-strip";
 export * from "./money-margin";
 export * from "./supplier-invoice";
 export * from "./supplier-recipient";
+export * from "./supplier-allowlist";
 export * from "./price-guard";
 export * from "./money-aging";
 export * from "./pipeline-board";
