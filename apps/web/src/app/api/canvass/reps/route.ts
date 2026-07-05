@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
-import { canvassRepCreateObject, hashPin, z } from "@savvy/core";
+import { canvassRepCreateObject, hashPin } from "@savvy/core";
 import { adminDb, canvassRep, and, eq, sql } from "@savvy/db";
 import { tenantByKey } from "@/lib/intake";
+import { getTenantId } from "@/lib/tenant";
+import { isOrgAdmin } from "@/lib/authz";
 import { canvassCors } from "@/lib/canvass-cors";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
-// GET  /api/canvass/reps?key=  → active reps (id, name, photoUrl) for the login picker.
-// POST /api/canvass/reps       → manager creates a rep (name + PIN). Auth = tenant
-//   publicKey in the body (same model as the other canvass endpoints). PIN is
-//   scrypt-hashed server-side; the plaintext PIN never persists.
-const createSchema = canvassRepCreateObject.extend({ key: z.string().min(1) });
+// GET  /api/canvass/reps?key=  → active reps (id, name, photoUrl) for the login picker
+//   (public, read-only — field login devices are unauthenticated).
+// POST /api/canvass/reps       → manager creates a rep (name + PIN). Auth = an
+//   authenticated org-admin session; the tenant is derived from that session, NOT
+//   from a client-supplied public key. PIN is scrypt-hashed server-side; the
+//   plaintext PIN never persists.
 
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, OPTIONS") });
@@ -35,28 +38,36 @@ export async function POST(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, OPTIONS");
   const reply = (body: unknown, status: number) => NextResponse.json(body, { status, headers });
 
+  // Privileged mutation: require an authenticated org-admin session and derive the
+  // tenant from it — never from a client-supplied public key (the publicKey is not
+  // a secret). Field devices (unauthenticated) only use GET /reps + /login.
+  let tenantId: string;
+  try {
+    tenantId = await getTenantId();
+  } catch {
+    return reply({ error: "unauthorized" }, 401);
+  }
+  if (!(await isOrgAdmin())) return reply({ error: "forbidden" }, 403);
+
   let json: unknown;
   try {
     json = await req.json();
   } catch {
     return reply({ error: "invalid json" }, 400);
   }
-  const parsed = createSchema.safeParse(json);
+  const parsed = canvassRepCreateObject.safeParse(json);
   if (!parsed.success) return reply({ error: parsed.error.flatten() }, 400);
-  const { key, name, pin, photoUrl } = parsed.data;
+  const { name, pin, photoUrl } = parsed.data;
 
-  const { ok } = await checkRateLimit("canvass", `rep:${key}:${clientIp(req.headers)}`);
+  const { ok } = await checkRateLimit("canvass", `rep:${tenantId}:${clientIp(req.headers)}`);
   if (!ok) return reply({ error: "rate_limited" }, 429);
-
-  const t = await tenantByKey(key);
-  if (!t) return reply({ error: "unknown tenant" }, 404);
 
   // Reject a duplicate ACTIVE name (case-insensitive) so login stays unambiguous.
   const dupe = await adminDb
     .select({ id: canvassRep.id })
     .from(canvassRep)
     .where(and(
-      eq(canvassRep.tenantId, t.id),
+      eq(canvassRep.tenantId, tenantId),
       eq(canvassRep.active, true),
       sql`lower(${canvassRep.name}) = ${name.trim().toLowerCase()}`,
     ));
@@ -64,9 +75,9 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const [rep] = await adminDb
     .insert(canvassRep)
-    .values({ tenantId: t.id, name: name.trim(), pinHash: hashPin(pin), photoUrl: photoUrl ?? null })
+    .values({ tenantId, name: name.trim(), pinHash: hashPin(pin), photoUrl: photoUrl ?? null })
     .returning({ id: canvassRep.id, name: canvassRep.name, photoUrl: canvassRep.photoUrl });
 
-  log.info("canvass rep created", { route: "/api/canvass/reps", tenantId: t.id, repId: rep.id });
+  log.info("canvass rep created", { route: "/api/canvass/reps", tenantId, repId: rep.id });
   return reply({ rep }, 201);
 }
