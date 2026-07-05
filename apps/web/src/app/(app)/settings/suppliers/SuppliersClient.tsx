@@ -9,12 +9,25 @@ import { PageHeader } from "@/components/cockpit/PageHeader";
 
 type AllowlistRow = Awaited<ReturnType<typeof getSupplierAllowlist>>[number];
 
-function AllowlistRowItem({ row, onRemove }: { row: AllowlistRow; onRemove: (id: string) => void }) {
+function AllowlistRowItem({
+  row,
+  onRemove,
+  onError,
+}: {
+  row: AllowlistRow;
+  onRemove: (id: string) => void;
+  onError: (msg: string) => void;
+}) {
   const [removing, setRemoving] = useState(false);
 
   async function handleRemove() {
     setRemoving(true);
-    await removeSupplierDomain(row.id);
+    const result = await removeSupplierDomain(row.id);
+    if (result.error) {
+      onError(result.error);
+      setRemoving(false);
+      return;
+    }
     onRemove(row.id);
   }
 
@@ -123,7 +136,7 @@ export function SuppliersClient({ rows: initialRows }: { rows: AllowlistRow[] })
               <span />
             </div>
             {rows.map((row) => (
-              <AllowlistRowItem key={row.id} row={row} onRemove={handleRemove} />
+              <AllowlistRowItem key={row.id} row={row} onRemove={handleRemove} onError={setError} />
             ))}
           </>
         )}
