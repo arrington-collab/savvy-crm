@@ -85,3 +85,4 @@ export * from "./supplier-invoice";
 export * from "./price-guard";
 export * from "./money-aging";
 export * from "./pipeline-board";
+export * from "./canvass";

@@ -2,6 +2,7 @@
 export const RATE_LIMITS = {
   leads: { limit: 10, windowSeconds: 60 },
   "crew-pin": { limit: 5, windowSeconds: 60 },
+  canvass: { limit: 10, windowSeconds: 60 },
 } as const;
 
 export type RateBucket = keyof typeof RATE_LIMITS;
