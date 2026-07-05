@@ -379,6 +379,13 @@
       "when": 1783279140612,
       "tag": "0053_exotic_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1783290577803,
+      "tag": "0054_fluffy_raider",
+      "breakpoints": true
     }
   ]
 }
