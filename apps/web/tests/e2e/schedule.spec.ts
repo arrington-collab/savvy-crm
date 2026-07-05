@@ -25,6 +25,11 @@ type SeedOptions = {
   type: "inspection" | "cm" | "crew";
   dayOffset?: number;
   city?: string;
+  // Explicit start instant. When set, overrides `dayOffset` — pass `new Date()`
+  // to seed at "now", whose civil date in the board's tz always equals the
+  // board's anchor, so the appt is guaranteed inside the rendered week on any
+  // weekday/timezone (the Monday-relative `dayOffset` breaks at week boundaries).
+  at?: Date;
 };
 
 /**
@@ -34,7 +39,7 @@ type SeedOptions = {
  * deterministic, pollution-proof handle on exactly this appointment's card.
  */
 async function seedAppt(opts: SeedOptions): Promise<{ apptId: string; crewUserId: string }> {
-  const { type, dayOffset = 1, city = "Phoenix" } = opts;
+  const { type, dayOffset = 1, city = "Phoenix", at } = opts;
 
   const [crewUser] = await adminDb
     .insert(user)
@@ -61,8 +66,8 @@ async function seedAppt(opts: SeedOptions): Promise<{ apptId: string; crewUserId
     .values({ tenantId, customerId: cust!.id, propertyId: prop!.id, type: "retail", stage: "lead" })
     .returning();
 
-  const startsAt = thisWeekDate(dayOffset, 9);
-  const endsAt = thisWeekDate(dayOffset, 10);
+  const startsAt = at ?? thisWeekDate(dayOffset, 9);
+  const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
 
   const [appt] = await adminDb
     .insert(appointment)
@@ -79,12 +84,6 @@ async function seedAppt(opts: SeedOptions): Promise<{ apptId: string; crewUserId
     .returning();
 
   return { apptId: appt!.id, crewUserId: crewUser!.id };
-}
-
-/** Day offset (from this week's Monday) that lands on TODAY, which the schedule
- *  always shows regardless of its week-start convention. Mon=0 … Sun=6. */
-function todayOffset(): number {
-  return (new Date().getUTCDay() + 6) % 7;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,13 +131,16 @@ test("type filter narrows the set", async ({ page }) => {
 });
 
 test("clicking an appointment opens the popover and marks done", async ({ page }) => {
-  // Seed on TODAY so the appt is always in the schedule's visible week (its
-  // Monday-relative dayOffset disagrees with the page's week on some weekdays),
-  // and target OUR appt via its dedicated crew column. The shared e2e DB
-  // accumulates many crew cards across specs (incl. a no_show crew appt whose
-  // popover has no "Done" action), so a positional `.last()` is non-deterministic;
-  // the crew-col-<userId> handle is exact regardless of pollution.
-  const { crewUserId } = await seedAppt({ type: "crew", dayOffset: todayOffset() });
+  // Seed at NOW so the appt is always inside the schedule's visible week: the
+  // board anchors on `toCivilDate(now, tz)` (a Sunday-start, tenant-tz week), so
+  // an appt at the current instant shares that civil day and can never fall
+  // outside the rendered week — unlike a UTC Monday-relative `dayOffset`, which
+  // disagreed with the board at weekend boundaries. Target OUR appt via its
+  // dedicated crew column: the shared e2e DB accumulates many crew cards across
+  // specs (incl. a no_show crew appt whose popover has no "Done" action), so a
+  // positional `.last()` is non-deterministic; the crew-col-<userId> handle is
+  // exact regardless of pollution.
+  const { crewUserId } = await seedAppt({ type: "crew", at: new Date() });
 
   await page.goto("/schedule?view=crew&type=crew");
   await expect(page.getByTestId("crew-board")).toBeVisible();
