@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, index, jsonb, doublePrecision, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 
@@ -15,3 +15,42 @@ export const canvassRep = pgTable("canvass_rep", {
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [index("canvass_rep_tenant_idx").on(t.tenantId), tenantIsolation()]);
+
+// A canvassing territory (drawn polygon) shared across the tenant's reps.
+export const canvassTerritory = pgTable("canvass_territory", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  name: text("name").notNull(),
+  color: text("color"),
+  points: jsonb("points").$type<number[][]>().notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("canvass_territory_tenant_idx").on(t.tenantId), tenantIsolation()]);
+
+// A logged door-knock. Synced from the field app so the whole team shares the
+// map, and managers get real rollups. `clientId` is the app's local id — a
+// unique (tenant, clientId) index makes POST /knock idempotent on retry.
+// `gpsFlagged` / `gpsDistanceM` capture door-vs-rep-GPS mismatch (Slice 3).
+export const canvassKnock = pgTable("canvass_knock", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id),
+  clientId: text("client_id").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  outcome: text("outcome").notNull(), // noanswer|notint|callback|appt|sale
+  address: text("address"),
+  contactName: text("contact_name"),
+  contactPhone: text("contact_phone"),
+  notes: text("notes"),
+  amount: doublePrecision("amount"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  territoryId: uuid("territory_id"),
+  gpsFlagged: boolean("gps_flagged").notNull().default(false),
+  gpsDistanceM: integer("gps_distance_m"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("canvass_knock_tenant_idx").on(t.tenantId),
+  index("canvass_knock_tenant_rep_idx").on(t.tenantId, t.repId),
+  uniqueIndex("canvass_knock_client_uniq").on(t.tenantId, t.clientId),
+  tenantIsolation(),
+]);
