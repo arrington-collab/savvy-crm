@@ -106,6 +106,7 @@ describe("priceGuardHandler", () => {
     await priceGuardHandler(input, deps);
     expect(deps.sendEmail).toHaveBeenCalled();
     expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "sent" }));
+    expect(deps.logAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: "sent", recipientDomain: "abcsupply.com" }));
   });
 
   it("drafts (no email) when a non-empty allow-list excludes the recipient domain", async () => {
@@ -116,6 +117,7 @@ describe("priceGuardHandler", () => {
     expect(deps.sendEmail).not.toHaveBeenCalled();
     expect(deps.createCredit).toHaveBeenCalledWith("t", expect.objectContaining({ status: "drafted" }));
     expect(deps.raiseDraftCard).toHaveBeenCalled();
+    expect(deps.logAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: "blocked_not_allowlisted", recipientDomain: "abcsupply.com" }));
   });
 });
 
