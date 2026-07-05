@@ -417,28 +417,25 @@ git commit -m "feat(db): block scheduling in unlicensed jurisdiction (cell 17a)"
 
 ---
 
-### Task 4: Seed an active AZ license for the demo tenant
+### Task 4: Seed active AZ, NV, and CO licenses for the demo tenant
 
-Realistic-data hygiene: the demo tenant operates in AZ, so seed a state-level AZ ROC license. Not a test fix (the escape valve covers tests) — it keeps the seeded demo app schedulable and gives Cell 20 a pattern to clone.
+Realistic-data hygiene: the demo tenant operates in AZ, NV, and CO (the three states in play), so seed a state-level license for each. Not a test fix (the escape valve + fresh-per-test tenants cover tests) — it keeps the seeded demo app schedulable in all three states and gives Cell 20 a pattern to clone.
 
 **Files:**
 - Modify: `packages/db/src/seed.ts`
 
 - [ ] **Step 1: Locate the demo tenant insert** in `packages/db/src/seed.ts` and note the tenant id variable (e.g. `tenantId`/`demoTenant.id`) and the `db`/`adminDb` handle the seed uses.
 
-- [ ] **Step 2: Add the license seed** after the tenant (and before/after property seeding — order-independent since it only needs the tenant id):
+- [ ] **Step 2: Add the license seed** after the tenant (and before/after property seeding — order-independent since it only needs the tenant id). Seed one state-level license per operating state:
 
 ```ts
-// Cell 17a: seed the demo tenant's home-state license so seeded jobs are schedulable.
-await db.insert(license).values({
-  tenantId,                       // the demo tenant id used elsewhere in this file
-  state: "AZ",
-  city: null,                     // state-level: covers all AZ cities
-  authority: "AZ ROC",
-  licenseNumber: "ROC-DEMO-0001",
-  status: "active",
-  expiresAt: null,
-});
+// Cell 17a: seed the demo tenant's operating-state licenses (AZ, NV, CO) so seeded
+// jobs are schedulable in each. city: null = state-level (covers all cities in state).
+await db.insert(license).values([
+  { tenantId, state: "AZ", city: null, authority: "AZ ROC",              licenseNumber: "ROC-DEMO-0001", status: "active", expiresAt: null },
+  { tenantId, state: "NV", city: null, authority: "NV State Contractors", licenseNumber: "NV-DEMO-0001",  status: "active", expiresAt: null },
+  { tenantId, state: "CO", city: null, authority: "CO SoS",              licenseNumber: "CO-DEMO-0001",  status: "active", expiresAt: null },
+]);
 ```
 
 Add the import if not already present: `import { license } from "./schema/compliance";` (or via the schema barrel the file already imports from).
@@ -446,7 +443,7 @@ Add the import if not already present: `import { license } from "./schema/compli
 - [ ] **Step 3: Run the seed against local dev DB**
 
 Run: `pnpm --filter @savvy/db db:seed`
-Expected: completes without error; a `license` row for the demo tenant exists (`select * from license;`).
+Expected: completes without error; three `license` rows (AZ, NV, CO) for the demo tenant exist (`select state, authority from license;`).
 
 - [ ] **Step 4: Commit**
 
