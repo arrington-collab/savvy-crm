@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test",
-    "test": "vitest run"
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@clerk/nextjs": "^6",
