@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { adminDb, adminPool, tenant, license } from "@savvy/db";
+import { adminDb, adminPool, tenant, license, contractTemplate } from "@savvy/db";
 
 // Creates a fresh, isolated tenant for one e2e run and writes its id+key to a
 // file the playwright config + spec read. Run BEFORE `playwright test` so the
@@ -27,8 +27,20 @@ async function main() {
     { tenantId: t!.id, state: "CO", city: null, authority: "CO SoS", licenseNumber: `CO-${key}`, status: "active", expiresAt: null },
   ]);
 
+  // Cell 17b: seed a compliant CO SB38 contract template so any CO estimate /
+  // canvass contract e2e flow resolves a template instead of failing closed.
+  await adminDb.insert(contractTemplate).values({
+    tenantId: t!.id,
+    state: "CO",
+    version: 1,
+    name: "Colorado SB38 Roofing Contract",
+    docusealTemplateId: null,
+    clauses: ["right_to_rescind", "no_deductible_waiver", "ten_day"],
+    status: "active",
+  });
+
   writeFileSync("/tmp/savvy-e2e-tenant.json", JSON.stringify({ id: t!.id, key }));
-  console.log(`e2e tenant created: id=${t!.id} key=${key} (+AZ/NV/CO licenses)`);
+  console.log(`e2e tenant created: id=${t!.id} key=${key} (+AZ/NV/CO licenses +CO SB38 template)`);
   await adminPool.end();
 }
 

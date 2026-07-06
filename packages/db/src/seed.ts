@@ -1,5 +1,5 @@
 import { adminDb, adminPool } from "./admin-client";
-import { tenant, user, customer, property, job, messageTemplate, drip, license } from "./schema/index";
+import { tenant, user, customer, property, job, messageTemplate, drip, license, contractTemplate } from "./schema/index";
 import { parseSchedulingConfig } from "@savvy/core";
 import { seedTaskRegistry } from "../seeds/master-task-list";
 import { eq } from "drizzle-orm";
@@ -75,6 +75,22 @@ async function main() {
     { tenantId: demoTenant!.id, state: "CO", city: null, authority: "CO SoS",               licenseNumber: "CO-DEMO-0001",  status: "active", expiresAt: null },
   ]);
   console.log("seeded 3 demo licenses (AZ, NV, CO)");
+
+  // Cell 17b: seed an active, compliant CO SB38 contract template so CO estimate
+  // e-sign / canvass contract flows resolve a template instead of failing closed.
+  // docuseal_template_id stays null — the real legal template is owner-attached.
+  // Idempotent: clear then insert (pure seed data).
+  await adminDb.delete(contractTemplate).where(eq(contractTemplate.tenantId, demoTenant!.id));
+  await adminDb.insert(contractTemplate).values({
+    tenantId: demoTenant!.id,
+    state: "CO",
+    version: 1,
+    name: "Colorado SB38 Roofing Contract",
+    docusealTemplateId: null,
+    clauses: ["right_to_rescind", "no_deductible_waiver", "ten_day"],
+    status: "active",
+  });
+  console.log("seeded 1 demo CO SB38 contract template");
 
   await adminPool.end();
 }

@@ -1,5 +1,6 @@
-import { withTenant, eq, sql, estimate, job, customer, recordStageChange } from "@savvy/db";
+import { withTenant, eq, sql, estimate, job, customer, property, contractTemplate, recordStageChange } from "@savvy/db";
 import { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "@savvy/integrations";
+import { resolveOrThrowContractTemplate } from "@savvy/core";
 import { inngest } from "../client";
 
 /** Real gateway when DocuSeal is configured; fake (fail-soft) otherwise (dev/e2e). */
@@ -23,6 +24,29 @@ export async function createEstimateSubmission(
     const cust = j?.customerId
       ? (await tx.select().from(customer).where(eq(customer.id, j.customerId)))[0]
       : undefined;
+    // Cell 17b: block sending a CO (SB38-gated) estimate contract unless it is on
+    // a compliant, versioned template; stamp the resolved template id. Escape
+    // valve: a job with no property / a blank state resolves ungated (null id,
+    // no gate). Throws ContractTemplateRequiredError (fail-closed) BEFORE the
+    // DocuSeal call so a non-compliant CO contract is never sent.
+    let contractTemplateId: string | null = null;
+    if (j?.propertyId) {
+      const [prop] = await tx.select({ state: property.state }).from(property).where(eq(property.id, j.propertyId));
+      const templates = await tx
+        .select({
+          id: contractTemplate.id,
+          state: contractTemplate.state,
+          version: contractTemplate.version,
+          clauses: contractTemplate.clauses,
+          status: contractTemplate.status,
+        })
+        .from(contractTemplate)
+        .where(eq(contractTemplate.tenantId, tenantId));
+      contractTemplateId = resolveOrThrowContractTemplate(
+        templates as { id: string; state: string; version: number; clauses: string[]; status: string }[],
+        prop?.state ?? null,
+      );
+    }
     const { submissionId } = await gateway.createSubmission({
       estimateId,
       signerEmail: cust?.email ?? "",
@@ -30,7 +54,7 @@ export async function createEstimateSubmission(
     });
     await tx
       .update(estimate)
-      .set({ status: "sent", sentAt: sql`now()`, docusealSubmissionId: submissionId })
+      .set({ status: "sent", sentAt: sql`now()`, docusealSubmissionId: submissionId, contractTemplateId })
       .where(eq(estimate.id, estimateId));
     return { submissionId };
   });

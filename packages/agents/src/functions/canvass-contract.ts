@@ -1,8 +1,8 @@
-import { withTenant, and, eq, lead, document, adminDb, tenant } from "@savvy/db";
+import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant } from "@savvy/db";
 import type { StorageGateway, EmailSender } from "@savvy/integrations";
 import { r2Storage, getEmailSender } from "@savvy/integrations";
 import type { CanvassContract } from "@savvy/core";
-import { parseEmailConfig } from "@savvy/core";
+import { parseEmailConfig, resolveOrThrowContractTemplate } from "@savvy/core";
 import { inngest } from "../client";
 
 /**
@@ -23,9 +23,34 @@ export async function storeCanvassContract(
   const r2Key = `${tenantId}/canvass/contract-${dedupe.toLowerCase()}.json`;
 
   const [l] = await withTenant(tenantId, (tx) =>
-    tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, leadId)),
+    tx.select({ customerId: lead.customerId, propertyId: lead.propertyId }).from(lead).where(eq(lead.id, leadId)),
   );
   if (!l) return { stored: false, reason: "lead_not_found" };
+
+  // Cell 17b: block storing a CO (SB38-gated) canvass contract unless it is on a
+  // compliant, versioned template; resolve the template id to stamp, or null when
+  // the jurisdiction is ungated. Escape valve: a lead with no property / blank
+  // state resolves ungated. Throws ContractTemplateRequiredError (fail-closed)
+  // before any storage write so a non-compliant CO contract is never stored.
+  const contractTemplateId = await withTenant(tenantId, async (tx) => {
+    const state = l.propertyId
+      ? (await tx.select({ state: property.state }).from(property).where(eq(property.id, l.propertyId)))[0]?.state ?? null
+      : null;
+    const templates = await tx
+      .select({
+        id: contractTemplate.id,
+        state: contractTemplate.state,
+        version: contractTemplate.version,
+        clauses: contractTemplate.clauses,
+        status: contractTemplate.status,
+      })
+      .from(contractTemplate)
+      .where(eq(contractTemplate.tenantId, tenantId));
+    return resolveOrThrowContractTemplate(
+      templates as { id: string; state: string; version: number; clauses: string[]; status: string }[],
+      state,
+    );
+  });
 
   const dup = await withTenant(tenantId, (tx) =>
     tx
@@ -49,6 +74,7 @@ export async function storeCanvassContract(
       mime: "application/json",
       sizeBytes: bytes.byteLength,
       source: "savvy",
+      contractTemplateId: contractTemplateId ?? undefined,
     }),
   );
   return { stored: true };
@@ -83,13 +109,18 @@ export async function emailSignedCopy(
     customerEmail?: string | null;
     customerName?: string | null;
     companyName: string;
+    // Cell 17b: the signed contract's jurisdiction. Colorado (SB38) adds the
+    // no-deductible-waiver + 10-day insurer-window provisions to the notice;
+    // every other state (incl. AZ door-to-door) keeps the base notice unchanged.
+    state?: string | null;
   },
   deps: { email: EmailSender; from?: string },
 ): Promise<{ sent: boolean; reason?: string }> {
-  const { contract, customerEmail, customerName, companyName } = input;
+  const { contract, customerEmail, customerName, companyName, state } = input;
   if (!customerEmail) return { sent: false, reason: "no_email" };
   const from = deps.from ?? process.env.EMAIL_FROM;
   if (!from) return { sent: false, reason: "no_from_address" };
+  const isCO = (state ?? "").trim().toUpperCase() === "CO";
 
   const fields = contract.fields ?? {};
   const fieldRows = Object.entries(fields)
@@ -109,7 +140,7 @@ The signature image is retained on file${contract.integrityHash ? ` (record hash
 <b>RIGHT TO CANCEL:</b> You may cancel this agreement within 72 hours of signing for a full deposit
 refund (C.R.S. § 6-22-104). If your insurer denies your claim in whole or in part, an additional
 72-hour rescission right applies upon written notice. To cancel, reply to this email or contact
-${esc(companyName)} in writing.
+${esc(companyName)} in writing.${isCO ? `<br><br><b>NO DEDUCTIBLE WAIVER:</b> Colorado law prohibits your contractor from paying, waiving, or rebating any portion of your insurance deductible (C.R.S. § 6-22-105). <b>10-DAY INSURER WINDOW:</b> If your insurer has not approved the claim within 10 days of receiving an acceptable proof of loss, or denies it in whole or in part, you may rescind this agreement upon written notice.` : ""}
 </div>
 ${fieldRows ? `<table style="width:100%;border-collapse:collapse;font-size:14px">${fieldRows}</table>` : ""}
 ${scope ? `<p style="font-size:14px"><b>Scope items:</b> ${scope}</p>` : ""}
@@ -147,12 +178,20 @@ export const canvassContractSigned = inngest.createFunction(
           .where(eq(tenant.id, event.data.tenantId));
         const gmailConnectionId =
           parseEmailConfig((t?.settings as { email?: unknown } | undefined)?.email).gmailConnectionId ?? null;
+        // Resolve the signer's jurisdiction so the CO (SB38) rescission provisions
+        // reach CO homeowners; other states get the base notice unchanged.
+        const state = await withTenant(event.data.tenantId, async (tx) => {
+          const [l] = await tx.select({ propertyId: lead.propertyId }).from(lead).where(eq(lead.id, event.data.leadId));
+          if (!l?.propertyId) return null;
+          return (await tx.select({ state: property.state }).from(property).where(eq(property.id, l.propertyId)))[0]?.state ?? null;
+        });
         return emailSignedCopy(
           {
             contract: event.data.contract,
             customerEmail: event.data.customerEmail ?? event.data.contract.fields?.["Email"] ?? null,
             customerName: event.data.customerName ?? null,
             companyName: t?.name ?? "Your contractor",
+            state,
           },
           { email: getEmailSender({ gmailConnectionId }) },
         );
