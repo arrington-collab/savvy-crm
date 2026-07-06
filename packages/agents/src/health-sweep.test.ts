@@ -29,7 +29,8 @@ const BAD = 9402; // comms.no_double_send with a seeded double-send -> fail
 const UNKNOWN = 9403; // check_key with no implementation -> skipped
 const WRONG = 9404; // a done lead_task whose evidence IS a violation -> spot-verify exception
 const BG = 9405; // a done job_task on a large mismatched invoice -> break-glass page
-const SYN = [CLEAN, BAD, UNKNOWN, WRONG, BG];
+const NL = 9406; // onboarding.no_lockout on a tenant with a job + null flag -> fail
+const SYN = [CLEAN, BAD, UNKNOWN, WRONG, BG, NL];
 let tenantId: string;
 let leadId: string;
 const reg = (id: number, checkKey: string) => ({ id, slug: `sw.${id}`, name: `sw-${id}`, phase: 2, defaultOwner: "HUMAN" as const, defaultMode: "full_auto" as const, scope: "per_lead" as const, checkKey });
@@ -42,6 +43,7 @@ beforeAll(async () => {
   await adminDb.insert(taskRegistry).values([
     reg(CLEAN, "lead.dedupe"), reg(BAD, "comms.no_double_send"), reg(UNKNOWN, "does.not.exist"), reg(WRONG, "comms.no_double_send"),
     { ...reg(BG, "finance.invoice_math"), scope: "per_job" as const, name: "Invoice generation" },
+    { ...reg(NL, "onboarding.no_lockout"), scope: "per_tenant_recurring" as const, name: "Onboarding completion monitoring" },
   ]);
   // Seed a double-send so comms.no_double_send fails; capture the offending ids.
   const [c] = await adminDb.insert(customer).values({ tenantId, name: "HO", phone: "+16025550000" }).returning();
@@ -122,5 +124,22 @@ describe("sweepTenantHealth", () => {
 
     const runs = await adminDb.select().from(agentRun).where(and(eq(agentRun.tenantId, tenantId), eq(agentRun.taskKey, "ops.break_glass")));
     expect(runs.length).toBeGreaterThanOrEqual(1); // paged (idempotent across the two sweeps above)
+  });
+
+  // Proves onboarding.no_lockout is actually RUN by the sweep via a registry binding
+  // (not merely present in evidenceChecks). SW Co has a job + a null requiredCompletedAt
+  // (the P0 lockout shape), so the guard must red its task. Uses a synthetic task id
+  // like the other sweep fixtures — the REAL 214 binding is verified in the db package's
+  // master-task-list.test.ts (binding a synthetic id here avoids racing that seed on the
+  // shared test DB when packages run concurrently).
+  it("reds the onboarding.no_lockout task for a tenant with a job and a null requiredCompletedAt", async () => {
+    await sweepTenantHealth(tenantId);
+    // The check ran and failed (deterministic per sweep) ...
+    expect((await vr(NL))!.status).toBe("fail");
+    // ... and the failure feeds the scoreboard (unhealthy, never green/gray). The
+    // exact amber/red depends on how many sweeps this suite has run, so assert the
+    // failing band rather than a specific rung.
+    const [h] = await adminDb.select().from(taskHealth).where(and(eq(taskHealth.tenantId, tenantId), eq(taskHealth.taskId, NL)));
+    expect(["amber", "red"]).toContain(h!.status);
   });
 });

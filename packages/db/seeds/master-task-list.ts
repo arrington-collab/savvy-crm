@@ -56,6 +56,7 @@ export const CHECK_BINDINGS: Record<number, string> = {
   150: "finance.qb_reconcile", // QuickBooks sync — invoices & payments (Savvy AR == QBO AR, cell 8)
   151: "finance.commissions", // Sales commission calculation
   213: "comms.deliverability", // SMS deliverability monitoring (cell 6)
+  214: "onboarding.no_lockout", // Onboarding completion monitoring — no-lockout guard (2026-07-06 P0)
 };
 
 // PDF "Automation Level" -> registry default_mode.

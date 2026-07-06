@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
+import { needsOnboarding } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
@@ -16,7 +17,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     if (!orgId) redirect("/select-org");
     await getCurrentUser(); // lazily provision tenant + this user's row
     const status = await getOnboardingStatus();
-    if (status.state.requiredCompletedAt === null) redirect("/onboarding");
+    if (needsOnboarding(status.state)) redirect("/onboarding");
   }
   // Nav decision-count pill: the cheap nightly rollup's open-exception count.
   // The Today screen shows the precise live queue; this badge is at-a-glance.

@@ -3,6 +3,7 @@ import {
   parseOnboardingState,
   deriveOnboardingSteps,
   isOnboardingComplete,
+  needsOnboarding,
 } from "./onboarding.js";
 
 describe("parseOnboardingState", () => {
@@ -53,5 +54,17 @@ describe("isOnboardingComplete", () => {
   it("true only when all four steps done", () => {
     expect(isOnboardingComplete({ company: true, band: true, team: true, integrations: true })).toBe(true);
     expect(isOnboardingComplete({ company: true, band: true, team: true, integrations: false })).toBe(false);
+  });
+});
+
+// The (app) layout gate decision behind the 2026-07-06 P0 lockout. Both directions:
+// a completed/backfilled tenant renders the app; an un-onboarded tenant is gated.
+describe("needsOnboarding (app layout gate)", () => {
+  it("does NOT gate a tenant that completed required onboarding", () => {
+    expect(needsOnboarding({ requiredCompletedAt: "2026-07-06T00:00:00.000Z" })).toBe(false);
+  });
+
+  it("gates a tenant whose required onboarding is not complete", () => {
+    expect(needsOnboarding({ requiredCompletedAt: null })).toBe(true);
   });
 });
