@@ -38,6 +38,7 @@ export * from "./schema/index";
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt, gte, lte, gt, ilike } from "drizzle-orm";
 export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
+export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
 export { recordAgentRun, listAgentActivity, type AgentRunStatus, type AgentActivityRow } from "./lifecycle/agent-run";

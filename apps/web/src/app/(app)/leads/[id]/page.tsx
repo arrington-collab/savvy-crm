@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getLeadDetail } from "@/lib/leads-queries";
+import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
@@ -14,6 +14,7 @@ import { RoofTypeEditor } from "./RoofTypeEditor";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
+import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [detail, users] = await Promise.all([getLeadDetail(id), listUsers()]);
+  const [detail, users, artifacts] = await Promise.all([getLeadDetail(id), listUsers(), getLeadArtifactsForLead(id)]);
   if (!detail) notFound();
 
   const qualifier = resolveAgent({ agent: "comms", taskKey: "lead.qualify" });
@@ -108,6 +109,8 @@ export default async function LeadDetailPage({
       />
 
       <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} />
+
+      <LeadArtifactsSections artifacts={artifacts} />
 
       <Card className="p-4">
         <div className="eyebrow mb-3">Storm Certification</div>

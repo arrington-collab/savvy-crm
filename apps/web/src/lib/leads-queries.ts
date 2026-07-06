@@ -1,7 +1,13 @@
 import "server-only";
-import { withTenant, lead, customer, property, user, communication, count, eq, desc, sql } from "@savvy/db";
+import { withTenant, lead, customer, property, user, communication, count, eq, desc, sql, getLeadArtifacts, type LeadArtifacts } from "@savvy/db";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
 import { getTenantId } from "./tenant";
+
+/** Tenant-scoped wrapper for the lead's Measurement + Estimate tile sections. */
+export async function getLeadArtifactsForLead(leadId: string): Promise<LeadArtifacts> {
+  const tenantId = await getTenantId();
+  return getLeadArtifacts({ tenantId, leadId });
+}
 
 export type LeadListRow = {
   id: string;
