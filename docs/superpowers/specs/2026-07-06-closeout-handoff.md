@@ -1,6 +1,6 @@
 # First-20-Cells — Close-out Handoff (2026-07-06)
 
-Session shipped **5 cells** (PRs #144–#148, all merged to main, CI green). This doc hands off the genuinely-remaining work so a fresh session finishes cleanly. Read `first-20-cells.md` STATUS first.
+Session shipped **7 cells** (PRs #144–#151, all merged to main, CI green). This doc hands off the genuinely-remaining work so a fresh session finishes cleanly. Read `first-20-cells.md` STATUS first.
 
 ## Shipped this session (merged)
 
@@ -11,24 +11,25 @@ Session shipped **5 cells** (PRs #144–#148, all merged to main, CI green). Thi
 | 8 QB + Stripe reconcile | #146 | `finance.qb_reconcile` (task 150) + `finance.stripe_match` (task 141), fail-soft to stale | tenant connects QBO/Stripe; 14 clean days |
 | 18 auto-chargeback | #147 | `recordStageChange`→lost flips unpaid commissions to `charged_back` (migration 0056) | n/a (invariant live) |
 | 11 financing seam | #148 | `FinancingProvider` + dormant default + `job.financing_status` (migration 0057) | **owner picks vendor** → adapter |
+| 16 endorsement no-idle | #150 | `claim.endorsement_no_idle` 5-business-day invariant (task 76) + lender tracking (migration 0058) | send-cadence + templates remain |
+| 12r landed-cost | #151 | `landedCostCents` + `selectLandedWinner` (auto-pick/card) — #337 math | cost-sheet persistence remains |
 
-**Migrations added:** 0055 (contract_template), 0056 (commission_status +charged_back), 0057 (job.financing_*). All idempotent. **Run `pnpm --filter @savvy/db db:migrate` on prod** (0055→0057 pending).
+**Migrations added:** 0055 (contract_template), 0056 (commission_status +charged_back), 0057 (job.financing_*), 0058 (claim endorsement fields). All idempotent. **Run `pnpm --filter @savvy/db db:migrate` on prod** (0055→0058 pending).
 
 ## Remaining work
 
-### Cell 16 — Mortgage endorsement chase (NOT BUILT) — expansion-phases.md #282
-Reuse the claim money ledger from depreciation (#111/#112). Build:
-- Lender **co-payee detection** on claim payments (parse payee names on insurance checks/payments).
+### Cell 16 — Mortgage endorsement chase — REMAINDER (#150 shipped the invariant) — #282
+**Shipped:** `claim.lender_name`/`endorsement_status`/`endorsement_last_action_at` (migration 0058), `@savvy/core/endorsement.ts` (business-day math + `endorsementNeeded`/`isEndorsementIdle`), `claim.endorsement_no_idle` check bound to **task 76**, `setClaimEndorsement`. **Build next (reuse depreciation ledger #111/#112):**
+- Lender **co-payee auto-detection** wiring — set `endorsement_status='needed'` when a claim payment names a lender co-payee (parse payee on insurance checks/payments).
 - Per-lender **package templates** in Library (endorsement submission packet).
-- **Multi-channel follow-up** on existing comms rails (mail via templates until PostGrid — note the seam).
-- **5-business-day no-idle invariant** (evidence check: no endorsement sits idle > 5 business days) — bind to a registry task (candidate: 148 "Mechanics lien filing" is wrong; look for an endorsement/lender task, else the closest claims task).
+- **Multi-channel follow-up cadence** (Inngest, like `retail-cadence.ts`) that calls `setClaimEndorsement` on each touch (mail via templates until PostGrid — note the seam).
 - Cards only for **wet-signature / homeowner actions**.
 
-### Cell 12 remainder — Cost sheets + landed-cost selector (NOT BUILT) — #335/#337
-- **Versioned supplier cost sheets** in Library (per supplier, `sheet_freshness < 90d` invariant).
+### Cell 12 remainder — Cost sheets + landed-cost — REMAINDER (#151 shipped the math) — #335/#337
+**Shipped:** `@savvy/core/landed-cost.ts` — `landedCostCents` + `selectLandedWinner` (auto-pick above a confidence margin, else card). **Build next:**
+- **Versioned supplier cost sheets** in Library (per supplier, `supplier.sheet_freshness < 90d` invariant — bind to a procurement registry task).
 - **Rebase the #136 price-guard** onto these sheets as the agreed-price source of truth.
-- **Landed-cost comparison** on every PO draft: units × price + delivery + surcharges + minimums; auto-pick above a confidence margin, card otherwise.
-- Predicted-vs-actual fed by the existing invoice parse.
+- Feed `selectLandedWinner` from the cost sheets and **attach the comparison artifact to every PO draft** (material-order); predicted-vs-actual from the existing invoice parse.
 
 ### Cell 18 remainder — commissions reporting surfaces (UI-heavy)
 - **Versioned commission plans in Library** — exactly one active per rep (today plans live in `tenant.settings.finance.commission`; move to a table + migrate the accrual source in `recordCommission`).
