@@ -3,6 +3,7 @@ import type { EvidenceCtx, EvidenceCheck } from "./types";
 import { makeDeliverabilityCheck } from "./deliverability";
 import { makeQbReconcileCheck, makeStripeMatchCheck } from "./reconcile";
 import { REQUIRED_CLAUSES } from "../contract-compliance";
+import { isEndorsementIdle } from "../endorsement";
 
 // A stamped contract template has "drifted" out of compliance if it is no longer
 // active, or (for a gated state) it no longer carries that state's required
@@ -312,6 +313,30 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
   "finance.stripe_match": makeStripeMatchCheck(async () => {
     throw new Error("finance.stripe_match loader not wired — health-sweep injects the real Stripe loader");
   }),
+
+  // Cell 16 mortgage-endorsement chase: no OPEN endorsement (needed/requested)
+  // may sit idle more than 5 BUSINESS days. Business-day math is JS-side (weekends
+  // skipped), so this is a custom check rather than the SQL invariant() builder.
+  // Idle is measured from the last chase touch, or the claim's created_at when
+  // never touched. `now` = the sweep window end.
+  "claim.endorsement_no_idle": async (ctx) => {
+    const { rows } = await ctx.db.query<{ id: string; status: string; last: string | null; created: string | null }>(
+      `select id, endorsement_status as status, endorsement_last_action_at as last, created_at as created
+         from claim
+        where tenant_id = $1 and endorsement_status in ('needed', 'requested')`,
+      [ctx.tenantId],
+    );
+    const now = ctx.window.end;
+    const stale = rows.filter((r) =>
+      isEndorsementIdle(r.status, r.last ? new Date(r.last) : null, now, 5, r.created ? new Date(r.created) : undefined),
+    );
+    if (stale.length === 0) return { status: "pass", details: "claim.endorsement_no_idle: no idle endorsements", refs: [] };
+    return {
+      status: "fail",
+      details: `claim.endorsement_no_idle: ${stale.length} endorsement(s) idle > 5 business days`,
+      refs: stale.slice(0, 50).map((r) => ({ type: "claim", ref: String(r.id) })),
+    };
+  },
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
