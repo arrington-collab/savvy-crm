@@ -53,7 +53,7 @@ export type PaymentMethod = (typeof PAYMENT_METHOD)[number];
 
 // --- Phase 5B (finance automation) ---
 export const COMMISSION_MODEL = ["flat", "profit", "tiered"] as const;
-export const COMMISSION_STATUS = ["pending", "approved", "paid"] as const;
+export const COMMISSION_STATUS = ["pending", "approved", "paid", "charged_back"] as const;
 export type CommissionModel = (typeof COMMISSION_MODEL)[number];
 export type CommissionStatus = (typeof COMMISSION_STATUS)[number];
 

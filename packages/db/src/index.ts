@@ -22,6 +22,7 @@ export {
   recordStripePayment, StripeNotConnectedError,
 } from "./lifecycle/invoices";
 export { recordCommission } from "./lifecycle/commission";
+export { chargebackCommissionsForJob } from "./lifecycle/commission-chargeback";
 export { recomputeJobActualCost, saveParsedSupplierInvoice, getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed, getMaterialOrderSnapshot, saveGuardedSupplierInvoice, listUnmatchedSupplierInvoices, listSupplierInvoicesForJob } from "./lifecycle/supplier-invoice";
 export { createCreditRequest, setCreditRequestSent, listOpenSentCreditRequests, markCreditRequestCredited, getCreditRecoverySummary, listDraftedCreditRequests } from "./lifecycle/credit-request";
 export { markEsignBySubmission } from "./lifecycle/esign";
