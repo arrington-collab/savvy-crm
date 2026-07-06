@@ -30,7 +30,13 @@ function isExclusionViolation(e: unknown): boolean {
 }
 
 export type BookInput = {
-  tenantId: string; jobId: string; customerId?: string;
+  tenantId: string;
+  // Crew/install appointments are job-scoped; lead-stage inspections are lead-scoped
+  // (no job yet). Exactly one of jobId/leadId identifies the appointment's subject.
+  jobId?: string;
+  leadId?: string;
+  propertyId?: string; // explicit override; otherwise derived from the job or lead
+  customerId?: string;
   type: AppointmentType; assigneeUserId: string | null;
   startsAt: Date; endsAt: Date;
   crewId?: string | null;
@@ -38,18 +44,29 @@ export type BookInput = {
 
 export async function bookAppointment(input: BookInput): Promise<{ id: string }> {
   const { tenantId } = input;
+  if (!input.jobId && !input.leadId) {
+    throw new Error("bookAppointment: one of jobId or leadId is required");
+  }
   try {
     return await withTenant(tenantId, async (tx) => {
+      // Resolve the property this appointment is at — from the job (crew/install)
+      // or the lead (inspection). It drives the Cell 17a license check.
+      let propertyId = input.propertyId ?? null;
+      if (!propertyId && input.jobId) {
+        const [jrow] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, input.jobId));
+        if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
+        propertyId = jrow.propertyId;
+      }
+      if (!propertyId && input.leadId) {
+        const [lrow] = await tx.select({ propertyId: lead.propertyId }).from(lead).where(eq(lead.id, input.leadId));
+        if (!lrow) throw new Error(`bookAppointment: lead ${input.leadId} not found`);
+        propertyId = lrow.propertyId;
+      }
+
       // Cell 17a: block scheduling in a jurisdiction with no active license.
-      const [jrow] = await tx
-        .select({ propertyId: job.propertyId })
-        .from(job)
-        .where(eq(job.id, input.jobId));
-      if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
-      const [prop] = await tx
-        .select({ state: property.state, city: property.city })
-        .from(property)
-        .where(eq(property.id, jrow.propertyId));
+      const [prop] = propertyId
+        ? await tx.select({ state: property.state, city: property.city }).from(property).where(eq(property.id, propertyId))
+        : [undefined];
       const state = (prop?.state ?? "").trim();
       if (state !== "") {
         const lics = await tx
@@ -61,7 +78,8 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
       }
 
       const [row] = await tx.insert(appointment).values({
-        tenantId, jobId: input.jobId, customerId: input.customerId ?? null,
+        tenantId, jobId: input.jobId ?? null, leadId: input.leadId ?? null, propertyId,
+        customerId: input.customerId ?? null,
         type: input.type, assigneeUserId: input.assigneeUserId ?? null,
         startsAt: input.startsAt, endsAt: input.endsAt, status: "scheduled",
         crewId: input.crewId ?? null,

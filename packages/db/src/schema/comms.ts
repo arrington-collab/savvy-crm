@@ -2,7 +2,7 @@ import { pgTable, uuid, text, boolean, integer, jsonb, timestamp, index, uniqueI
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, updatedAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
-import { customer, lead } from "./crm";
+import { customer, lead, property } from "./crm";
 import { job } from "./jobs";
 import { crew } from "./crew";
 import { commChannelEnum, commDirectionEnum, messageChannelEnum, dripStatusEnum, dripStopReasonEnum, appointmentTypeEnum, appointmentStatusEnum } from "./enums";
@@ -36,7 +36,13 @@ export const communication = pgTable("communication", {
 export const appointment = pgTable("appointment", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-  jobId: uuid("job_id").notNull().references(() => job.id),
+  // Slice 1 (leads-stage overhaul): an inspection is booked against the LEAD
+  // before a job exists. job_id is null for lead-stage inspections and is set for
+  // crew/install appointments (which happen after the job is created). lead_id +
+  // property_id scope lead-stage appointments; property_id drives the license check.
+  jobId: uuid("job_id").references(() => job.id),
+  leadId: uuid("lead_id").references(() => lead.id),
+  propertyId: uuid("property_id").references(() => property.id),
   customerId: uuid("customer_id").references(() => customer.id),
   type: appointmentTypeEnum("type").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
