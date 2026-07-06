@@ -25,3 +25,4 @@ playwright-report/
 # Local canvass provisioning scripts — contain real tenant publicKeys; never commit
 canvass-app/
 packages/db/src/setup-canvass.ts
+commit-canvass.sh
