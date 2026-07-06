@@ -41,7 +41,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   // Admin read (like crewLogin): filter to this tenant's ACTIVE reps, then match
   // name + verify PIN. Deactivated reps cannot sign in.
   const reps = await adminDb
-    .select({ id: canvassRep.id, name: canvassRep.name, pinHash: canvassRep.pinHash, photoUrl: canvassRep.photoUrl })
+    .select({ id: canvassRep.id, name: canvassRep.name, pinHash: canvassRep.pinHash, photoUrl: canvassRep.photoUrl, manager: canvassRep.manager })
     .from(canvassRep)
     .where(and(eq(canvassRep.tenantId, t.id), eq(canvassRep.active, true)));
 
@@ -54,5 +54,5 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const token = signCanvassToken({ tenantId: t.id, repId: match.id });
   log.info("canvass login ok", { route: "/api/canvass/login", tenantId: t.id, repId: match.id });
-  return reply({ token, rep: { id: match.id, name: match.name, photoUrl: match.photoUrl } }, 200);
+  return reply({ token, rep: { id: match.id, name: match.name, photoUrl: match.photoUrl, manager: match.manager } }, 200);
 }

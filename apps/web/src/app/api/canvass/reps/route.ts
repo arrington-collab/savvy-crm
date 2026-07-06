@@ -30,7 +30,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const t = await tenantByKey(key);
   if (!t) return NextResponse.json({ error: "unknown tenant" }, { status: 404, headers });
   const reps = await adminDb
-    .select({ id: canvassRep.id, name: canvassRep.name, photoUrl: canvassRep.photoUrl })
+    .select({ id: canvassRep.id, name: canvassRep.name, photoUrl: canvassRep.photoUrl, manager: canvassRep.manager })
     .from(canvassRep)
     .where(and(eq(canvassRep.tenantId, t.id), eq(canvassRep.active, true)));
   return NextResponse.json({ reps }, { status: 200, headers });
@@ -59,7 +59,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
   const parsed = canvassRepCreateObject.safeParse(json);
   if (!parsed.success) return reply({ error: parsed.error.flatten() }, 400);
-  const { name, pin, photoUrl } = parsed.data;
+  const { name, pin, photoUrl, manager } = parsed.data;
 
   const { ok } = await checkRateLimit("canvass", `rep:${tenantId}:${clientIp(req.headers)}`);
   if (!ok) return reply({ error: "rate_limited" }, 429);
@@ -77,8 +77,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const [rep] = await adminDb
     .insert(canvassRep)
-    .values({ tenantId, name: name.trim(), pinHash: hashPin(pin), photoUrl: photoUrl ?? null })
-    .returning({ id: canvassRep.id, name: canvassRep.name, photoUrl: canvassRep.photoUrl });
+    .values({ tenantId, name: name.trim(), pinHash: hashPin(pin), photoUrl: photoUrl ?? null, manager: manager ?? false })
+    .returning({ id: canvassRep.id, name: canvassRep.name, photoUrl: canvassRep.photoUrl, manager: canvassRep.manager });
 
   log.info("canvass rep created", { route: "/api/canvass/reps", tenantId, repId: rep.id });
   return reply({ rep }, 201);

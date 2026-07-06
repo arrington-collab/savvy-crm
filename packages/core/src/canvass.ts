@@ -61,6 +61,9 @@ export const canvassRepCreateObject = z.object({
   name: z.string().min(1).max(80),
   pin: canvassPinSchema,
   photoUrl: z.string().max(300_000).optional(),
+  // Managers are sales reps too — same knock/contract flow, plus the manager
+  // views (dashboard, EOD, team) in the field app.
+  manager: z.boolean().optional(),
 });
 
 // Rep logs in (POST /api/canvass/login): taps their name + enters their PIN.

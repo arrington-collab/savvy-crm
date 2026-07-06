@@ -12,6 +12,9 @@ export const canvassRep = pgTable("canvass_rep", {
   name: text("name").notNull(),
   pinHash: text("pin_hash").notNull(),
   photoUrl: text("photo_url"),
+  // Managers are sales reps too: same login + knock/contract flow, plus the
+  // manager views (dashboard, EOD, team) in the field app.
+  manager: boolean("manager").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [index("canvass_rep_tenant_idx").on(t.tenantId), tenantIsolation()]);
