@@ -10,6 +10,9 @@ export interface StripeGateway {
     successUrl: string; cancelUrl: string; customerEmail?: string;
   }): Promise<{ id: string; url: string; paymentIntentId: string | null }>;
   constructWebhookEvent(rawBody: string, signature: string): StripeEventLite;
+  // Cell 8 reconciliation: total funds collected (succeeded charges) in cents on
+  // a connected account within [since, until). Read-only.
+  collectedCents(o: { connectedAccountId: string; since: Date; until: Date }): Promise<{ cents: number }>;
 }
 
 function client(): Stripe {
@@ -40,6 +43,19 @@ export const stripeGateway: StripeGateway = {
     const evt = client().webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET ?? "");
     return { type: evt.type, account: (evt as { account?: string }).account, data: { object: evt.data.object as unknown as Record<string, unknown> } };
   },
+  async collectedCents({ connectedAccountId, since, until }) {
+    // Sum succeeded charges in the window (auto-paginating), scoped to the
+    // connected account. amount is already in cents.
+    let cents = 0;
+    const params: Stripe.ChargeListParams = {
+      created: { gte: Math.floor(since.getTime() / 1000), lt: Math.floor(until.getTime() / 1000) },
+      limit: 100,
+    };
+    for await (const charge of client().charges.list(params, { stripeAccount: connectedAccountId })) {
+      if (charge.paid && charge.status === "succeeded") cents += charge.amount;
+    }
+    return { cents };
+  },
 };
 
 export function makeFakeStripe(): StripeGateway & { calls: Array<Record<string, unknown>> } {
@@ -56,6 +72,10 @@ export function makeFakeStripe(): StripeGateway & { calls: Array<Record<string, 
     constructWebhookEvent(rawBody) {
       calls.push({ op: "webhook" });
       return JSON.parse(rawBody) as StripeEventLite;
+    },
+    async collectedCents(o) {
+      calls.push({ op: "collected", ...o });
+      return { cents: 0 };
     },
   };
 }
