@@ -48,6 +48,7 @@ export const CHECK_BINDINGS: Record<number, string> = {
   19: "lead.score", // Lead qualification scoring
   24: "drip.appended_guard", // Follow-up sequence (multi-touch)
   32: "lead.speed_to_contact", // Speed-to-lead monitoring & alerts
+  44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation
   151: "finance.commissions", // Sales commission calculation

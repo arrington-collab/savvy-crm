@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
-import { adminDb, adminPool, pool, eq, tenant, customer, property, lead, document } from "@savvy/db";
+import { adminDb, adminPool, pool, eq, tenant, customer, property, lead, document, contractTemplate } from "@savvy/db";
 import { makeFakeStorage } from "@savvy/integrations";
+import { ContractTemplateRequiredError } from "@savvy/core";
 import { storeCanvassContract, emailSignedCopy } from "./canvass-contract";
 
 let tId: string, custId: string, propId: string, leadId: string;
@@ -119,5 +120,76 @@ describe("emailSignedCopy", () => {
     const r2 = await emailSignedCopy(input, { email: boom, from: "docs@alta.example" });
     expect(r2.sent).toBe(false);
     expect(r2.reason).toContain("send_failed");
+  });
+
+  // Cell 17b: the CO signed-copy notice gains the no-deductible-waiver (C.R.S.
+  // § 6-22-105) and 10-day insurer-decision provisions; non-CO (AZ door-to-door)
+  // stays byte-identical to the pre-17b notice.
+  it("adds the CO SB38 provisions (6-22-105 + 10-day) for a CO contract", async () => {
+    const email = fakeSender();
+    await emailSignedCopy({ ...input, state: "CO" }, { email, from: "docs@alta.example" });
+    const html = email.sent[0]!.html;
+    expect(html).toContain("6-22-105"); // no waiver of the insurance deductible
+    expect(html).toMatch(/10[\s-]day/i); // insurer-decision window
+  });
+
+  it("leaves the AZ / non-CO door-to-door notice unchanged (no CO 6-22-105 provision)", async () => {
+    const azEmail = fakeSender();
+    await emailSignedCopy({ ...input, state: "AZ" }, { email: azEmail, from: "docs@alta.example" });
+    const azHtml = azEmail.sent[0]!.html;
+    expect(azHtml).toContain("RIGHT TO CANCEL");
+    expect(azHtml).toContain("72 HOURS");
+    expect(azHtml).not.toContain("6-22-105");
+    // Byte-identical to the notice rendered with no state at all (as-is).
+    const noneEmail = fakeSender();
+    await emailSignedCopy({ ...input, state: null }, { email: noneEmail, from: "docs@alta.example" });
+    expect(azHtml).toBe(noneEmail.sent[0]!.html);
+  });
+});
+
+// Cell 17b: SB38 gate on the canvass field-contract path.
+const CO_CLAUSES = ["right_to_rescind", "no_deductible_waiver", "ten_day"];
+
+async function gateTenantWithLead(state: string | null): Promise<{ tenantId: string; leadId: string }> {
+  const [t] = await adminDb.insert(tenant).values({ name: "CVG", publicKey: `cvg-${Math.random()}`, clerkOrgId: `org_cvg_${Math.random()}` }).returning();
+  const tenantId = t!.id;
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Gated HO", email: "g@x.com" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `7 ${state ?? "None"} Rd`, state }).returning();
+  const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "door-knocking" }).returning();
+  return { tenantId, leadId: l!.id };
+}
+
+const gateContract = (hash: string) => ({ ...contract, integrityHash: hash });
+
+describe("storeCanvassContract — SB38 gate (cell 17b)", () => {
+  it("throws ContractTemplateRequiredError for a CO lead with no compliant template (storage untouched)", async () => {
+    const { tenantId, leadId } = await gateTenantWithLead("CO");
+    const storage = makeFakeStorage();
+    await expect(
+      storeCanvassContract({ tenantId, leadId, contract: gateContract("11".repeat(32)) }, { storage }),
+    ).rejects.toBeInstanceOf(ContractTemplateRequiredError);
+    expect(storage.calls).toHaveLength(0);
+    const docs = await adminDb.select().from(document).where(eq(document.tenantId, tenantId));
+    expect(docs).toHaveLength(0);
+  });
+
+  it("stores and stamps the compliant template id for a CO lead with a compliant template", async () => {
+    const { tenantId, leadId } = await gateTenantWithLead("CO");
+    const [tpl] = await adminDb
+      .insert(contractTemplate)
+      .values({ tenantId, state: "CO", version: 1, name: "SB38", clauses: CO_CLAUSES, status: "active" })
+      .returning();
+    const r = await storeCanvassContract({ tenantId, leadId, contract: gateContract("22".repeat(32)) }, { storage: makeFakeStorage() });
+    expect(r).toEqual({ stored: true });
+    const [doc] = await adminDb.select().from(document).where(eq(document.tenantId, tenantId));
+    expect(doc!.contractTemplateId).toBe(tpl!.id);
+  });
+
+  it("does not gate an AZ lead — stores without a stamp", async () => {
+    const { tenantId, leadId } = await gateTenantWithLead("AZ");
+    const r = await storeCanvassContract({ tenantId, leadId, contract: gateContract("33".repeat(32)) }, { storage: makeFakeStorage() });
+    expect(r).toEqual({ stored: true });
+    const [doc] = await adminDb.select().from(document).where(eq(document.tenantId, tenantId));
+    expect(doc!.contractTemplateId).toBeNull();
   });
 });

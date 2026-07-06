@@ -4,6 +4,7 @@ import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, property } from "./crm";
 import { job } from "./jobs";
+import { contractTemplate } from "./compliance";
 
 export const document = pgTable("document", {
   id: idCol(),
@@ -26,6 +27,9 @@ export const document = pgTable("document", {
   qcReasons: jsonb("qc_reasons").$type<unknown>(),     // structured QC reasons (Slice 2)
   sharedWith: jsonb("shared_with").$type<unknown[]>().default([]).notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  // Cell 17b: the compliant SB38 template a signed contract document (kind='contract')
+  // was stored on (CO canvass paths); null when the jurisdiction is ungated.
+  contractTemplateId: uuid("contract_template_id").references(() => contractTemplate.id),
   createdAt: createdAt(),
 }, (t) => [
   index("document_tenant_job_idx").on(t.tenantId, t.jobId),

@@ -386,6 +386,13 @@
       "when": 1783290577803,
       "tag": "0054_fluffy_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1783325877079,
+      "tag": "0055_nice_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

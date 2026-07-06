@@ -91,3 +91,4 @@ export * from "./canvass";
 export * from "./a2p";
 export * from "./deliverability-throttle";
 export * from "./license";
+export * from "./contract-compliance";

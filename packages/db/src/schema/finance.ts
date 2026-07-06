@@ -5,6 +5,7 @@ import { tenant, user } from "./tenancy";
 import { job } from "./jobs";
 import { customer } from "./crm";
 import { invoiceStatusEnum, paymentMethodEnum, commissionModelEnum, commissionStatusEnum } from "./enums";
+import { contractTemplate } from "./compliance";
 
 export const estimate = pgTable("estimate", {
   id: idCol(),
@@ -24,6 +25,9 @@ export const estimate = pgTable("estimate", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   docusealSubmissionId: text("docuseal_submission_id"),
+  // Cell 17b: the compliant SB38 template this signed contract was sent on (CO
+  // paths); null when the jurisdiction is ungated.
+  contractTemplateId: uuid("contract_template_id").references(() => contractTemplate.id),
   createdAt: createdAt(),
 }, (t) => [index("estimate_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
 
