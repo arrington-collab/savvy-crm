@@ -51,6 +51,8 @@ export const CHECK_BINDINGS: Record<number, string> = {
   44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation
+  141: "finance.stripe_match", // Payment processing — credit card (Stripe collected == payments ledger, cell 8)
+  150: "finance.qb_reconcile", // QuickBooks sync — invoices & payments (Savvy AR == QBO AR, cell 8)
   151: "finance.commissions", // Sales commission calculation
   213: "comms.deliverability", // SMS deliverability monitoring (cell 6)
 };

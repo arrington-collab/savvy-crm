@@ -1,8 +1,12 @@
-import { evidenceChecks, makeDeliverabilityCheck, type EvidenceCheck, type EvidenceCtx, type EvidenceResult } from "@savvy/core";
+import {
+  evidenceChecks, makeDeliverabilityCheck, makeQbReconcileCheck, makeStripeMatchCheck,
+  type EvidenceCheck, type EvidenceCtx, type EvidenceResult,
+} from "@savvy/core";
 import {
   adminDb, adminPool, recomputeTaskHealth, spotVerifyDoneTasks, computeTenantRollup, reconcileTaskExceptions, recomputeFounderMinutes, recordAgentRun, and, eq,
-  taskRegistry, tenantTaskConfig, verificationRun, getA2pRegistration,
+  taskRegistry, tenantTaskConfig, verificationRun, getA2pRegistration, tenant,
 } from "@savvy/db";
+import { nangoQbo, stripeGateway } from "@savvy/integrations";
 import { pageBreakGlass } from "./break-glass";
 
 // Wire the real A2P registration loader. @savvy/core cannot import @savvy/db
@@ -12,6 +16,20 @@ import { pageBreakGlass } from "./break-glass";
 evidenceChecks["comms.deliverability"] = makeDeliverabilityCheck((tenantId) =>
   getA2pRegistration(tenantId).then((r) => ({ registered: r.registered })),
 );
+
+// Cell 8: inject the real QuickBooks AR / Stripe collected loaders (same reason —
+// @savvy/core can't reach @savvy/db or @savvy/integrations). A tenant with no
+// connection returns null (→ the check skips); a vendor error throws (→ stale).
+evidenceChecks["finance.qb_reconcile"] = makeQbReconcileCheck(async (tenantId) => {
+  const [t] = await adminDb.select({ conn: tenant.qboConnectionId }).from(tenant).where(eq(tenant.id, tenantId));
+  if (!t?.conn) return null;
+  return (await nangoQbo.arBalanceCents({ connectionId: t.conn })).arCents;
+});
+evidenceChecks["finance.stripe_match"] = makeStripeMatchCheck(async (tenantId, window) => {
+  const [t] = await adminDb.select({ acct: tenant.stripeAccountId }).from(tenant).where(eq(tenant.id, tenantId));
+  if (!t?.acct) return null;
+  return (await stripeGateway.collectedCents({ connectedAccountId: t.acct, since: window.start, until: window.end })).cents;
+});
 
 const CHECK_TIMEOUT_MS = 10_000;
 const WINDOW_MS = 86_400_000; // the sweep evaluates the last 24h

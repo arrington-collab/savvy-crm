@@ -1,6 +1,7 @@
 import { invariant } from "./builders";
 import type { EvidenceCtx, EvidenceCheck } from "./types";
 import { makeDeliverabilityCheck } from "./deliverability";
+import { makeQbReconcileCheck, makeStripeMatchCheck } from "./reconcile";
 import { REQUIRED_CLAUSES } from "../contract-compliance";
 
 // A stamped contract template has "drifted" out of compliance if it is no longer
@@ -298,6 +299,18 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     throw new Error(
       "comms.deliverability registration loader not wired — import @savvy/agents (health-sweep injects the real getA2pRegistration) before running this check",
     );
+  }),
+
+  // Cell 8 money reconciliation (reconciled tier — fail-soft to stale). Like
+  // comms.deliverability these are PLACEHOLDERS: @savvy/core cannot import
+  // @savvy/db or @savvy/integrations, so health-sweep injects the real QBO AR /
+  // Stripe loaders before running. Un-injected, the loader throws → the
+  // reconciled builder returns `stale` (never a false fail).
+  "finance.qb_reconcile": makeQbReconcileCheck(async () => {
+    throw new Error("finance.qb_reconcile loader not wired — health-sweep injects the real QuickBooks AR loader");
+  }),
+  "finance.stripe_match": makeStripeMatchCheck(async () => {
+    throw new Error("finance.stripe_match loader not wired — health-sweep injects the real Stripe loader");
   }),
 };
 

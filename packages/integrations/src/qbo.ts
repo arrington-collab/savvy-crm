@@ -4,6 +4,9 @@ export interface QboGateway {
   upsertCustomer(o: { connectionId: string; customer: { id: string; name: string; email?: string } }): Promise<{ qboId: string }>;
   upsertInvoice(o: { connectionId: string; qboCustomerId: string; invoice: { number: string; lineItems: unknown[]; amountCents: number; dueAt: string | null } }): Promise<{ qboId: string }>;
   recordPayment(o: { connectionId: string; qboInvoiceId: string; amountCents: number; receivedAt: string }): Promise<{ qboId: string }>;
+  // Cell 8 reconciliation: total open accounts-receivable in cents (sum of
+  // outstanding invoice balances). Read-only.
+  arBalanceCents(o: { connectionId: string }): Promise<{ arCents: number }>;
 }
 
 const QBO_INTEGRATION = () => process.env.NANGO_QBO_INTEGRATION_ID ?? "quickbooks";
@@ -66,6 +69,20 @@ export const nangoQbo: QboGateway = {
     });
     return { qboId: String((res as { Payment?: { Id: string } }).Payment?.Id ?? "") };
   },
+
+  async arBalanceCents({ connectionId }) {
+    // Sum outstanding invoice balances via the QBO query API. Balance > 0 = open.
+    const query = encodeURIComponent("select Balance from Invoice where Balance > '0' maxresults 1000");
+    const res = await nangoProxy({
+      connectionId,
+      integrationId: QBO_INTEGRATION(),
+      method: "GET",
+      endpoint: `/v3/company/query?query=${query}`,
+    });
+    const invoices = (res as { QueryResponse?: { Invoice?: { Balance?: number }[] } }).QueryResponse?.Invoice ?? [];
+    const dollars = invoices.reduce((sum, i) => sum + (Number(i.Balance) || 0), 0);
+    return { arCents: Math.round(dollars * 100) };
+  },
 };
 
 export function makeFakeQbo(): QboGateway & { calls: { op: string; id: string }[] } {
@@ -87,6 +104,10 @@ export function makeFakeQbo(): QboGateway & { calls: { op: string; id: string }[
       const qboId = `qbo_pmt_${++n}`;
       calls.push({ op: "payment", id: qboId });
       return { qboId };
+    },
+    async arBalanceCents() {
+      calls.push({ op: "ar_balance", id: "ar" });
+      return { arCents: 0 };
     },
   };
 }
