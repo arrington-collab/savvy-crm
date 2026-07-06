@@ -93,3 +93,4 @@ export * from "./deliverability-throttle";
 export * from "./license";
 export * from "./contract-compliance";
 export * from "./financing";
+export * from "./endorsement";

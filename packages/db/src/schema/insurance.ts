@@ -20,6 +20,12 @@ export const claim = pgTable("claim", {
   rcvCents: integer("rcv_cents"),
   deductibleCents: integer("deductible_cents"),
   filedAt: timestamp("filed_at", { withTimezone: true }),
+  // Cell 16 mortgage endorsement chase. lender_name = the mortgage co-payee on the
+  // claim check (co-payee detection). endorsement_status tracks the chase; the
+  // 5-business-day no-idle invariant (claim.endorsement_no_idle) watches open ones.
+  lenderName: text("lender_name"),
+  endorsementStatus: text("endorsement_status").notNull().default("none"), // none|needed|requested|received|not_applicable
+  endorsementLastActionAt: timestamp("endorsement_last_action_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("claim_job_uniq").on(t.jobId),
