@@ -26,7 +26,7 @@ test("finance enums", () => {
 
 test("commission enums", () => {
   expect(COMMISSION_MODEL).toEqual(["flat", "profit", "tiered"]);
-  expect(COMMISSION_STATUS).toEqual(["pending", "approved", "paid"]);
+  expect(COMMISSION_STATUS).toEqual(["pending", "approved", "paid", "charged_back"]);
 });
 
 test("phase 7 enums", () => {
