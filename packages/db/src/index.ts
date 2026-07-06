@@ -54,6 +54,10 @@ export { openCheckIn, closeCheckIn } from "./lifecycle/crew-checkin";
 export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { resolvePhotoJob, resolveTenantByIngestKey, recordSiteSnapPhoto, listUnmatchedPhotos, matchPhotoToJob, getPhotoForQc, getJobPhotoHashes, setPhotoQc, listFlaggedPhotos, listFlaggedPhotosForJob, keepFlaggedPhoto } from "./lifecycle/photos";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
+export { provisionTenant, DORMANT_SEAMS } from "./lifecycle/provision-runbook";
+export type {
+  TenantProvisionConfig, ProvisionSecrets, ProvisionResult, ProvisionArtifact, ProvisionStep, DormantSeam,
+} from "./lifecycle/provision-runbook";
 export { setOnboardingRequiredComplete, setOnboardingProfile, dismissOnboarding } from "./lifecycle/onboarding";
 export { addLeadSource, getCustomLeadSources } from "./lifecycle/lead-sources";
 export { getAssignmentCandidates, getAssignmentSettings, saveAssignmentConfig, getRepSameDayAppts, getSchedulingOffice, getScoringSettings, recommendAssignee, type DbAssignmentCandidate } from "./lifecycle/assignment";

@@ -26,3 +26,8 @@ playwright-report/
 canvass-app/
 packages/db/src/setup-canvass.ts
 commit-canvass.sh
+
+# Cell 20: real tenant provisioning configs + completed artifacts (never commit — real IDs/keys)
+packages/db/provisioning/*.json
+!packages/db/provisioning/*.example.json
+packages/db/provisioning/*.complete.json
