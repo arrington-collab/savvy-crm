@@ -77,16 +77,21 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
   { id: "generate-estimate-on-measurement", concurrency: { limit: 5 }, retries: 2 },
   { event: "measurement/ready" },
   async ({ event, step }) => {
-    const { tenantId, jobId, measurementId } = event.data;
+    const { tenantId, jobId, leadId, measurementId } = event.data;
 
     // Runtime automation gate: defer to a human if the owning task isn't full-auto.
-    const gate = await step.run("gate", () =>
-      gateAgentAutomation({ tenantId, jobId, taskKey: ESTIMATE_TASK_KEY, agent: "claims" }));
-    if (!gate.proceed) return { skipped: "automation_deferred", level: gate.level };
+    // Only applies once a job exists (the gate reads the job-task ledger). A
+    // lead-stage draft has no job task yet, so it proceeds.
+    if (jobId) {
+      const gate = await step.run("gate", () =>
+        gateAgentAutomation({ tenantId, jobId, taskKey: ESTIMATE_TASK_KEY, agent: "claims" }));
+      if (!gate.proceed) return { skipped: "automation_deferred", level: gate.level };
+    }
 
-    // Step 1: generate the deterministic estimate from the price book.
+    // Step 1: generate the deterministic estimate from the price book, scoped to
+    // the lead (job-stage callers still pass jobId).
     const est = await step.run("generate", () =>
-      createEstimateFromMeasurement({ tenantId, jobId, measurementId }),
+      createEstimateFromMeasurement({ tenantId, measurementId, jobId: jobId ?? undefined, leadId: leadId ?? undefined }),
     );
     if (!est) return { skipped: "no_measurement" };
 

@@ -2,6 +2,7 @@ import { withTenant } from "../tenant";
 import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
+import { estimate } from "../schema/finance";
 import { license } from "../schema/compliance";
 import { document } from "../schema/ops";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
@@ -193,7 +194,14 @@ export async function setAppointmentWeatherFlag(input: {
  * and stops any active drip enrollments. Returns the jobId + customerId.
  * Idempotent: a repeat call on an already-booked lead returns the existing job.
  */
-export async function convertLeadToJob(args: { tenantId: string; leadId: string }): Promise<{ jobId: string; customerId: string }> {
+export async function convertLeadToJob(args: {
+  tenantId: string;
+  leadId: string;
+  // Escape hatch for jobs that arrive outside the funnel (e.g. insurance
+  // emergencies) with no accepted estimate. When false/undefined the red-path
+  // invariant applies: a job is created FROM an accepted estimate — not before.
+  manualJob?: boolean;
+}): Promise<{ jobId: string; customerId: string }> {
   return withTenant(args.tenantId, async (tx) => {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
     if (!l) throw new Error("lead not found");
@@ -221,12 +229,27 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
         return { jobId: existing.id, customerId: l.customerId! };
       }
     }
+
+    // Red-path invariant: a job is created FROM an accepted estimate. Out-of-funnel
+    // jobs (insurance emergencies) bypass this via manualJob.
+    const [accepted] = await tx
+      .select({ id: estimate.id })
+      .from(estimate)
+      .where(and(eq(estimate.leadId, l.id), eq(estimate.status, "accepted")));
+    if (!accepted && !args.manualJob) {
+      throw new Error("cannot create job: lead has no accepted estimate (use manualJob for out-of-funnel jobs)");
+    }
+
     const jobType = leadToJobType(l.lane ?? null);
     const [newJob] = await tx.insert(job).values({
       tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
       type: jobType, stage: "lead", leadId: l.id,
       assignedUserId: l.assignedUserId ?? null, // carry the lead's owner/credit onto the job
     }).returning();
+    // Carry the accepted estimate onto the new job (measurement travels via property).
+    if (accepted) {
+      await tx.update(estimate).set({ jobId: newJob!.id }).where(eq(estimate.id, accepted.id));
+    }
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });

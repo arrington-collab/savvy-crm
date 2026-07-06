@@ -24,8 +24,11 @@ type Events = {
   "invoice/paid": { data: { invoiceId: string; tenantId: string } };
   "invoice/void": { data: { invoiceId: string; tenantId: string } };
   "esign/completed": { data: { requestId: string; tenantId: string } };
-  "roofr/order.requested": { data: { tenantId: string; jobId: string; propertyId: string } };
-  "measurement/ready": { data: { tenantId: string; jobId: string; measurementId: string } };
+  // Measurement is a PROPERTY artifact; the inspection/estimate that drive it live
+  // at the LEAD stage before a job exists. jobId is optional (legacy/job-stage);
+  // leadId + propertyId scope the lead-stage flow.
+  "roofr/order.requested": { data: { tenantId: string; propertyId: string; jobId?: string; leadId?: string } };
+  "measurement/ready": { data: { tenantId: string; measurementId: string; propertyId?: string; jobId?: string; leadId?: string } };
   "estimate/send.requested": { data: { tenantId: string; estimateId: string } };
   "estimate/accepted": { data: { tenantId: string; estimateId: string } };
   "change_order/accepted": { data: { changeOrderId: string; tenantId: string } };

@@ -1,7 +1,7 @@
 "use server";
 import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
-  bookAppointment, rescheduleAppointment, convertLeadToJob, SlotTakenError, NoAssigneeError,
+  bookAppointment, rescheduleAppointment, SlotTakenError, NoAssigneeError,
   bookLeadSlot, setCustomerEmail,
 } from "@savvy/db";
 import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, formatSlotLabel, requireSecret } from "@savvy/core";
@@ -86,15 +86,14 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
     }
     const assignee = await resolveAssignee(p);
     if (!assignee) return { error: "no_assignee" as const };
-    const conv = p.leadId ? await convertLeadToJob({ tenantId: p.tenantId, leadId: p.leadId }) : null;
-    const jobId = p.jobId ?? conv!.jobId;
+    // This branch handles job-scoped tokens (existing jobs, e.g. crew visits).
+    // Lead-only inspection tokens are handled above via bookLeadSlot, which books
+    // against the lead without creating a job.
+    const jobId = p.jobId!;
     // Without a customerId the appointment can't be reminded (no phone/email lookup),
-    // so for a jobId-only token resolve it from the job.
-    let customerId = conv?.customerId;
-    if (!customerId) {
-      const [j] = await adminDb.select().from(job).where(eq(job.id, jobId));
-      customerId = j?.customerId ?? undefined;
-    }
+    // so resolve it from the job.
+    const [j] = await adminDb.select().from(job).where(eq(job.id, jobId));
+    const customerId = j?.customerId ?? undefined;
     const appt = await bookAppointment({
       tenantId: p.tenantId, jobId, customerId, type: p.type, assigneeUserId: assignee.id,
       startsAt: new Date(startsAt), endsAt: new Date(endsAt),

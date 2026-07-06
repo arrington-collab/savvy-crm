@@ -20,7 +20,7 @@ describe("convertLeadToJob job.type carryover", () => {
   it("opens an insurance job for a storm-lane lead and seeds insurance tasks", async () => {
     const tid = await mkTenant("ctj-storm");
     const leadId = await mkLead(tid, "storm");
-    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId, manualJob: true });
     const [j] = await adminDb.select({ type: job.type }).from(job).where(eq(job.id, jobId));
     expect(j!.type).toBe("insurance");
     const tasks = await adminDb.select({ id: jobChecklistItem.id }).from(jobChecklistItem).where(and(eq(jobChecklistItem.tenantId, tid), eq(jobChecklistItem.jobId, jobId)));
@@ -29,7 +29,7 @@ describe("convertLeadToJob job.type carryover", () => {
   it("opens a retail job for a standard-lane lead", async () => {
     const tid = await mkTenant("ctj-std");
     const leadId = await mkLead(tid, "standard");
-    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId, manualJob: true });
     const [j] = await adminDb.select({ type: job.type }).from(job).where(eq(job.id, jobId));
     expect(j!.type).toBe("retail");
   });
