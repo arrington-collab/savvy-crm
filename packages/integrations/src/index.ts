@@ -16,3 +16,4 @@ export { stormProof, httpStormProof, makeFakeStormProof, type StormProofGateway,
 export { distance, httpDistance, makeFakeDistance, fakeDriveMinutes, type DistanceGateway, type LatLng } from "./distance";
 export { voice, httpVapi, makeFakeVoice, makeHttpVapi, verifyVapiCreds, type VoiceGateway, type VapiApiCreds } from "./vapi";
 export { httpForecastNws, makeFakeForecast, forecast, type ForecastGateway, type DailyForecast } from "./forecast";
+export { dormantFinancing, makeFakeFinancing, type FinancingProvider } from "./financing";
