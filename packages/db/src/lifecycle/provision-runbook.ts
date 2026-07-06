@@ -84,6 +84,33 @@ export interface ProvisionResult {
   steps: ProvisionStep[];
   dormantSeams: DormantSeam[];
   artifact: ProvisionArtifact;
+  warnings?: string[]; // unresolved config fields (placeholders / missing) — surfaced on dry-run
+}
+
+const hasPlaceholder = (s: string | null | undefined): boolean => !!s && /REPLACE/i.test(s);
+const looksLikeEmail = (s: string): boolean => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
+
+/**
+ * Preflight: lists config fields that still carry a `REPLACE` placeholder, are
+ * empty-but-required, or malformed (owner email). Empty list = ready to commit.
+ * Used to WARN on dry-run and to REFUSE a --commit run (so a half-filled
+ * alta.json can never create a broken tenant #2).
+ */
+export function findUnresolvedConfigFields(config: TenantProvisionConfig): string[] {
+  const issues: string[] = [];
+  if (!config.name?.trim() || hasPlaceholder(config.name)) issues.push("name");
+  if (!config.clerkOrgId?.trim() || hasPlaceholder(config.clerkOrgId)) issues.push("clerkOrgId");
+  if (!config.owner?.clerkUserId?.trim() || hasPlaceholder(config.owner.clerkUserId)) issues.push("owner.clerkUserId");
+  if (!config.owner?.email || hasPlaceholder(config.owner.email) || !looksLikeEmail(config.owner.email)) issues.push("owner.email");
+  if (!config.licenses?.length) {
+    issues.push("licenses (at least one required)");
+  } else {
+    config.licenses.forEach((l, i) => {
+      if (!l.licenseNumber?.trim() || hasPlaceholder(l.licenseNumber)) issues.push(`licenses[${i}].licenseNumber`);
+    });
+  }
+  if (config.twilio && (!config.twilio.fromNumber?.trim() || hasPlaceholder(config.twilio.fromNumber))) issues.push("twilio.fromNumber");
+  return issues;
 }
 
 function seamInventory(config: TenantProvisionConfig, secrets: ProvisionSecrets): DormantSeam[] {
@@ -114,6 +141,16 @@ export async function provisionTenant(
   const timezone = config.timezone ?? DEFAULT_TZ;
   const steps: ProvisionStep[] = [];
   const dormantSeams = seamInventory(config, secrets);
+  const warnings = findUnresolvedConfigFields(config);
+
+  // Preflight: never create a broken tenant. A --commit with unresolved config
+  // (leftover REPLACE placeholders / missing required fields) fails fast BEFORE
+  // any DB write. Dry-run only warns (it's a preview of a template).
+  if (!dryRun && warnings.length > 0) {
+    throw new Error(
+      `refusing to provision — unresolved config field(s): ${warnings.join(", ")}. Fill them in your provisioning JSON before running with --commit.`,
+    );
+  }
 
   // ---- DRY RUN: enumerate intent from config, touch nothing ----
   if (dryRun) {
@@ -143,7 +180,7 @@ export async function provisionTenant(
       steps,
       dormantSeams,
     };
-    return { dryRun: true, tenantId: "(dry-run)", created: false, steps, dormantSeams, artifact };
+    return { dryRun: true, tenantId: "(dry-run)", created: false, steps, dormantSeams, artifact, warnings };
   }
 
   // ---- COMMIT ----
@@ -239,5 +276,5 @@ export async function provisionTenant(
     steps,
     dormantSeams,
   };
-  return { dryRun: false, tenantId, created: t.created, steps, dormantSeams, artifact };
+  return { dryRun: false, tenantId, created: t.created, steps, dormantSeams, artifact, warnings };
 }
