@@ -15,9 +15,9 @@
   - **20 — Alta provisioning (#145):** idempotent, dry-run-first `provisionTenant` runbook + CLI + dormant-seam inventory. **Execution (Alta live as tenant #2) is owner-run** — real Clerk org / CO licenses / Twilio+10DLC / QB+Stripe.
 - **PARTIAL (real gaps remain):**
   - **18 — commissions (#147):** **auto-chargeback on job→lost** shipped (money-integrity gap closed; `commission_status='charged_back'`, migration 0056). **Remaining:** versioned plans in Library (one active per rep), monthly statements + dispute cards, payout export with owner approval.
-  - **12 remainder — NOT BUILT:** procurement schema + material-order exist; **versioned supplier cost sheets + landed-cost selector (#335/#337) still missing.**
-  - **16 — NOT BUILT:** mortgage endorsement chase (#282) — lender detection, package templates, 5-day no-idle invariant.
-- **Remaining work (handoff `docs/superpowers/specs/2026-07-06-closeout-handoff.md`):** cell 16 (full), cell 12r (full), cell 18 reporting surfaces. Plus owner-action cards: Alta launch (cell 20 execution), 10DLC carrier registration (cell 6 green), financing vendor (cell 11 adapter).
+  - **16 — endorsement chase (#150):** lender co-payee tracking on `claim` (migration 0058) + business-day helper + **`claim.endorsement_no_idle` 5-business-day invariant bound to task 76** (the contract's "done when"; red-path tested) + `setClaimEndorsement`. **Remaining:** per-lender package templates in Library, multi-channel follow-up cadence (mail via PostGrid seam), co-payee auto-detect wiring on claim payments, wet-signature cards.
+  - **12 remainder — landed-cost (#151):** pure `landedCostCents` (units × price + delivery + surcharges + minimum floor) + `selectLandedWinner` (auto-pick above a confidence margin, else card) — the #337 decision math. **Remaining:** versioned supplier cost sheets in Library (+ `sheet_freshness < 90d` invariant), rebasing the #136 price-guard onto them, attaching the comparison artifact to PO drafts.
+- **Remaining work (handoff `docs/superpowers/specs/2026-07-06-closeout-handoff.md`):** cell 16 send-cadence + templates · cell 12r versioned cost-sheet persistence + price-guard rebase · cell 18 reporting surfaces. Plus owner-action cards: Alta launch (cell 20 execution), 10DLC carrier registration (cell 6 green), financing vendor (cell 11 adapter).
 
 ---
 
