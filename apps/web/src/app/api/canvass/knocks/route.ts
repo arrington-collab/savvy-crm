@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
 import { withTenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
-import { tenantByKey } from "@/lib/intake";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -70,12 +69,10 @@ export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, OPTIONS");
   const url = new URL(req.url);
 
+  // Bearer session ONLY: knock history is homeowner PII (names, phones, addresses,
+  // notes, amounts) and the tenant publicKey ships in the app — never enough here.
   const sess = verifyCanvassToken(bearerToken(req.headers));
-  let tenantId = sess?.tenantId;
-  if (!tenantId) {
-    const key = url.searchParams.get("key");
-    if (key) tenantId = (await tenantByKey(key))?.id;
-  }
+  const tenantId = sess?.tenantId;
   if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
 
   const since = Number(url.searchParams.get("since") || 0);

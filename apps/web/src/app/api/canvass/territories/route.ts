@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { canvassTerritoryObject } from "@savvy/core";
 import { withTenant, canvassTerritory } from "@savvy/db";
-import { tenantByKey } from "@/lib/intake";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { getTenantId } from "@/lib/tenant";
 import { isOrgAdmin } from "@/lib/authz";
@@ -20,13 +19,10 @@ export function OPTIONS(req: Request): NextResponse {
 
 export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, OPTIONS");
-  // Field read: accept bearer session OR public key.
+  // Bearer session ONLY (beta hardening): territory shapes reveal where the
+  // company is working, and the publicKey ships in the app.
   const sess = verifyCanvassToken(bearerToken(req.headers));
-  let tenantId = sess?.tenantId;
-  if (!tenantId) {
-    const key = new URL(req.url).searchParams.get("key");
-    if (key) tenantId = (await tenantByKey(key))?.id;
-  }
+  const tenantId = sess?.tenantId;
   if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
   const territories = await withTenant(tenantId, (tx) =>
     tx

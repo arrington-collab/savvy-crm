@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { withTenant, canvassRep, canvassKnock, eq, sql } from "@savvy/db";
-import { tenantByKey } from "@/lib/intake";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 
@@ -8,7 +7,8 @@ export const runtime = "nodejs";
 
 // End-of-day team rollup for a date (?date=YYYY-MM-DD, default today): per active
 // rep — doors, contacts, appts, sales, sale $, and GPS-flagged count.
-// Auth = bearer session or ?key=.
+// Auth = bearer session ONLY. The tenant publicKey ships in the app and is not a
+// secret; team PII must never be readable with it (beta hardening).
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, OPTIONS") });
 }
@@ -17,11 +17,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, OPTIONS");
   const url = new URL(req.url);
   const sess = verifyCanvassToken(bearerToken(req.headers));
-  let tenantId = sess?.tenantId;
-  if (!tenantId) {
-    const key = url.searchParams.get("key");
-    if (key) tenantId = (await tenantByKey(key))?.id;
-  }
+  const tenantId = sess?.tenantId;
   if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
 
   const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);

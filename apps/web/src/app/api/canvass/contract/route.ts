@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { allowedCanvassOrigin, canvassContractObject, z } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 import { createLeadForTenant, tenantByKey } from "@/lib/intake";
+import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 
@@ -20,7 +21,7 @@ function corsHeaders(req: Request): Record<string, string> {
   const allow = allowedCanvassOrigin(req.headers.get("origin"), process.env.CANVASS_ALLOWED_ORIGINS);
   const h: Record<string, string> = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -58,9 +59,20 @@ export async function POST(req: Request): Promise<NextResponse> {
   const t = await tenantByKey(key);
   if (!t) return reply({ error: "unknown tenant" }, 404);
 
+  // Beta hardening: contracts create leads + documents, so a signed-in rep is
+  // required — the publicKey alone (it ships in the app) can't submit contracts.
+  const sess = verifyCanvassToken(bearerToken(req.headers));
+  if (!sess || sess.tenantId !== t.id) {
+    log.warn("canvass contract rejected: no rep session", { route: "/api/canvass/contract", tenantId: t.id });
+    return reply({ error: "unauthorized — sign in as a rep" }, 401);
+  }
+
   const leadId = await createLeadForTenant(t.id, { ...customer, source: "door-knocking" });
   try {
-    await inngest.send({ name: "canvass/contract.signed", data: { tenantId: t.id, leadId, contract } });
+    await inngest.send({
+      name: "canvass/contract.signed",
+      data: { tenantId: t.id, leadId, contract, customerEmail: customer.email ?? null, customerName: customer.name },
+    });
   } catch (e) {
     // Lead is persisted; a missing Inngest engine must not fail intake.
     log.error("canvass/contract.signed emit failed", {

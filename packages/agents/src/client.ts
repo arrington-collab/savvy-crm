@@ -35,7 +35,7 @@ type Events = {
   "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
-  "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract } };
+  "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract; customerEmail?: string | null; customerName?: string | null } };
 };
 
 export const inngest = new Inngest({

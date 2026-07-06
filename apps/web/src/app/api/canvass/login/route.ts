@@ -34,6 +34,10 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { ok } = await checkRateLimit("canvass", `login:${key}:${clientIp(req.headers)}`);
   if (!ok) return reply({ error: "rate_limited" }, 429);
+  // Per-rep backoff too (beta hardening): a distributed PIN guess against one
+  // name is throttled even across IPs.
+  const perName = await checkRateLimit("canvass", `login:${key}:name:${name.trim().toLowerCase()}`);
+  if (!perName.ok) return reply({ error: "rate_limited" }, 429);
 
   const t = await tenantByKey(key);
   if (!t) return reply({ error: "unknown tenant" }, 404);

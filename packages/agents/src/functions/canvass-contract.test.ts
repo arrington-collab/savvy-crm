@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { adminDb, adminPool, pool, eq, tenant, customer, property, lead, document } from "@savvy/db";
 import { makeFakeStorage } from "@savvy/integrations";
-import { storeCanvassContract } from "./canvass-contract";
+import { storeCanvassContract, emailSignedCopy } from "./canvass-contract";
 
 let tId: string, custId: string, propId: string, leadId: string;
 
@@ -77,5 +77,47 @@ describe("storeCanvassContract", () => {
     );
     expect(r).toEqual({ stored: false, reason: "lead_not_found" });
     expect(storage.calls).toHaveLength(0);
+  });
+});
+
+describe("emailSignedCopy", () => {
+  function fakeSender() {
+    const sent: { to: string; from: string; subject: string; html: string }[] = [];
+    return {
+      sent,
+      async sendEmail(o: { to: string; from: string; subject: string; html: string }) {
+        sent.push(o);
+        return { id: "em_1" };
+      },
+    };
+  }
+  const input = {
+    contract: { ...contract, termsText: "RIGHT OF RESCISSION\nProperty Owner may cancel within 72 HOURS of signing." },
+    customerEmail: "jane@ho.example",
+    customerName: "Jane HO",
+    companyName: "Alta Roofing",
+  };
+
+  it("sends the full signed copy with the rescission notice", async () => {
+    const email = fakeSender();
+    const r = await emailSignedCopy(input, { email, from: "docs@alta.example" });
+    expect(r).toEqual({ sent: true });
+    expect(email.sent).toHaveLength(1);
+    const m = email.sent[0]!;
+    expect(m.to).toBe("jane@ho.example");
+    expect(m.subject).toContain("Insurance Proposal Contract");
+    expect(m.html).toContain("RIGHT TO CANCEL");
+    expect(m.html).toContain("72 HOURS");
+    expect(m.html).toContain("Jane HO");
+    expect(m.html).toContain("CLM-1");
+  });
+
+  it("fails soft without an email address and never throws on send errors", async () => {
+    const r1 = await emailSignedCopy({ ...input, customerEmail: null }, { email: fakeSender(), from: "docs@alta.example" });
+    expect(r1).toEqual({ sent: false, reason: "no_email" });
+    const boom = { async sendEmail() { throw new Error("resend down"); } };
+    const r2 = await emailSignedCopy(input, { email: boom, from: "docs@alta.example" });
+    expect(r2.sent).toBe(false);
+    expect(r2.reason).toContain("send_failed");
   });
 });

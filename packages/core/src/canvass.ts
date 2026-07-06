@@ -28,6 +28,9 @@ export const canvassContractObject = z.object({
       .regex(/^[0-9a-f]{64}$/i)
       .optional(),
     signaturePng: z.string().startsWith("data:image/png;base64,").max(2_000_000),
+    // Full agreement text (preamble + terms) so the server can email the
+    // homeowner a complete signed copy with the rescission notice.
+    termsText: z.string().max(60_000).optional(),
   }),
 });
 
