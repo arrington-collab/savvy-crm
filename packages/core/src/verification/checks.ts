@@ -337,6 +337,28 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
       refs: stale.slice(0, 50).map((r) => ({ type: "claim", ref: String(r.id) })),
     };
   },
+
+  // Onboarding-lockout guard (permanent guard for the 2026-07-06 P0). A tenant
+  // with real work — ≥1 job OR ≥1 lead — must NOT have a null
+  // settings.onboarding.requiredCompletedAt: the (app) layout gate reads that flag
+  // and, when null, redirects to /onboarding on EVERY route, locking the customer
+  // out of the whole app. A genuinely empty tenant (no jobs/leads) with a null flag
+  // is CORRECT (still onboarding) and must pass — so the job/lead EXISTS clause is
+  // exactly what separates a locked-out customer from a fresh signup. Per-tenant
+  // (tenant_id = $1); the tenant row itself is the violation ref. A gate regression
+  // that re-introduces the lockout reds this task and pages via the nightly sweep.
+  "onboarding.no_lockout": invariant(
+    "onboarding.no_lockout",
+    `select t.id
+       from tenant t
+      where t.id = $1
+        and (t.settings #>> '{onboarding,requiredCompletedAt}') is null
+        and (
+          exists (select 1 from job j where j.tenant_id = t.id)
+          or exists (select 1 from lead l where l.tenant_id = t.id)
+        )`,
+    { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

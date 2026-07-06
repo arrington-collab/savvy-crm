@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { OnboardingSteps } from "@savvy/core";
-import { completeWelcome, saveProfile } from "@/lib/onboarding-actions";
+import { completeWelcome, saveProfile, skipOnboarding } from "@/lib/onboarding-actions";
 import { inviteMember } from "@/lib/team-actions";
 
 type Band = { key: string; name: string; monthlyPriceCents: number };
@@ -30,7 +30,12 @@ export function OnboardingWizard({
   const [tz, setTz] = useState("America/Phoenix");
   const [inviteEmail, setInviteEmail] = useState("");
 
-  const finish = () => router.push("/dashboard");
+  // Skip/finish is a real completion: mark required onboarding done (so the (app)
+  // layout gate stops redirecting here) THEN go to the app home. Skipping WITHOUT
+  // writing the flag was the 2026-07-06 lockout loop — /dashboard is retired and
+  // "/" would just bounce back to /onboarding while requiredCompletedAt was null.
+  // The remaining optional steps nag later via the Today onboarding card.
+  const finish = () => run(() => skipOnboarding(), () => router.push("/"));
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
 
   async function run(fn: () => Promise<{ ok: true } | { error: string }>, after: () => void) {
@@ -145,14 +150,14 @@ export function OnboardingWizard({
               </Link>
             ))}
           </div>
-          <button data-testid="onboarding-finish" className="rounded px-4 py-2 font-semibold" style={{ background: "var(--accent-gold)", color: "#1a1206" }} onClick={finish}>
-            Go to dashboard
+          <button data-testid="onboarding-finish" disabled={busy} className="rounded px-4 py-2 font-semibold" style={{ background: "var(--accent-gold)", color: "#1a1206" }} onClick={finish}>
+            Go to Today
           </button>
         </section>
       )}
 
-      <button data-testid="skip-to-dashboard" className="text-sm underline" style={{ color: "var(--text-faint)" }} onClick={finish}>
-        Skip to dashboard
+      <button data-testid="skip-to-dashboard" disabled={busy} className="text-sm underline" style={{ color: "var(--text-faint)" }} onClick={finish}>
+        Skip for now
       </button>
     </div>
   );

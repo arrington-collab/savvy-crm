@@ -229,6 +229,7 @@
     { "id": 210, "name": "Sales rep performance dashboard", "phase": 15, "phaseName": "Reporting & Analytics", "jobType": "All", "automation": "Full Auto" },
     { "id": 211, "name": "Crew productivity analytics", "phase": 15, "phaseName": "Reporting & Analytics", "jobType": "All", "automation": "Full Auto" },
     { "id": 212, "name": "Pipeline forecast & cash flow projection", "phase": 15, "phaseName": "Reporting & Analytics", "jobType": "All", "automation": "Full Auto" },
-    { "id": 213, "name": "SMS deliverability monitoring", "phase": 14, "phaseName": "Operations & Compliance", "jobType": "All", "automation": "Full Auto" }
+    { "id": 213, "name": "SMS deliverability monitoring", "phase": 14, "phaseName": "Operations & Compliance", "jobType": "All", "automation": "Full Auto" },
+    { "id": 214, "name": "Onboarding completion monitoring", "phase": 14, "phaseName": "Operations & Compliance", "jobType": "All", "automation": "Full Auto" }
   ]
 }

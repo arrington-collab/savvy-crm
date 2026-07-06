@@ -40,3 +40,16 @@ export function deriveOnboardingSteps(input: OnboardingStepsInput): OnboardingSt
 export function isOnboardingComplete(steps: OnboardingSteps): boolean {
   return steps.company && steps.band && steps.team && steps.integrations;
 }
+
+/**
+ * The (app) layout onboarding-gate decision. A tenant is locked to /onboarding
+ * until required onboarding is marked complete (settings.onboarding.requiredCompletedAt).
+ * This is the exact predicate behind the 2026-07-06 P0 lockout: pre-existing tenants
+ * with real jobs/leads had a null flag and were redirected on EVERY route. Lives here
+ * in core (pure, CI-gated) rather than apps/web, whose unit tests the vitest workspace
+ * does not run. The 0059 backfill + the wizard skip fix set the flag; the
+ * onboarding.no_lockout sweep invariant guards against a regression.
+ */
+export function needsOnboarding(state: Pick<OnboardingState, "requiredCompletedAt">): boolean {
+  return state.requiredCompletedAt === null;
+}

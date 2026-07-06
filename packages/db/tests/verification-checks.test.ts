@@ -171,3 +171,73 @@ describe("evidence invariants (real DB, green + red)", () => {
     expect(r.status).toBe("pass");
   });
 });
+
+// The onboarding.no_lockout guard doesn't fit the generic clean/bad loop above:
+// its "clean" state is a tenant that either has NO jobs/leads (correctly gated)
+// or has completed required onboarding — so it gets its own fixtures. This is the
+// permanent guard for the 2026-07-06 P0 lockout: a pre-existing tenant with real
+// jobs but a null requiredCompletedAt was redirected to /onboarding on every route.
+describe("onboarding.no_lockout (gate-regression guard)", () => {
+  let gatedEmptyId: string; // no jobs/leads, null flag -> correctly gated -> PASS
+  let completedId: string; // has a job, requiredCompletedAt set -> PASS
+  let lockedByJobId: string; // has a job, null flag -> FAIL (the P0 shape)
+  let lockedByLeadId: string; // has only a lead, null flag -> FAIL
+
+  const mkTenant = async (label: string, settings: Record<string, unknown>) => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({ name: `NL-${label}`, publicKey: `nl-${label}-${Date.now()}`, clerkOrgId: `org_nl_${label}_${Date.now()}`, settings: settings as never })
+      .returning();
+    return t!.id;
+  };
+  const giveJob = async (tid: string) => {
+    const [c] = await adminDb.insert(customer).values({ tenantId: tid, name: "nl" }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId: tid, customerId: c!.id, address: `nl-${tid}` }).returning();
+    await adminDb.insert(job).values({ tenantId: tid, customerId: c!.id, propertyId: p!.id });
+  };
+
+  beforeAll(async () => {
+    gatedEmptyId = await mkTenant("empty", {});
+    completedId = await mkTenant("done", { onboarding: { requiredCompletedAt: new Date().toISOString() } });
+    lockedByJobId = await mkTenant("lockedjob", {});
+    lockedByLeadId = await mkTenant("lockedlead", {});
+    await giveJob(completedId);
+    await giveJob(lockedByJobId);
+    const [lc] = await adminDb.insert(customer).values({ tenantId: lockedByLeadId, name: "nl-lead" }).returning();
+    await adminDb.insert(lead).values({ tenantId: lockedByLeadId, customerId: lc!.id, source: "test", status: "new" });
+  });
+
+  afterAll(async () => {
+    for (const tid of [gatedEmptyId, completedId, lockedByJobId, lockedByLeadId]) {
+      await adminDb.delete(job).where(eq(job.tenantId, tid));
+      await adminDb.delete(lead).where(eq(lead.tenantId, tid));
+      await adminDb.delete(property).where(eq(property.tenantId, tid));
+      await adminDb.delete(customer).where(eq(customer.tenantId, tid));
+      await adminDb.delete(tenant).where(eq(tenant.id, tid));
+    }
+  });
+
+  it("passes for a genuinely empty tenant (correctly gated, not a lockout)", async () => {
+    const r = await run("onboarding.no_lockout", gatedEmptyId);
+    expect(r.status).toBe("pass");
+    expect(r.refs).toEqual([]);
+  });
+
+  it("passes for a tenant with jobs that completed required onboarding", async () => {
+    const r = await run("onboarding.no_lockout", completedId);
+    expect(r.status).toBe("pass");
+  });
+
+  it("FAILS for a tenant with jobs and a null requiredCompletedAt (the P0 lockout)", async () => {
+    const r = await run("onboarding.no_lockout", lockedByJobId);
+    expect(r.status).toBe("fail");
+    expect(r.refs.length).toBeGreaterThanOrEqual(1);
+    expect(r.refs[0]!.type).toBe("tenant");
+    expect(r.refs[0]!.ref).toBe(lockedByJobId);
+  });
+
+  it("FAILS for a tenant with only a lead and a null flag", async () => {
+    const r = await run("onboarding.no_lockout", lockedByLeadId);
+    expect(r.status).toBe("fail");
+  });
+});
