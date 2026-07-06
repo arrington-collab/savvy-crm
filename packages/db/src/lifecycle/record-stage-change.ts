@@ -4,6 +4,7 @@ import { db } from "../client";
 import type { JobStage, Agent } from "@savvy/core";
 import { parseProductionConfig, missingRequiredDocs } from "@savvy/core";
 import { missingProductionPhotos } from "./production-signals";
+import { chargebackCommissionsForJob } from "./commission-chargeback";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -77,10 +78,17 @@ export async function recordStageChange(
     ),
   ).returning({ id: jobChecklistItem.id });
 
+  // Cell 18: a job cancelled / called back (→ 'lost') auto-charges-back any
+  // commission not yet paid out; paid ones are flagged for manual clawback.
+  let chargeback: { chargedBack: number; paidNeedingClawback: number } | undefined;
+  if (opts.toStage === "lost") {
+    chargeback = await chargebackCommissionsForJob(tx, { tenantId: opts.tenantId, jobId: opts.jobId });
+  }
+
   await tx.insert(auditLog).values({
     tenantId: opts.tenantId, agent: opts.byAgent ?? null, userId: opts.byUserId ?? null,
     entityType: "job", entityId: opts.jobId, action: "stage_changed",
-    diff: { fromStage, toStage: opts.toStage, activatedTasks: res.length },
+    diff: { fromStage, toStage: opts.toStage, activatedTasks: res.length, ...(chargeback ? { chargeback } : {}) },
   });
 
   return { activated: res.length, fromStage };
