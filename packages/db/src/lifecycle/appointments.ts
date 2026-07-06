@@ -2,10 +2,11 @@ import { withTenant } from "../tenant";
 import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
+import { license } from "../schema/compliance";
 import { document } from "../schema/ops";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
-import { leadToJobType } from "@savvy/core";
+import { leadToJobType, resolveActiveLicense } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
 import { instantiateJobTasks } from "./job-tasks";
 import { recordStageChange } from "./record-stage-change";
@@ -16,6 +17,12 @@ export class SlotTakenError extends Error {
 }
 export class NoAssigneeError extends Error {
   constructor() { super("no_assignee"); this.name = "NoAssigneeError"; }
+}
+export class LicenseRequiredError extends Error {
+  constructor(public readonly state: string, public readonly city: string | null) {
+    super(`No active license for jurisdiction: ${state}${city ? `/${city}` : ""}`);
+    this.name = "LicenseRequiredError";
+  }
 }
 
 function isExclusionViolation(e: unknown): boolean {
@@ -33,6 +40,26 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
   const { tenantId } = input;
   try {
     return await withTenant(tenantId, async (tx) => {
+      // Cell 17a: block scheduling in a jurisdiction with no active license.
+      const [jrow] = await tx
+        .select({ propertyId: job.propertyId })
+        .from(job)
+        .where(eq(job.id, input.jobId));
+      if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
+      const [prop] = await tx
+        .select({ state: property.state, city: property.city })
+        .from(property)
+        .where(eq(property.id, jrow.propertyId));
+      const state = (prop?.state ?? "").trim();
+      if (state !== "") {
+        const lics = await tx
+          .select({ state: license.state, city: license.city, status: license.status, expiresAt: license.expiresAt })
+          .from(license)
+          .where(eq(license.tenantId, tenantId));
+        const active = resolveActiveLicense(lics, { state, city: prop?.city ?? null }, new Date());
+        if (!active) throw new LicenseRequiredError(state, prop?.city ?? null);
+      }
+
       const [row] = await tx.insert(appointment).values({
         tenantId, jobId: input.jobId, customerId: input.customerId ?? null,
         type: input.type, assigneeUserId: input.assigneeUserId ?? null,
