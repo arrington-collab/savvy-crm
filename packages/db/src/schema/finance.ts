@@ -3,14 +3,20 @@ import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { job } from "./jobs";
-import { customer } from "./crm";
+import { customer, lead, property } from "./crm";
 import { invoiceStatusEnum, paymentMethodEnum, commissionModelEnum, commissionStatusEnum } from "./enums";
 import { contractTemplate } from "./compliance";
 
 export const estimate = pgTable("estimate", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-  jobId: uuid("job_id").notNull().references(() => job.id),
+  // Slice 1 (leads-stage overhaul): an estimate is a LEAD/PROPERTY artifact.
+  // It is drafted before any job exists (job_id null, lead_id + property_id set),
+  // and job_id is stamped only when the accepted estimate creates the job.
+  // Legacy/accepted rows keep job_id; it stays nullable for lead-stage drafts.
+  jobId: uuid("job_id").references(() => job.id),
+  leadId: uuid("lead_id").references(() => lead.id),
+  propertyId: uuid("property_id").references(() => property.id),
   source: text("source").notNull().default("manual"), // roofr|diy|manual|carrier
   status: text("status").notNull().default("draft"),  // draft|sent|accepted
   lineItems: jsonb("line_items").$type<unknown[]>().default([]).notNull(),
@@ -29,7 +35,11 @@ export const estimate = pgTable("estimate", {
   // paths); null when the jurisdiction is ungated.
   contractTemplateId: uuid("contract_template_id").references(() => contractTemplate.id),
   createdAt: createdAt(),
-}, (t) => [index("estimate_tenant_job_idx").on(t.tenantId, t.jobId), tenantIsolation()]);
+}, (t) => [
+  index("estimate_tenant_job_idx").on(t.tenantId, t.jobId),
+  index("estimate_tenant_lead_idx").on(t.tenantId, t.leadId),
+  tenantIsolation(),
+]);
 
 export const invoice = pgTable("invoice", {
   id: idCol(),

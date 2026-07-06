@@ -59,6 +59,24 @@ export async function makeLeadWithCustomer(tenantId: string): Promise<{ leadId: 
   return { leadId: l!.id, customerId: c!.id };
 }
 
+export async function makeLeadWithProperty(
+  tenantId: string,
+): Promise<{ leadId: string; customerId: string; propertyId: string }> {
+  const [c] = await adminDb
+    .insert(customer)
+    .values({ tenantId, name: "Test Customer" })
+    .returning();
+  const [p] = await adminDb
+    .insert(property)
+    .values({ tenantId, customerId: c!.id, address: "1 Test St" })
+    .returning();
+  const [l] = await adminDb
+    .insert(lead)
+    .values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "test" })
+    .returning();
+  return { leadId: l!.id, customerId: c!.id, propertyId: p!.id };
+}
+
 export async function makeJobWithProperty(tenantId: string): Promise<{ jobId: string; customerId: string; propertyId: string }> {
   const [c] = await adminDb
     .insert(customer)

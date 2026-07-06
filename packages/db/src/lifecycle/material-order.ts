@@ -58,6 +58,10 @@ export async function createMaterialOrderFromEstimate(input: {
   return withTenant(input.tenantId, async (tx) => {
     const [est] = await tx.select().from(estimate).where(eq(estimate.id, input.estimateId));
     if (!est) return null;
+    // Material orders require a job-attached estimate. A lead-stage draft (job_id
+    // null) can't be ordered against until acceptance creates the job.
+    if (!est.jobId) throw new Error("cannot order materials for a lead-stage estimate without an accepted job");
+    const jobId = est.jobId;
 
     // Fix 2: explicit tenant scoping for defense-in-depth (not relying solely on RLS)
     const [existing] = await tx.select().from(materialOrder).where(and(eq(materialOrder.estimateId, input.estimateId), eq(materialOrder.tenantId, input.tenantId)));
@@ -68,7 +72,7 @@ export async function createMaterialOrderFromEstimate(input: {
     const pb = await tx.select({ key: priceBookItem.key, unitCostCents: priceBookItem.unitCostCents }).from(priceBookItem);
     const costByKey = Object.fromEntries(pb.map((p) => [p.key, p.unitCostCents]));
     const { lines: costedLines, costSubtotalCents } = attachMaterialCosts(lines, costByKey);
-    const installAt = await earliestCrewInstallAt(tx, est.jobId);
+    const installAt = await earliestCrewInstallAt(tx, jobId);
     const neededByAt = neededByFromInstall(installAt);
 
     // Fix 1: onConflictDoNothing makes concurrent inserts idempotent — if this
@@ -76,7 +80,7 @@ export async function createMaterialOrderFromEstimate(input: {
     // is thrown; instead we re-select to return the winner's row.
     const [row] = await tx.insert(materialOrder).values({
       tenantId: input.tenantId,
-      jobId: est.jobId,
+      jobId,
       estimateId: input.estimateId,
       status: "draft",
       lineItems: costedLines,

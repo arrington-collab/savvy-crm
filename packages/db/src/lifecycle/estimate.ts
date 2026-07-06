@@ -16,8 +16,13 @@ import { markJobTaskDoneTx } from "./job-tasks";
 
 export async function createEstimateFromMeasurement(input: {
   tenantId: string;
-  jobId: string;
   measurementId: string;
+  // Lead-stage drafts pass leadId (job_id stays null until acceptance creates the
+  // job). Legacy/job-stage callers may still pass jobId. propertyId is derived from
+  // the measurement when not supplied. At least one of leadId/jobId should be set.
+  leadId?: string;
+  jobId?: string;
+  propertyId?: string;
 }): Promise<typeof estimate.$inferSelect | null> {
   return withTenant(input.tenantId, async (tx) => {
     const [m] = await tx.select().from(measurement).where(eq(measurement.id, input.measurementId));
@@ -44,7 +49,9 @@ export async function createEstimateFromMeasurement(input: {
       .insert(estimate)
       .values({
         tenantId: input.tenantId,
-        jobId: input.jobId,
+        jobId: input.jobId ?? null,
+        leadId: input.leadId ?? null,
+        propertyId: input.propertyId ?? m.propertyId,
         source: m.provider === "diy" ? "diy" : "roofr",
         status: "draft",
         lineItems,
@@ -76,7 +83,10 @@ export async function setEstimateStatus(input: {
       .set(set)
       .where(and(eq(estimate.tenantId, input.tenantId), eq(estimate.id, input.estimateId)))
       .returning();
-    if (row && input.status === "sent") {
+    // A lead-stage estimate has no job yet, so there is no job task to mark done
+    // on "sent". The job-task ledger is only relevant once the estimate is attached
+    // to a job (post-acceptance / legacy rows).
+    if (row && input.status === "sent" && row.jobId) {
       await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.ESTIMATE_DELIVERY, owner: "SAGE", evidence: { type: "estimate", ref: row.id } });
     }
     return row;
