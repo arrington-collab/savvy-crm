@@ -60,7 +60,7 @@ afterAll(async () => {
 
 describe("convertLeadToJob — cert carryover", () => {
   it("stamps jobId onto cert documents at conversion", async () => {
-    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId, manualJob: true });
 
     const [d] = await adminDb
       .select()
@@ -72,7 +72,7 @@ describe("convertLeadToJob — cert carryover", () => {
 
   it("is idempotent — repeat call does not error and cert keeps the same jobId", async () => {
     // Lead is now 'booked', so convertLeadToJob returns the existing job
-    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId, manualJob: true });
 
     const [d] = await adminDb
       .select()
