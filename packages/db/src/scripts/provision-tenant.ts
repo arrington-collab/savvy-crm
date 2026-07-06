@@ -43,6 +43,12 @@ async function main() {
   console.log("\nDormant seams:");
   for (const seam of res.dormantSeams) console.log(`  ${seam.active ? "ON " : "off"} ${seam.key.padEnd(11)} — ${seam.active ? seam.label : seam.activate}`);
 
+  if (res.warnings && res.warnings.length > 0) {
+    console.log("\n⚠️  Config not ready to commit — still needs:");
+    for (const w of res.warnings) console.log(`  • ${w}`);
+    console.log("  (a --commit run will refuse until these are filled in.)");
+  }
+
   const elapsedMs = Date.now() - startedAt;
   console.log(`\nwall-clock: ${(elapsedMs / 1000).toFixed(1)}s`);
 
