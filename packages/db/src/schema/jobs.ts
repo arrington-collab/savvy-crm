@@ -18,6 +18,11 @@ export const job = pgTable("job", {
   leadId: uuid("lead_id").references(() => lead.id),
   companycamProjectId: text("companycam_project_id"),
   costCents: integer("cost_cents"),
+  // Cell 11 financing seam (retail only). Neutral application status — never any
+  // credit data. Default 'none'; a provider webhook advances it. financing_ref is
+  // the vendor's opaque application id.
+  financingStatus: text("financing_status").notNull().default("none"),
+  financingRef: text("financing_ref"),
   openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
   stageEnteredAt: timestamp("stage_entered_at", { withTimezone: true }).defaultNow().notNull(),
