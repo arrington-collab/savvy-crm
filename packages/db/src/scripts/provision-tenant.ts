@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
-import { provisionTenant, type TenantProvisionConfig, type ProvisionSecrets } from "../index";
+import { provisionTenant, type TenantProvisionConfig, type ProvisionSecrets } from "../lifecycle/provision-runbook";
 import { adminPool } from "../admin-client";
 
 // Cell 20 provisioning CLI. Loads a committable, SECRET-FREE tenant config from a
