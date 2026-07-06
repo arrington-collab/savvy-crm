@@ -1,6 +1,26 @@
 import { invariant } from "./builders";
 import type { EvidenceCtx, EvidenceCheck } from "./types";
 import { makeDeliverabilityCheck } from "./deliverability";
+import { REQUIRED_CLAUSES } from "../contract-compliance";
+
+// A stamped contract template has "drifted" out of compliance if it is no longer
+// active, or (for a gated state) it no longer carries that state's required
+// clauses. Built from REQUIRED_CLAUSES so the sweep SQL and the pure resolver
+// share one source of truth. Keys/values are controlled constants (state codes +
+// clause enum strings) — safe to interpolate.
+const templateDriftPredicate = (() => {
+  const gaps = Object.entries(REQUIRED_CLAUSES).map(
+    ([state, clauses]) =>
+      `(upper(btrim(ct.state)) = '${state}' and not ct.clauses @> '${JSON.stringify(clauses)}'::jsonb)`,
+  );
+  return `(ct.status <> 'active'${gaps.length ? ` or ${gaps.join(" or ")}` : ""})`;
+})();
+
+// Gated states as a SQL in-list, e.g. ('CO'). Used to flag unstamped signed
+// contracts only in jurisdictions that require a compliant template.
+const gatedStatesInList = Object.keys(REQUIRED_CLAUSES)
+  .map((s) => `'${s}'`)
+  .join(",");
 
 /**
  * Concrete evidence checks, keyed by task_registry.check_key. The registry
@@ -226,6 +246,39 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
           )
         )`,
     { toRef: (r) => ({ type: "supplier_invoice", ref: String(r.id) }) },
+  ),
+
+  // Cell 17b SB38 template-version invariant: every SIGNED contract in a gated
+  // jurisdiction (CO) must sit on a currently-compliant, versioned template.
+  // Flags (a) a sent/accepted CO estimate with no template stamp, and (b) any
+  // estimate OR contract document stamped with a template that has since drifted
+  // out of compliance (retired, or a required clause removed). Non-windowed — a
+  // template retired today makes a months-old contract stale, so it scans the
+  // full current set. The send-time gate prevents new unstamped CO contracts;
+  // this catches post-signing drift the gate cannot.
+  "compliance.contract_template": invariant(
+    "compliance.contract_template",
+    `select id, kind from (
+       select est.id::text as id, 'estimate' as kind
+         from estimate est
+         join job j on j.id = est.job_id and j.tenant_id = est.tenant_id
+         join property p on p.id = j.property_id and p.tenant_id = est.tenant_id
+        where est.tenant_id = $1
+          and est.status in ('sent','accepted')
+          and est.contract_template_id is null
+          and upper(btrim(coalesce(p.state, ''))) in (${gatedStatesInList})
+       union all
+       select est.id::text as id, 'estimate' as kind
+         from estimate est
+         join contract_template ct on ct.id = est.contract_template_id and ct.tenant_id = est.tenant_id
+        where est.tenant_id = $1 and ${templateDriftPredicate}
+       union all
+       select d.id::text as id, 'document' as kind
+         from document d
+         join contract_template ct on ct.id = d.contract_template_id and ct.tenant_id = d.tenant_id
+        where d.tenant_id = $1 and d.kind = 'contract' and ${templateDriftPredicate}
+     ) v`,
+    { toRef: (r) => ({ type: String(r.kind), ref: String(r.id) }) },
   ),
 
   // SMS deliverability monitoring: checks A2P 10DLC registration status and
