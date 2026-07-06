@@ -18,6 +18,9 @@ const estimateSchema = z.object({
   taxRateBps: z.number().int().min(0).default(0),
   defaultWastePct: z.number().int().min(0).default(1200),
   steepPitchTiers: z.array(pitchTierSchema).default(DEFAULT_TIERS),
+  // Slice 1: estimates whose total exceeds this are parked for human approval
+  // instead of auto-sent. null (default) = no gating — auto-send everything.
+  approvalThresholdCents: z.number().int().min(0).nullable().default(null),
 });
 
 export type PitchTier = z.infer<typeof pitchTierSchema>;
@@ -25,4 +28,12 @@ export type EstimateConfig = z.infer<typeof estimateSchema>;
 
 export function parseEstimateConfig(raw: unknown): EstimateConfig {
   return estimateSchema.parse(raw ?? {});
+}
+
+/**
+ * Whether a drafted estimate must be parked for human approval before sending.
+ * True only when the tenant set a threshold AND the estimate total exceeds it.
+ */
+export function estimateRequiresApproval(totalCents: number, cfg: EstimateConfig): boolean {
+  return cfg.approvalThresholdCents !== null && totalCents > cfg.approvalThresholdCents;
 }

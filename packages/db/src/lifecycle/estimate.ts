@@ -8,6 +8,7 @@ import { tenant } from "../schema/tenancy";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   parseEstimateConfig,
+  estimateRequiresApproval,
   measurementAreasSchema,
   generateEstimateLineItems,
   computeEstimateTotals,
@@ -127,6 +128,29 @@ export async function draftLeadEstimateIfReady(input: {
     });
     if (!row) return { skipped: "no_measurement" as const };
     return { estimateId: row.id, measurementId: m.id };
+  });
+}
+
+/**
+ * Decides whether a freshly-drafted estimate auto-sends or is parked for approval,
+ * based on the tenant's approval threshold. Parking stamps approvalRequiredAt (the
+ * evidence slice 4's approval card renders from). The caller emits the send event
+ * when the action is "send".
+ */
+export async function resolveEstimateDelivery(input: {
+  tenantId: string;
+  estimateId: string;
+}): Promise<{ action: "send" | "park" }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [e] = await tx.select().from(estimate).where(eq(estimate.id, input.estimateId));
+    if (!e) return { action: "park" as const };
+    const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
+    const cfg = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate);
+    if (estimateRequiresApproval(e.total ?? 0, cfg)) {
+      await tx.update(estimate).set({ approvalRequiredAt: sql`now()` }).where(eq(estimate.id, input.estimateId));
+      return { action: "park" as const };
+    }
+    return { action: "send" as const };
   });
 }
 

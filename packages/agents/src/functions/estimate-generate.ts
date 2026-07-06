@@ -1,4 +1,4 @@
-import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, appointment, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -88,6 +88,20 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
   { id: "generate-estimate-on-measurement", concurrency: { limit: 5 }, retries: 2 },
   [{ event: "measurement/ready" }, { event: "appointment/completed" }],
   async ({ event, step }) => {
+    // After a lead-stage draft: attach upsells, then either auto-send or park for
+    // approval based on the tenant threshold. Shared by both trigger events.
+    const finishLeadDraft = async (
+      tenantId: string,
+      res: { estimateId: string; measurementId: string },
+    ) => {
+      const upsells = await step.run("upsell", () => attachUpsells(tenantId, res.estimateId, res.measurementId));
+      const delivery = await step.run("delivery", () => resolveEstimateDelivery({ tenantId, estimateId: res.estimateId }));
+      if (delivery.action === "send") {
+        await step.sendEvent("send-estimate", { name: "estimate/send.requested", data: { tenantId, estimateId: res.estimateId } });
+      }
+      return { estimateId: res.estimateId, upsells, delivery: delivery.action };
+    };
+
     // --- appointment/completed: resolve the inspection's lead, then gated draft ---
     if (event.name === "appointment/completed") {
       const { tenantId, appointmentId } = event.data;
@@ -103,8 +117,7 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
       if (!leadId) return { skipped: "not_lead_inspection" };
       const res = await step.run("draft", () => draftLeadEstimateIfReady({ tenantId, leadId }));
       if (!("estimateId" in res)) return res;
-      const upsells = await step.run("upsell", () => attachUpsells(tenantId, res.estimateId, res.measurementId));
-      return { estimateId: res.estimateId, upsells };
+      return finishLeadDraft(tenantId, res);
     }
 
     // --- measurement/ready ---
@@ -115,8 +128,7 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
     if (leadId) {
       const res = await step.run("draft", () => draftLeadEstimateIfReady({ tenantId, leadId }));
       if (!("estimateId" in res)) return res;
-      const upsells = await step.run("upsell", () => attachUpsells(tenantId, res.estimateId, res.measurementId));
-      return { estimateId: res.estimateId, upsells };
+      return finishLeadDraft(tenantId, res);
     }
 
     // Legacy job-stage path: draft immediately behind the automation gate.

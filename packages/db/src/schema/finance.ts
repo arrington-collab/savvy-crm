@@ -30,6 +30,9 @@ export const estimate = pgTable("estimate", {
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  // Slice 1: set when a draft over the tenant approval threshold is parked for
+  // human approval instead of auto-sent; cleared on send. Drives slice 4's card.
+  approvalRequiredAt: timestamp("approval_required_at", { withTimezone: true }),
   docusealSubmissionId: text("docuseal_submission_id"),
   // Cell 17b: the compliant SB38 template this signed contract was sent on (CO
   // paths); null when the jurisdiction is ungated.

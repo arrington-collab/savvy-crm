@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEstimateConfig } from "./estimate-settings";
+import { parseEstimateConfig, estimateRequiresApproval } from "./estimate-settings";
 
 describe("parseEstimateConfig", () => {
   it("fills defaults", () => {
@@ -15,5 +15,21 @@ describe("parseEstimateConfig", () => {
     expect(c.taxRateBps).toBe(830);
     expect(c.defaultWastePct).toBe(1000);
     expect(c.steepPitchTiers.length).toBe(4); // default tiers still applied
+  });
+  it("defaults approvalThresholdCents to null (no gating)", () => {
+    expect(parseEstimateConfig(undefined).approvalThresholdCents).toBeNull();
+  });
+});
+
+describe("estimateRequiresApproval", () => {
+  it("never requires approval when no threshold is set", () => {
+    const cfg = parseEstimateConfig(undefined);
+    expect(estimateRequiresApproval(9_999_999, cfg)).toBe(false);
+  });
+  it("requires approval only when the total exceeds the threshold", () => {
+    const cfg = parseEstimateConfig({ approvalThresholdCents: 1_000_000 });
+    expect(estimateRequiresApproval(1_000_001, cfg)).toBe(true);
+    expect(estimateRequiresApproval(1_000_000, cfg)).toBe(false); // at threshold → auto-send
+    expect(estimateRequiresApproval(500_000, cfg)).toBe(false);
   });
 });
