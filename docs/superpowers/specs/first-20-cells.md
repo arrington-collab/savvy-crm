@@ -4,12 +4,20 @@
 
 **Gate 0 (before cell 1):** merge #82 → #81 → #83 per the 2026-06-30 handoff (0037 collision procedure), run prod migrations from the correct worktrees, fix the stale repo root. Not a cell — unfinished business.
 
-## STATUS — repo survey 2026-07-03 (verify in code before building; do not redo)
+## STATUS — updated 2026-07-06 (code-merged, not yet "green in prod"; verify before building)
 
-- **DONE (code on main):** 1 timezone (#105/#107) · 2 registry schema/seed (`packages/db/src/schema/task-registry.ts`, `seeds/master-task-list.ts`) · 3 evidence framework + 11 checks (`packages/core/src/verification/`) · 4 health sweep + Today exceptions + ops-digest + founder-minutes (#102–#106) · 7 comms hygiene (#125) · 9 Roofr auto-order (`auto-order-measurement.ts`) · 10 estimate auto-draft (`estimate-generate.ts`) · 15 depreciation G1+G2 (#111/#112) · 19 homeowner status page (`/status/[token]`). Bonus beyond contract: SiteSnap photo QC (#121–#124), weather auto-reschedule (#120), capacity (#118), material ordering, promotable automation levels (#113).
-- **PARTIAL:** 8 (invoice_math + commissions checks exist — confirm/add QB + Stripe reconciliation) · 12 (procurement schema + material-order exist — **cost sheets + landed-cost selector missing**) · 17 (**17a DONE this PR: `license` table + migration 0054 + RLS, pure resolver in `@savvy/core`, hard scheduling-block invariant in `bookAppointment` — physically blocks booking in a jurisdiction with no active license (all appt types; null-state escape valve), AZ/NV/CO seeded**; remaining: SB38 CO contract templates (17b) + `production.license` 60-day renewal card follow-up) · 18 (commissions page/check — confirm plan engine, statements, chargebacks).
-- **NOT BUILT:** 5 Operator Console UI (`prompts-operator-console.md` — mockups are the spec) · 6 A2P 10DLC + deliverability · 11 financing seam · 13 supplier invoice price-guard · 14 job costing actuals · 16 endorsement chase · 20 Alta provisioning script.
-- **Next up by payout:** 5 (daily driver) and 6 (possible active SMS bleed), then 13→14 (money truth), 16, 11, 12-remainder, 17-remainder, 18-remainder, 20.
+**Reminder of the DONE bar:** a cell is DONE only when its evidence check runs **green in production** — merged ≠ done. Several cells below are code-complete but **amber pending owner action or real traffic** (10DLC registration, vendor selection, QBO/Stripe connection, Alta launch). This block reflects code state honestly — no fictional "20/20".
+
+- **DONE (code on main, evidence path exists):** 1 timezone (#105/#107) · 2 registry (`schema/task-registry.ts`, `seeds/master-task-list.ts`) · 3 evidence framework + checks (`packages/core/src/verification/`) · 4 health sweep + Today + ops-digest + founder-minutes (#102–#106) · 5 Operator Console (#126–#132) · 6 A2P 10DLC + deliverability monitor (#141) · 7 comms hygiene (#125) · 9 Roofr auto-order · 10 estimate auto-draft · 13 supplier invoice price-guard (#133–#136) · 14 job costing actuals→GM (#135) · 15 depreciation G1+G2 (#111/#112) · **17 license matrix (17a #143) + SB38 contract pack (17b #144)** — cell 17 complete · 19 homeowner status page. Bonus beyond contract: photo QC (#121–#124), weather reschedule (#120), capacity (#118).
+- **AMBER (code merged this session; goes green on owner action / real traffic):**
+  - **8 — QB + Stripe reconciliation (#146):** `finance.qb_reconcile` + `finance.stripe_match` live (reconciled tier, fail-soft to stale), bound to registry tasks 150 + 141. **Skips until a tenant connects QuickBooks/Stripe**; green after 14 clean days once connected.
+  - **11 — financing seam (#148):** `FinancingProvider` interface + `dormantFinancing` default + `shouldOfferFinancing`/`mapFinancingStatus` + `job.financing_status` (migration 0057). **Adapter waits on the owner picking a vendor.**
+  - **20 — Alta provisioning (#145):** idempotent, dry-run-first `provisionTenant` runbook + CLI + dormant-seam inventory. **Execution (Alta live as tenant #2) is owner-run** — real Clerk org / CO licenses / Twilio+10DLC / QB+Stripe.
+- **PARTIAL (real gaps remain):**
+  - **18 — commissions (#147):** **auto-chargeback on job→lost** shipped (money-integrity gap closed; `commission_status='charged_back'`, migration 0056). **Remaining:** versioned plans in Library (one active per rep), monthly statements + dispute cards, payout export with owner approval.
+  - **12 remainder — NOT BUILT:** procurement schema + material-order exist; **versioned supplier cost sheets + landed-cost selector (#335/#337) still missing.**
+  - **16 — NOT BUILT:** mortgage endorsement chase (#282) — lender detection, package templates, 5-day no-idle invariant.
+- **Remaining work (handoff `docs/superpowers/specs/2026-07-06-closeout-handoff.md`):** cell 16 (full), cell 12r (full), cell 18 reporting surfaces. Plus owner-action cards: Alta launch (cell 20 execution), 10DLC carrier registration (cell 6 green), financing vendor (cell 11 adapter).
 
 ---
 
@@ -66,3 +74,17 @@
 2. A cell isn't done until its evidence is green in prod. Merged ≠ done.
 3. One cell in progress per Claude Code session; finish or hand off before starting the next.
 4. When all 20 are green: reassess against this file, write "The Next 20," and let demand gen off the leash.
+
+---
+
+## The Next 20 — PROPOSAL ONLY (do not start; owner approves)
+
+**Gate:** per standing rule 4, demand gen comes off the leash only when the first 20 are **green in prod**. Today the code is largely merged but several cells are amber (10DLC registration, QBO/Stripe connection, financing vendor, Alta launch) — so this is a *ranked candidate list*, not authorized work. The moment the ops spine is green (cells 1–8 especially), the sentinel enters. Ranked by the founder-minutes / demand-gen roadmap:
+
+1. **Storm Sentinel + PostGrid direct mail** (`prompts-postgrid.md`) — storm-triggered address lists → automated mail sequences. The demand-gen engine the ops spine was built to feed; enters "the moment cells 1–8 are green." Highest payout once the machine can absorb the leads it produces.
+2. **Strike List** (`prompts-strike-stalk-expansion.md`, Prompt 1) — golden-target prioritization (pre-ordered measurements, high-intent roofs). Direct lift on close rate per rep-hour.
+3. **Stalk List** — continuity/nurture of not-yet-ready targets; feeds the Strike List over time.
+4. **Wave-2 Prompt 2 slices** (`prompts-strike-stalk-expansion.md`, Prompt 2) — rep layer (recruiting/onboarding automation), maintenance program, customer continuity. Retention + labor-supply leverage.
+5. **Canvass ↔ Turf integration** — connect the door-knock canvass app to territory/Turf data so field reps and the demand engine share one map.
+
+Also on deck from the deferred list (see "Explicitly NOT in the first 20"): programmatic SEO, ad-API bidding, second-model sampled audits, comms-failover code, CV pilot. Each needs an effort + payout estimate logged here (standing rule 1) before it displaces anything.
