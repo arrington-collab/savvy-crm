@@ -1,9 +1,11 @@
 import { withTenant } from "../tenant";
 import { estimate } from "../schema/finance";
 import { measurement } from "../schema/ops";
+import { appointment } from "../schema/comms";
+import { lead } from "../schema/crm";
 import { priceBookItem } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   parseEstimateConfig,
   measurementAreasSchema,
@@ -14,7 +16,7 @@ import {
 } from "@savvy/core";
 import { markJobTaskDoneTx } from "./job-tasks";
 
-export async function createEstimateFromMeasurement(input: {
+type CreateEstimateInput = {
   tenantId: string;
   measurementId: string;
   // Lead-stage drafts pass leadId (job_id stays null until acceptance creates the
@@ -23,47 +25,108 @@ export async function createEstimateFromMeasurement(input: {
   leadId?: string;
   jobId?: string;
   propertyId?: string;
-}): Promise<typeof estimate.$inferSelect | null> {
+};
+
+/** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
+async function insertEstimateFromMeasurementTx(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  input: CreateEstimateInput,
+): Promise<typeof estimate.$inferSelect | null> {
+  const [m] = await tx.select().from(measurement).where(eq(measurement.id, input.measurementId));
+  if (!m) return null;
+
+  const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
+  const cfg = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate);
+
+  const book = (await tx
+    .select()
+    .from(priceBookItem)
+    .where(eq(priceBookItem.active, true))) as unknown as EnginePriceBookItem[];
+
+  const areas = measurementAreasSchema.parse(m.areas);
+  const { lineItems, wastePctUsed, pitchTierApplied } = generateEstimateLineItems({
+    areas,
+    priceBook: book,
+    defaultWastePct: cfg.defaultWastePct,
+    pitchTiers: cfg.steepPitchTiers,
+  });
+  const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
+
+  const [row] = await tx
+    .insert(estimate)
+    .values({
+      tenantId: input.tenantId,
+      jobId: input.jobId ?? null,
+      leadId: input.leadId ?? null,
+      propertyId: input.propertyId ?? m.propertyId,
+      source: m.provider === "diy" ? "diy" : "roofr",
+      status: "draft",
+      lineItems,
+      subtotal: totals.subtotalCents,
+      tax: totals.taxCents,
+      total: totals.totalCents,
+      measurementId: input.measurementId,
+      wastePctUsed,
+      pitchTierApplied,
+    })
+    .returning();
+  return row ?? null;
+}
+
+export async function createEstimateFromMeasurement(
+  input: CreateEstimateInput,
+): Promise<typeof estimate.$inferSelect | null> {
+  return withTenant(input.tenantId, (tx) => insertEstimateFromMeasurementTx(tx, input));
+}
+
+/**
+ * Slice 1 estimate trigger. Drafts a lead-scoped estimate exactly once, gated on:
+ * (1) the inspection is complete, and (2) a measurement (Roofr or DIY — first data
+ * wins) has landed for the property. Idempotent: returns { skipped: "estimate_exists" }
+ * if the lead already has an estimate. Fired by both measurement/ready and
+ * appointment/completed, so either arrival order converges to a single draft.
+ */
+export async function draftLeadEstimateIfReady(input: {
+  tenantId: string;
+  leadId: string;
+}): Promise<{ estimateId: string; measurementId: string } | { skipped: string }> {
   return withTenant(input.tenantId, async (tx) => {
-    const [m] = await tx.select().from(measurement).where(eq(measurement.id, input.measurementId));
-    if (!m) return null;
+    const [l] = await tx.select().from(lead).where(eq(lead.id, input.leadId));
+    if (!l || !l.propertyId) return { skipped: "no_lead" as const };
 
-    const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
-    const cfg = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate);
+    // Draft-once.
+    const [existing] = await tx
+      .select({ id: estimate.id })
+      .from(estimate)
+      .where(eq(estimate.leadId, input.leadId))
+      .limit(1);
+    if (existing) return { skipped: "estimate_exists" as const };
 
-    const book = (await tx
-      .select()
-      .from(priceBookItem)
-      .where(eq(priceBookItem.active, true))) as unknown as EnginePriceBookItem[];
+    // (1) inspection complete?
+    const [insp] = await tx
+      .select({ id: appointment.id })
+      .from(appointment)
+      .where(and(eq(appointment.leadId, input.leadId), eq(appointment.type, "inspection"), eq(appointment.status, "done")))
+      .limit(1);
+    if (!insp) return { skipped: "inspection_not_complete" as const };
 
-    const areas = measurementAreasSchema.parse(m.areas);
-    const { lineItems, wastePctUsed, pitchTierApplied } = generateEstimateLineItems({
-      areas,
-      priceBook: book,
-      defaultWastePct: cfg.defaultWastePct,
-      pitchTiers: cfg.steepPitchTiers,
+    // (2) measurement landed? (newest wins)
+    const [m] = await tx
+      .select({ id: measurement.id })
+      .from(measurement)
+      .where(eq(measurement.propertyId, l.propertyId))
+      .orderBy(desc(measurement.createdAt))
+      .limit(1);
+    if (!m) return { skipped: "no_measurement" as const };
+
+    const row = await insertEstimateFromMeasurementTx(tx, {
+      tenantId: input.tenantId,
+      measurementId: m.id,
+      leadId: input.leadId,
+      propertyId: l.propertyId,
     });
-    const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
-
-    const [row] = await tx
-      .insert(estimate)
-      .values({
-        tenantId: input.tenantId,
-        jobId: input.jobId ?? null,
-        leadId: input.leadId ?? null,
-        propertyId: input.propertyId ?? m.propertyId,
-        source: m.provider === "diy" ? "diy" : "roofr",
-        status: "draft",
-        lineItems,
-        subtotal: totals.subtotalCents,
-        tax: totals.taxCents,
-        total: totals.totalCents,
-        measurementId: input.measurementId,
-        wastePctUsed,
-        pitchTierApplied,
-      })
-      .returning();
-    return row ?? null;
+    if (!row) return { skipped: "no_measurement" as const };
+    return { estimateId: row.id, measurementId: m.id };
   });
 }
 

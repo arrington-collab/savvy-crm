@@ -9,6 +9,9 @@ type Events = {
   "drip/enroll": { data: { tenantId: string; dripKey: string; customerId: string; jobId?: string; leadId?: string } };
   "drip/stop": { data: { tenantId: string; customerId: string; reason: "reply" | "converted" | "opted_out" | "manual" } };
   "appointment/booked": { data: { appointmentId: string; tenantId: string } };
+  // Fired when an appointment is marked done. For a completed lead-stage inspection
+  // this (with a landed measurement) triggers the lead's draft estimate.
+  "appointment/completed": { data: { appointmentId: string; tenantId: string } };
   "appointment/changed": {
     data: {
       appointmentId: string; tenantId: string;
