@@ -77,7 +77,7 @@ describe("master task list seed (transform)", () => {
     expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
     // Exactly the bound set carries a check_key; everything else is null.
     const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
-    expect(bound).toEqual([18, 19, 24, 32, 44, 76, 133, 139, 141, 150, 151, 213, 214]);
+    expect(bound).toEqual([18, 19, 24, 32, 44, 49, 52, 76, 133, 139, 141, 150, 151, 213, 214]);
   });
 
   it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {
