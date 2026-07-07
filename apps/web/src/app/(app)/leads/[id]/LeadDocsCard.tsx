@@ -56,6 +56,8 @@ export function LeadDocsCard({ leadId, documents }: { leadId: string; documents:
       }
       toast.success("Document uploaded");
       router.refresh();
+    } catch {
+      toast.error("Upload failed — please try again");
     } finally {
       setBusy(false);
     }
@@ -86,6 +88,9 @@ export function LeadDocsCard({ leadId, documents }: { leadId: string; documents:
           if (f) void upload(f);
         }}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
+        role="button"
+        tabIndex={0}
         className="mb-4 cursor-pointer rounded border border-dashed p-4 text-center text-sm"
         style={{ borderColor: dragOver ? "var(--text-muted)" : "var(--border)", color: "var(--text-muted)" }}
         data-testid="lead-docs-dropzone"
