@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { claim } from "../schema/index";
 import { appointment } from "../schema/comms";
 import { withTenant } from "../tenant";
@@ -24,7 +24,7 @@ export async function upsertClaim(input: UpsertClaimInput): Promise<ClaimRow> {
   return withTenant(tenantId, async (tx) => {
     const [row] = await tx.insert(claim)
       .values({ tenantId, jobId, ...set })
-      .onConflictDoUpdate({ target: claim.jobId, set })
+      .onConflictDoUpdate({ target: claim.jobId, targetWhere: sql`${claim.jobId} is not null`, set })
       .returning();
     return row!;
   });

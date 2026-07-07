@@ -62,7 +62,7 @@ describe("setClaimEndorsement", () => {
   it("advances status + stamps last-action, resetting the idle clock", async () => {
     const clId = await claimForTenant(badId, { status: "requested", last: new Date("2026-07-03T12:00:00Z") });
     const [j] = await adminDb.select({ jobId: claim.jobId }).from(claim).where(eq(claim.id, clId));
-    await setClaimEndorsement({ tenantId: badId, jobId: j!.jobId, status: "received", lastActionAt: NOW });
+    await setClaimEndorsement({ tenantId: badId, jobId: j!.jobId!, status: "received", lastActionAt: NOW });
     const [after] = await adminDb.select().from(claim).where(eq(claim.id, clId));
     expect(after!.endorsementStatus).toBe("received");
     expect(after!.endorsementLastActionAt).not.toBeNull();
