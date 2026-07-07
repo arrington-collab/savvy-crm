@@ -49,6 +49,8 @@ export const CHECK_BINDINGS: Record<number, string> = {
   24: "drip.appended_guard", // Follow-up sequence (multi-touch)
   32: "lead.speed_to_contact", // Speed-to-lead monitoring & alerts
   44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
+  49: "lead.doc_parse", // Measurement report review & import — typed lead doc parsed-or-carded < 1h (slice 6d)
+  52: "estimate.lead_stage", // Xactimate estimate creation — lead estimate cites its measurement source (slice 6d)
   76: "claim.endorsement_no_idle", // Mortgage company endorsement tracking — 5-business-day no-idle (cell 16)
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation

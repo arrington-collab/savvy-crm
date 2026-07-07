@@ -27,6 +27,9 @@ export const estimate = pgTable("estimate", {
   measurementId: uuid("measurement_id"),
   wastePctUsed: integer("waste_pct_used"),
   pitchTierApplied: text("pitch_tier_applied"),
+  // Slice 6d: the measurement source (ordered|uploaded_report|sketch) this estimate was
+  // priced from — a pricing-inputs citation stamped at draft (estimate.lead_stage evidence).
+  measurementSource: text("measurement_source"),
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
