@@ -70,6 +70,7 @@ async function insertEstimateFromMeasurementTx(
       measurementId: input.measurementId,
       wastePctUsed,
       pitchTierApplied,
+      measurementSource: m.source ?? null,
     })
     .returning();
   return row ?? null;
