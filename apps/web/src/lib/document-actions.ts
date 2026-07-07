@@ -1,7 +1,8 @@
 "use server";
 import { withTenant, job, lead, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto, recordLeadDocument } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
-import { validateUpload, type UploadValidationError } from "@savvy/core";
+import { validateUpload, PARSEABLE_KINDS, type UploadValidationError } from "@savvy/core";
+import { inngest } from "@savvy/agents";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
@@ -167,6 +168,13 @@ export async function recordLeadDocumentAction(input: {
     uploadedByUserId: auditUserId,
   });
   if (!res) return { error: "not_found" };
+  // Parseable uploads feed the parse pipeline (6b measurement, 6c insurance).
+  if ((PARSEABLE_KINDS as readonly string[]).includes(input.kind)) {
+    await inngest.send({
+      name: "lead-document/received",
+      data: { tenantId, documentId: res.id, leadId: input.leadId, kind: input.kind },
+    }).catch(() => {});
+  }
   revalidatePath(`/leads/${input.leadId}`);
   return { ok: true, id: res.id };
 }
