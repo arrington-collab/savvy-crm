@@ -1,6 +1,9 @@
-import { getLeadDocumentForParse, insertUploadedMeasurement, setDocumentParseStatus } from "@savvy/db";
+import { getLeadDocumentForParse, insertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
-import { measurementReportParseSchema, MEASUREMENT_PARSE_MIN_CONFIDENCE, type MeasurementReportParse } from "@savvy/core";
+import {
+  measurementReportParseSchema, MEASUREMENT_PARSE_MIN_CONFIDENCE, type MeasurementReportParse,
+  insuranceEstimateParseSchema, INSURANCE_PARSE_MIN_CONFIDENCE, type InsuranceEstimateParse,
+} from "@savvy/core";
 import { r2Storage } from "@savvy/integrations";
 import { inngest } from "../client";
 
@@ -13,6 +16,14 @@ const PARSE_PROMPT =
   "Extract this roof measurement report: total squares, predominant pitch (e.g. \"8/12\"), and the linear-foot " +
   "totals for ridge, hip, valley, eave, rake, and step flashing, plus penetration count and facet count.";
 
+const INSURANCE_SYSTEM =
+  "You are a roofing insurance-claims analyst. Extract a carrier insurance estimate (Xactimate or similar) " +
+  "into structured data. Report all money in integer cents. If a field is missing, use null. Confidence is " +
+  "your 0-1 certainty the extraction faithfully reflects the document.";
+const INSURANCE_PROMPT =
+  "Extract this insurance estimate: carrier name, claim number, ACV/RCV/deductible in cents, and every line " +
+  "item with its description, quantity, unit (if shown), unit price in cents, and line amount in cents.";
+
 export type ParseLeadDocumentDeps = {
   loadDoc: (tenantId: string, documentId: string) => Promise<{ r2Key: string | null; kind: string; leadId: string | null; propertyId: string | null } | null>;
   fetchBytes: (key: string) => Promise<Uint8Array>;
@@ -22,52 +33,78 @@ export type ParseLeadDocumentDeps = {
   ai: Pick<typeof import("@savvy/ai"), "completeObject">;
   insertMeasurement: (input: { tenantId: string; propertyId: string; areas: Record<string, unknown>; pitch: string | null }) => Promise<string>;
   setStatus: (input: { tenantId: string; documentId: string; status: string; confidence?: number | null }) => Promise<void>;
+  attachClaim: (input: { tenantId: string; leadId: string; propertyId: string | null; carrierName: string | null; claimNumber: string | null; acvCents: number | null; rcvCents: number | null; deductibleCents: number | null; lineItems: InsuranceEstimateParse["lines"]; parseConfidence: number }) => Promise<{ claimId: string; created: boolean }>;
 };
 
 /**
- * Parse one uploaded lead document. For `measurement_report`: load its PDF → parse
- * via the AI gateway → insert an `uploaded_report` measurement → mark the doc parsed.
- * Low confidence → card as `unparsed_low_confidence` (no measurement). Any error →
- * `parse_failed`. Non-measurement kinds (insurance_estimate is 6c) → `skipped`.
- * FAIL-SOFT: never throws.
+ * Parse one uploaded lead document, dispatching by kind. `measurement_report`: load its
+ * PDF → parse via the AI gateway → insert an `uploaded_report` measurement → mark the doc
+ * parsed. `insurance_estimate`: load its PDF → parse via the AI gateway → attach/create
+ * the lead's claim → mark the doc parsed. Low confidence (either kind) → card as
+ * `unparsed_low_confidence` (no measurement/claim written). Any error → `parse_failed`.
+ * Unrecognized kinds → `skipped`. FAIL-SOFT: never throws.
  */
 export async function parseLeadDocumentHandler(
   input: { tenantId: string; documentId: string },
   deps: ParseLeadDocumentDeps,
-): Promise<{ status: "parsed" | "unparsed_low_confidence" | "parse_failed" | "skipped"; measurementId?: string; leadId?: string | null; propertyId?: string | null }> {
+): Promise<{ status: "parsed" | "unparsed_low_confidence" | "parse_failed" | "skipped"; measurementId?: string; claimId?: string; leadId?: string | null; propertyId?: string | null }> {
   const { tenantId, documentId } = input;
   try {
     const doc = await deps.loadDoc(tenantId, documentId);
     if (!doc) return { status: "parse_failed" };
-    if (doc.kind !== "measurement_report") return { status: "skipped" };
-    if (!doc.r2Key || !doc.propertyId) throw new Error("measurement document missing key or property");
 
+    if (!doc.r2Key) throw new Error("lead document missing storage key");
     const bytes = await deps.fetchBytes(doc.r2Key);
-    // measurementReportParseSchema's `.default()` fields give it a wider Input than
-    // Output, which trips inference/assignability through the generic
-    // completeObject<T>(schema: z.ZodType<T>) signature (z.ZodType defaults Input=T).
-    // Pin T explicitly and cast the schema arg through `unknown` — a well-understood
-    // Zod-defaults variance quirk, not a real type-safety gap (the object shape is
-    // identical; only the optional-on-input side differs).
-    const { object: parsed } = await deps.ai.completeObject<MeasurementReportParse>({
-      capability: "reasoning",
-      system: PARSE_SYSTEM,
-      prompt: PARSE_PROMPT,
-      schema: measurementReportParseSchema as unknown as Parameters<typeof deps.ai.completeObject<MeasurementReportParse>>[0]["schema"],
-      file: { bytes, mediaType: "application/pdf" },
-    });
 
-    if (parsed.confidence < MEASUREMENT_PARSE_MIN_CONFIDENCE) {
-      await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
-      return { status: "unparsed_low_confidence" };
+    if (doc.kind === "measurement_report") {
+      if (!doc.propertyId) throw new Error("measurement document missing property");
+      // measurementReportParseSchema's `.default()` fields give it a wider Input than
+      // Output, which trips inference/assignability through the generic
+      // completeObject<T>(schema: z.ZodType<T>) signature (z.ZodType defaults Input=T).
+      // Pin T explicitly and cast the schema arg through `unknown` — a well-understood
+      // Zod-defaults variance quirk, not a real type-safety gap (the object shape is
+      // identical; only the optional-on-input side differs).
+      const { object: parsed } = await deps.ai.completeObject<MeasurementReportParse>({
+        capability: "reasoning",
+        system: PARSE_SYSTEM,
+        prompt: PARSE_PROMPT,
+        schema: measurementReportParseSchema as unknown as Parameters<typeof deps.ai.completeObject<MeasurementReportParse>>[0]["schema"],
+        file: { bytes, mediaType: "application/pdf" },
+      });
+      if (parsed.confidence < MEASUREMENT_PARSE_MIN_CONFIDENCE) {
+        await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
+        return { status: "unparsed_low_confidence" };
+      }
+      const { confidence, ...areas } = parsed;
+      const measurementId = await deps.insertMeasurement({ tenantId, propertyId: doc.propertyId, areas, pitch: areas.predominantPitch });
+      await deps.setStatus({ tenantId, documentId, status: "parsed", confidence });
+      return { status: "parsed", measurementId, leadId: doc.leadId, propertyId: doc.propertyId };
     }
 
-    const { confidence, ...areas } = parsed;
-    const measurementId = await deps.insertMeasurement({
-      tenantId, propertyId: doc.propertyId, areas, pitch: areas.predominantPitch,
-    });
-    await deps.setStatus({ tenantId, documentId, status: "parsed", confidence });
-    return { status: "parsed", measurementId, leadId: doc.leadId, propertyId: doc.propertyId };
+    if (doc.kind === "insurance_estimate") {
+      if (!doc.leadId) throw new Error("insurance document missing lead");
+      const { object: parsed } = await deps.ai.completeObject<InsuranceEstimateParse>({
+        capability: "reasoning",
+        system: INSURANCE_SYSTEM,
+        prompt: INSURANCE_PROMPT,
+        schema: insuranceEstimateParseSchema as unknown as Parameters<typeof deps.ai.completeObject<InsuranceEstimateParse>>[0]["schema"],
+        file: { bytes, mediaType: "application/pdf" },
+      });
+      if (parsed.confidence < INSURANCE_PARSE_MIN_CONFIDENCE) {
+        await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
+        return { status: "unparsed_low_confidence" };
+      }
+      const { claimId } = await deps.attachClaim({
+        tenantId, leadId: doc.leadId, propertyId: doc.propertyId,
+        carrierName: parsed.carrierName, claimNumber: parsed.claimNumber,
+        acvCents: parsed.acvCents, rcvCents: parsed.rcvCents, deductibleCents: parsed.deductibleCents,
+        lineItems: parsed.lines, parseConfidence: parsed.confidence,
+      });
+      await deps.setStatus({ tenantId, documentId, status: "parsed", confidence: parsed.confidence });
+      return { status: "parsed", claimId, leadId: doc.leadId };
+    }
+
+    return { status: "skipped" };
   } catch {
     await deps.setStatus({ tenantId, documentId, status: "parse_failed" }).catch(() => {});
     return { status: "parse_failed" };
@@ -98,6 +135,7 @@ export const parseLeadDocument = inngest.createFunction(
           ai: { completeObject },
           insertMeasurement: (i) => insertUploadedMeasurement(i),
           setStatus: (i) => setDocumentParseStatus(i),
+          attachClaim: (i) => attachOrCreateLeadClaim(i),
         },
       ),
     );
