@@ -206,10 +206,10 @@ export async function convertLeadToJob(args: {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
     if (!l) throw new Error("lead not found");
 
-    // Carry the customer's lead-stage documents (storm certs + photos) onto the job
-    // within the same transaction. Idempotent: only updates docs where jobId IS NULL,
-    // so a repeat conversion (booked lead) never re-stamps or duplicates.
+    // Carry the lead's documents onto the job within the same transaction. Idempotent:
+    // only updates docs where jobId IS NULL, so a repeat conversion never re-stamps.
     async function stampCerts(jobId: string): Promise<void> {
+      // Storm certs / photos attached before lead_id existed are customer-scoped.
       await tx
         .update(document)
         .set({ jobId })
@@ -220,6 +220,11 @@ export async function convertLeadToJob(args: {
             isNull(document.jobId),
           ),
         );
+      // Slice 6a: all lead-scoped documents (insurance estimates, measurement reports, etc.).
+      await tx
+        .update(document)
+        .set({ jobId })
+        .where(and(eq(document.leadId, l!.id), isNull(document.jobId)));
     }
 
     if (l.status === "booked") {
