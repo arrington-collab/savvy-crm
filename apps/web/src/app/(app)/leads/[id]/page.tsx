@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import { listLeadDocuments } from "@savvy/db";
 import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
+import { getTenantId } from "@/lib/tenant";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -16,6 +18,7 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
 import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
+import { LeadDocsCard } from "./LeadDocsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +28,13 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [detail, users, artifacts] = await Promise.all([getLeadDetail(id), listUsers(), getLeadArtifactsForLead(id)]);
+  const tenantId = await getTenantId();
+  const [detail, users, artifacts, documents] = await Promise.all([
+    getLeadDetail(id),
+    listUsers(),
+    getLeadArtifactsForLead(id),
+    listLeadDocuments({ tenantId, leadId: id }),
+  ]);
   if (!detail) notFound();
 
   const qualifier = resolveAgent({ agent: "comms", taskKey: "lead.qualify" });
@@ -111,6 +120,8 @@ export default async function LeadDetailPage({
       <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} />
 
       <LeadArtifactsSections artifacts={artifacts} />
+
+      <LeadDocsCard leadId={detail.id} documents={documents} />
 
       <Card className="p-4">
         <div className="eyebrow mb-3">Storm Certification</div>
