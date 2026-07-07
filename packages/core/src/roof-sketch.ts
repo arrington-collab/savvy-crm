@@ -123,6 +123,13 @@ export interface FacetSummary {
   label: SketchFacet["label"];
 }
 
+/** A coincident (shared) edge whose two+ facets disagree on its type — surfaced so the
+ *  rep resolves it rather than the total silently absorbing one type or the other. */
+export interface EdgeConflict {
+  facetIds: string[];
+  types: SketchEdgeType[];
+}
+
 export interface SketchSummary {
   facetCount: number;
   totalPlanSqft: number;
@@ -133,8 +140,69 @@ export interface SketchSummary {
   squares: number;
   predominantPitch: string;
   facets: FacetSummary[];
-  /** Linear feet by edge type (slope-corrected for rakes, hips, valleys). */
+  /** Linear feet by edge type (slope-corrected for rakes, hips, valleys). Edges shared
+   *  between facets (e.g. a ridge between two planes) are counted ONCE. */
   edgeLf: Record<SketchEdgeType, number>;
+  /** How many duplicate edges were removed by shared-edge dedup (physical shared edges). */
+  sharedEdgeCount: number;
+  /** Coincident edges whose facets disagree on the edge type. */
+  edgeConflicts: EdgeConflict[];
+}
+
+/** Endpoints match within tolerance (either direction) ⇒ the two edges are the same
+ *  physical edge shared by two facets. */
+const COINCIDENT_TOL_FT = 0.5;
+function edgesCoincident(a1: SketchPoint, b1: SketchPoint, a2: SketchPoint, b2: SketchPoint): boolean {
+  const near = (p: SketchPoint, q: SketchPoint) => Math.hypot(p.x - q.x, p.y - q.y) <= COINCIDENT_TOL_FT;
+  return (near(a1, a2) && near(b1, b2)) || (near(a1, b2) && near(b1, a2));
+}
+
+interface EdgeRec {
+  facetId: string;
+  idx: number;
+  a: SketchPoint;
+  b: SketchPoint;
+  type: SketchEdgeType;
+  pitch: string;
+}
+
+/** Flatten every facet edge into a comparable record. */
+function collectEdges(sketch: RoofSketch): EdgeRec[] {
+  const out: EdgeRec[] = [];
+  for (const f of sketch.facets) {
+    for (let i = 0; i < f.points.length; i++) {
+      out.push({
+        facetId: f.id,
+        idx: i,
+        a: f.points[i]!,
+        b: f.points[(i + 1) % f.points.length]!,
+        type: f.edges[i] ?? "unspecified",
+        pitch: f.pitch,
+      });
+    }
+  }
+  return out;
+}
+
+/** Group edges that occupy the same physical segment (a shared edge appears once per
+ *  adjoining facet). Returns index groups into `edges`. */
+function groupCoincidentEdges(edges: EdgeRec[]): number[][] {
+  const used = new Array(edges.length).fill(false);
+  const groups: number[][] = [];
+  for (let i = 0; i < edges.length; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    const group = [i];
+    for (let j = i + 1; j < edges.length; j++) {
+      if (used[j]) continue;
+      if (edgesCoincident(edges[i]!.a, edges[i]!.b, edges[j]!.a, edges[j]!.b)) {
+        used[j] = true;
+        group.push(j);
+      }
+    }
+    groups.push(group);
+  }
+  return groups;
 }
 
 /** True length multiplier for an edge type on a facet of the given pitch.
@@ -168,13 +236,26 @@ export function summarizeSketch(sketch: RoofSketch): SketchSummary {
     else flatSqft += surfaceSqft;
     areaByPitch.set(facet.pitch, (areaByPitch.get(facet.pitch) ?? 0) + surfaceSqft);
     facets.push({ id: facet.id, planSqft, surfaceSqft, pitch: facet.pitch, label: facet.label });
+  }
 
-    for (let i = 0; i < facet.points.length; i++) {
-      const type = facet.edges[i] ?? "unspecified";
-      const a = facet.points[i]!;
-      const b = facet.points[(i + 1) % facet.points.length]!;
-      edgeLf[type] += edgeLengthFt(a, b) * edgeSlopeFactor(type, facet.pitch);
+  // Edge LF: dedup coincident edges so a shared ridge/hip/valley is counted once, not
+  // once per adjoining facet (the double-count bug). A physical edge = one group.
+  const edges = collectEdges(sketch);
+  const edgeConflicts: EdgeConflict[] = [];
+  let sharedEdgeCount = 0;
+  for (const group of groupCoincidentEdges(edges)) {
+    const e = edges[group[0]!]!;
+    if (group.length > 1) sharedEdgeCount += group.length - 1;
+    // Resolve the counted type from the group's *specified* types.
+    const specified = [...new Set(group.map((k) => edges[k]!.type).filter((t) => t !== "unspecified"))];
+    let type: SketchEdgeType;
+    if (specified.length > 1) {
+      edgeConflicts.push({ facetIds: group.map((k) => edges[k]!.facetId), types: specified });
+      type = specified[0]!; // deterministic (facet order); count once, never both
+    } else {
+      type = specified[0] ?? "unspecified";
     }
+    edgeLf[type] += edgeLengthFt(e.a, e.b) * edgeSlopeFactor(type, e.pitch);
   }
 
   let predominantPitch = "0/12";
@@ -196,7 +277,28 @@ export function summarizeSketch(sketch: RoofSketch): SketchSummary {
     predominantPitch,
     facets,
     edgeLf,
+    sharedEdgeCount,
+    edgeConflicts,
   };
+}
+
+/** Suggest edge types from adjacency for edges the rep hasn't set yet ("unspecified"):
+ *  a shared edge between facets is (defaulted to) a ridge; an un-shared perimeter edge is
+ *  an eave. Suggestions only — manual types are never returned/overridden, and the rep
+ *  confirms. (Ridge-vs-valley needs elevation the plan sketch doesn't carry, so shared
+ *  edges default to ridge; the rep flips to valley/hip where needed.) */
+export function suggestEdgeTypes(
+  sketch: RoofSketch,
+): Array<{ facetId: string; edgeIndex: number; suggested: SketchEdgeType }> {
+  const edges = collectEdges(sketch);
+  const out: Array<{ facetId: string; edgeIndex: number; suggested: SketchEdgeType }> = [];
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i]!;
+    if (e.type !== "unspecified") continue; // never override a manual type
+    const shared = edges.some((o, j) => j !== i && edgesCoincident(e.a, e.b, o.a, o.b));
+    out.push({ facetId: e.facetId, edgeIndex: e.idx, suggested: shared ? "ridge" : "eave" });
+  }
+  return out;
 }
 
 /** Map a sketch summary onto the MeasurementAreas shape consumed by the

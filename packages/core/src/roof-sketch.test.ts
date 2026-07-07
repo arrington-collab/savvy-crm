@@ -13,6 +13,7 @@ import {
   vertexHitRadiusFt,
   findSnap,
   canCloseDraft,
+  suggestEdgeTypes,
   type RoofSketch,
   type SketchFacet,
 } from "./roof-sketch";
@@ -219,6 +220,86 @@ describe("findSnap (across all facets)", () => {
 
   it("returns null when nothing is within threshold", () => {
     expect(findSnap({ x: 50, y: 50 }, facets, 1)).toBeNull();
+  });
+});
+
+// ── Slice 2: shared-edge model (dedup coincident edges, kill the double count) ──
+
+// Two 40×20 facets meeting along a shared ridge on the y=0 line. Facet A slopes south
+// (points below y=0), facet B slopes north (above) — the (0,0)-(40,0) edge is common.
+function gableFacets(sharedA: string, sharedB: string): SketchFacet[] {
+  return [
+    {
+      id: "A",
+      points: [ { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 } ],
+      pitch: "6/12",
+      edges: [sharedA as SketchFacet["edges"][number], "rake", "eave", "rake"],
+      label: "none",
+    },
+    {
+      id: "B",
+      points: [ { x: 0, y: 0 }, { x: 0, y: -20 }, { x: 40, y: -20 }, { x: 40, y: 0 } ],
+      pitch: "6/12",
+      edges: ["rake", "eave", "rake", sharedB as SketchFacet["edges"][number]],
+      label: "none",
+    },
+  ];
+}
+
+const sketchOf = (facets: SketchFacet[]): RoofSketch =>
+  roofSketchSchema.parse({ version: 1, centerLat: 33, centerLng: -112, zoom: 20, facets });
+
+describe("summarizeSketch shared-edge dedup", () => {
+  it("counts a ridge shared by two facets ONCE (40 LF, not 80)", () => {
+    const s = summarizeSketch(sketchOf(gableFacets("ridge", "ridge")));
+    expect(s.edgeLf.ridge).toBe(40);
+    expect(s.sharedEdgeCount).toBe(1);
+    expect(s.edgeConflicts).toEqual([]);
+  });
+
+  it("leaves un-shared edges alone (single facet has no shared edges)", () => {
+    const s = summarizeSketch(
+      sketchOf([{ id: "solo", points: [ { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 } ], pitch: "0/12", edges: ["ridge", "rake", "eave", "rake"], label: "none" }]),
+    );
+    expect(s.edgeLf.ridge).toBe(40);
+    expect(s.edgeLf.eave).toBe(40);
+    expect(s.sharedEdgeCount).toBe(0);
+    expect(s.edgeConflicts).toEqual([]);
+  });
+
+  it("flags a type mismatch on a coincident edge instead of silently summing", () => {
+    const s = summarizeSketch(sketchOf(gableFacets("ridge", "eave")));
+    expect(s.edgeConflicts).toHaveLength(1);
+    expect(new Set(s.edgeConflicts[0]!.types)).toEqual(new Set(["ridge", "eave"]));
+    expect(new Set(s.edgeConflicts[0]!.facetIds)).toEqual(new Set(["A", "B"]));
+    // Counted once (under a single type), never added to both totals.
+    expect(s.edgeLf.ridge).toBe(40);
+  });
+});
+
+// Same gable geometry but every edge left "unspecified" (the state suggestions act on).
+function blankGable(): SketchFacet[] {
+  const f = gableFacets("unspecified", "unspecified");
+  f[0]!.edges = ["unspecified", "unspecified", "unspecified", "unspecified"];
+  f[1]!.edges = ["unspecified", "unspecified", "unspecified", "unspecified"];
+  return f;
+}
+
+describe("suggestEdgeTypes", () => {
+  it("suggests ridge for a shared edge and eave for un-shared perimeter edges", () => {
+    const suggestions = suggestEdgeTypes(sketchOf(blankGable()));
+    const shared = suggestions.filter((x) => x.suggested === "ridge");
+    // Both facets' copies of the common edge are suggested as ridge.
+    expect(shared).toHaveLength(2);
+    // Everything else (6 un-shared perimeter edges) defaults to eave.
+    expect(suggestions.filter((x) => x.suggested === "eave")).toHaveLength(6);
+  });
+
+  it("never overrides a manually-typed edge (only suggests for 'unspecified')", () => {
+    const facets = blankGable();
+    facets[0]!.edges[1] = "rake"; // a manual type
+    const suggestions = suggestEdgeTypes(sketchOf(facets));
+    expect(suggestions.some((x) => x.facetId === "A" && x.edgeIndex === 1)).toBe(false);
   });
 });
 

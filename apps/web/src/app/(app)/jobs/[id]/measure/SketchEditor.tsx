@@ -15,6 +15,7 @@ import {
   planAreaSqFt,
   pitchFactor,
   summarizeSketch,
+  suggestEdgeTypes,
   wasteTable,
   zoomAround,
   vertexHitRadiusFt,
@@ -577,6 +578,20 @@ export function SketchEditor({
     setFacets((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
   }
 
+  /** Fill only the still-unspecified edges from adjacency (shared→ridge, else eave).
+   *  Manual types are left untouched — this is a suggestion the rep can then refine. */
+  function applyEdgeSuggestions() {
+    const suggestions = suggestEdgeTypes(sketch);
+    if (suggestions.length === 0) return;
+    pushHistory(facets);
+    setFacets((prev) =>
+      prev.map((f) => ({
+        ...f,
+        edges: f.edges.map((t, i) => suggestions.find((s) => s.facetId === f.id && s.edgeIndex === i)?.suggested ?? t),
+      })),
+    );
+  }
+
   function handleSave() {
     setSaveError(null);
     startSave(async () => {
@@ -667,6 +682,16 @@ export function SketchEditor({
       {saveError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
           Could not save: {saveError}
+        </div>
+      )}
+      {summary.edgeConflicts.length > 0 && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm" data-testid="edge-conflicts">
+          <span className="font-medium">Shared-edge type conflict</span> — {summary.edgeConflicts.length}{" "}
+          edge{summary.edgeConflicts.length > 1 ? "s" : ""} where adjoining facets disagree:{" "}
+          {summary.edgeConflicts
+            .map((c) => c.types.map((t) => SKETCH_EDGE_LABELS[t]).join(" vs "))
+            .join("; ")}
+          . Fix them in Edges mode — until then each is counted once, under one type.
         </div>
       )}
       {savedAt && !saveError && (
@@ -1114,6 +1139,20 @@ export function SketchEditor({
                     {SKETCH_EDGE_LABELS[t]}
                   </button>
                 ))}
+                <div className="border-t border-border pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={applyEdgeSuggestions}
+                    data-testid="suggest-edge-types"
+                  >
+                    Suggest types (unset edges)
+                  </Button>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Shared edges → ridge, others → eave. Only fills unset edges; confirm &amp; refine.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1176,6 +1215,9 @@ export function SketchEditor({
                 <Row k="Total area" v={`${Math.round(summary.totalSurfaceSqft)} sqft`} strong />
                 <Row k="Squares" v={summary.squares.toFixed(1)} strong />
                 <Row k="Facets" v={String(summary.facetCount)} />
+                {summary.sharedEdgeCount > 0 && (
+                  <Row k="Shared edges (counted once)" v={String(summary.sharedEdgeCount)} />
+                )}
                 <Row k="Predominant pitch" v={summary.predominantPitch} />
                 <Row k="Pitched / flat" v={`${Math.round(summary.pitchedSqft)} / ${Math.round(summary.flatSqft)} sqft`} />
                 {SKETCH_EDGE_TYPES.filter((t) => summary.edgeLf[t] > 0).map((t) => (
