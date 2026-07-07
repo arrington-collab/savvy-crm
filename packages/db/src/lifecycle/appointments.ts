@@ -5,6 +5,7 @@ import { property, lead } from "../schema/crm";
 import { estimate } from "../schema/finance";
 import { license } from "../schema/compliance";
 import { document } from "../schema/ops";
+import { claim } from "../schema/insurance";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
 import { leadToJobType, resolveActiveLicense } from "@savvy/core";
@@ -233,6 +234,12 @@ export async function convertLeadToJob(args: {
             isNull(document.archivedAt),
           ),
         );
+      // Slice 6c: carry the lead's lead-scoped claim onto the job. Idempotent via the
+      // jobId IS NULL guard; the partial-unique on (job_id) is safe (a fresh job has no claim).
+      await tx
+        .update(claim)
+        .set({ jobId })
+        .where(and(eq(claim.leadId, l!.id), isNull(claim.jobId)));
     }
 
     if (l.status === "booked") {
