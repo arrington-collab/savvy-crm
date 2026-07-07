@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,16 @@ import {
   pitchFactor,
   summarizeSketch,
   wasteTable,
+  zoomAround,
+  vertexHitRadiusFt,
+  findSnap,
+  canCloseDraft,
+  roofSketchSchema,
   type RoofSketch,
   type SketchFacet,
   type SketchEdgeType,
   type SketchPoint,
+  type SnapResult,
 } from "@savvy/core";
 import { saveSketchMeasurementAction } from "@/lib/measurement-actions";
 
@@ -29,6 +35,11 @@ const CANVAS = 640;
 const MAP_PX = 640;
 const SNAP_PX = 10;
 const DEFAULT_ZOOM = 20;
+/** Continuous zoom bounds; imagery integer-zoom is rebased to keep viewScale here. */
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 6;
+const MIN_MAP_ZOOM = 17;
+const MAX_MAP_ZOOM = 21;
 /** Snap drawn segments to 45° multiples when within this tolerance. */
 const ANGLE_SNAP_TOLERANCE_RAD = (7 * Math.PI) / 180;
 
@@ -112,6 +123,15 @@ export function SketchEditor({
   const [view, setView] = useState<SketchPoint>({ x: 0, y: 0 });
   const [panDrag, setPanDrag] = useState<{ startX: number; startY: number; origin: SketchPoint } | null>(null);
   const [panPx, setPanPx] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  // Continuous zoom on top of the integer imagery zoom (cursor-centered).
+  const [viewScale, setViewScale] = useState<number>(1);
+  // Active snap target under the cursor (vertex/edge across all facets) — drives the
+  // snap indicator + the magnifier loupe. `cursorPx` is the raw pointer position.
+  const [snap, setSnap] = useState<SnapResult>(null);
+  const [cursorPx, setCursorPx] = useState<{ x: number; y: number } | null>(null);
+  // Two-pointer pinch (touch): active pointers + the gesture baseline.
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinch = useRef<{ dist: number; scale: number } | null>(null);
 
   // Calibration: two clicked points + the user-entered true length.
   const [calPoints, setCalPoints] = useState<SketchPoint[]>([]);
@@ -124,11 +144,13 @@ export function SketchEditor({
 
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // ft per CSS pixel: web-mercator ground resolution × manual calibration.
-  const ftPerPx = useMemo(
+  // ft per CSS pixel of the base imagery (integer zoom) × manual calibration…
+  const ftPerPxBase = useMemo(
     () => ((feetPerMapPixel(centerLat, zoom) * MAP_PX) / CANVAS) * calibration,
     [centerLat, zoom, calibration],
   );
+  // …and the effective ft/px once the continuous cursor-zoom scale is applied.
+  const ftPerPx = ftPerPxBase / viewScale;
 
   const toFt = useCallback(
     (px: number, py: number): SketchPoint => ({
@@ -163,12 +185,59 @@ export function SketchEditor({
   const waste = useMemo(() => wasteTable(summary.totalSurfaceSqft), [summary]);
   const selectedFacet = facets.find((f) => f.id === selectedFacetId) ?? null;
 
+  // Local autosave: guards against a lost tab/refresh before an explicit Save. Keyed by
+  // the sketch owner; cleared once the measurement is persisted server-side.
+  const draftKey = `savvy:sketch-draft:${jobId}`;
+  const [restoredDraft, setRestoredDraft] = useState(false);
+
+  useEffect(() => {
+    if (measurementId) return; // a saved measurement is the source of truth
+    let restored: RoofSketch | null = null;
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const parsed = roofSketchSchema.safeParse(JSON.parse(raw));
+        if (parsed.success && parsed.data.facets.length > 0) restored = parsed.data;
+      }
+    } catch {
+      /* corrupt draft — ignore */
+    }
+    if (!restored || facets.length > 0) return;
+    // Defer out of the effect body: applies the external (localStorage) draft after mount
+    // without a synchronous cascading render, and without a hydration mismatch.
+    const r = restored;
+    queueMicrotask(() => {
+      setFacets(r.facets);
+      setCalibration(r.calibration);
+      setRestoredDraft(true);
+    });
+    // Mount-only restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        window.localStorage.setItem(draftKey, JSON.stringify(sketch));
+      } catch {
+        /* storage full / unavailable — non-fatal */
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [sketch, draftKey]);
+
   const pushHistory = useCallback((prev: SketchFacet[]) => {
     setHistory((h) => [...h.slice(-49), prev]);
     setFuture([]);
   }, []);
 
   function undo() {
+    // While drawing, undo removes the last placed draft point before touching facets.
+    if (draft.length > 0) {
+      setDraft((d) => d.slice(0, -1));
+      setHover(null);
+      return;
+    }
     setHistory((h) => {
       if (h.length === 0) return h;
       const prev = h[h.length - 1]!;
@@ -191,21 +260,60 @@ export function SketchEditor({
     });
   }
 
-  function svgPoint(e: React.PointerEvent): { x: number; y: number } {
+  function svgPoint(e: { clientX: number; clientY: number }): { x: number; y: number } {
     const rect = svgRef.current!.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
-  /** Snap a CSS-px point to any existing vertex (draft or facets) within SNAP_PX. */
-  function vertexSnap(px: { x: number; y: number }): { x: number; y: number; snapped: boolean } {
-    const candidates: { x: number; y: number }[] = [
-      ...draft.map(toPx),
-      ...facets.flatMap((f) => f.points.map(toPx)),
-    ];
-    for (const c of candidates) {
-      if (Math.hypot(c.x - px.x, c.y - px.y) <= SNAP_PX) return { ...c, snapped: true };
+  /** On-screen snap tolerance (SNAP_PX) expressed in feet at the current zoom, so the
+   *  hit radius is a constant number of screen pixels regardless of how far you zoom. */
+  const hitRadiusFt = () => vertexHitRadiusFt(SNAP_PX, ftPerPx);
+
+  /** Facets treated as snap targets, optionally with the in-progress draft as one more
+   *  polygon and optionally excluding one vertex (the one being dragged, to avoid self-snap). */
+  function snapTargets(opts?: { includeDraft?: boolean; exclude?: { facetId: string; vertexIdx: number } }): SketchFacet[] {
+    const base = opts?.exclude
+      ? facets.map((f) =>
+          f.id === opts.exclude!.facetId
+            ? { ...f, points: f.points.filter((_, i) => i !== opts.exclude!.vertexIdx) }
+            : f,
+        )
+      : facets;
+    if (opts?.includeDraft && draft.length > 0) {
+      return [...base, { id: "__draft__", points: draft, pitch: "0/12", edges: [], label: "none" } as SketchFacet];
     }
-    return { ...px, snapped: false };
+    return base;
+  }
+
+  /** Set the render-time snap indicator from a raw pointer position (draw/select modes). */
+  function updateSnapIndicator(raw: { x: number; y: number }) {
+    setCursorPx(raw);
+    if (mode === "draw" || mode === "select") {
+      setSnap(findSnap(toFt(raw.x, raw.y), snapTargets({ includeDraft: mode === "draw" }), hitRadiusFt()));
+    } else if (snap) {
+      setSnap(null);
+    }
+  }
+
+  /** Cursor-centered continuous zoom by `factor` about `cursorPx`. Also rebases the
+   *  integer imagery zoom when the scale crosses a 2× step so the map stays crisp — the
+   *  geometry (kept in feet) never moves, so this is invisible to the user. */
+  function applyZoom(factor: number, at: { x: number; y: number }) {
+    const scale0 = viewScale;
+    let scale1 = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale0 * factor));
+    if (scale1 === scale0) return;
+    const newView = zoomAround({ view, scale0, scale1, cursorPx: at, ftPerPxBase, canvas: CANVAS });
+    let nz = zoom;
+    while (scale1 >= 2 && nz < MAX_MAP_ZOOM) { nz += 1; scale1 /= 2; }
+    while (scale1 <= 0.5 && nz > MIN_MAP_ZOOM) { nz -= 1; scale1 *= 2; }
+    setView(newView);
+    setViewScale(scale1);
+    if (nz !== zoom) setZoom(nz);
+  }
+
+  function handleWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    applyZoom(Math.exp(-e.deltaY * 0.0015), svgPoint(e));
   }
 
   /** Snap the segment prev→p to the nearest 45° multiple. The reference axis
@@ -228,11 +336,13 @@ export function SketchEditor({
     return { x: prev.x + len * Math.cos(ang), y: prev.y + len * Math.sin(ang) };
   }
 
-  /** Raw pointer px → drawing point in feet (vertex snap, then angle snap). */
+  /** Raw pointer px → drawing point in feet. Snapping to an existing vertex/edge (any
+   *  facet or the draft) wins; otherwise fall back to 90°/45° angle snap. */
   function drawPoint(raw: { x: number; y: number }, bypassAngle: boolean): SketchPoint {
-    const vs = vertexSnap(raw);
-    const ftp = toFt(vs.x, vs.y);
-    if (vs.snapped || !angleSnap || bypassAngle || draft.length === 0) return ftp;
+    const ftp = toFt(raw.x, raw.y);
+    const s = findSnap(ftp, snapTargets({ includeDraft: true }), hitRadiusFt());
+    if (s) return s.point;
+    if (!angleSnap || bypassAngle || draft.length === 0) return ftp;
     const prev = draft[draft.length - 1]!;
     const prevPrev = draft.length >= 2 ? draft[draft.length - 2]! : null;
     return snapSegmentAngle(ftp, prev, prevPrev);
@@ -291,9 +401,17 @@ export function SketchEditor({
 
   function handlePointerDown(e: React.PointerEvent) {
     const raw = svgPoint(e);
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, raw);
+    // Second finger down ⇒ pinch gesture; abandon any single-touch draft-in-progress action.
+    if (pointers.current.size >= 2) {
+      pinch.current = null;
+      setPanDrag(null);
+      setDrag(null);
+      return;
+    }
 
     if (mode === "pan") {
-      (e.target as Element).setPointerCapture?.(e.pointerId);
       setPanDrag({ startX: raw.x, startY: raw.y, origin: view });
       return;
     }
@@ -305,13 +423,10 @@ export function SketchEditor({
     }
 
     if (mode === "draw") {
-      // Close when clicking the first draft vertex.
-      if (draft.length >= 3) {
-        const first = toPx(draft[0]!);
-        if (Math.hypot(first.x - raw.x, first.y - raw.y) <= SNAP_PX) {
-          closeDraft();
-          return;
-        }
+      // Close when clicking the first draft vertex (only while it's visually ringed).
+      if (canCloseDraft(toFt(raw.x, raw.y), draft, hitRadiusFt())) {
+        closeDraft();
+        return;
       }
       setDraft((d) => [...d, drawPoint(raw, e.altKey)]);
       return;
@@ -362,12 +477,32 @@ export function SketchEditor({
     }
   }
 
+  /** Two active pointers ⇒ pinch-zoom about their midpoint (touch). */
+  function handlePinch() {
+    const pts = [...pointers.current.values()];
+    if (pts.length < 2) return;
+    const dist = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
+    const mid = { x: (pts[0]!.x + pts[1]!.x) / 2, y: (pts[0]!.y + pts[1]!.y) / 2 };
+    if (!pinch.current || pinch.current.dist === 0) {
+      pinch.current = { dist, scale: viewScale };
+      return;
+    }
+    applyZoom(dist / pinch.current.dist, mid);
+    pinch.current = { dist, scale: viewScale };
+  }
+
   function handlePointerMove(e: React.PointerEvent) {
     const raw = svgPoint(e);
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, raw);
+    if (pointers.current.size >= 2) {
+      handlePinch();
+      return;
+    }
     if (panDrag) {
       setPanPx({ dx: raw.x - panDrag.startX, dy: raw.y - panDrag.startY });
       return;
     }
+    updateSnapIndicator(raw);
     if (mode === "draw" && draft.length > 0) {
       setHover(drawPoint(raw, e.altKey));
     }
@@ -376,8 +511,9 @@ export function SketchEditor({
     }
     if (drag) {
       const d = drag;
-      const vs = vertexSnap(raw);
-      const ftp = toFt(vs.x, vs.y);
+      const ftp0 = toFt(raw.x, raw.y);
+      const s = findSnap(ftp0, snapTargets({ exclude: { facetId: d.facetId, vertexIdx: d.vertexIdx } }), hitRadiusFt());
+      const ftp = s ? s.point : ftp0;
       setFacets((prev) =>
         prev.map((f) =>
           f.id === d.facetId
@@ -388,7 +524,7 @@ export function SketchEditor({
     }
   }
 
-  function handlePointerUp() {
+  function endGesture() {
     if (panDrag) {
       setView({
         x: panDrag.origin.x - panPx.dx * ftPerPx,
@@ -398,6 +534,12 @@ export function SketchEditor({
       setPanPx({ dx: 0, dy: 0 });
     }
     setDrag(null);
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    endGesture();
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -446,6 +588,8 @@ export function SketchEditor({
       if ("ok" in result) {
         setSavedMeasurementId(result.measurementId);
         setSavedAt(new Date());
+        setRestoredDraft(false);
+        try { window.localStorage.removeItem(draftKey); } catch { /* non-fatal */ }
         router.refresh();
       } else {
         setSaveError(result.error);
@@ -531,6 +675,23 @@ export function SketchEditor({
           {summary.facetCount} facets. Generate an estimate from the job page.
         </div>
       )}
+      {restoredDraft && !savedAt && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-sm" data-testid="draft-restored">
+          <span>Restored an unsaved draft from this device — Save to keep it.</span>
+          <button
+            type="button"
+            className="underline underline-offset-2"
+            onClick={() => {
+              pushHistory(facets);
+              setFacets([]);
+              setRestoredDraft(false);
+              try { window.localStorage.removeItem(draftKey); } catch { /* non-fatal */ }
+            }}
+          >
+            Discard
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-4">
         {/* Canvas */}
@@ -542,22 +703,20 @@ export function SketchEditor({
             {modeBtn("pan", "✋ Pan")}
             {modeBtn("calibrate", "📏 Calibrate")}
             <span className="mx-1 h-5 w-px bg-border" />
-            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              Zoom
-              <select
-                value={zoom}
-                onChange={(e) => setZoom(parseInt(e.target.value, 10))}
-                className="rounded-md border border-border bg-transparent px-1.5 py-1 text-sm"
-              >
-                {[19, 20, 21].map((z) => (
-                  <option key={z} value={z}>
-                    {z}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {(view.x !== 0 || view.y !== 0) && (
-              <Button size="sm" variant="outline" onClick={() => setView({ x: 0, y: 0 })}>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Button size="sm" variant="outline" onClick={() => applyZoom(1 / 1.3, { x: CANVAS / 2, y: CANVAS / 2 })} aria-label="Zoom out" data-testid="zoom-out">
+                −
+              </Button>
+              <span className="w-12 text-center tabular-nums" data-testid="zoom-readout">
+                ×{(Math.pow(2, zoom - DEFAULT_ZOOM) * viewScale).toFixed(1)}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => applyZoom(1.3, { x: CANVAS / 2, y: CANVAS / 2 })} aria-label="Zoom in" data-testid="zoom-in">
+                +
+              </Button>
+              <span className="ml-1 hidden sm:inline text-xs">scroll / pinch to zoom</span>
+            </div>
+            {(view.x !== 0 || view.y !== 0 || viewScale !== 1) && (
+              <Button size="sm" variant="outline" onClick={() => { setView({ x: 0, y: 0 }); setViewScale(1); }}>
                 Re-center
               </Button>
             )}
@@ -604,7 +763,7 @@ export function SketchEditor({
                 width={CANVAS}
                 height={CANVAS}
                 className="absolute inset-0 select-none"
-                style={{ transform: `translate(${panPx.dx}px, ${panPx.dy}px)` }}
+                style={{ transform: `translate(${panPx.dx}px, ${panPx.dy}px) scale(${viewScale})`, transformOrigin: "center" }}
                 draggable={false}
               />
             ) : (
@@ -623,6 +782,10 @@ export function SketchEditor({
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              onPointerLeave={(e) => { pointers.current.delete(e.pointerId); setCursorPx(null); setSnap(null); }}
+              onWheel={handleWheel}
+              onDoubleClick={() => { if (mode === "draw") closeDraft(); }}
               onKeyDown={handleKeyDown}
               data-testid="sketch-canvas"
             >
@@ -804,8 +967,66 @@ export function SketchEditor({
                     })()}
                   </g>
                 )}
+
+                {/* Snap indicator: highlights the vertex/edge the next point will snap to. */}
+                {snap && (() => {
+                  const p = toPx(snap.point);
+                  return (
+                    <g data-testid="snap-indicator" data-snap-kind={snap.kind}>
+                      <circle cx={p.x} cy={p.y} r={8} fill="none" stroke="#f5c451" strokeWidth={2} />
+                      {snap.kind === "vertex" ? (
+                        <circle cx={p.x} cy={p.y} r={2.5} fill="#f5c451" />
+                      ) : (
+                        <rect x={p.x - 2.5} y={p.y - 2.5} width={5} height={5} fill="#f5c451" transform={`rotate(45 ${p.x} ${p.y})`} />
+                      )}
+                    </g>
+                  );
+                })()}
+
+                {/* Close-ready ring on the first draft vertex (Enter / double-click / click also close). */}
+                {mode === "draw" && cursorPx && canCloseDraft(toFt(cursorPx.x, cursorPx.y), draft, hitRadiusFt()) && (() => {
+                  const p = toPx(draft[0]!);
+                  return <circle data-testid="close-ring" cx={p.x} cy={p.y} r={10} fill="none" stroke="#4fc3f7" strokeWidth={2.5} />;
+                })()}
               </g>
             </svg>
+
+            {/* Magnifier loupe: appears near the cursor when a vertex/edge is within snap
+                distance, centered on the snap target for pixel-precise placement. */}
+            {mapUrl && snap && cursorPx && (() => {
+              const LOUPE = 128;
+              const MAG = 2.4;
+              const mapOriginX = (CANVAS / 2) * (1 - viewScale) + panPx.dx;
+              const mapOriginY = (CANVAS / 2) * (1 - viewScale) + panPx.dy;
+              const sp = toPx(snap.point);
+              const bgX = (sp.x - mapOriginX) / viewScale;
+              const bgY = (sp.y - mapOriginY) / viewScale;
+              const size = CANVAS * viewScale * MAG;
+              let left = cursorPx.x - LOUPE - 16;
+              if (left < 4) left = Math.min(cursorPx.x + 16, CANVAS - LOUPE - 4);
+              let top = cursorPx.y - LOUPE - 16;
+              if (top < 4) top = Math.min(cursorPx.y + 16, CANVAS - LOUPE - 4);
+              return (
+                <div
+                  data-testid="loupe"
+                  className="pointer-events-none absolute overflow-hidden rounded-full border-2 border-white shadow-lg"
+                  style={{
+                    width: LOUPE,
+                    height: LOUPE,
+                    left,
+                    top,
+                    backgroundImage: `url(${mapUrl})`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: `${size}px ${size}px`,
+                    backgroundPosition: `${LOUPE / 2 - bgX * viewScale * MAG}px ${LOUPE / 2 - bgY * viewScale * MAG}px`,
+                  }}
+                >
+                  <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[#f5c451]/70" />
+                  <div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-[#f5c451]/70" />
+                  <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f5c451]" />
+                </div>
+              );
+            })()}
           </div>
         </div>
 
