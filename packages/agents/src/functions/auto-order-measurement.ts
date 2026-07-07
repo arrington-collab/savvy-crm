@@ -1,4 +1,4 @@
-import { withTenant, adminDb, eq, appointment, job, measurement, tenant, recordAgentRun } from "@savvy/db";
+import { withTenant, adminDb, eq, appointment, measurement, tenant, recordAgentRun } from "@savvy/db";
 import { parseSchedulingConfig } from "@savvy/core";
 import { inngest } from "../client";
 
@@ -37,18 +37,16 @@ export const autoOrderMeasurementOnInspection = inngest.createFunction(
     const ctx = await step.run("load", () =>
       withTenant(tenantId, async (tx) => {
         const [a] = await tx
-          .select({ type: appointment.type, status: appointment.status, jobId: appointment.jobId })
+          .select({ type: appointment.type, status: appointment.status, jobId: appointment.jobId, leadId: appointment.leadId, propertyId: appointment.propertyId })
           .from(appointment)
           .where(eq(appointment.id, appointmentId));
-        if (!a) return null;
-        const [j] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, a.jobId));
-        if (!j) return null;
+        if (!a || !a.propertyId) return null;
         const existing = await tx
           .select({ id: measurement.id })
           .from(measurement)
-          .where(eq(measurement.propertyId, j.propertyId))
+          .where(eq(measurement.propertyId, a.propertyId))
           .limit(1);
-        return { apptType: a.type, apptStatus: a.status, jobId: a.jobId, propertyId: j.propertyId, hasMeasurement: existing.length > 0 };
+        return { apptType: a.type, apptStatus: a.status, jobId: a.jobId, leadId: a.leadId, propertyId: a.propertyId, hasMeasurement: existing.length > 0 };
       }),
     );
     if (!ctx) return { skipped: "not_found" as const };
@@ -71,10 +69,10 @@ export const autoOrderMeasurementOnInspection = inngest.createFunction(
 
     await step.sendEvent("request-order", {
       name: "roofr/order.requested",
-      data: { tenantId, jobId: ctx.jobId, propertyId: ctx.propertyId },
+      data: { tenantId, propertyId: ctx.propertyId, jobId: ctx.jobId ?? undefined, leadId: ctx.leadId ?? undefined },
     });
     await step.run("record-ok", () =>
-      recordAgentRun({ tenantId, agent: "scheduling", taskKey: "measurement.auto_order", jobId: ctx.jobId, status: "ok" }),
+      recordAgentRun({ tenantId, agent: "scheduling", taskKey: "measurement.auto_order", jobId: ctx.jobId ?? undefined, status: "ok" }),
     );
     return { ordered: true as const };
   },

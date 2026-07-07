@@ -40,7 +40,7 @@ const confirmSchema = z.object({
   leadId: z.string().optional(),
 });
 
-export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; leadId: string; appointmentId: string; jobId: string } | { error: "slot_taken"; leadId: string } | { error: "no_assignee" | "invalid" }> {
+export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; leadId: string; appointmentId: string } | { error: "slot_taken"; leadId: string } | { error: "no_assignee" | "invalid" }> {
   const parsed = confirmSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const { contact, address, repId, startsAt, endsAt } = parsed.data;
@@ -73,9 +73,9 @@ export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; 
   const booked = await bookLeadSlot({ leadId, startsAt, endsAt });
   if ("error" in booked) return booked.error === "slot_taken" ? { error: "slot_taken", leadId } : { error: "no_assignee" };
   try {
-    await inngest.send({ name: "appointment/booked", data: { tenantId, appointmentId: booked.appointmentId, jobId: booked.jobId, leadId } });
+    await inngest.send({ name: "appointment/booked", data: { tenantId, appointmentId: booked.appointmentId } });
   } catch {
     // Missing Inngest engine must not fail after the appointment is already persisted.
   }
-  return { ok: true, leadId, appointmentId: booked.appointmentId, jobId: booked.jobId };
+  return { ok: true, leadId, appointmentId: booked.appointmentId };
 }

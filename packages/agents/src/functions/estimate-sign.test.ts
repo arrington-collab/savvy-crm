@@ -7,7 +7,7 @@
  *   DATABASE_URL=... DATABASE_ADMIN_URL=... pnpm test estimate-sign
  */
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, eq, tenant, customer, property, job, estimate, contractTemplate } from "@savvy/db";
+import { adminDb, withTenant, eq, tenant, customer, property, job, lead, estimate, contractTemplate } from "@savvy/db";
 import { makeFakeDocuseal } from "@savvy/integrations";
 import { ContractTemplateRequiredError } from "@savvy/core";
 import { createEstimateSubmission, advanceJobForAcceptedEstimate } from "./estimate-sign";
@@ -122,5 +122,35 @@ describe("createEstimateSubmission — SB38 gate (cell 17b)", () => {
     const [after] = await withTenant(tenantId, (tx) => tx.select().from(estimate).where(eq(estimate.id, estimateId)));
     expect(after!.status).toBe("sent");
     expect(after!.contractTemplateId).toBeNull();
+  });
+});
+
+describe("advanceJobForAcceptedEstimate — lead-stage acceptance creates the job", () => {
+  async function makeLeadWithEstimate(tenantId: string): Promise<{ leadId: string; estimateId: string }> {
+    const [c] = await adminDb.insert(customer).values({ tenantId, name: "Lead Larry", email: "larry@e2e.test" }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "3 Lead Ln" }).returning();
+    const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "test", lane: "standard" }).returning();
+    const [e] = await adminDb
+      .insert(estimate)
+      .values({ tenantId, leadId: l!.id, propertyId: p!.id, source: "roofr", status: "sent", total: 500_000 })
+      .returning();
+    return { leadId: l!.id, estimateId: e!.id };
+  }
+
+  it("creates a job from a lead-stage estimate and carries the estimate onto it", async () => {
+    const { tenantId } = await makeTenant();
+    const { leadId, estimateId } = await makeLeadWithEstimate(tenantId);
+
+    const res = await advanceJobForAcceptedEstimate(tenantId, estimateId);
+    expect("jobId" in res).toBe(true);
+    const jobId = (res as { jobId: string }).jobId;
+
+    const [j] = await adminDb.select({ leadId: job.leadId, stage: job.stage }).from(job).where(eq(job.id, jobId));
+    expect(j!.leadId).toBe(leadId);
+    expect(j!.stage).toBe("approved");
+
+    const [after] = await adminDb.select({ jobId: estimate.jobId, status: estimate.status }).from(estimate).where(eq(estimate.id, estimateId));
+    expect(after!.jobId).toBe(jobId); // estimate carried onto the new job
+    expect(after!.status).toBe("accepted");
   });
 });

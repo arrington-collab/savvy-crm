@@ -52,6 +52,12 @@ export async function markStatusAction(
   const tenantId = await getTenantId();
   await setAppointmentStatus({ tenantId, appointmentId, status });
   await emit("appointment/changed", { appointmentId, tenantId, reason: status });
+  // A completed inspection (with a landed measurement) triggers the lead's draft
+  // estimate; the handler no-ops for non-inspection / job-scoped appointments.
+  if (status === "done") {
+    try { await inngest.send({ name: "appointment/completed", data: { appointmentId, tenantId } }); }
+    catch (e) { console.error("inngest.send failed", e); }
+  }
   revalidatePath("/schedule");
   return { ok: true as const };
 }

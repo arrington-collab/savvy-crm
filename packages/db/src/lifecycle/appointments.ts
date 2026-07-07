@@ -2,6 +2,7 @@ import { withTenant } from "../tenant";
 import { appointment } from "../schema/comms";
 import { job } from "../schema/jobs";
 import { property, lead } from "../schema/crm";
+import { estimate } from "../schema/finance";
 import { license } from "../schema/compliance";
 import { document } from "../schema/ops";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
@@ -30,7 +31,13 @@ function isExclusionViolation(e: unknown): boolean {
 }
 
 export type BookInput = {
-  tenantId: string; jobId: string; customerId?: string;
+  tenantId: string;
+  // Crew/install appointments are job-scoped; lead-stage inspections are lead-scoped
+  // (no job yet). Exactly one of jobId/leadId identifies the appointment's subject.
+  jobId?: string;
+  leadId?: string;
+  propertyId?: string; // explicit override; otherwise derived from the job or lead
+  customerId?: string;
   type: AppointmentType; assigneeUserId: string | null;
   startsAt: Date; endsAt: Date;
   crewId?: string | null;
@@ -38,18 +45,29 @@ export type BookInput = {
 
 export async function bookAppointment(input: BookInput): Promise<{ id: string }> {
   const { tenantId } = input;
+  if (!input.jobId && !input.leadId) {
+    throw new Error("bookAppointment: one of jobId or leadId is required");
+  }
   try {
     return await withTenant(tenantId, async (tx) => {
+      // Resolve the property this appointment is at — from the job (crew/install)
+      // or the lead (inspection). It drives the Cell 17a license check.
+      let propertyId = input.propertyId ?? null;
+      if (!propertyId && input.jobId) {
+        const [jrow] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, input.jobId));
+        if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
+        propertyId = jrow.propertyId;
+      }
+      if (!propertyId && input.leadId) {
+        const [lrow] = await tx.select({ propertyId: lead.propertyId }).from(lead).where(eq(lead.id, input.leadId));
+        if (!lrow) throw new Error(`bookAppointment: lead ${input.leadId} not found`);
+        propertyId = lrow.propertyId;
+      }
+
       // Cell 17a: block scheduling in a jurisdiction with no active license.
-      const [jrow] = await tx
-        .select({ propertyId: job.propertyId })
-        .from(job)
-        .where(eq(job.id, input.jobId));
-      if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
-      const [prop] = await tx
-        .select({ state: property.state, city: property.city })
-        .from(property)
-        .where(eq(property.id, jrow.propertyId));
+      const [prop] = propertyId
+        ? await tx.select({ state: property.state, city: property.city }).from(property).where(eq(property.id, propertyId))
+        : [undefined];
       const state = (prop?.state ?? "").trim();
       if (state !== "") {
         const lics = await tx
@@ -61,7 +79,8 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
       }
 
       const [row] = await tx.insert(appointment).values({
-        tenantId, jobId: input.jobId, customerId: input.customerId ?? null,
+        tenantId, jobId: input.jobId ?? null, leadId: input.leadId ?? null, propertyId,
+        customerId: input.customerId ?? null,
         type: input.type, assigneeUserId: input.assigneeUserId ?? null,
         startsAt: input.startsAt, endsAt: input.endsAt, status: "scheduled",
         crewId: input.crewId ?? null,
@@ -175,7 +194,14 @@ export async function setAppointmentWeatherFlag(input: {
  * and stops any active drip enrollments. Returns the jobId + customerId.
  * Idempotent: a repeat call on an already-booked lead returns the existing job.
  */
-export async function convertLeadToJob(args: { tenantId: string; leadId: string }): Promise<{ jobId: string; customerId: string }> {
+export async function convertLeadToJob(args: {
+  tenantId: string;
+  leadId: string;
+  // Escape hatch for jobs that arrive outside the funnel (e.g. insurance
+  // emergencies) with no accepted estimate. When false/undefined the red-path
+  // invariant applies: a job is created FROM an accepted estimate — not before.
+  manualJob?: boolean;
+}): Promise<{ jobId: string; customerId: string }> {
   return withTenant(args.tenantId, async (tx) => {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
     if (!l) throw new Error("lead not found");
@@ -203,12 +229,27 @@ export async function convertLeadToJob(args: { tenantId: string; leadId: string 
         return { jobId: existing.id, customerId: l.customerId! };
       }
     }
+
+    // Red-path invariant: a job is created FROM an accepted estimate. Out-of-funnel
+    // jobs (insurance emergencies) bypass this via manualJob.
+    const [accepted] = await tx
+      .select({ id: estimate.id })
+      .from(estimate)
+      .where(and(eq(estimate.leadId, l.id), eq(estimate.status, "accepted")));
+    if (!accepted && !args.manualJob) {
+      throw new Error("cannot create job: lead has no accepted estimate (use manualJob for out-of-funnel jobs)");
+    }
+
     const jobType = leadToJobType(l.lane ?? null);
     const [newJob] = await tx.insert(job).values({
       tenantId: args.tenantId, customerId: l.customerId!, propertyId: l.propertyId!,
       type: jobType, stage: "lead", leadId: l.id,
       assignedUserId: l.assignedUserId ?? null, // carry the lead's owner/credit onto the job
     }).returning();
+    // Carry the accepted estimate onto the new job (measurement travels via property).
+    if (accepted) {
+      await tx.update(estimate).set({ jobId: newJob!.id }).where(eq(estimate.id, accepted.id));
+    }
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });

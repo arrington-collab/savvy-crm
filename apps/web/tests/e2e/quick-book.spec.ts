@@ -63,7 +63,10 @@ test("quick-book: type → rep recommended → slot → book", async ({ page }) 
     return rows.find((r) => r.status === "scheduled");
   });
   expect(appt.type).toBe("inspection");
-  expect(appt.jobId).toBeTruthy();
+  // Slice 1: an inspection is booked against the LEAD — no job is created until an
+  // estimate is accepted.
+  expect(appt.jobId).toBeNull();
+  expect(appt.leadId).toBeTruthy();
 
   // The lead was created with the inbound-call source.
   const created = await waitFor(async () => {

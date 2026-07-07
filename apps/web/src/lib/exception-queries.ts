@@ -65,7 +65,11 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
         eq(appointment.status, "no_show"),
         sql`${appointment.status} = 'scheduled' and ${appointment.startsAt} < now()`,
       ));
-    const missedAppointments = apptRows.map((r) => ({ appointmentId: r.id, jobId: r.jobId, apptType: r.type, status: r.status, startsAt: r.startsAt, customerName: r.customerName }));
+    // Job-scoped missed appointments (no-shows). Lead-stage missed inspections
+    // (jobId null) are a follow-up surface — they need lead-linking in the queue UI.
+    const missedAppointments = apptRows
+      .filter((r): r is typeof r & { jobId: string } => r.jobId !== null)
+      .map((r) => ({ appointmentId: r.id, jobId: r.jobId, apptType: r.type, status: r.status, startsAt: r.startsAt, customerName: r.customerName }));
 
     // --- overdue tasks ---
     const taskRows = await tx
@@ -116,9 +120,11 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       .from(appointment)
       .leftJoin(customer, eq(customer.id, appointment.customerId))
       .where(sql`${appointment.weatherFlaggedAt} is not null and ${appointment.status} = 'scheduled' and ${appointment.startsAt} > now()`);
-    const weatherAtRisks: WeatherAtRiskInput[] = wxRows.map((r) => ({
-      appointmentId: r.id, jobId: r.jobId, apptType: r.apptType, startsAt: r.startsAt, customerName: r.customerName, note: r.note ?? "Weather risk",
-    }));
+    const weatherAtRisks: WeatherAtRiskInput[] = wxRows
+      .filter((r): r is typeof r & { jobId: string } => r.jobId !== null)
+      .map((r) => ({
+        appointmentId: r.id, jobId: r.jobId, apptType: r.apptType, startsAt: r.startsAt, customerName: r.customerName, note: r.note ?? "Weather risk",
+      }));
 
     // --- roof type unknown on an active, post-inspection job (someone's engaged
     // the property, so we should have it — pressure a human to capture it) ---

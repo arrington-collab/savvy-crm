@@ -1,4 +1,4 @@
-import { withTenant, eq, createEstimateFromMeasurement, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -67,43 +67,81 @@ export async function generateUpsells(
   }
 }
 
+/** Enrich a freshly-drafted estimate with AI upsell suggestions (non-fatal). */
+async function attachUpsells(tenantId: string, estimateId: string, measurementId: string): Promise<number> {
+  const upsells = await generateUpsells(tenantId, measurementId);
+  await withTenant(tenantId, (tx) =>
+    tx.update(estimate).set({ upsellSuggestions: upsells }).where(eq(estimate.id, estimateId)),
+  );
+  return upsells.length;
+}
+
 /**
- * Inngest function: on `measurement/ready`, generate a draft estimate using
- * the price book + estimate engine, then run AI upsell suggestions (resilient)
- * and save them to `estimate.upsellSuggestions`. The upsells are suggestions
- * only — they are NOT added to the estimate totals.
+ * Inngest function: drafts a lead's estimate once the inspection is complete AND a
+ * measurement (Roofr or DIY — first data wins) has landed. Fired by BOTH
+ * `measurement/ready` and `appointment/completed`, so whichever lands last triggers
+ * the (idempotent, draft-once) generation. The legacy job-stage path (measurement/ready
+ * carrying a jobId, no leadId) still drafts immediately behind the automation gate.
+ * Upsell suggestions are advisory only — never added to totals.
  */
 export const generateEstimateOnMeasurement = inngest.createFunction(
   { id: "generate-estimate-on-measurement", concurrency: { limit: 5 }, retries: 2 },
-  { event: "measurement/ready" },
+  [{ event: "measurement/ready" }, { event: "appointment/completed" }],
   async ({ event, step }) => {
-    const { tenantId, jobId, measurementId } = event.data;
+    // After a lead-stage draft: attach upsells, then either auto-send or park for
+    // approval based on the tenant threshold. Shared by both trigger events.
+    const finishLeadDraft = async (
+      tenantId: string,
+      res: { estimateId: string; measurementId: string },
+    ) => {
+      const upsells = await step.run("upsell", () => attachUpsells(tenantId, res.estimateId, res.measurementId));
+      const delivery = await step.run("delivery", () => resolveEstimateDelivery({ tenantId, estimateId: res.estimateId }));
+      if (delivery.action === "send") {
+        await step.sendEvent("send-estimate", { name: "estimate/send.requested", data: { tenantId, estimateId: res.estimateId } });
+      }
+      return { estimateId: res.estimateId, upsells, delivery: delivery.action };
+    };
 
-    // Runtime automation gate: defer to a human if the owning task isn't full-auto.
+    // --- appointment/completed: resolve the inspection's lead, then gated draft ---
+    if (event.name === "appointment/completed") {
+      const { tenantId, appointmentId } = event.data;
+      const leadId = await step.run("resolve-inspection-lead", () =>
+        withTenant(tenantId, async (tx) => {
+          const [a] = await tx
+            .select({ leadId: appointment.leadId })
+            .from(appointment)
+            .where(and(eq(appointment.id, appointmentId), eq(appointment.type, "inspection")));
+          return a?.leadId ?? null;
+        }),
+      );
+      if (!leadId) return { skipped: "not_lead_inspection" };
+      const res = await step.run("draft", () => draftLeadEstimateIfReady({ tenantId, leadId }));
+      if (!("estimateId" in res)) return res;
+      return finishLeadDraft(tenantId, res);
+    }
+
+    // --- measurement/ready ---
+    if (event.name !== "measurement/ready") return { skipped: "unhandled_event" };
+    const { tenantId, jobId, leadId, measurementId } = event.data;
+
+    // Lead-stage: gated + draft-once (waits for inspection completion too).
+    if (leadId) {
+      const res = await step.run("draft", () => draftLeadEstimateIfReady({ tenantId, leadId }));
+      if (!("estimateId" in res)) return res;
+      return finishLeadDraft(tenantId, res);
+    }
+
+    // Legacy job-stage path: draft immediately behind the automation gate.
+    if (!jobId) return { skipped: "no_scope" };
     const gate = await step.run("gate", () =>
       gateAgentAutomation({ tenantId, jobId, taskKey: ESTIMATE_TASK_KEY, agent: "claims" }));
     if (!gate.proceed) return { skipped: "automation_deferred", level: gate.level };
 
-    // Step 1: generate the deterministic estimate from the price book.
     const est = await step.run("generate", () =>
-      createEstimateFromMeasurement({ tenantId, jobId, measurementId }),
+      createEstimateFromMeasurement({ tenantId, measurementId, jobId }),
     );
     if (!est) return { skipped: "no_measurement" };
-
-    // Step 2: AI upsell suggestions — resilient, failure returns [].
-    const upsells = await step.run("upsell", () =>
-      generateUpsells(tenantId, measurementId),
-    );
-
-    // Step 3: save upsell suggestions to the estimate row (not added to totals).
-    await step.run("save-upsells", () =>
-      withTenant(tenantId, (tx) =>
-        tx.update(estimate)
-          .set({ upsellSuggestions: upsells })
-          .where(eq(estimate.id, est.id)),
-      ),
-    );
-
-    return { estimateId: est.id, upsells: upsells.length };
+    const upsells = await step.run("upsell", () => attachUpsells(tenantId, est.id, measurementId));
+    return { estimateId: est.id, upsells };
   },
 );

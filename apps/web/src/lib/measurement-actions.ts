@@ -8,6 +8,7 @@ import {
   sketchSummaryToAreas,
   type RoofSketch,
 } from "@savvy/core";
+import { inngest } from "@savvy/agents";
 import { getTenantId } from "./tenant";
 
 /** Persist a self-drawn (DIY) roof sketch as a measurement row. The sketch
@@ -43,7 +44,7 @@ export async function saveSketchMeasurementAction(input: {
         .set({ areas, pitch: summary.predominantPitch, provider: "diy" })
         .where(eq(measurement.id, input.measurementId))
         .returning();
-      if (row) return row;
+      if (row) return { row, leadId: j.leadId, propertyId: j.propertyId };
     }
     const [row] = await tx
       .insert(measurement)
@@ -55,11 +56,21 @@ export async function saveSketchMeasurementAction(input: {
         areas,
       })
       .returning();
-    return row ?? null;
+    return row ? { row, leadId: j.leadId, propertyId: j.propertyId } : null;
   });
 
   if (!result) return { error: "job_or_property_not_found" };
+  // DIY measurement landed — trigger the estimate (first data wins). The gate in
+  // draftLeadEstimateIfReady still waits for inspection completion.
+  try {
+    await inngest.send({
+      name: "measurement/ready",
+      data: { tenantId, measurementId: result.row.id, propertyId: result.propertyId, leadId: result.leadId ?? undefined, jobId: input.jobId },
+    });
+  } catch (e) {
+    console.error("inngest.send failed", e);
+  }
   revalidatePath(`/jobs/${input.jobId}`);
   revalidatePath(`/jobs/${input.jobId}/measure`);
-  return { ok: true, measurementId: result.id };
+  return { ok: true, measurementId: result.row.id };
 }

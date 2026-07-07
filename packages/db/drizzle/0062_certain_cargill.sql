@@ -1,0 +1,1 @@
+ALTER TABLE "estimate" ADD COLUMN "approval_required_at" timestamp with time zone;

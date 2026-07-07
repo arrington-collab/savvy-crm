@@ -55,7 +55,7 @@ export const roofrOrderMeasurement = inngest.createFunction(
   { id: "roofr-order-measurement", concurrency: { limit: 5 }, retries: 3 },
   { event: "roofr/order.requested" },
   async ({ event, step }) => {
-    const { tenantId, jobId, propertyId } = event.data;
+    const { tenantId, propertyId, jobId, leadId } = event.data;
 
     const order = await step.run("order", async () => {
       const address = await withTenant(tenantId, async (tx) => {
@@ -90,7 +90,7 @@ export const roofrOrderMeasurement = inngest.createFunction(
 
     await step.sendEvent("emit-ready", {
       name: "measurement/ready",
-      data: { tenantId, jobId, measurementId },
+      data: { tenantId, measurementId, propertyId, jobId, leadId },
     });
 
     return { measurementId };

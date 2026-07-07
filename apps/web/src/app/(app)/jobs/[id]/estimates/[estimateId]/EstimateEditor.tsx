@@ -15,7 +15,7 @@ import {
 // Shape returned by getEstimate — mirrors the DB schema.
 interface EstimateRow {
   id: string;
-  jobId: string;
+  jobId: string | null;
   source: string;
   status: string;
   lineItems: unknown[];

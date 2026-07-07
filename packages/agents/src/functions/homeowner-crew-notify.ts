@@ -25,7 +25,8 @@ export const homeownerCrewNotify = inngest.createFunction(
     const ctx = await step.run("load", () => withTenant(tenantId, async (tx) => {
       const [a] = await tx.select().from(appointment).where(eq(appointment.id, appointmentId));
       // Only crew (install) appointments drive the homeowner crew-day journey.
-      if (!a || a.type !== "crew" || a.status !== "scheduled") return null;
+      // Crew appointments are always job-scoped (installs happen after job creation).
+      if (!a || a.type !== "crew" || a.status !== "scheduled" || !a.jobId) return null;
       const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, a.jobId));
       const cust = j?.customerId ? (await tx.select().from(customerTbl).where(eq(customerTbl.id, j.customerId)))[0] : undefined;
       if (!cust) return null;

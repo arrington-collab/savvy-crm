@@ -34,13 +34,17 @@ export async function createInvoiceFromEstimate(input: {
   return withTenant(input.tenantId, async (tx) => {
     const [e] = await tx.select().from(estimate).where(eq(estimate.id, input.estimateId));
     if (!e) throw new Error("estimate not found");
-    const [j] = await tx.select().from(job).where(eq(job.id, e.jobId));
+    // Invoicing requires a job-attached estimate. A lead-stage draft (job_id null)
+    // must first be accepted, which creates the job and stamps job_id.
+    if (!e.jobId) throw new Error("cannot invoice a lead-stage estimate without an accepted job");
+    const jobId = e.jobId;
+    const [j] = await tx.select().from(job).where(eq(job.id, jobId));
     const [row] = await tx.insert(invoice).values({
-      tenantId: input.tenantId, jobId: e.jobId, customerId: j?.customerId ?? null,
+      tenantId: input.tenantId, jobId, customerId: j?.customerId ?? null,
       lineItems: e.lineItems as unknown[], amountDue: e.total ?? 0, status: "draft",
     }).returning();
     await tx.update(estimate).set({ status: "accepted" }).where(eq(estimate.id, input.estimateId));
-    await markJobTaskDoneTx(tx, input.tenantId, { jobId: e.jobId, taskId: REGISTRY_TASK.INVOICE_GENERATION, owner: "finance", evidence: { type: "invoice", ref: row!.id } });
+    await markJobTaskDoneTx(tx, input.tenantId, { jobId, taskId: REGISTRY_TASK.INVOICE_GENERATION, owner: "finance", evidence: { type: "invoice", ref: row!.id } });
     return row!;
   });
 }

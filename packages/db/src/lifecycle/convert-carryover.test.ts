@@ -29,14 +29,14 @@ async function seedLead() {
 describe("convertLeadToJob — carryover", () => {
   it("carries the lead owner (assignedUserId) onto the job", async () => {
     const { tid, userId, leadId } = await seedLead();
-    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId, manualJob: true });
     const [j] = await adminDb.select({ assignedUserId: job.assignedUserId }).from(job).where(eq(job.id, jobId));
     expect(j!.assignedUserId).toBe(userId);
   });
 
   it("re-parents lead-stage photos onto the job", async () => {
     const { tid, leadId, photoId } = await seedLead();
-    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId });
+    const { jobId } = await convertLeadToJob({ tenantId: tid, leadId, manualJob: true });
     const [d] = await adminDb.select({ jobId: document.jobId }).from(document).where(eq(document.id, photoId));
     expect(d!.jobId).toBe(jobId);
   });
