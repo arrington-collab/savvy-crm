@@ -1,6 +1,7 @@
 "use server";
-import { withTenant, job, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto } from "@savvy/db";
+import { withTenant, job, lead, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto, recordLeadDocument } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
+import { validateUpload, type UploadValidationError } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
@@ -109,4 +110,63 @@ export async function keepFlaggedPhoto(
   revalidatePath(`/jobs/${res.jobId}`);
   revalidatePath("/exceptions");
   return { ok: true };
+}
+
+export async function presignLeadDocumentUpload(input: {
+  leadId: string;
+  kind: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+}): Promise<
+  { ok: true; uploadUrl: string; r2Key: string }
+  | { error: "not_found" | "storage_not_configured" | UploadValidationError }
+> {
+  const tenantId = await getTenantId();
+  const v = validateUpload({ kind: input.kind, mime: input.contentType, sizeBytes: input.sizeBytes });
+  if (!v.ok) return { error: v.error };
+  const found = await withTenant(tenantId, async (tx) => {
+    const [l] = await tx.select({ id: lead.id }).from(lead).where(eq(lead.id, input.leadId));
+    return l;
+  });
+  if (!found) return { error: "not_found" };
+  const safe = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+  const r2Key = `${tenantId}/lead/${input.leadId}/${crypto.randomUUID()}-${safe}`;
+  try {
+    const { url } = await r2Storage.presignUpload({ key: r2Key, contentType: input.contentType });
+    return { ok: true, uploadUrl: url, r2Key };
+  } catch {
+    return { error: "storage_not_configured" };
+  }
+}
+
+export async function recordLeadDocumentAction(input: {
+  leadId: string;
+  r2Key: string;
+  kind: string;
+  filename: string;
+  mime: string;
+  sizeBytes: number;
+}): Promise<{ ok: true; id: string } | { error: "bad_key" | "not_found" | UploadValidationError }> {
+  const { tenantId, userId } = await getCurrentUser();
+  const v = validateUpload({ kind: input.kind, mime: input.mime, sizeBytes: input.sizeBytes });
+  if (!v.ok) return { error: v.error };
+  // Reject any r2Key not scoped to this tenant+lead — defense against forged keys.
+  if (!input.r2Key.startsWith(`${tenantId}/lead/${input.leadId}/`)) return { error: "bad_key" };
+  // TEST_MODE's getCurrentUser returns the non-UUID sentinel "test-user"; uploaded_by_user_id
+  // FK is nullable, so record null rather than a fake id.
+  const auditUserId = userId === "test-user" ? null : userId;
+  const res = await recordLeadDocument({
+    tenantId,
+    leadId: input.leadId,
+    r2Key: input.r2Key,
+    kind: input.kind,
+    filename: input.filename,
+    mime: input.mime,
+    sizeBytes: input.sizeBytes,
+    uploadedByUserId: auditUserId,
+  });
+  if (!res) return { error: "not_found" };
+  revalidatePath(`/leads/${input.leadId}`);
+  return { ok: true, id: res.id };
 }
