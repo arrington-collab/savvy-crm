@@ -13,6 +13,7 @@ function makeDeps(over: Partial<ParseLeadDocumentDeps> = {}): ParseLeadDocumentD
     ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
     insertMeasurement: vi.fn().mockResolvedValue("m1"),
     setStatus: vi.fn().mockResolvedValue(undefined),
+    attachClaim: vi.fn().mockResolvedValue({ claimId: "c1", created: true }),
     ...over,
   };
 }
@@ -35,8 +36,8 @@ describe("parseLeadDocumentHandler", () => {
     expect(deps.setStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "unparsed_low_confidence" }));
   });
 
-  it("skips a non-measurement kind (insurance_estimate is 6c)", async () => {
-    const deps = makeDeps({ loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", propertyId: "p1" }) });
+  it("skips an unrecognized document kind", async () => {
+    const deps = makeDeps({ loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "other", leadId: "l1", propertyId: "p1" }) });
     const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
     expect(res.status).toBe("skipped");
     expect(deps.ai.completeObject).not.toHaveBeenCalled();
@@ -47,5 +48,29 @@ describe("parseLeadDocumentHandler", () => {
     const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
     expect(res.status).toBe("parse_failed");
     expect(deps.setStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "parse_failed" }));
+  });
+
+  it("parses an insurance_estimate → attaches/creates a claim, sets parsed, returns claimId", async () => {
+    const parsed = { carrierName: "State Farm", claimNumber: "C-9", acvCents: 800000, rcvCents: 1000000, deductibleCents: 200000, lines: [{ description: "shingles", quantity: 25, amountCents: 750000 }], confidence: 0.95 };
+    const deps = makeDeps({
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", propertyId: "p1" }),
+      ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
+    });
+    const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
+    expect(res).toEqual({ status: "parsed", claimId: "c1", leadId: "l1" });
+    expect(deps.attachClaim).toHaveBeenCalledWith(expect.objectContaining({ leadId: "l1", rcvCents: 1000000, parseConfidence: 0.95 }));
+    expect(deps.insertMeasurement).not.toHaveBeenCalled();
+  });
+
+  it("cards a low-confidence insurance parse without creating a claim", async () => {
+    const parsed = { carrierName: null, claimNumber: null, acvCents: null, rcvCents: null, deductibleCents: null, lines: [], confidence: 0.3 };
+    const deps = makeDeps({
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", propertyId: "p1" }),
+      ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
+    });
+    const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
+    expect(res.status).toBe("unparsed_low_confidence");
+    expect(deps.attachClaim).not.toHaveBeenCalled();
+    expect(deps.setStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "unparsed_low_confidence" }));
   });
 });

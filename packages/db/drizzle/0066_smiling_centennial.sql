@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "claim_lead_open_uniq" ON "claim" USING btree ("lead_id") WHERE "claim"."lead_id" is not null and "claim"."job_id" is null;

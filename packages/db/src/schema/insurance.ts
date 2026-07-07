@@ -1,7 +1,9 @@
-import { pgTable, uuid, text, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, index, uniqueIndex, jsonb, doublePrecision } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { job } from "./jobs";
+import { lead, property } from "./crm";
 import { claimStatusEnum } from "./enums";
 
 // Thin claim tracking (slice G). The SuppIQ supplement intelligence (carrier/
@@ -10,7 +12,9 @@ import { claimStatusEnum } from "./enums";
 export const claim = pgTable("claim", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-  jobId: uuid("job_id").notNull().references(() => job.id),
+  jobId: uuid("job_id").references(() => job.id),
+  leadId: uuid("lead_id").references(() => lead.id),
+  propertyId: uuid("property_id").references(() => property.id),
   claimNumber: text("claim_number"),
   carrierName: text("carrier_name"),
   adjusterName: text("adjuster_name"),
@@ -26,9 +30,13 @@ export const claim = pgTable("claim", {
   lenderName: text("lender_name"),
   endorsementStatus: text("endorsement_status").notNull().default("none"), // none|needed|requested|received|not_applicable
   endorsementLastActionAt: timestamp("endorsement_last_action_at", { withTimezone: true }),
+  // Slice 6c: parsed carrier line items + parse confidence (lead-stage insurance-estimate parse).
+  lineItems: jsonb("line_items").$type<unknown[]>(),
+  parseConfidence: doublePrecision("parse_confidence"),
   createdAt: createdAt(),
 }, (t) => [
-  uniqueIndex("claim_job_uniq").on(t.jobId),
+  uniqueIndex("claim_job_uniq").on(t.jobId).where(sql`${t.jobId} is not null`),
+  uniqueIndex("claim_lead_open_uniq").on(t.leadId).where(sql`${t.leadId} is not null and ${t.jobId} is null`),
   index("claim_tenant_status_idx").on(t.tenantId, t.status),
   tenantIsolation(),
 ]);
