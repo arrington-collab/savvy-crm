@@ -36,6 +36,7 @@ export const claim = pgTable("claim", {
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("claim_job_uniq").on(t.jobId).where(sql`${t.jobId} is not null`),
+  uniqueIndex("claim_lead_open_uniq").on(t.leadId).where(sql`${t.leadId} is not null and ${t.jobId} is null`),
   index("claim_tenant_status_idx").on(t.tenantId, t.status),
   tenantIsolation(),
 ]);

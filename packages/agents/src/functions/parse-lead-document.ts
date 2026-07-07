@@ -112,7 +112,7 @@ export async function parseLeadDocumentHandler(
 }
 
 export const parseLeadDocument = inngest.createFunction(
-  { id: "parse-lead-document", concurrency: { limit: 5, key: "event.data.tenantId" }, retries: 2 },
+  { id: "parse-lead-document", concurrency: [{ limit: 5, key: "event.data.tenantId" }, { limit: 1, key: "event.data.leadId" }], retries: 2 },
   { event: "lead-document/received" },
   async ({ event, step }) => {
     const { tenantId, documentId } = event.data as { tenantId: string; documentId: string; kind?: string };
