@@ -1,4 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, generateObject, embed as aiEmbed } from "ai";
 import type { LanguageModelV1 } from "ai";
 import type { z } from "zod";
@@ -8,6 +9,16 @@ const gateway = () =>
   createOpenAI({
     // LiteLLM exposes an OpenAI-compatible API. Both vars come from env.
     baseURL: process.env.LITELLM_BASE_URL ?? "http://localhost:4000/v1",
+    apiKey: process.env.LITELLM_API_KEY ?? "sk-noop",
+  });
+
+// Native Anthropic provider — used ONLY for file-bearing calls on the Anthropic-direct
+// gateway. Anthropic's OpenAI-compat endpoint rejects file/document content parts
+// ("content.str: Input should be a valid string"); the native provider encodes PDFs
+// into Claude's document block. Text and embeddings keep using the compat `gateway()`.
+const anthropicGateway = () =>
+  createAnthropic({
+    baseURL: process.env.LITELLM_BASE_URL ?? "https://api.anthropic.com/v1",
     apiKey: process.env.LITELLM_API_KEY ?? "sk-noop",
   });
 
@@ -38,7 +49,10 @@ export async function completeObject<T>(opts: {
   const anthropic = isAnthropicGateway(process.env.LITELLM_BASE_URL);
   if (opts.file) {
     // File attached → use the messages API (via completeObjectWith) to carry it.
-    const { object } = await completeObjectWith(gateway()(model), {
+    // On the Anthropic-direct gateway the OpenAI-compat client can't send document
+    // parts, so use the native Anthropic provider; the LiteLLM/OpenAI path keeps compat.
+    const providerModel = anthropic ? anthropicGateway()(model) : gateway()(model);
+    const { object } = await completeObjectWith(providerModel, {
       prompt: opts.prompt,
       system: opts.system,
       schema: opts.schema,
