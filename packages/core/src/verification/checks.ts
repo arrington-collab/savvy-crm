@@ -109,6 +109,33 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
+  // Every typed lead document reaches a terminal parse state within 1h. `pending` past
+  // 1h is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states.
+  "lead.doc_parse": invariant(
+    "lead.doc_parse",
+    `select id
+       from document
+      where tenant_id = $1
+        and kind in ('insurance_estimate', 'measurement_report')
+        and created_at < now() - interval '1 hour'
+        and parse_status = 'pending'`,
+    { toRef: (r) => ({ type: "document", ref: String(r.id) }) },
+  ),
+
+  // Every lead-stage estimate cites the measurement source it was priced from
+  // (ordered|uploaded_report|sketch). A drafted estimate stamps it; a null here means
+  // the pricing-inputs citation is missing.
+  "estimate.lead_stage": invariant(
+    "estimate.lead_stage",
+    `select id
+       from estimate
+      where tenant_id = $1
+        and lead_id is not null
+        and measurement_id is not null
+        and measurement_source is null`,
+    { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
+  ),
+
   // No post-inspection job sits past SLA (48h in stage) with an unknown roof type.
   // Pairs with #82's roof_type_needed exception vector.
   "exceptions.roof_type": invariant(
