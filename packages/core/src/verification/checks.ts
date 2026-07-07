@@ -109,6 +109,20 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
+  // A lead that produced a job (job.lead_id references it) must be resolved: won (the
+  // normal conversion outcome) or lost. Any other status means the conversion left the
+  // lead stuck in-pipeline — the bug where convertLeadToJob wrote 'booked', never 'won',
+  // so the WON funnel chip read 0 while the job existed.
+  "lead.won_on_convert": invariant(
+    "lead.won_on_convert",
+    `select l.id
+       from lead l
+       join job j on j.tenant_id = l.tenant_id and j.lead_id = l.id
+      where l.tenant_id = $1
+        and l.status not in ('won', 'lost')`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
+  ),
+
   // Every typed lead document reaches a terminal parse state within 1h. `pending` past
   // 1h is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states.
   "lead.doc_parse": invariant(

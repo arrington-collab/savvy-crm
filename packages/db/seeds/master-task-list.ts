@@ -47,6 +47,7 @@ export const CHECK_BINDINGS: Record<number, string> = {
   18: "lead.dedupe", // Lead deduplication & merge
   19: "lead.score", // Lead qualification scoring
   24: "drip.appended_guard", // Follow-up sequence (multi-touch)
+  28: "lead.won_on_convert", // Lead status pipeline tracking — a job-referenced lead is won/lost, never stuck
   32: "lead.speed_to_contact", // Speed-to-lead monitoring & alerts
   44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
   49: "lead.doc_parse", // Measurement report review & import — typed lead doc parsed-or-carded < 1h (slice 6d)
