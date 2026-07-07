@@ -96,3 +96,4 @@ export * from "./financing";
 export * from "./endorsement";
 export * from "./landed-cost";
 export * from "./media-policy";
+export * from "./measurement-precedence";
