@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
-import { customer, property } from "./crm";
+import { customer, property, lead } from "./crm";
 import { job } from "./jobs";
 import { contractTemplate } from "./compliance";
 
@@ -11,8 +11,14 @@ export const document = pgTable("document", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").references(() => job.id),
   customerId: uuid("customer_id").references(() => customer.id),
-  kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other
+  kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other|insurance_estimate|measurement_report
   label: text("label"),
+  // Slice 6a: lead-stage scope + uploader + parse lifecycle (parsing lands in 6b/6c).
+  leadId: uuid("lead_id").references(() => lead.id),
+  propertyId: uuid("property_id").references(() => property.id),
+  uploadedByUserId: uuid("uploaded_by_user_id").references(() => user.id),
+  parseStatus: text("parse_status").notNull().default("pending"), // pending|parsed|parse_failed|unparsed_low_confidence
+  parseConfidence: doublePrecision("parse_confidence"),
   r2Key: text("r2_key"),
   filename: text("filename"),
   mime: text("mime"),
@@ -33,6 +39,7 @@ export const document = pgTable("document", {
   createdAt: createdAt(),
 }, (t) => [
   index("document_tenant_job_idx").on(t.tenantId, t.jobId),
+  index("document_tenant_lead_idx").on(t.tenantId, t.leadId),
   uniqueIndex("document_tenant_sitesnap_uniq").on(t.tenantId, t.sitesnapPhotoId).where(sql`${t.sitesnapPhotoId} is not null`),
   tenantIsolation(),
 ]);
