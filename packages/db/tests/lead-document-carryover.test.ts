@@ -28,4 +28,31 @@ describe("convertLeadToJob — lead document carryover", () => {
     expect(da!.jobId).toBe(jobId);
     expect(db!.jobId).toBe(jobId);
   });
+
+  it("does not carry a superseded lead document onto the job", async () => {
+    const { tenantId } = await makeTenant();
+    const { leadId } = await makeLeadWithProperty(tenantId);
+
+    const first = await recordLeadDocument({
+      tenantId, leadId, uploadedByUserId: null,
+      r2Key: `${tenantId}/lead/${leadId}/measurement-v1.pdf`, kind: "measurement_report",
+      filename: "measurement-v1.pdf", mime: "application/pdf", sizeBytes: 10,
+    });
+    // Recording a second measurement_report supersedes (archives) the first.
+    const second = await recordLeadDocument({
+      tenantId, leadId, uploadedByUserId: null,
+      r2Key: `${tenantId}/lead/${leadId}/measurement-v2.pdf`, kind: "measurement_report",
+      filename: "measurement-v2.pdf", mime: "application/pdf", sizeBytes: 10,
+    });
+
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+
+    const [superseded] = await adminDb.select().from(document).where(eq(document.id, first!.id));
+    const [active] = await adminDb.select().from(document).where(eq(document.id, second!.id));
+
+    // Superseded doc must NOT carry — re-surfacing it on the job would defeat the
+    // supersede contract that the lead tile already enforces via archivedAt filtering.
+    expect(superseded!.jobId).toBeNull();
+    expect(active!.jobId).toBe(jobId);
+  });
 });

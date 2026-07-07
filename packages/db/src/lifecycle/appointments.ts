@@ -221,10 +221,18 @@ export async function convertLeadToJob(args: {
           ),
         );
       // Slice 6a: all lead-scoped documents (insurance estimates, measurement reports, etc.).
+      // Excludes archived (superseded) docs — a superseded lead doc must never re-surface
+      // on the job, preserving the supersede contract across the lead→job boundary.
       await tx
         .update(document)
         .set({ jobId })
-        .where(and(eq(document.leadId, l!.id), isNull(document.jobId)));
+        .where(
+          and(
+            eq(document.leadId, l!.id),
+            isNull(document.jobId),
+            isNull(document.archivedAt),
+          ),
+        );
     }
 
     if (l.status === "booked") {
