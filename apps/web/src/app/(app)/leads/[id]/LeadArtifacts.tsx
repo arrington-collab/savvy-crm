@@ -27,7 +27,12 @@ export function LeadArtifactsSections({ artifacts }: { artifacts: LeadArtifacts 
         <div className="eyebrow mb-3">Measurement</div>
         {m ? (
           <dl className="grid grid-cols-3 gap-3 text-sm">
-            <Field label="Source" value={m.provider === "diy" ? "DIY sketch" : "Roofr"} />
+            <Field label="Source" value={
+              m.source === "uploaded_report" ? "Uploaded report"
+              : m.source === "sketch" ? "DIY sketch"
+              : m.source === "ordered" ? "Roofr"
+              : (m.provider === "diy" ? "DIY sketch" : "Roofr")
+            } />
             <Field label="Squares" value={m.squares != null ? String(m.squares) : "—"} />
             <Field label="Pitch" value={m.pitch ?? "—"} />
             {m.reportUrl ? (

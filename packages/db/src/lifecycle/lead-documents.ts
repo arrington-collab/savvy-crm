@@ -1,5 +1,5 @@
 import { withTenant } from "../tenant";
-import { document } from "../schema/ops";
+import { document, measurement } from "../schema/ops";
 import { lead } from "../schema/crm";
 import { auditLog } from "../schema/agents";
 import { user } from "../schema/tenancy";
@@ -106,4 +106,56 @@ export async function listLeadDocuments(input: {
       .where(and(eq(document.leadId, input.leadId), isNull(document.archivedAt)))
       .orderBy(desc(document.createdAt));
   });
+}
+
+/** Load the fields the parse pipeline needs for one lead document. */
+export async function getLeadDocumentForParse(
+  tenantId: string,
+  documentId: string,
+): Promise<{ r2Key: string | null; kind: string; leadId: string | null; propertyId: string | null } | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [d] = await tx
+      .select({ r2Key: document.r2Key, kind: document.kind, leadId: document.leadId, propertyId: document.propertyId })
+      .from(document)
+      .where(eq(document.id, documentId));
+    return d ?? null;
+  });
+}
+
+/** Insert an uploaded-report measurement (provider roofr, source uploaded_report). Returns its id. */
+export async function insertUploadedMeasurement(input: {
+  tenantId: string;
+  propertyId: string;
+  areas: Record<string, unknown>;
+  pitch: string | null;
+}): Promise<string> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [m] = await tx
+      .insert(measurement)
+      .values({
+        tenantId: input.tenantId,
+        propertyId: input.propertyId,
+        provider: "roofr",
+        source: "uploaded_report",
+        areas: input.areas,
+        pitch: input.pitch,
+      })
+      .returning({ id: measurement.id });
+    return m!.id;
+  });
+}
+
+/** Set a document's parse lifecycle status (+ optional 0-1 confidence). */
+export async function setDocumentParseStatus(input: {
+  tenantId: string;
+  documentId: string;
+  status: string;
+  confidence?: number | null;
+}): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx
+      .update(document)
+      .set({ parseStatus: input.status, parseConfidence: input.confidence ?? null })
+      .where(eq(document.id, input.documentId)),
+  );
 }

@@ -41,6 +41,8 @@ type Events = {
   "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
+  // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).
+  "lead-document/received": { data: { tenantId: string; documentId: string; leadId: string; kind: string } };
   "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract; customerEmail?: string | null; customerName?: string | null } };
 };
 

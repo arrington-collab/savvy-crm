@@ -37,6 +37,7 @@ import { photoQc } from "./functions/photo-qc";
 import { parseSupplierInvoice } from "./functions/supplier-invoice-parse";
 import { priceGuardSupplierInvoice } from "./functions/supplier-invoice-guard";
 import { canvassContractSigned } from "./functions/canvass-contract";
+import { parseLeadDocument } from "./functions/parse-lead-document";
 
 export { inngest } from "./client";
 export { examplePing } from "./functions/example";
@@ -84,4 +85,5 @@ export { parseSupplierInvoice, parseSupplierInvoiceHandler } from "./functions/s
 export { priceGuardSupplierInvoice, priceGuardHandler } from "./functions/supplier-invoice-guard";
 export { getTenantSms } from "./telephony";
 export { canvassContractSigned, storeCanvassContract, emailSignedCopy } from "./functions/canvass-contract";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned];
+export { parseLeadDocument, parseLeadDocumentHandler } from "./functions/parse-lead-document";
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument];

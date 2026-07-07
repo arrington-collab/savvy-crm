@@ -41,7 +41,7 @@ export async function saveSketchMeasurementAction(input: {
     if (input.measurementId) {
       const [row] = await tx
         .update(measurement)
-        .set({ areas, pitch: summary.predominantPitch, provider: "diy" })
+        .set({ areas, pitch: summary.predominantPitch, provider: "diy", source: "sketch" })
         .where(eq(measurement.id, input.measurementId))
         .returning();
       if (row) return { row, leadId: j.leadId, propertyId: j.propertyId };
@@ -52,6 +52,7 @@ export async function saveSketchMeasurementAction(input: {
         tenantId,
         propertyId: j.propertyId,
         provider: "diy",
+        source: "sketch",
         pitch: summary.predominantPitch,
         areas,
       })

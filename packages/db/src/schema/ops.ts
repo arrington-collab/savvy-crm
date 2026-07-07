@@ -48,7 +48,8 @@ export const measurement = pgTable("measurement", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   propertyId: uuid("property_id").notNull().references(() => property.id),
-  provider: text("provider").default("roofr"),
+  provider: text("provider").default("roofr"),   // "roofr" | "diy"
+  source: text("source"), // ordered|uploaded_report|sketch (orthogonal to provider; 6b)
   reportUrl: text("report_url"),
   areas: jsonb("areas").$type<Record<string, unknown>>().default({}).notNull(),
   pitch: text("pitch"),

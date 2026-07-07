@@ -449,6 +449,13 @@
       "when": 1783403357654,
       "tag": "0063_good_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1783437035045,
+      "tag": "0064_natural_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }
