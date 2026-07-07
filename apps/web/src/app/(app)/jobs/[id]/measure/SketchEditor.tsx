@@ -35,7 +35,9 @@ const ANGLE_SNAP_TOLERANCE_RAD = (7 * Math.PI) / 180;
 type Mode = "draw" | "select" | "edges" | "pan" | "calibrate";
 
 interface SketchEditorProps {
-  jobId: string;
+  /** The sketch's owner: a lead (pre-job) or a job. Both share the property that
+   *  carries the measurement across the lead → job lifecycle. */
+  scope: { kind: "lead" | "job"; id: string };
   measurementId: string | null;
   address: string | null;
   lat: number | null;
@@ -81,7 +83,7 @@ function newFacetId(): string {
 }
 
 export function SketchEditor({
-  jobId,
+  scope,
   measurementId,
   address,
   lat,
@@ -90,6 +92,8 @@ export function SketchEditor({
   initialSketch,
 }: SketchEditorProps) {
   const router = useRouter();
+  const backHref = scope.kind === "lead" ? `/leads/${scope.id}` : `/jobs/${scope.id}`;
+  const backLabel = scope.kind === "lead" ? "← Back to lead" : "← Back to job";
   const centerLat = initialSketch?.centerLat ?? lat ?? 33.4484;
   const centerLng = initialSketch?.centerLng ?? lng ?? -112.074;
   const [zoom, setZoom] = useState<number>(initialSketch?.zoom ?? DEFAULT_ZOOM);
@@ -439,7 +443,7 @@ export function SketchEditor({
     setSaveError(null);
     startSave(async () => {
       const result = await saveSketchMeasurementAction({
-        jobId,
+        scope,
         sketch,
         measurementId: savedMeasurementId,
       });
@@ -493,16 +497,16 @@ export function SketchEditor({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <Link href={`/jobs/${jobId}`} className="text-sm text-muted-foreground hover:underline">
-            ← Back to job
+          <Link href={backHref} className="text-sm text-muted-foreground hover:underline">
+            {backLabel}
           </Link>
           <h1 className="text-xl font-semibold">Roof sketch</h1>
           {address && <p className="text-sm text-muted-foreground">{address}</p>}
         </div>
         <div className="flex items-center gap-2">
-          {savedMeasurementId && (
+          {savedMeasurementId && scope.kind === "job" && (
             <Link
-              href={`/jobs/${jobId}/measure/report`}
+              href={`/jobs/${scope.id}/measure/report`}
               className="text-sm underline underline-offset-2 text-muted-foreground hover:text-foreground"
             >
               View report
@@ -528,7 +532,7 @@ export function SketchEditor({
       {savedAt && !saveError && (
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
           Measurement saved {savedAt.toLocaleTimeString()} — {summary.squares.toFixed(1)} squares,{" "}
-          {summary.facetCount} facets. Generate an estimate from the job page.
+          {summary.facetCount} facets. Generate an estimate from the {scope.kind} page.
         </div>
       )}
 

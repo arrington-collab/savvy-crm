@@ -119,7 +119,7 @@ export default async function LeadDetailPage({
 
       <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} />
 
-      <LeadArtifactsSections artifacts={artifacts} />
+      <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
 
       <LeadDocsCard leadId={detail.id} documents={documents} />
 

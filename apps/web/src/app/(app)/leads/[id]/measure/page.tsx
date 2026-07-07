@@ -1,27 +1,32 @@
 import Link from "next/link";
-import { withTenant, job, property, measurement, eq, desc } from "@savvy/db";
+import { withTenant, lead, property, measurement, eq, desc } from "@savvy/db";
 import { roofSketchSchema, type RoofSketch } from "@savvy/core";
 import { getTenantId } from "@/lib/tenant";
-import { SketchEditor } from "./SketchEditor";
+import { SketchEditor } from "../../../jobs/[id]/measure/SketchEditor";
 
 export const dynamic = "force-dynamic";
 
-export default async function MeasurePage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * Lead-stage roof drawing. A job doesn't exist until an estimate is accepted, and there's
+ * no estimate without a measurement — so the DIY sketch must be creatable here. The
+ * measurement is property-scoped, so this is the same row the job later reads.
+ */
+export default async function LeadMeasurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const tenantId = await getTenantId();
 
   const data = await withTenant(tenantId, async (tx) => {
     const [row] = await tx
       .select({
-        jobId: job.id,
-        propertyId: job.propertyId,
+        leadId: lead.id,
+        propertyId: lead.propertyId,
         address: property.address,
         lat: property.lat,
         lng: property.lng,
       })
-      .from(job)
-      .leftJoin(property, eq(property.id, job.propertyId))
-      .where(eq(job.id, id));
+      .from(lead)
+      .leftJoin(property, eq(property.id, lead.propertyId))
+      .where(eq(lead.id, id));
     if (!row) return null;
 
     // Most recent DIY measurement carries the editable sketch geometry.
@@ -39,7 +44,16 @@ export default async function MeasurePage({ params }: { params: Promise<{ id: st
   if (!data) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
-        Job not found. <Link className="underline" href="/pipeline">Back to pipeline</Link>
+        Lead not found. <Link className="underline" href="/leads">Back to leads</Link>
+      </div>
+    );
+  }
+
+  if (!data.propertyId) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        Add the property address to this lead before drawing the roof.{" "}
+        <Link className="underline" href={`/leads/${id}`}>Back to lead</Link>
       </div>
     );
   }
@@ -53,7 +67,7 @@ export default async function MeasurePage({ params }: { params: Promise<{ id: st
 
   return (
     <SketchEditor
-      scope={{ kind: "job", id: data.jobId }}
+      scope={{ kind: "lead", id: data.leadId }}
       measurementId={data.diy?.id ?? null}
       address={data.address ?? null}
       lat={data.lat ?? null}
