@@ -2,7 +2,7 @@ import { and, eq, desc, sql } from "drizzle-orm";
 import { claim } from "../schema/index";
 import { appointment } from "../schema/comms";
 import { withTenant } from "../tenant";
-import type { ClaimStatus } from "@savvy/core";
+import type { ClaimStatus, InsuranceEstimateLine } from "@savvy/core";
 import { bookAppointment } from "./appointments";
 
 export type ClaimRow = typeof claim.$inferSelect;
@@ -114,4 +114,64 @@ export async function bookAdjusterMeeting(
   await upsertClaim({ tenantId, jobId, status: "adjuster_scheduled" });
 
   return { appointmentId };
+}
+
+/**
+ * Attach a parsed carrier estimate to the lead's claim, or create a lead-scoped shell
+ * (jobId null). Parsed money/carrier fields only FILL a null (never overwrite a
+ * human-confirmed value); lineItems + parseConfidence are always written.
+ */
+export async function attachOrCreateLeadClaim(input: {
+  tenantId: string;
+  leadId: string;
+  propertyId: string | null;
+  carrierName: string | null;
+  claimNumber: string | null;
+  acvCents: number | null;
+  rcvCents: number | null;
+  deductibleCents: number | null;
+  lineItems: InsuranceEstimateLine[];
+  parseConfidence: number;
+}): Promise<{ claimId: string; created: boolean }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(claim)
+      .where(and(eq(claim.tenantId, input.tenantId), eq(claim.leadId, input.leadId)))
+      .orderBy(desc(claim.createdAt))
+      .limit(1);
+
+    if (existing) {
+      await tx
+        .update(claim)
+        .set({
+          carrierName: existing.carrierName ?? input.carrierName,
+          claimNumber: existing.claimNumber ?? input.claimNumber,
+          acvCents: existing.acvCents ?? input.acvCents,
+          rcvCents: existing.rcvCents ?? input.rcvCents,
+          deductibleCents: existing.deductibleCents ?? input.deductibleCents,
+          lineItems: input.lineItems,
+          parseConfidence: input.parseConfidence,
+        })
+        .where(eq(claim.id, existing.id));
+      return { claimId: existing.id, created: false };
+    }
+
+    const [row] = await tx
+      .insert(claim)
+      .values({
+        tenantId: input.tenantId,
+        leadId: input.leadId,
+        propertyId: input.propertyId,
+        carrierName: input.carrierName,
+        claimNumber: input.claimNumber,
+        acvCents: input.acvCents,
+        rcvCents: input.rcvCents,
+        deductibleCents: input.deductibleCents,
+        lineItems: input.lineItems,
+        parseConfidence: input.parseConfidence,
+      })
+      .returning({ id: claim.id });
+    return { claimId: row!.id, created: true };
+  });
 }
