@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { draftLeadEstimateIfReady } from "../src/lifecycle/estimate.js";
 import { ensurePriceBook } from "../src/lifecycle/price-book.js";
 import { withTenant } from "../src/tenant.js";
-import { adminDb, appointment, measurement, estimate, eq } from "../src/index.js";
+import { adminDb, appointment, measurement, estimate, eq, and } from "../src/index.js";
 import { makeTenant, makeLeadWithProperty } from "./helpers.js";
 
 async function completeInspection(tenantId: string, leadId: string, propertyId: string): Promise<void> {
@@ -63,5 +63,28 @@ describe("draftLeadEstimateIfReady", () => {
     // Draft-once: a second trigger does not create a duplicate.
     const again = await draftLeadEstimateIfReady({ tenantId, leadId });
     expect(again).toEqual({ skipped: "estimate_exists" });
+  });
+
+  it("drafts from the ORDERED measurement even when a newer sketch exists (precedence)", async () => {
+    const { tenantId } = await makeTenant();
+    const { leadId, propertyId } = await makeLeadWithProperty(tenantId);
+    await ensurePriceBook(tenantId);
+    await completeInspection(tenantId, leadId, propertyId);
+    // Older ordered measurement, then a NEWER sketch — precedence must pick ordered.
+    await withTenant(tenantId, (tx) => tx.insert(measurement).values({
+      tenantId, propertyId, provider: "roofr", source: "ordered",
+      areas: { squares: 20, predominantPitch: "6/12", eaveLf: 100, rakeLf: 50 },
+    }));
+    await withTenant(tenantId, (tx) => tx.insert(measurement).values({
+      tenantId, propertyId, provider: "diy", source: "sketch",
+      areas: { squares: 99, predominantPitch: "4/12" },
+    }));
+
+    const res = await draftLeadEstimateIfReady({ tenantId, leadId });
+    expect("estimateId" in res).toBe(true);
+    const [e] = await adminDb.select().from(estimate).where(eq(estimate.id, (res as { estimateId: string }).estimateId));
+    const [orderedM] = await adminDb.select().from(measurement)
+      .where(and(eq(measurement.propertyId, propertyId), eq(measurement.source, "ordered")));
+    expect(e!.measurementId).toBe(orderedM!.id);
   });
 });

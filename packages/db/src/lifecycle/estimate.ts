@@ -5,13 +5,14 @@ import { appointment } from "../schema/comms";
 import { lead } from "../schema/crm";
 import { priceBookItem } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   parseEstimateConfig,
   estimateRequiresApproval,
   measurementAreasSchema,
   generateEstimateLineItems,
   computeEstimateTotals,
+  selectPreferredMeasurement,
   REGISTRY_TASK,
   type EnginePriceBookItem,
 } from "@savvy/core";
@@ -111,13 +112,12 @@ export async function draftLeadEstimateIfReady(input: {
       .limit(1);
     if (!insp) return { skipped: "inspection_not_complete" as const };
 
-    // (2) measurement landed? (newest wins)
-    const [m] = await tx
-      .select({ id: measurement.id })
+    // (2) measurement landed? Source precedence: ordered > uploaded_report > sketch, newest within a source.
+    const measRows = await tx
+      .select({ id: measurement.id, source: measurement.source, createdAt: measurement.createdAt })
       .from(measurement)
-      .where(eq(measurement.propertyId, l.propertyId))
-      .orderBy(desc(measurement.createdAt))
-      .limit(1);
+      .where(eq(measurement.propertyId, l.propertyId));
+    const m = selectPreferredMeasurement(measRows);
     if (!m) return { skipped: "no_measurement" as const };
 
     const row = await insertEstimateFromMeasurementTx(tx, {
