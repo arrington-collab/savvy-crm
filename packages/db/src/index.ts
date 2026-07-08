@@ -92,3 +92,5 @@ export { applyDeliveryReceipt } from "./lifecycle/delivery-status";
 export { getA2pRegistration, setA2pRegistration } from "./lifecycle/a2p";
 export { setJobFinancingStatus } from "./lifecycle/financing";
 export { setClaimEndorsement } from "./lifecycle/endorsement";
+
+export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";

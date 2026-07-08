@@ -1,4 +1,4 @@
-import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant } from "@savvy/db";
+import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant, convertCanvassContractToJob } from "@savvy/db";
 import type { StorageGateway, EmailSender } from "@savvy/integrations";
 import { r2Storage, getEmailSender } from "@savvy/integrations";
 import type { CanvassContract } from "@savvy/core";
@@ -169,6 +169,13 @@ export const canvassContractSigned = inngest.createFunction(
   async ({ event, step }) => {
     const stored = await step.run("store-document", () =>
       storeCanvassContract(event.data, { storage: r2Storage }),
+    );
+
+    // A signed canvass contract IS the authorization — convert the lead to a job (manualJob;
+    // no accepted estimate on a door sale). Runs even on a replay/already-stored path so a
+    // crash between store and convert self-heals. Idempotent: convertLeadToJob keys off job.lead_id.
+    await step.run("convert-to-job", () =>
+      convertCanvassContractToJob({ tenantId: event.data.tenantId, leadId: event.data.leadId, contract: event.data.contract }),
     );
     // Email only on first storage — a replayed event never double-sends.
     let emailed: { sent: boolean; reason?: string } = { sent: false, reason: "skipped" };
