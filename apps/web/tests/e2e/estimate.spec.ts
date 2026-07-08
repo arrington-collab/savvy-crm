@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
   adminDb, ensurePriceBook, withTenant,
-  tenant, user, customer, property, job, measurement, estimate, eq, and, desc,
+  tenant, user, customer, property, job, measurement, estimate, document, eq, and, desc,
 } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 
@@ -50,6 +50,14 @@ test("estimate: measurement -> generated draft -> send -> e-sign webhook -> job 
     areas: { squares: 20, predominantPitch: "8/12", eaveLf: 120, rakeLf: 60, ridgeLf: 30, hipLf: 10, valleyLf: 10, penetrationCount: 4 },
   }).returning());
   const jobId = j!.id;
+
+  // Evidence gate: the job is seeded straight at "estimate" and must later
+  // advance to "approved" (via the e-sign webhook below). That forward move
+  // requires a contiguous evidence chain starting with `inspection` — seed a
+  // photo doc so the gate doesn't block on evidence unrelated to this flow.
+  await adminDb.insert(document).values({
+    tenantId, jobId, kind: "photo", r2Key: `e2e/${jobId}/inspection.jpg`,
+  });
 
   // ---- 2) Fire measurement/ready -> generate workflow drafts an estimate -----
   await inngest.send({ name: "measurement/ready", data: { tenantId, jobId, measurementId: m!.id } });

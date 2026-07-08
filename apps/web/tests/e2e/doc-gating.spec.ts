@@ -15,6 +15,8 @@ import {
   property,
   job,
   document,
+  estimate,
+  appointment,
   tenant,
   recordStageChange,
   IncompleteDocumentsError,
@@ -60,6 +62,24 @@ test.describe("document gate", () => {
   test("blocks ->production without a contract doc, then allows it after one is seeded", async () => {
     const stamp = Date.now().toString(36);
     const jobId = await seedApprovedJob(stamp);
+
+    // Evidence gate: the job is seeded straight at "approved" and this test
+    // moves it forward to "production". That requires a contiguous evidence
+    // chain (inspection, estimate, approval, production) — seed all of it up
+    // front so the *document-kind* gate (IncompleteDocumentsError) is what
+    // actually fires here, matching this test's intent (see production-gating
+    // / doc-gating split: this file only exercises the requiredDocs gate).
+    await adminDb.insert(document).values({
+      tenantId, jobId, kind: "photo", r2Key: `e2e/${jobId}/inspection.jpg`,
+    });
+    await adminDb.insert(estimate).values({
+      tenantId, jobId, lineItems: [], status: "accepted",
+    });
+    await adminDb.insert(appointment).values({
+      tenantId, jobId, type: "crew", status: "scheduled",
+      startsAt: new Date(Date.now() + 7 * 86_400_000),
+      endsAt: new Date(Date.now() + 7 * 86_400_000 + 3_600_000),
+    });
 
     let gateError: unknown;
     try {
