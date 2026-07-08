@@ -28,4 +28,25 @@ describe("getLeadArtifacts", () => {
     expect(a.measurement).toMatchObject({ provider: "roofr", squares: 24, pitch: "8/12" });
     expect(a.estimate).toMatchObject({ status: "draft", total: 1_200_000, jobId: null });
   });
+
+  it("computes planSqft from a DIY sketch measurement", async () => {
+    const { tenantId } = await makeTenant();
+    const { leadId, propertyId } = await makeLeadWithProperty(tenantId);
+    await withTenant(tenantId, (tx) =>
+      tx.insert(measurement).values({
+        tenantId, propertyId, provider: "diy", source: "sketch", pitch: "6/12",
+        areas: {
+          squares: 12,
+          sketch: {
+            version: 1, centerLat: 33, centerLng: -112, zoom: 20,
+            facets: [
+              { id: "f1", points: [ { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 } ], pitch: "6/12", edges: ["ridge", "rake", "eave", "rake"], label: "none" },
+            ],
+          },
+        },
+      }),
+    );
+    const a = await getLeadArtifacts({ tenantId, leadId });
+    expect(a.measurement?.planSqft).toBe(1200);
+  });
 });
