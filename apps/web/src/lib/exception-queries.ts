@@ -1,6 +1,6 @@
 import "server-only";
 import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput } from "@savvy/core";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, STAGE_EVIDENCE_LABEL, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput, type StageEvidenceGapInput } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -138,6 +138,30 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
       jobId: r.jobId, leadId: r.leadId, propertyId: r.propertyId, customerName: r.customerName, occurredAt: r.stageEnteredAt,
     }));
 
+    // --- job declared past what its own stage's evidence supports (write-path bypass) ---
+    // Mirrors the job.stage_evidence invariant predicate (unbound — see verification/checks.ts).
+    const stageEvidenceRows = await tx
+      .select({ jobId: job.id, stage: job.stage, customerName: customer.name, stageEnteredAt: job.stageEnteredAt })
+      .from(job)
+      .leftJoin(customer, eq(customer.id, job.customerId))
+      .where(sql`
+        (${job.stage} = 'inspected' and not (
+           exists (select 1 from appointment a where a.tenant_id = ${job.tenantId} and (a.job_id = ${job.id} or a.lead_id = ${job.leadId}) and a.type = 'inspection' and a.status = 'done')
+           or exists (select 1 from document d where d.tenant_id = ${job.tenantId} and (d.job_id = ${job.id} or d.lead_id = ${job.leadId}) and d.kind = 'photo')))
+        or (${job.stage} = 'estimate' and not exists (select 1 from estimate e where e.tenant_id = ${job.tenantId} and (e.job_id = ${job.id} or e.lead_id = ${job.leadId})))
+        or (${job.stage} = 'approved' and not (
+           exists (select 1 from estimate e where e.tenant_id = ${job.tenantId} and (e.job_id = ${job.id} or e.lead_id = ${job.leadId}) and e.status = 'accepted')
+           or exists (select 1 from document d where d.tenant_id = ${job.tenantId} and (d.job_id = ${job.id} or d.lead_id = ${job.leadId}) and d.kind = 'contract')))
+        or (${job.stage} = 'production' and not (
+           exists (select 1 from appointment a where a.tenant_id = ${job.tenantId} and a.job_id = ${job.id} and a.type = 'crew' and a.status = 'scheduled')
+           or exists (select 1 from material_order m where m.tenant_id = ${job.tenantId} and m.job_id = ${job.id} and m.status in ('ordered','delivered'))))
+        or (${job.stage} = 'billing' and not exists (select 1 from invoice i where i.tenant_id = ${job.tenantId} and i.job_id = ${job.id}))
+      `);
+    const stageEvidenceGaps: StageEvidenceGapInput[] = stageEvidenceRows.map((r) => ({
+      jobId: r.jobId, customerName: r.customerName, stage: r.stage,
+      missing: STAGE_EVIDENCE_LABEL[r.stage] ?? r.stage, occurredAt: r.stageEnteredAt,
+    }));
+
     // --- margin outliers: open jobs whose real-time margin is at/below target (cost known) ---
     const marginTargetPct = config.marginTargetPct;
     const marginOutliers: MarginOutlierInput[] = jobRows
@@ -216,6 +240,6 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
     // mislabel pending-recovery claims as memos-to-reconcile. Re-introduce in a 13c/14 follow-on.
     const creditsToReconcile: CreditToReconcileInput[] = [];
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile });
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile, stageEvidenceGaps });
   });
 }

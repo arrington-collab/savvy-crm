@@ -184,6 +184,30 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
   ),
 
+  // A job's stage must be backed by that stage's own evidence. Flags any job declared past
+  // what its evidence supports (e.g. 'inspected' with no completed inspection appt and no
+  // photo) — catches write-path bypasses. Unbound, like exceptions.roof_type.
+  "job.stage_evidence": invariant(
+    "job.stage_evidence",
+    `select j.id
+       from job j
+      where j.tenant_id = $1
+        and (
+          (j.stage = 'inspected' and not (
+             exists (select 1 from appointment a where a.tenant_id = j.tenant_id and (a.job_id = j.id or a.lead_id = j.lead_id) and a.type = 'inspection' and a.status = 'done')
+             or exists (select 1 from document d where d.tenant_id = j.tenant_id and (d.job_id = j.id or d.lead_id = j.lead_id) and d.kind = 'photo')))
+          or (j.stage = 'estimate' and not exists (select 1 from estimate e where e.tenant_id = j.tenant_id and (e.job_id = j.id or e.lead_id = j.lead_id)))
+          or (j.stage = 'approved' and not (
+             exists (select 1 from estimate e where e.tenant_id = j.tenant_id and (e.job_id = j.id or e.lead_id = j.lead_id) and e.status = 'accepted')
+             or exists (select 1 from document d where d.tenant_id = j.tenant_id and (d.job_id = j.id or d.lead_id = j.lead_id) and d.kind = 'contract')))
+          or (j.stage = 'production' and not (
+             exists (select 1 from appointment a where a.tenant_id = j.tenant_id and a.job_id = j.id and a.type = 'crew' and a.status = 'scheduled')
+             or exists (select 1 from material_order m where m.tenant_id = j.tenant_id and m.job_id = j.id and m.status in ('ordered','delivered'))))
+          or (j.stage = 'billing' and not exists (select 1 from invoice i where i.tenant_id = j.tenant_id and i.job_id = j.id))
+        )`,
+    { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
+  ),
+
   // Speed-to-lead: first rep contact within 5m of lead creation. Flags leads
   // created in-window that were never contacted (past a 15m grace) or contacted
   // late. NOTE: business-hours/tenant-TZ refinement is deferred to the sweep

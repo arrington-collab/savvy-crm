@@ -16,7 +16,7 @@ describe("buildExceptionQueue", () => {
       roofTypeNeeded: [],
     });
     expect(q.total).toBe(4);
-    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0 });
+    expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0, stage_evidence: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
     expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
     expect(job.detail).toContain("14d in production");
@@ -84,7 +84,7 @@ describe("buildExceptionQueue", () => {
 
   it("is empty for no input", () => {
     expect(buildExceptionQueue(base)).toEqual({
-      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0 }, total: 0, highCount: 0,
+      items: [], counts: { job_at_risk: 0, invoice_overdue: 0, appointment_missed: 0, task_overdue: 0, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0, stage_evidence: 0 }, total: 0, highCount: 0,
     });
   });
 
@@ -295,5 +295,17 @@ describe("buildExceptionQueue", () => {
       expect(item).toMatchObject({ severity: "medium", href: "/money" });
       expect(item.detail).toContain("Beacon");
     });
+  });
+
+  it("stage_evidence gaps become amber exception items", () => {
+    const q = buildExceptionQueue({
+      atRiskJobs: [], overdueInvoices: [], missedAppointments: [], overdueTasks: [],
+      materialDeliveries: [], taskNeedsApprovals: [], weatherAtRisks: [],
+      stageEvidenceGaps: [{ jobId: "j1", customerName: "Josh", stage: "inspected", missing: "inspection", occurredAt: new Date() }],
+    });
+    const item = q.items.find((i) => i.kind === "stage_evidence");
+    expect(item).toBeTruthy();
+    expect(item!.severity).toBe("medium");
+    expect(item!.detail).toContain("inspection");
   });
 });
