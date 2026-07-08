@@ -122,14 +122,32 @@ export async function getLeadDocumentForParse(
   });
 }
 
-/** Insert an uploaded-report measurement (provider roofr, source uploaded_report). Returns its id. */
-export async function insertUploadedMeasurement(input: {
+/**
+ * Insert-or-update the property's uploaded-report measurement (provider roofr, source
+ * uploaded_report). A re-parse UPDATES the newest existing uploaded_report row rather than
+ * inserting a duplicate, so the measurement id (and its downstream estimate auto-draft) is
+ * stable across re-parses. First parse inserts. Returns the measurement id.
+ */
+export async function upsertUploadedMeasurement(input: {
   tenantId: string;
   propertyId: string;
   areas: Record<string, unknown>;
   pitch: string | null;
 }): Promise<string> {
   return withTenant(input.tenantId, async (tx) => {
+    const [existing] = await tx
+      .select({ id: measurement.id })
+      .from(measurement)
+      .where(and(eq(measurement.propertyId, input.propertyId), eq(measurement.source, "uploaded_report")))
+      .orderBy(desc(measurement.createdAt))
+      .limit(1);
+    if (existing) {
+      await tx
+        .update(measurement)
+        .set({ areas: input.areas, pitch: input.pitch, provider: "roofr" })
+        .where(eq(measurement.id, existing.id));
+      return existing.id;
+    }
     const [m] = await tx
       .insert(measurement)
       .values({
