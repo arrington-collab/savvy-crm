@@ -40,7 +40,7 @@ export { ensurePriceBook } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
 export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { recordLeadDocument, listLeadDocuments, type LeadDocumentRow } from "./lifecycle/lead-documents";
-export { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus } from "./lifecycle/lead-documents";
+export { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, getDocumentParseSummaries } from "./lifecycle/lead-documents";
 export { saveSketchMeasurement, type SketchScope, type SaveSketchMeasurementResult } from "./lifecycle/measurement";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
