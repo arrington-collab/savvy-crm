@@ -8,11 +8,12 @@ import { document } from "../schema/ops";
 import { claim } from "../schema/insurance";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
-import { leadToJobType, resolveActiveLicense, isRescissionHeld } from "@savvy/core";
+import { leadToJobType, resolveActiveLicense, isRescissionHeld, deriveContiguousStage } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
 import { instantiateJobTasks } from "./job-tasks";
 import { recordStageChange } from "./record-stage-change";
 import { stopDripEnrollments } from "./stop-drip";
+import { gatherStageEvidence } from "./stage-evidence-db";
 
 export class SlotTakenError extends Error {
   constructor() { super("slot_taken"); this.name = "SlotTakenError"; }
@@ -30,6 +31,12 @@ export class RescissionHoldError extends Error {
   constructor(public readonly releaseAt: Date) {
     super(`job is under a rescission hold until ${releaseAt.toISOString()}`);
     this.name = "RescissionHoldError";
+  }
+}
+export class ManualJobEvidenceError extends Error {
+  constructor() {
+    super("manualJob requires a contract document on the lead or an explicit reason");
+    this.name = "ManualJobEvidenceError";
   }
 }
 
@@ -213,6 +220,10 @@ export async function convertLeadToJob(args: {
   // emergencies) with no accepted estimate. When false/undefined the red-path
   // invariant applies: a job is created FROM an accepted estimate — not before.
   manualJob?: boolean;
+  // Required for manualJob when the lead has no contract document — explains
+  // why this job is landing outside the normal funnel. Also used as the
+  // corrective job_stage_event note when the job lands above 'lead'.
+  reason?: string;
 }): Promise<{ jobId: string; customerId: string }> {
   return withTenant(args.tenantId, async (tx) => {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
@@ -274,6 +285,11 @@ export async function convertLeadToJob(args: {
     if (!accepted && !args.manualJob) {
       throw new Error("cannot create job: lead has no accepted estimate (use manualJob for out-of-funnel jobs)");
     }
+    if (args.manualJob && !accepted) {
+      const [contract] = await tx.select({ id: document.id }).from(document)
+        .where(and(eq(document.leadId, l.id), eq(document.kind, "contract")));
+      if (!contract && !args.reason) throw new ManualJobEvidenceError();
+    }
 
     const jobType = leadToJobType(l.lane ?? null);
     const [newJob] = await tx.insert(job).values({
@@ -287,7 +303,14 @@ export async function convertLeadToJob(args: {
     }
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
-    await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
+    // Stage is a consequence of evidence: land the job where its evidence supports, not a
+    // blanket 'inspected'. Funnel (accepted estimate + inspection) → approved; a bare
+    // manual/canvass job (no inspection) → stays 'lead'.
+    const ev = await gatherStageEvidence(tx, { tenantId: args.tenantId, jobId: newJob!.id });
+    const derived = deriveContiguousStage(ev);
+    if (derived !== "lead") {
+      await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: derived, byAgent: "orchestrator", reason: args.reason ?? "evidence-derived on convert" });
+    }
     // A converted lead is WON (it produced a job). Both paths — accepted-estimate and the
     // manualJob escape hatch — reach here, so both mark the lead won in the same tx.
     await tx.update(lead).set({ status: "won" }).where(eq(lead.id, l.id));

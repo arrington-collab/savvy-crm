@@ -17,7 +17,7 @@ export { setCustomerEmail, findCustomersNeedingEmail, type EmailSource, type Cus
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, getCrewBusyStarts, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
-  RescissionHoldError,
+  RescissionHoldError, ManualJobEvidenceError,
 } from "./lifecycle/appointments";
 export {
   createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
