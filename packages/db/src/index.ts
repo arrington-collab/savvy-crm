@@ -8,6 +8,7 @@ export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, comput
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } from "./lifecycle/record-stage-change";
 export { advanceJobStageForward } from "./lifecycle/advance-stage";
 export { missingProductionPhotos, hasScheduledCrewInstall } from "./lifecycle/production-signals";
+export { gatherStageEvidence } from "./lifecycle/stage-evidence-db";
 export { detectDepreciationRecovery, draftDepreciationInvoice, sendDepreciationInvoice, DEPRECIATION_TASK_KEY, DEPRECIATION_APPROVAL_TASK_KEY } from "./lifecycle/depreciation-recovery";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
