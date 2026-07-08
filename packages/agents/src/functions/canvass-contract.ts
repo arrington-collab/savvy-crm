@@ -66,6 +66,8 @@ export async function storeCanvassContract(
   await withTenant(tenantId, (tx) =>
     tx.insert(document).values({
       tenantId,
+      leadId,
+      propertyId: l.propertyId ?? null,
       customerId: l.customerId,
       kind: "contract",
       label: contract.document,
