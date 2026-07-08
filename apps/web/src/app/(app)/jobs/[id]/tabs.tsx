@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toggleTask, setTaskAutomationLevel } from "@/lib/job-actions";
 import { nextAutomationLevel, isAutomationLevel, type AutomationLevel } from "@savvy/core";
 import { DocsPanel, type DocRow } from "./DocsPanel";
+import type { DocParseSummary } from "@savvy/core";
 import { EsignPanel, type EsignRow } from "./EsignPanel";
 import { formatDate } from "@/lib/format";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -125,6 +126,7 @@ export function JobTabs({
   timeline,
   comms,
   docs,
+  docParseSummaries,
   requiredPhotos,
   jobId,
   companycamProjectId,
@@ -136,6 +138,7 @@ export function JobTabs({
   timeline: TimelineItem[];
   comms: CommRow[];
   docs: DocRow[];
+  docParseSummaries: Record<string, DocParseSummary>;
   requiredPhotos: string[];
   jobId: string;
   companycamProjectId: string | null;
@@ -226,6 +229,7 @@ export function JobTabs({
         <DocsPanel
           jobId={jobId}
           documents={docs}
+          parseSummaries={docParseSummaries}
           requiredPhotos={requiredPhotos}
           companycamProjectId={companycamProjectId}
         />

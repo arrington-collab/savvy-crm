@@ -22,6 +22,7 @@ import {
   getJobLedger,
   DEPRECIATION_APPROVAL_TASK_KEY,
   listFlaggedPhotosForJob,
+  getDocumentParseSummaries,
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
@@ -170,6 +171,7 @@ export default async function JobDetailPage({
         mime: document.mime,
         source: document.source,
         externalUrl: document.externalUrl,
+        parseStatus: document.parseStatus,
         createdAt: document.createdAt,
       })
       .from(document)
@@ -282,8 +284,16 @@ export default async function JobDetailPage({
     mime: d.mime,
     source: d.source ?? null,
     externalUrl: d.externalUrl ?? null,
+    parseStatus: d.parseStatus,
     createdAt: d.createdAt.toISOString(),
   }));
+
+  const docParseSummaries = await getDocumentParseSummaries({
+    tenantId,
+    documentIds: docs
+      .filter((d) => d.kind === "insurance_estimate" || d.kind === "measurement_report")
+      .map((d) => d.id),
+  });
 
   // Parse required-photo config from tenant settings and pick the job's type
   const productionConfig = parseProductionConfig(
@@ -462,6 +472,7 @@ export default async function JobDetailPage({
         timeline={timeline}
         comms={comms}
         docs={docs}
+        docParseSummaries={docParseSummaries}
         requiredPhotos={requiredPhotos}
         jobId={jobRow.id}
         companycamProjectId={jobRow.companycamProjectId ?? null}
