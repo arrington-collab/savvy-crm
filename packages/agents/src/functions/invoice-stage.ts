@@ -1,4 +1,4 @@
-import { withTenant, invoice, job, eq, recordStageChange } from "@savvy/db";
+import { withTenant, invoice, job, eq, recordStageChange, StageEvidenceError } from "@savvy/db";
 import { JOB_STAGE, type JobStage } from "@savvy/core";
 import { inngest } from "../client";
 
@@ -30,6 +30,8 @@ export async function syncInvoiceStage(
       if (e instanceof Error && e.name === "IncompletePhotosError") return { skipped: "photo_gate" };
       // per-stage document gate unmet — leave the job where it is
       if (e instanceof Error && e.name === "IncompleteDocumentsError") return { skipped: "doc_gate" };
+      // contiguous evidence chain incomplete — leave the job where it is (mirrors advanceJobStageForward)
+      if (e instanceof StageEvidenceError) return { skipped: "evidence_gate" };
       throw e;
     }
     return { jobId: j.id, toStage };

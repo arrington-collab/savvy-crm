@@ -39,6 +39,15 @@ describe("syncInvoiceStage", () => {
     const [j] = await adminDb.select({ stage: job.stage }).from(job).where(eq(job.id, jid));
     expect(j!.stage).toBe("complete");
   });
+  it("skips with evidence_gate (does not throw) when the contiguous chain is incomplete", async () => {
+    const { tid, invId, jid } = await seedJobAt("closeout");
+    // No inspection/estimate/approval/production evidence seeded — the move to
+    // billing trips the evidence gate. The fn must skip, not crash the step.
+    const r = await syncInvoiceStage(tid, invId, "billing");
+    expect(r).toMatchObject({ skipped: "evidence_gate" });
+    const [j] = await adminDb.select({ stage: job.stage }).from(job).where(eq(job.id, jid));
+    expect(j!.stage).toBe("closeout");
+  });
   it("returns skipped: no_invoice when the invoice does not exist", async () => {
     const [t] = await adminDb.insert(tenant).values({ name: "no-inv", publicKey: `k-${Date.now()}-${Math.random()}`, clerkOrgId: `o-${Date.now()}-${Math.random()}` }).returning();
     const tid = t!.id;
