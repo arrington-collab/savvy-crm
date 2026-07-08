@@ -14,6 +14,7 @@ import {
   findSnap,
   canCloseDraft,
   suggestEdgeTypes,
+  ventilationSummary,
   type RoofSketch,
   type SketchFacet,
 } from "./roof-sketch";
@@ -188,6 +189,7 @@ describe("findSnap (across all facets)", () => {
       pitch: "6/12",
       edges: ["eave", "rake", "ridge", "rake"],
       label: "none",
+      ventilated: true,
     },
     {
       id: "b",
@@ -195,6 +197,7 @@ describe("findSnap (across all facets)", () => {
       pitch: "6/12",
       edges: ["eave", "rake", "ridge", "rake"],
       label: "none",
+      ventilated: true,
     },
   ];
 
@@ -235,6 +238,7 @@ function gableFacets(sharedA: string, sharedB: string): SketchFacet[] {
       pitch: "6/12",
       edges: [sharedA as SketchFacet["edges"][number], "rake", "eave", "rake"],
       label: "none",
+      ventilated: true,
     },
     {
       id: "B",
@@ -242,6 +246,7 @@ function gableFacets(sharedA: string, sharedB: string): SketchFacet[] {
       pitch: "6/12",
       edges: ["rake", "eave", "rake", sharedB as SketchFacet["edges"][number]],
       label: "none",
+      ventilated: true,
     },
   ];
 }
@@ -259,7 +264,7 @@ describe("summarizeSketch shared-edge dedup", () => {
 
   it("leaves un-shared edges alone (single facet has no shared edges)", () => {
     const s = summarizeSketch(
-      sketchOf([{ id: "solo", points: [ { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 } ], pitch: "0/12", edges: ["ridge", "rake", "eave", "rake"], label: "none" }]),
+      sketchOf([{ id: "solo", points: [ { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 } ], pitch: "0/12", edges: ["ridge", "rake", "eave", "rake"], label: "none", ventilated: true }]),
     );
     expect(s.edgeLf.ridge).toBe(40);
     expect(s.edgeLf.eave).toBe(40);
@@ -316,5 +321,56 @@ describe("canCloseDraft", () => {
 
   it("is false when the cursor is far from the first vertex", () => {
     expect(canCloseDraft({ x: 5, y: 5 }, draft, 1)).toBe(false);
+  });
+});
+
+// ── Slice 3: ventilation ──────────────────────────────────────────────────────
+// Two 30×20 facets sharing a 30 ft ridge on the y=0 line (same shape as the slice-2
+// gable, narrower). Plan 600 each ⇒ 1200 total; deduped ridge 30 LF.
+function ventGable(): SketchFacet[] {
+  return [
+    { id: "A", points: [ { x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }, { x: 0, y: 20 } ], pitch: "6/12", edges: ["ridge", "rake", "eave", "rake"], label: "none", ventilated: true },
+    { id: "B", points: [ { x: 0, y: 0 }, { x: 0, y: -20 }, { x: 30, y: -20 }, { x: 30, y: 0 } ], pitch: "6/12", edges: ["rake", "eave", "rake", "ridge"], label: "none", ventilated: true },
+  ];
+}
+
+describe("ventilationSummary", () => {
+  it("sizes exhaust off the DEDUPED ridge (30 LF, not 60)", () => {
+    const v = ventilationSummary(sketchOf(ventGable()));
+    expect(v.ventableRidgeLf).toBe(30);
+  });
+
+  it("computes ventilated plan area and required NFA (1200 sqft ⇒ 4.0 sqft NFA)", () => {
+    const v = ventilationSummary(sketchOf(ventGable()));
+    expect(v.ventilatedPlanSqft).toBe(1200);
+    expect(v.requiredNfaSqft).toBeCloseTo(4.0, 10);
+    expect(v.exhaustTargetSqIn).toBeCloseTo(288, 6);
+  });
+
+  it("suggests full ridge LF for ridge products; box vents fill to target", () => {
+    const v = ventilationSummary(sketchOf(ventGable()));
+    const shingle = v.exhaustOptions.find((o) => o.key === "ridge_vent_shingle_over")!;
+    expect(shingle.quantity).toBe(30);
+    expect(shingle.nfaProvidedSqIn).toBe(540);
+    expect(shingle.meetsTarget).toBe(true);
+    const box = v.exhaustOptions.find((o) => o.key === "box_vent")!;
+    expect(box.quantity).toBe(6); // ceil(288 / 50)
+  });
+
+  it("excludes facets toggled off ventilation", () => {
+    const facets = ventGable();
+    facets[0]!.ventilated = false;
+    const v = ventilationSummary(sketchOf(facets));
+    expect(v.ventilatedPlanSqft).toBe(600);
+    expect(v.requiredNfaSqft).toBeCloseTo(2.0, 10);
+  });
+
+  it("defaults ventilated to true when the key is absent (back-compat)", () => {
+    const parsed = roofSketchSchema.parse({
+      version: 1, centerLat: 33, centerLng: -112, zoom: 20,
+      facets: [ { id: "f1", points: [ { x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }, { x: 0, y: 20 } ], pitch: "6/12", edges: ["ridge", "rake", "eave", "rake"] } ],
+    });
+    expect(parsed.facets[0]!.ventilated).toBe(true);
+    expect(ventilationSummary(parsed).ventilatedPlanSqft).toBe(600);
   });
 });
