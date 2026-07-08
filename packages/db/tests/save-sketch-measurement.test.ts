@@ -26,6 +26,7 @@ function makeSketch(pitch = "6/12"): RoofSketch {
         pitch,
         edges: ["eave", "rake", "ridge", "rake"],
         label: "none",
+        ventilated: true,
       },
     ],
   };
