@@ -43,7 +43,7 @@ const contract = {
 };
 
 describe("storeCanvassContract", () => {
-  it("uploads the contract JSON and records a contract document", async () => {
+  it("uploads the contract JSON and records a lead-scoped contract document", async () => {
     const storage = makeFakeStorage();
     const r = await storeCanvassContract({ tenantId: tId, leadId, contract }, { storage });
     expect(r).toEqual({ stored: true });
@@ -53,6 +53,9 @@ describe("storeCanvassContract", () => {
     expect(docs).toHaveLength(1);
     expect(docs[0]!.kind).toBe("contract");
     expect(docs[0]!.customerId).toBe(custId);
+    // Lead-scoped so it renders in LeadDocsCard and carries onto the job at conversion.
+    expect(docs[0]!.leadId).toBe(leadId);
+    expect(docs[0]!.propertyId).toBe(propId);
     expect(docs[0]!.label).toBe("Insurance Proposal Contract");
     expect(docs[0]!.source).toBe("savvy");
   });

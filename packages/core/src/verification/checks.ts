@@ -123,6 +123,26 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
+  // Every stored canvass contract becomes a WON job within 15 minutes of signing. A stored
+  // contract document (kind='contract', canvass r2Key) older than 15m whose lead is not won
+  // or has no job is a signed contract that silently failed to become a job — lost revenue.
+  // Surfaced here and paged via break-glass (BREAK_GLASS_ON_FAIL_CHECK_KEYS).
+  "canvass.contract_to_job": invariant(
+    "canvass.contract_to_job",
+    `select d.id
+       from document d
+       join lead l on l.id = d.lead_id and l.tenant_id = d.tenant_id
+      where d.tenant_id = $1
+        and d.kind = 'contract'
+        and d.r2_key like '%/canvass/contract-%'
+        and d.created_at < now() - interval '15 minutes'
+        and (
+          l.status <> 'won'
+          or not exists (select 1 from job j where j.lead_id = l.id and j.tenant_id = l.tenant_id)
+        )`,
+    { toRef: (r) => ({ type: "document", ref: String(r.id) }) },
+  ),
+
   // Every typed lead document reaches a terminal parse state within 1h. `pending` past
   // 1h is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states.
   "lead.doc_parse": invariant(

@@ -1,6 +1,6 @@
 import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, shouldSendChannel, renderTemplate, type LeadFeatures, type ScoringConfig } from "@savvy/core";
 import {
-  withTenant, lead, customer, property, communication, recordAgentRun, eq, createBookingLink,
+  withTenant, lead, customer, property, communication, recordAgentRun, eq, sql, createBookingLink,
   getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
   tenant as tenantTbl,
 } from "@savvy/db";
@@ -249,7 +249,11 @@ export const leadIntake = inngest.createFunction(
       const recommendation = deriveInstallRecommendation(features);
       await withTenant(tenantId, (tx) =>
         tx.update(lead).set({
-          score: r.score, scoreReason: r.reason, scoreBand: r.band, lane, status: "contacted",
+          score: r.score, scoreReason: r.reason, scoreBand: r.band, lane,
+          // Only advance a still-new lead to 'contacted'. Never downgrade a lead that a
+          // concurrent flow already moved forward (e.g. a canvass signed-contract conversion
+          // set it 'won') — that would recreate the stuck-status ("Josh") bug.
+          status: sql`case when ${lead.status} = 'new' then 'contacted' else ${lead.status} end`,
           scoreFeatures: { features, baseline: r.baseline, reasons: r.reasons, aiAdjustment: r.score - r.baseline },
           installRecommendation: recommendation,
         }).where(eq(lead.id, leadId)),

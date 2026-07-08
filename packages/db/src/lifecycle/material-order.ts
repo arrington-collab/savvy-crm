@@ -10,9 +10,11 @@ import {
   materialOrderSubtotalCents,
   attachMaterialCosts,
   neededByFromInstall,
+  isRescissionHeld,
   type EstimateLineItem,
   type MaterialOrderStatus,
 } from "@savvy/core";
+import { RescissionHoldError } from "./appointments";
 
 export type MaterialOrderRow = typeof materialOrder.$inferSelect;
 
@@ -62,6 +64,12 @@ export async function createMaterialOrderFromEstimate(input: {
     // null) can't be ordered against until acceptance creates the job.
     if (!est.jobId) throw new Error("cannot order materials for a lead-stage estimate without an accepted job");
     const jobId = est.jobId;
+
+    // Hold material ordering during the statutory rescission window (canvass door sales).
+    const [j] = await tx.select({ hold: job.rescissionHoldUntil }).from(job).where(eq(job.id, jobId));
+    if (isRescissionHeld(j?.hold ?? null, new Date())) {
+      throw new RescissionHoldError(j!.hold!);
+    }
 
     // Fix 2: explicit tenant scoping for defense-in-depth (not relying solely on RLS)
     const [existing] = await tx.select().from(materialOrder).where(and(eq(materialOrder.estimateId, input.estimateId), eq(materialOrder.tenantId, input.tenantId)));

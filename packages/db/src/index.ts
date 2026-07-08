@@ -16,6 +16,7 @@ export { setCustomerEmail, findCustomersNeedingEmail, type EmailSource, type Cus
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, getCrewBusyStarts, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
+  RescissionHoldError,
 } from "./lifecycle/appointments";
 export {
   createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
@@ -91,3 +92,5 @@ export { applyDeliveryReceipt } from "./lifecycle/delivery-status";
 export { getA2pRegistration, setA2pRegistration } from "./lifecycle/a2p";
 export { setJobFinancingStatus } from "./lifecycle/financing";
 export { setClaimEndorsement } from "./lifecycle/endorsement";
+
+export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";
