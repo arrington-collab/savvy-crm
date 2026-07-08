@@ -355,6 +355,13 @@ describe("ventilationSummary", () => {
     expect(shingle.meetsTarget).toBe(true);
     const box = v.exhaustOptions.find((o) => o.key === "box_vent")!;
     expect(box.quantity).toBe(6); // ceil(288 / 50)
+    // Lock the remaining two products' NFA constants (aluminum 12/LF, turbine 113/ea).
+    const aluminum = v.exhaustOptions.find((o) => o.key === "ridge_vent_aluminum")!;
+    expect(aluminum.quantity).toBe(30); // full ridge
+    expect(aluminum.nfaProvidedSqIn).toBe(360); // 30 × 12
+    expect(aluminum.meetsTarget).toBe(true);
+    const turbine = v.exhaustOptions.find((o) => o.key === "turbine_vent")!;
+    expect(turbine.quantity).toBe(3); // ceil(288 / 113)
   });
 
   it("excludes facets toggled off ventilation", () => {
