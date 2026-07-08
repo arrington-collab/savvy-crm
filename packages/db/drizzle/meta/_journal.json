@@ -477,6 +477,13 @@
       "when": 1783443851716,
       "tag": "0067_modern_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1783486339156,
+      "tag": "0068_little_doorman",
+      "breakpoints": true
     }
   ]
 }
