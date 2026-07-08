@@ -8,7 +8,7 @@ import { document } from "../schema/ops";
 import { claim } from "../schema/insurance";
 import { eq, and, isNull, inArray, gte, lte, ne } from "drizzle-orm";
 import type { AppointmentType, AppointmentStatus } from "@savvy/core";
-import { leadToJobType, resolveActiveLicense } from "@savvy/core";
+import { leadToJobType, resolveActiveLicense, isRescissionHeld } from "@savvy/core";
 import { seedJobTasks } from "./seed-job-tasks";
 import { instantiateJobTasks } from "./job-tasks";
 import { recordStageChange } from "./record-stage-change";
@@ -24,6 +24,12 @@ export class LicenseRequiredError extends Error {
   constructor(public readonly state: string, public readonly city: string | null) {
     super(`No active license for jurisdiction: ${state}${city ? `/${city}` : ""}`);
     this.name = "LicenseRequiredError";
+  }
+}
+export class RescissionHoldError extends Error {
+  constructor(public readonly releaseAt: Date) {
+    super(`job is under a rescission hold until ${releaseAt.toISOString()}`);
+    this.name = "RescissionHoldError";
   }
 }
 
@@ -54,10 +60,15 @@ export async function bookAppointment(input: BookInput): Promise<{ id: string }>
       // Resolve the property this appointment is at — from the job (crew/install)
       // or the lead (inspection). It drives the Cell 17a license check.
       let propertyId = input.propertyId ?? null;
-      if (!propertyId && input.jobId) {
-        const [jrow] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, input.jobId));
+      if (input.jobId) {
+        const [jrow] = await tx.select({ propertyId: job.propertyId, rescissionHoldUntil: job.rescissionHoldUntil }).from(job).where(eq(job.id, input.jobId));
         if (!jrow) throw new Error(`bookAppointment: job ${input.jobId} not found`);
-        propertyId = jrow.propertyId;
+        if (!propertyId) propertyId = jrow.propertyId;
+        // Production/crew work is held during the statutory rescission window; other
+        // appointment types (inspection/cm/adjuster) are unaffected.
+        if (input.type === "crew" && isRescissionHeld(jrow.rescissionHoldUntil, new Date())) {
+          throw new RescissionHoldError(jrow.rescissionHoldUntil!);
+        }
       }
       if (!propertyId && input.leadId) {
         const [lrow] = await tx.select({ propertyId: lead.propertyId }).from(lead).where(eq(lead.id, input.leadId));
