@@ -13,7 +13,7 @@ describe("convertLeadToJob — claim carryover", () => {
       acvCents: 1000, rcvCents: 2000, deductibleCents: 500, lineItems: [], parseConfidence: 0.9,
     });
 
-    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true, reason: "test carryover" });
 
     const [row] = await adminDb.select().from(claim).where(eq(claim.id, c.claimId));
     expect(row!.jobId).toBe(jobId);

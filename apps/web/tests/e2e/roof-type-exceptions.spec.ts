@@ -6,7 +6,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { adminDb, customer, property, lead, job } from "@savvy/db";
+import { adminDb, customer, property, lead, job, document } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
@@ -15,7 +15,10 @@ async function seedRoofGap(stamp: string): Promise<{ name: string; leadId: strin
   const [c] = await adminDb.insert(customer).values({ tenantId, name }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Shingle St` }).returning();
   const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "test" }).returning();
-  await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, leadId: l!.id, type: "retail", stage: "inspected" });
+  const [jb] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, leadId: l!.id, type: "retail", stage: "inspected" }).returning();
+  // Inspection evidence so the job is consistent with its `inspected` stage —
+  // otherwise the stage_evidence exception fires and adds a second decision-card.
+  await adminDb.insert(document).values({ tenantId, jobId: jb!.id, kind: "photo", label: "inspection", r2Key: `e2e/${jb!.id}/inspection.jpg` });
   return { name, leadId: l!.id };
 }
 

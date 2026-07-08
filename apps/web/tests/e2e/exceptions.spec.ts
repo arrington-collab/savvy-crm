@@ -16,6 +16,10 @@ test("exceptions queue lists at-risk job, overdue invoice, missed appt, overdue 
   const past = new Date(Date.now() - 5 * 86_400_000);
   await adminDb.insert(invoice).values({ tenantId, jobId, customerId: cust!.id, status: "overdue", amountDue: 250000, dueAt: past });
   await adminDb.insert(appointment).values({ tenantId, jobId, customerId: cust!.id, type: "crew", status: "no_show", startsAt: past, endsAt: new Date(past.getTime() + 3_600_000) });
+  // Production evidence (a scheduled future crew install) so the job is consistent
+  // with its `production` stage — otherwise the stage_evidence exception adds a 5th card.
+  const future = new Date(Date.now() + 7 * 86_400_000);
+  await adminDb.insert(appointment).values({ tenantId, jobId, customerId: cust!.id, type: "crew", status: "scheduled", startsAt: future, endsAt: new Date(future.getTime() + 3_600_000) });
   await adminDb.insert(jobChecklistItem).values({ tenantId, jobId, key: "x", title: "Order materials", status: "pending", dueAt: past });
 
   await page.goto(`/today`);

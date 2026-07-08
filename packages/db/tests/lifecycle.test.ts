@@ -4,7 +4,7 @@ import { JOB_STAGE } from "@savvy/core";
 import { eq } from "drizzle-orm";
 import { adminDb } from "../src/admin-client";
 import { withTenant } from "../src/tenant";
-import { tenant, customer, property, job, jobChecklistItem } from "../src/schema/index";
+import { tenant, customer, property, job, jobChecklistItem, document } from "../src/schema/index";
 import { seedJobTasks } from "../src/lifecycle/seed-job-tasks";
 import { recordStageChange } from "../src/lifecycle/record-stage-change";
 import { jobStageEvent, auditLog } from "../src/schema/index";
@@ -59,6 +59,8 @@ describe("recordStageChange", () => {
     const [p] = await adminDb.insert(property).values({ tenantId: t!.id, customerId: c!.id, address: "1 St" }).returning();
     const [j] = await adminDb.insert(job).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead" }).returning();
     await withTenant(t!.id, (tx) => seedJobTasks(tx as never, { id: j!.id, tenantId: t!.id, type: "retail" }));
+    // Evidence gate: `inspected` requires inspection evidence (a photo doc here).
+    await adminDb.insert(document).values({ tenantId: t!.id, jobId: j!.id, kind: "photo", r2Key: `${t!.id}/${j!.id}/insp.jpg` });
 
     const r1 = await withTenant(t!.id, (tx) => recordStageChange(tx, { tenantId: t!.id, jobId: j!.id, toStage: "inspected", byAgent: "orchestrator" }));
     expect(r1.activated).toBeGreaterThan(0);
@@ -70,6 +72,7 @@ describe("recordStageChange", () => {
     const events = await withTenant(t!.id, (tx) => tx.select().from(jobStageEvent).where(eq(jobStageEvent.jobId, j!.id)));
     expect(events.length).toBe(2);
 
+    await adminDb.delete(document).where(eq(document.tenantId, t!.id));
     await adminDb.delete(jobChecklistItem).where(eq(jobChecklistItem.tenantId, t!.id));
     await adminDb.delete(jobStageEvent).where(eq(jobStageEvent.tenantId, t!.id));
     await adminDb.delete(auditLog).where(eq(auditLog.tenantId, t!.id));

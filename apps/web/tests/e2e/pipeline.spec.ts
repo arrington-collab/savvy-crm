@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
-  adminDb, withTenant, customer, property, job, jobChecklistItem, jobStageEvent, seedJobTasks, eq, and, isNull,
+  adminDb, withTenant, customer, property, job, document, jobChecklistItem, jobStageEvent, seedJobTasks, eq, and, isNull,
 } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(
@@ -42,6 +42,9 @@ test("pipeline: seed job -> board -> drag to inspected -> tasks activate -> deta
     const [p] = await tx.insert(property).values({ tenantId, customerId: c!.id, address: "9 Pipeline Way" }).returning();
     const [j] = await tx.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "lead", valueEstimate: 1800000 }).returning();
     await seedJobTasks(tx as never, { id: j!.id, tenantId, type: "retail" });
+    // Evidence gate: the drag below moves the job lead -> inspected, which is a
+    // forward transition and requires `inspection` evidence to be present.
+    await tx.insert(document).values({ tenantId, jobId: j!.id, kind: "photo", r2Key: `e2e/${j!.id}/inspection.jpg` });
     return j!.id;
   });
 

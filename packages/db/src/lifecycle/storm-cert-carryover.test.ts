@@ -60,7 +60,7 @@ afterAll(async () => {
 
 describe("convertLeadToJob — cert carryover", () => {
   it("stamps jobId onto cert documents at conversion", async () => {
-    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId: tId, leadId, manualJob: true, reason: "test carryover" });
 
     const [d] = await adminDb
       .select()

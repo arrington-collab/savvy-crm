@@ -18,7 +18,13 @@ export async function convertCanvassContractToJob(input: {
   leadId: string;
   contract: CanvassContract;
 }): Promise<{ jobId: string }> {
-  const { jobId } = await convertLeadToJob({ tenantId: input.tenantId, leadId: input.leadId, manualJob: true });
+  const { jobId } = await convertLeadToJob({
+    tenantId: input.tenantId, leadId: input.leadId, manualJob: true,
+    // A signed canvass contract IS the authorization — it lives on the job's
+    // rescissionHoldUntil/canvassRepName fields (stamped below), not a `document`
+    // row, so it doesn't satisfy the generic contract-document check itself.
+    reason: `canvass: signed contract (${input.contract.rep})`,
+  });
 
   await withTenant(input.tenantId, async (tx) => {
     const [j] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, jobId));

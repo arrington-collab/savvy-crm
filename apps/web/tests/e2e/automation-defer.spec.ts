@@ -9,7 +9,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { adminDb, customer, property, job, jobChecklistItem } from "@savvy/db";
+import { adminDb, customer, property, job, jobChecklistItem, estimate } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
@@ -19,6 +19,9 @@ test("a deferred task appears as a Needs approval exception", async ({ page }) =
   const [cust] = await adminDb.insert(customer).values({ tenantId, name, email: `defer-${stamp}@e2e.test` }).returning();
   const [prop] = await adminDb.insert(property).values({ tenantId, customerId: cust!.id, address: `${stamp} Defer Way`, roofType: "asphalt_shingle" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: cust!.id, propertyId: prop!.id, type: "retail", stage: "estimate" }).returning();
+  // Estimate evidence so the job is consistent with its `estimate` stage —
+  // otherwise the stage_evidence exception adds a second decision-card.
+  await adminDb.insert(estimate).values({ tenantId, jobId: j!.id, status: "draft", lineItems: [] });
   await adminDb.insert(jobChecklistItem).values({
     tenantId, jobId: j!.id, key: "estimating-049", title: "Estimate import",
     automationLevel: "manual", status: "pending", deferredAt: new Date(),

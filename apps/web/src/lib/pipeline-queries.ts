@@ -1,5 +1,5 @@
-import { withTenant, job, jobStageEvent, jobChecklistItem, customer, property, invoice, tenant, eq, and, desc, isNull, sql } from "@savvy/db";
-import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, PIPELINE_COLUMNS, type PipelineColumn, type Agent, type JobHealth, type JobStage, type JobType } from "@savvy/core";
+import { withTenant, job, jobStageEvent, jobChecklistItem, customer, property, invoice, tenant, gatherStageEvidence, eq, and, desc, isNull, sql } from "@savvy/db";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, PIPELINE_COLUMNS, type PipelineColumn, type Agent, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getLeads } from "./leads-queries";
 import { resolveAgent, resolveAgentForStage, agentLabel } from "./agents";
@@ -100,6 +100,19 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
   const nextByJob = new Map<string, (typeof nextTasks)[number]>();
   for (const t of nextTasks) if (!nextByJob.has(t.jobId)) nextByJob.set(t.jobId, t);
 
+  // Missing-evidence label for the NEXT stage after each job's current one — only
+  // computed for jobs with no pending task (deriveWaitingOn prefers the task).
+  // Board is tenant-bounded, so a per-job gather is acceptable here.
+  const missingByJob = new Map<string, string | null>();
+  await Promise.all(
+    Object.values(board).flat().map(async (c) => {
+      if (nextByJob.has(c.id)) return; // a pending task wins; skip the evidence lookup
+      const nextStage = JOB_STAGE[JOB_STAGE.indexOf(c.stage as JobStage) + 1] ?? (c.stage as JobStage);
+      const ev = await withTenant(tenantId, (tx) => gatherStageEvidence(tx, { tenantId, jobId: c.id }));
+      missingByJob.set(c.id, missingEvidenceFor(nextStage, ev));
+    }),
+  );
+
   const columns = Object.fromEntries(PIPELINE_COLUMNS.map((c) => [c, [] as PipelineBoardCard[]])) as Record<PipelineColumn, PipelineBoardCard[]>;
 
   // Jobs
@@ -109,7 +122,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
     for (const c of cards) {
       const t = nextByJob.get(c.id);
       const nextTask = t && t.ownerAgent ? { title: t.title, automationLevel: t.automationLevel ?? "manual", ownerAgent: t.ownerAgent as Agent } : null;
-      const w = deriveWaitingOn({ nextTask, column });
+      const w = deriveWaitingOn({ nextTask, column, missingEvidence: missingByJob.get(c.id) ?? null });
       const owner = w.isHuman
         ? "You"
         : agentLabel(w.ownerAgent ? resolveAgent({ agent: w.ownerAgent, taskKey: null }) : resolveAgentForStage(c.stage));

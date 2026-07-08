@@ -103,7 +103,7 @@ describe("wired into convertLeadToJob", () => {
     const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "3 Main" }).returning();
     const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, status: "new", assignedUserId: userId }).returning();
 
-    const { jobId: convertedJobId } = await convertLeadToJob({ tenantId, leadId: l!.id, manualJob: true });
+    const { jobId: convertedJobId } = await convertLeadToJob({ tenantId, leadId: l!.id, manualJob: true, reason: "test conversion" });
 
     const rows = await synRows(convertedJobId);
     expect(rows.map((r) => r.taskId).sort((a, b) => a - b)).toEqual([A, DEP]);

@@ -74,7 +74,7 @@ describe("recordStageChange → 'lost' triggers chargeback", () => {
 
   it("does NOT charge back on a non-lost transition", async () => {
     const { jobId, commissionIds } = await makeJobWithCommissions(["pending"]);
-    await withTenant(tId, (tx) => recordStageChange(tx, { tenantId: tId, jobId, toStage: "production", byAgent: "orchestrator" }));
+    await withTenant(tId, (tx) => recordStageChange(tx, { tenantId: tId, jobId, toStage: "production", byAgent: "orchestrator", reason: "test backward move" }));
     expect(await statusOf(commissionIds[0]!)).toBe("pending");
   });
 });
