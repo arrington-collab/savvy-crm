@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { LeadArtifacts } from "@savvy/db";
 
@@ -16,15 +17,45 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Slice 1 lead tile: the Measurement + Estimate sections. Read-only; edits and the
- * DIY sketch link land with the tile reorg in slice 4.
+ * Lead tile: the Measurement + Estimate sections. Summary fields are read-only; the
+ * Measurement card links to the DIY roof-sketch editor so a rep can produce the
+ * measurement (and thus the estimate) before any job exists.
  */
-export function LeadArtifactsSections({ artifacts }: { artifacts: LeadArtifacts }) {
+export function LeadArtifactsSections({
+  artifacts,
+  leadId,
+  hasProperty,
+}: {
+  artifacts: LeadArtifacts;
+  leadId: string;
+  hasProperty: boolean;
+}) {
   const { measurement: m, estimate: e } = artifacts;
+  const hasSketch = m?.source === "sketch" || m?.provider === "diy";
   return (
     <>
       <Card className="p-4">
-        <div className="eyebrow mb-3">Measurement</div>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="eyebrow">Measurement</div>
+          {hasProperty ? (
+            <Link
+              href={`/leads/${leadId}/measure`}
+              className="text-sm underline underline-offset-2"
+              data-testid="lead-draw-roof"
+            >
+              {hasSketch ? "Edit sketch" : "Draw roof"}
+            </Link>
+          ) : (
+            <span
+              className="text-sm"
+              style={{ color: "var(--text-faint)" }}
+              title="Add the property address first"
+              data-testid="lead-draw-roof-disabled"
+            >
+              Draw roof
+            </span>
+          )}
+        </div>
         {m ? (
           <dl className="grid grid-cols-3 gap-3 text-sm">
             <Field label="Source" value={
