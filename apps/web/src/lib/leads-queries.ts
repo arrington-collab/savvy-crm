@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, lead, customer, property, user, communication, count, eq, desc, sql, getLeadArtifacts, type LeadArtifacts } from "@savvy/db";
+import { withTenant, lead, customer, property, user, communication, count, eq, not, inArray, desc, sql, getLeadArtifacts, type LeadArtifacts } from "@savvy/db";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -37,8 +37,9 @@ export async function getLeads(
       .from(lead)
       .leftJoin(customer, eq(customer.id, lead.customerId))
       .leftJoin(property, eq(property.id, lead.propertyId))
-      // undefined omits the WHERE clause (Drizzle no-op) — no status filter
-      .where(opts.status ? eq(lead.status, opts.status) : undefined)
+      // A specific chip filters to that status (won/lost stay reachable that way); the
+      // default (unfiltered) view is the ACTIVE pipeline — won/lost don't render there.
+      .where(opts.status ? eq(lead.status, opts.status) : not(inArray(lead.status, ["won", "lost"])))
       .orderBy(
         ...(opts.sort === "age"
           ? [desc(lead.createdAt)]

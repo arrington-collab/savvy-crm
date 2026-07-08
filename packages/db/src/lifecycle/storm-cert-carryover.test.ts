@@ -71,7 +71,7 @@ describe("convertLeadToJob — cert carryover", () => {
   });
 
   it("is idempotent — repeat call does not error and cert keeps the same jobId", async () => {
-    // Lead is now 'booked', so convertLeadToJob returns the existing job
+    // Lead is now 'won' with a job, so convertLeadToJob returns the existing job
     const { jobId } = await convertLeadToJob({ tenantId: tId, leadId, manualJob: true });
 
     const [d] = await adminDb

@@ -191,9 +191,9 @@ export async function setAppointmentWeatherFlag(input: {
 
 /**
  * Converts a lead to a job if not already converted (idempotent). Seeds the
- * job's tasks, records the stage change to "inspected", marks the lead booked,
+ * job's tasks, records the stage change to "inspected", marks the lead WON,
  * and stops any active drip enrollments. Returns the jobId + customerId.
- * Idempotent: a repeat call on an already-booked lead returns the existing job.
+ * Idempotent: a repeat call on an already-converted lead returns the existing job.
  */
 export async function convertLeadToJob(args: {
   tenantId: string;
@@ -242,12 +242,16 @@ export async function convertLeadToJob(args: {
         .where(and(eq(claim.leadId, l!.id), isNull(claim.jobId)));
     }
 
-    if (l.status === "booked") {
-      const [existing] = await tx.select().from(job).where(eq(job.leadId, l.id));
-      if (existing) {
-        await stampCerts(existing.id);
-        return { jobId: existing.id, customerId: l.customerId! };
+    // Idempotent: a lead already converted has a job — return it. Idempotency keys off
+    // the job linkage (not lead.status) so it holds now that conversion sets status='won'.
+    // Self-heals a lead an older conversion left 'booked' instead of 'won'.
+    const [existing] = await tx.select().from(job).where(eq(job.leadId, l.id));
+    if (existing) {
+      await stampCerts(existing.id);
+      if (l.status !== "won" && l.status !== "lost") {
+        await tx.update(lead).set({ status: "won" }).where(eq(lead.id, l.id));
       }
+      return { jobId: existing.id, customerId: l.customerId! };
     }
 
     // Red-path invariant: a job is created FROM an accepted estimate. Out-of-funnel
@@ -273,7 +277,9 @@ export async function convertLeadToJob(args: {
     await seedJobTasks(tx as never, { id: newJob!.id, tenantId: args.tenantId, type: jobType });
     await instantiateJobTasks(tx, { tenantId: args.tenantId, jobId: newJob!.id, jobType });
     await recordStageChange(tx, { tenantId: args.tenantId, jobId: newJob!.id, toStage: "inspected", byAgent: "orchestrator" });
-    await tx.update(lead).set({ status: "booked" }).where(eq(lead.id, l.id));
+    // A converted lead is WON (it produced a job). Both paths — accepted-estimate and the
+    // manualJob escape hatch — reach here, so both mark the lead won in the same tx.
+    await tx.update(lead).set({ status: "won" }).where(eq(lead.id, l.id));
     await stopDripEnrollments(tx, { tenantId: args.tenantId, customerId: l.customerId!, reason: "converted" });
     await stampCerts(newJob!.id);
     return { jobId: newJob!.id, customerId: l.customerId! };

@@ -40,17 +40,23 @@ test("leads: list, filter, detail, convert, mark lost", async ({ page }) => {
   await expect(page.getByTestId("lead-detail")).toBeVisible();
   await expect(page.getByTestId("lead-score")).toContainText("80");
 
-  // Convert -> redirected to the job; lead becomes 'booked'.
+  // Convert -> redirected to the job; the lead is now WON (a job references it).
   await page.getByTestId("convert-lead").click();
   await page.waitForURL(/\/jobs\/.+/);
   const [converted] = await withTenant(tenantId, (tx) => tx.select().from(lead).where(eq(lead.id, newId)));
-  expect(converted!.status).toBe("booked");
+  expect(converted!.status).toBe("won");
 
-  // Re-open: Convert is gone (booked), Assign remains, Mark lost is gone too.
+  // Re-open: won is terminal — read-only actions, no Convert / Mark lost.
   await page.goto(`/leads/${newId}`);
+  await expect(page.getByTestId("lead-actions-readonly")).toBeVisible();
   await expect(page.getByTestId("convert-lead")).toHaveCount(0);
-  await expect(page.getByTestId("assign-owner")).toBeVisible();
   await expect(page.getByTestId("mark-lost")).toHaveCount(0);
+
+  // Default (active-pipeline) list drops the won lead; its WON chip still surfaces it.
+  await page.goto("/leads");
+  await expect(page.locator(`[data-testid="lead-row"][data-lead-id="${newId}"]`)).toHaveCount(0);
+  await page.goto("/leads?status=won");
+  await expect(page.locator(`[data-testid="lead-row"][data-lead-id="${newId}"]`)).toBeVisible();
 
   // Mark the contacted lead lost -> read-only.
   await page.goto(`/leads/${contactedId}`);
