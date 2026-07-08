@@ -109,6 +109,20 @@ export async function listLeadDocuments(input: {
   });
 }
 
+/** Tenant-scoped view metadata for a document (RLS blocks cross-tenant). Null if absent. */
+export async function getDocumentForView(
+  tenantId: string,
+  documentId: string,
+): Promise<{ r2Key: string | null; mime: string | null; filename: string | null } | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [d] = await tx
+      .select({ r2Key: document.r2Key, mime: document.mime, filename: document.filename })
+      .from(document)
+      .where(eq(document.id, documentId));
+    return d ?? null;
+  });
+}
+
 /** Load the fields the parse pipeline needs for one lead document. */
 export async function getLeadDocumentForParse(
   tenantId: string,
