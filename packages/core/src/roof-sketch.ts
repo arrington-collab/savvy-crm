@@ -241,3 +241,102 @@ function round2(n: number): number {
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
+
+// ── Editor viewport + snapping helpers (slice 1: input precision) ──────────────
+// Pure geometry the SketchEditor uses for cursor-centered zoom, zoom-scaled hit
+// radii, and snap-to-existing-vertex/edge. Kept here (tested) so the interactive
+// component stays a thin shell over verified math.
+
+/** Canvas pixel → ground point in feet, given the viewport center (feet) and the
+ *  effective ft/px (base ft/px ÷ current zoom scale). Mirror of the editor's toFt. */
+export function screenToGround(
+  cursorPx: SketchPoint,
+  view: SketchPoint,
+  ftPerPxEff: number,
+  canvas: number,
+): SketchPoint {
+  return {
+    x: (cursorPx.x - canvas / 2) * ftPerPxEff + view.x,
+    y: (cursorPx.y - canvas / 2) * ftPerPxEff + view.y,
+  };
+}
+
+/** New viewport center that keeps the ground point under the cursor fixed while the
+ *  zoom scale changes scale0 → scale1 (cursor-centered zoom). */
+export function zoomAround(opts: {
+  view: SketchPoint;
+  scale0: number;
+  scale1: number;
+  cursorPx: SketchPoint;
+  ftPerPxBase: number;
+  canvas: number;
+}): SketchPoint {
+  const { view, scale0, scale1, cursorPx, ftPerPxBase, canvas } = opts;
+  const ground = screenToGround(cursorPx, view, ftPerPxBase / scale0, canvas);
+  const ftPerPxEff1 = ftPerPxBase / scale1;
+  return {
+    x: ground.x - (cursorPx.x - canvas / 2) * ftPerPxEff1,
+    y: ground.y - (cursorPx.y - canvas / 2) * ftPerPxEff1,
+  };
+}
+
+/** A constant on-screen hit radius (px) expressed in feet at the current zoom, so
+ *  vertices stay equally clickable and can be placed closer together when zoomed in. */
+export function vertexHitRadiusFt(hitPx: number, ftPerPxEff: number): number {
+  return hitPx * ftPerPxEff;
+}
+
+export type SnapResult =
+  | { kind: "vertex"; point: SketchPoint; facetId: string; vertexIndex: number }
+  | { kind: "edge"; point: SketchPoint; facetId: string; edgeIndex: number }
+  | null;
+
+/** Nearest existing vertex or edge across ALL facets within thresholdFt of `cursor`.
+ *  Vertices win over edges when both are in range (endpoints). Returns the snap point:
+ *  the vertex coordinate, or the perpendicular projection onto the edge. */
+export function findSnap(cursor: SketchPoint, facets: SketchFacet[], thresholdFt: number): SnapResult {
+  let bestV: { d: number; facetId: string; vertexIndex: number; point: SketchPoint } | null = null;
+  for (const f of facets) {
+    for (let i = 0; i < f.points.length; i++) {
+      const p = f.points[i]!;
+      const d = Math.hypot(p.x - cursor.x, p.y - cursor.y);
+      if (d <= thresholdFt && (bestV === null || d < bestV.d)) {
+        bestV = { d, facetId: f.id, vertexIndex: i, point: { x: p.x, y: p.y } };
+      }
+    }
+  }
+  if (bestV) return { kind: "vertex", point: bestV.point, facetId: bestV.facetId, vertexIndex: bestV.vertexIndex };
+
+  let bestE: { d: number; facetId: string; edgeIndex: number; point: SketchPoint } | null = null;
+  for (const f of facets) {
+    for (let i = 0; i < f.points.length; i++) {
+      const a = f.points[i]!;
+      const b = f.points[(i + 1) % f.points.length]!;
+      const proj = projectPointToSegment(cursor, a, b);
+      if (proj.dist <= thresholdFt && (bestE === null || proj.dist < bestE.d)) {
+        bestE = { d: proj.dist, facetId: f.id, edgeIndex: i, point: proj.point };
+      }
+    }
+  }
+  if (bestE) return { kind: "edge", point: bestE.point, facetId: bestE.facetId, edgeIndex: bestE.edgeIndex };
+  return null;
+}
+
+/** Whether clicking now would close the in-progress draft polygon: ≥3 points and the
+ *  cursor within thresholdFt of the first vertex (the "ringed" first vertex). */
+export function canCloseDraft(cursor: SketchPoint, draft: SketchPoint[], thresholdFt: number): boolean {
+  if (draft.length < 3) return false;
+  const first = draft[0]!;
+  return Math.hypot(first.x - cursor.x, first.y - cursor.y) <= thresholdFt;
+}
+
+/** Perpendicular projection of p onto segment ab (clamped to the segment), with distance. */
+function projectPointToSegment(p: SketchPoint, a: SketchPoint, b: SketchPoint): { point: SketchPoint; dist: number } {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  let t = len2 === 0 ? 0 : ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const point = { x: a.x + t * abx, y: a.y + t * aby };
+  return { point, dist: Math.hypot(p.x - point.x, p.y - point.y) };
+}
