@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withTenant, adminDb, tenant, customer, property, job, appointment, document, eq } from "@savvy/db";
+import { withTenant, adminDb, tenant, customer, property, job, appointment, document, estimate, eq } from "@savvy/db";
 import { type JobStage } from "@savvy/core";
 import { syncCrewCheckInStage, syncMaterialDeliveredStage, syncCompletionPhotosStage } from "./production-triggers";
 
@@ -35,9 +35,22 @@ async function addPhoto(tid: string, jid: string, label: string) {
   );
 }
 
+/** Evidence gate: seeds inspection + estimate + approval evidence for a job already at `approved`. */
+async function seedThroughApproved(tid: string, jid: string) {
+  await addPhoto(tid, jid, "inspection");
+  await withTenant(tid, (tx) => tx.insert(estimate).values({ tenantId: tid, jobId: jid, status: "accepted", lineItems: [] }));
+}
+
+/** Evidence gate: seeds inspection + estimate + approval + production evidence for a job at `production`. */
+async function seedThroughProduction(tid: string, jid: string) {
+  await seedThroughApproved(tid, jid);
+  await addScheduledCrewAppt(tid, jid);
+}
+
 describe("syncCrewCheckInStage — GPS check-in → production", () => {
   it("advances an approved job to production", async () => {
     const { tid, jid } = await seedJobAt("approved");
+    await seedThroughProduction(tid, jid); // crew must be scheduled for a GPS check-in to occur
     const r = await syncCrewCheckInStage(tid, jid);
     expect(r).toMatchObject({ toStage: "production" });
     expect(await stageOf(jid)).toBe("production");
@@ -54,6 +67,7 @@ describe("syncCrewCheckInStage — GPS check-in → production", () => {
 describe("syncMaterialDeliveredStage — delivery + crew assigned → production", () => {
   it("advances to production when a crew install is scheduled", async () => {
     const { tid, jid } = await seedJobAt("approved");
+    await seedThroughApproved(tid, jid);
     await addScheduledCrewAppt(tid, jid);
     const r = await syncMaterialDeliveredStage(tid, jid);
     expect(r).toMatchObject({ toStage: "production" });
@@ -71,6 +85,7 @@ describe("syncMaterialDeliveredStage — delivery + crew assigned → production
 describe("syncCompletionPhotosStage — required photos satisfied → closeout", () => {
   it("advances production → closeout once all required photos are present", async () => {
     const { tid, jid } = await seedJobAt("production");
+    await seedThroughProduction(tid, jid);
     await addPhoto(tid, jid, "before");
     await addPhoto(tid, jid, "after");
     const r = await syncCompletionPhotosStage(tid, jid);

@@ -21,7 +21,7 @@ describe("convertLeadToJob — lead document carryover", () => {
     });
 
     // manualJob bypasses the accepted-estimate red-path; we only care about carryover here.
-    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true, reason: "test carryover" });
 
     const [da] = await adminDb.select().from(document).where(eq(document.id, a!.id));
     const [db] = await adminDb.select().from(document).where(eq(document.id, b!.id));
@@ -45,7 +45,7 @@ describe("convertLeadToJob — lead document carryover", () => {
       filename: "measurement-v2.pdf", mime: "application/pdf", sizeBytes: 10,
     });
 
-    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true, reason: "test carryover" });
 
     const [superseded] = await adminDb.select().from(document).where(eq(document.id, first!.id));
     const [active] = await adminDb.select().from(document).where(eq(document.id, second!.id));

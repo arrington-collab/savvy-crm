@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withTenant, adminDb, tenant, customer, property, job, invoice, eq } from "@savvy/db";
+import { withTenant, adminDb, tenant, customer, property, job, invoice, document, estimate, appointment, eq } from "@savvy/db";
 import { type JobStage } from "@savvy/core";
 import { syncInvoiceStage } from "./invoice-stage";
 
@@ -19,6 +19,14 @@ async function seedJobAt(stage: JobStage) {
 describe("syncInvoiceStage", () => {
   it("advances closeout → billing on invoice/sent", async () => {
     const { tid, jid, invId } = await seedJobAt("closeout");
+    // Evidence gate: chain up to `billing` — inspection/estimate/approval/production/closeoutPhotos.
+    await adminDb.insert(document).values({ tenantId: tid, jobId: jid, kind: "photo", label: "before", r2Key: `${tid}/${jid}/before.jpg` });
+    await adminDb.insert(document).values({ tenantId: tid, jobId: jid, kind: "photo", label: "after", r2Key: `${tid}/${jid}/after.jpg` });
+    await adminDb.insert(estimate).values({ tenantId: tid, jobId: jid, status: "accepted", lineItems: [] });
+    await adminDb.insert(appointment).values({
+      tenantId: tid, jobId: jid, type: "crew", status: "scheduled",
+      startsAt: new Date(), endsAt: new Date(Date.now() + 3600_000),
+    });
     const r = await syncInvoiceStage(tid, invId, "billing");
     expect(r).toMatchObject({ jobId: jid, toStage: "billing" });
     const [j] = await adminDb.select({ stage: job.stage }).from(job).where(eq(job.id, jid));

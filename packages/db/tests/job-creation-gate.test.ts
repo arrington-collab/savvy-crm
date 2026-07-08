@@ -25,7 +25,7 @@ describe("convertLeadToJob — job-creation gate", () => {
   it("creates a job without an accepted estimate via the manualJob escape hatch", async () => {
     const { tenantId } = await makeTenant();
     const { leadId } = await makeLeadWithProperty(tenantId);
-    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true, reason: "out-of-funnel test job" });
     const [j] = await adminDb.select({ id: job.id }).from(job).where(eq(job.id, jobId));
     expect(j?.id).toBe(jobId);
   });
