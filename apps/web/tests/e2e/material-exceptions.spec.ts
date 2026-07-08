@@ -47,10 +47,13 @@ test("material exceptions: misaligned and no-install orders surface on /exceptio
     lineItems: MAT_LINE_ITEMS, subtotalCents: 360000, neededByAt: new Date(install.getTime() + 86_400_000),
   });
 
-  // (b) NO-INSTALL: material order, no crew appointment.
+  // (b) NO-INSTALL: material order, no crew appointment. Status `ordered` (still in
+  // the material-delivery vector's draft|ordered set, so the no-install exception
+  // still fires) also satisfies the job's `production` stage evidence — otherwise
+  // the stage_evidence exception would add a second decision-card for this customer.
   const noin = await seedJob(stamp, "NoInstall");
   await adminDb.insert(materialOrder).values({
-    tenantId, jobId: noin.jobId, estimateId: noin.estimateId, status: "draft",
+    tenantId, jobId: noin.jobId, estimateId: noin.estimateId, status: "ordered",
     lineItems: MAT_LINE_ITEMS, subtotalCents: 360000, neededByAt: new Date(Date.now() + 5 * 86_400_000),
   });
 
