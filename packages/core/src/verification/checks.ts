@@ -123,16 +123,20 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
-  // Every typed lead document reaches a terminal parse state within 1h. `pending` past
-  // 1h is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states.
+  // Every typed lead document reaches a terminal parse state within 1h (`pending` past 1h
+  // is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states).
+  // Additionally, a `parsed` typed doc must have a storage object — a parsed row with a
+  // null r2_key is an orphan the viewer cannot resolve (no resolvable view URL path).
   "lead.doc_parse": invariant(
     "lead.doc_parse",
     `select id
        from document
       where tenant_id = $1
         and kind in ('insurance_estimate', 'measurement_report')
-        and created_at < now() - interval '1 hour'
-        and parse_status = 'pending'`,
+        and (
+          (created_at < now() - interval '1 hour' and parse_status = 'pending')
+          or (parse_status = 'parsed' and r2_key is null)
+        )`,
     { toRef: (r) => ({ type: "document", ref: String(r.id) }) },
   ),
 
