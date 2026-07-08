@@ -194,7 +194,7 @@ export function SketchEditor({
 
   // Local autosave: guards against a lost tab/refresh before an explicit Save. Keyed by
   // the sketch owner; cleared once the measurement is persisted server-side.
-  const draftKey = `savvy:sketch-draft:${jobId}`;
+  const draftKey = `savvy:sketch-draft:${scope.kind}-${scope.id}`;
   const [restoredDraft, setRestoredDraft] = useState(false);
 
   useEffect(() => {
