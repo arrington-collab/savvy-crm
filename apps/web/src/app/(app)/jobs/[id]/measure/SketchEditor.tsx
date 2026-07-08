@@ -15,6 +15,7 @@ import {
   planAreaSqFt,
   pitchFactor,
   summarizeSketch,
+  ventilationSummary,
   suggestEdgeTypes,
   wasteTable,
   zoomAround,
@@ -183,6 +184,7 @@ export function SketchEditor({
     [centerLat, centerLng, zoom, calibration, facets],
   );
   const summary = useMemo(() => summarizeSketch(sketch), [sketch]);
+  const vent = useMemo(() => ventilationSummary(sketch), [sketch]);
   const waste = useMemo(() => wasteTable(summary.totalSurfaceSqft), [summary]);
   const selectedFacet = facets.find((f) => f.id === selectedFacetId) ?? null;
 
@@ -281,7 +283,7 @@ export function SketchEditor({
         )
       : facets;
     if (opts?.includeDraft && draft.length > 0) {
-      return [...base, { id: "__draft__", points: draft, pitch: "0/12", edges: [], label: "none" } as SketchFacet];
+      return [...base, { id: "__draft__", points: draft, pitch: "0/12", edges: [], label: "none", ventilated: true } as SketchFacet];
     }
     return base;
   }
@@ -360,6 +362,7 @@ export function SketchEditor({
         pitch: "0/12",
         edges: draft.map(() => "unspecified" as SketchEdgeType),
         label: "none",
+        ventilated: true,
       },
     ]);
     setDraft([]);
@@ -576,6 +579,11 @@ export function SketchEditor({
   function setFacetLabel(id: string, label: SketchFacet["label"]) {
     pushHistory(facets);
     setFacets((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
+  }
+
+  function setFacetVentilated(id: string, ventilated: boolean) {
+    pushHistory(facets);
+    setFacets((prev) => prev.map((f) => (f.id === id ? { ...f, ventilated } : f)));
   }
 
   /** Fill only the still-unspecified edges from adjacency (shared→ridge, else eave).
@@ -1193,6 +1201,15 @@ export function SketchEditor({
                     <option value="two_layer">Two layer</option>
                   </select>
                 </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedFacet.ventilated}
+                    onChange={(e) => setFacetVentilated(selectedFacet.id, e.target.checked)}
+                    data-testid="facet-ventilated-toggle"
+                  />
+                  <span className="text-muted-foreground">Counts toward ventilation</span>
+                </label>
                 <div className="text-sm text-muted-foreground">
                   Plan {Math.round(planAreaSqFt(selectedFacet.points))} sqft · Surface{" "}
                   {Math.round(planAreaSqFt(selectedFacet.points) * pitchFactor(selectedFacet.pitch))}{" "}
@@ -1220,6 +1237,10 @@ export function SketchEditor({
                 )}
                 <Row k="Predominant pitch" v={summary.predominantPitch} />
                 <Row k="Pitched / flat" v={`${Math.round(summary.pitchedSqft)} / ${Math.round(summary.flatSqft)} sqft`} />
+                <Row k="Plan (footprint)" v={`${Math.round(summary.totalPlanSqft)} sqft`} />
+                {summary.totalPlanSqft > 0 && (
+                  <Row k="Required NFA" v={`${vent.requiredNfaSqft.toFixed(1)} sqft`} />
+                )}
                 {SKETCH_EDGE_TYPES.filter((t) => summary.edgeLf[t] > 0).map((t) => (
                   <Row
                     key={t}

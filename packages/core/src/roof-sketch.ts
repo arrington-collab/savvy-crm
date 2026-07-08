@@ -60,6 +60,8 @@ export const sketchFacetSchema = z.object({
   /** Edge classification, one entry per polygon edge. */
   edges: z.array(z.enum(SKETCH_EDGE_TYPES)),
   label: z.enum(["none", "dormer", "two_story", "two_layer"]).default("none"),
+  /** Whether this facet sits over ventilated attic space (counts toward NFA). Default on. */
+  ventilated: z.boolean().default(true),
 });
 export type SketchFacet = z.infer<typeof sketchFacetSchema>;
 
@@ -299,6 +301,98 @@ export function suggestEdgeTypes(
     out.push({ facetId: e.facetId, edgeIndex: e.idx, suggested: shared ? "ridge" : "eave" });
   }
   return out;
+}
+
+// ── Slice 3: attic ventilation (advisory) ─────────────────────────────────────
+// Suggests exhaust products from the drawn geometry. Balanced 1:300 NFA rule, split
+// ~50/50 intake/exhaust. Exhaust is sized off the slice-2 DEDUPED ridge LF so a shared
+// ridge is never double-counted into the vent suggestion. Suggestions only — never
+// auto-added to an estimate.
+
+/** Attic sqft served per 1 sqft of net free area (NFA), balanced ventilation. */
+export const NFA_BALANCED_DIVISOR = 300;
+/** Fraction of required NFA allocated to exhaust (and, symmetrically, intake). */
+export const EXHAUST_FRACTION = 0.5;
+
+export interface VentProductSpec {
+  key: string;
+  name: string;
+  unit: "lf" | "each";
+  /** Net free area contributed per unit, in square inches. */
+  nfaPerUnitSqIn: number;
+  /** "ridge" products run the full ventable ridge LF; "count" products fill to target. */
+  sizing: "ridge" | "count";
+}
+
+/** Standard exhaust products with default NFA ratings (square inches). Tunable constants. */
+export const EXHAUST_PRODUCTS: VentProductSpec[] = [
+  { key: "ridge_vent_shingle_over", name: "Shingle-over ridge vent", unit: "lf", nfaPerUnitSqIn: 18, sizing: "ridge" },
+  { key: "ridge_vent_aluminum", name: "Aluminum ridge vent", unit: "lf", nfaPerUnitSqIn: 12, sizing: "ridge" },
+  { key: "box_vent", name: "Box / louver vent", unit: "each", nfaPerUnitSqIn: 50, sizing: "count" },
+  { key: "turbine_vent", name: 'Turbine vent (12")', unit: "each", nfaPerUnitSqIn: 113, sizing: "count" },
+];
+
+export interface VentExhaustOption {
+  key: string;
+  name: string;
+  unit: "lf" | "each";
+  /** Suggested quantity: full ventable ridge LF (ceil) for ridge products, else ceil(target / nfaPerUnit). */
+  quantity: number;
+  /** NFA the suggested quantity provides, square inches. */
+  nfaProvidedSqIn: number;
+  /** Whether nfaProvidedSqIn >= exhaustTargetSqIn. */
+  meetsTarget: boolean;
+}
+
+export interface VentilationSummary {
+  ventilatedPlanSqft: number;
+  requiredNfaSqft: number;
+  requiredNfaSqIn: number;
+  exhaustTargetSqIn: number;
+  intakeTargetSqIn: number;
+  ventableRidgeLf: number;
+  exhaustOptions: VentExhaustOption[];
+}
+
+/** Advisory ventilation sizing for a sketch. Exhaust-only this slice; intake target is
+ *  reported as a number but no intake products are suggested yet. */
+export function ventilationSummary(sketch: RoofSketch): VentilationSummary {
+  const ventilatedPlanSqft = sketch.facets
+    .filter((f) => f.ventilated !== false)
+    .reduce((sum, f) => sum + planAreaSqFt(f.points), 0);
+
+  const requiredNfaSqft = ventilatedPlanSqft / NFA_BALANCED_DIVISOR;
+  const requiredNfaSqIn = requiredNfaSqft * 144;
+  const exhaustTargetSqIn = requiredNfaSqIn * EXHAUST_FRACTION;
+  const intakeTargetSqIn = requiredNfaSqIn * EXHAUST_FRACTION;
+
+  const ventableRidgeLf = summarizeSketch(sketch).edgeLf.ridge;
+
+  const exhaustOptions: VentExhaustOption[] = EXHAUST_PRODUCTS.map((p) => {
+    const quantity =
+      p.sizing === "ridge"
+        ? Math.ceil(ventableRidgeLf)
+        : Math.ceil(exhaustTargetSqIn / p.nfaPerUnitSqIn);
+    const nfaProvidedSqIn = quantity * p.nfaPerUnitSqIn;
+    return {
+      key: p.key,
+      name: p.name,
+      unit: p.unit,
+      quantity,
+      nfaProvidedSqIn,
+      meetsTarget: nfaProvidedSqIn >= exhaustTargetSqIn,
+    };
+  });
+
+  return {
+    ventilatedPlanSqft,
+    requiredNfaSqft,
+    requiredNfaSqIn,
+    exhaustTargetSqIn,
+    intakeTargetSqIn,
+    ventableRidgeLf,
+    exhaustOptions,
+  };
 }
 
 /** Map a sketch summary onto the MeasurementAreas shape consumed by the

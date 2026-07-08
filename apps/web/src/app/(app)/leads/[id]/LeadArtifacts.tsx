@@ -35,6 +35,7 @@ export function LeadArtifactsSections({ artifacts }: { artifacts: LeadArtifacts 
             } />
             <Field label="Squares" value={m.squares != null ? String(m.squares) : "—"} />
             <Field label="Pitch" value={m.pitch ?? "—"} />
+            <Field label="Plan area" value={m.planSqft != null ? `${m.planSqft.toLocaleString()} sqft` : "—"} />
             {m.reportUrl ? (
               <div className="col-span-3">
                 <a href={m.reportUrl} target="_blank" rel="noreferrer" className="text-sm underline">View report</a>

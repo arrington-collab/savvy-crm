@@ -3,6 +3,7 @@ import { withTenant, job, property, customer, measurement, eq, desc } from "@sav
 import {
   roofSketchSchema,
   summarizeSketch,
+  ventilationSummary,
   wasteTable,
   SKETCH_EDGE_TYPES,
   SKETCH_EDGE_LABELS,
@@ -57,6 +58,7 @@ export default async function MeasureReportPage({ params }: { params: Promise<{ 
   }
 
   const summary = summarizeSketch(sketch);
+  const vent = ventilationSummary(sketch);
   const waste = wasteTable(summary.totalSurfaceSqft);
   const created = data.diy?.createdAt ? new Date(data.diy.createdAt).toLocaleDateString() : "";
 
@@ -122,6 +124,7 @@ export default async function MeasureReportPage({ params }: { params: Promise<{ 
           </h2>
           <table className="w-full text-sm">
             <tbody>
+              <Tr k="Plan (footprint) area" v={`${Math.round(summary.totalPlanSqft).toLocaleString()} sqft`} />
               <Tr k="Total roof area" v={`${Math.round(summary.totalSurfaceSqft).toLocaleString()} sqft`} />
               <Tr k="Squares" v={summary.squares.toFixed(1)} />
               <Tr k="Pitched area" v={`${Math.round(summary.pitchedSqft).toLocaleString()} sqft`} />
@@ -183,6 +186,45 @@ export default async function MeasureReportPage({ params }: { params: Promise<{ 
         <p className="mt-2 text-xs text-muted-foreground">
           Waste depends on roof complexity and application style. Verify quantities before ordering
           materials.
+        </p>
+      </section>
+
+      {/* Ventilation */}
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Ventilation
+        </h2>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Required net free area (NFA):{" "}
+          <span className="font-medium text-foreground">{vent.requiredNfaSqft.toFixed(1)} sqft</span> over{" "}
+          {Math.round(vent.ventilatedPlanSqft).toLocaleString()} sqft of ventilated plan area (balanced,
+          1:300). Target splits ~50% exhaust / 50% intake; intake soffit sizing is pending.
+        </p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="py-1.5 font-medium">Exhaust option</th>
+              <th className="py-1.5 text-right font-medium">Qty</th>
+              <th className="py-1.5 text-right font-medium">NFA provided</th>
+              <th className="py-1.5 text-right font-medium">Meets exhaust</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vent.exhaustOptions.map((o) => (
+              <tr key={o.key} className="border-b border-border last:border-0">
+                <td className="py-1.5">{o.name}</td>
+                <td className="py-1.5 text-right">
+                  {o.quantity} {o.unit === "lf" ? "LF" : "ea"}
+                </td>
+                <td className="py-1.5 text-right">{Math.round(o.nfaProvidedSqIn).toLocaleString()} sq in</td>
+                <td className="py-1.5 text-right">{o.meetsTarget ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Suggestions only — pick the exhaust product you&apos;ll install. Nothing is added to the
+          estimate automatically.
         </p>
       </section>
 
