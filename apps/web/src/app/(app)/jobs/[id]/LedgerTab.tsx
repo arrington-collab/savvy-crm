@@ -14,6 +14,7 @@ function statusColor(status: string): string {
   if (status === "verified") return "var(--status-ok)";
   if (status === "exception" || status === "failed") return "var(--status-error)";
   if (status === "done") return "var(--accent-gold)";
+  if (status === "in_progress") return "var(--accent-deep)";
   if (status === "blocked") return "var(--status-skip)";
   return "var(--text-faint)";
 }
