@@ -8,7 +8,7 @@ import { leadNote } from "../schema/index";
  */
 export async function addLeadNote(
   tx: Tx,
-  args: { tenantId: string; leadId: string; authorUserId: string; body: string },
+  args: { tenantId: string; leadId: string; authorUserId: string | null; body: string },
 ): Promise<{ id: string }> {
   const body = args.body.trim();
   if (!body) throw new Error("note body is required");

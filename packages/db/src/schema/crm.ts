@@ -77,7 +77,7 @@ export const leadNote = pgTable("lead_note", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   leadId: uuid("lead_id").notNull().references(() => lead.id),
-  authorUserId: uuid("author_user_id").notNull().references(() => user.id),
+  authorUserId: uuid("author_user_id").references(() => user.id),
   body: text("body").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("lead_note_tenant_lead_idx").on(t.tenantId, t.leadId), tenantIsolation()]);
