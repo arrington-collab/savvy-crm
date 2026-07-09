@@ -120,11 +120,11 @@ export async function runLeadAssignment(
       // Destination = the lead's property; prefer the persisted lane (set during scoring),
       // fall back to the old inline rule for older leads that predate Phase B.
       const dest = l.propertyId
-        ? (await tx.select({ lat: property.lat, lng: property.lng, roofType: property.roofType }).from(property).where(eq(property.id, l.propertyId)))[0]
+        ? (await tx.select({ lat: property.lat, lng: property.lng, roofType: property.roofType, roofTypeSecondary: property.roofTypeSecondary }).from(property).where(eq(property.id, l.propertyId)))[0]
         : undefined;
       const destPoint: LatLng | null =
         dest && dest.lat != null && dest.lng != null ? { lat: Number(dest.lat), lng: Number(dest.lng) } : null;
-      lane = l.lane ?? (dest?.roofType === "tile" ? "tile" : null);
+      lane = l.lane ?? ((dest?.roofType === "tile" || dest?.roofTypeSecondary === "tile") ? "tile" : null);
 
       if (destPoint) {
         const now = new Date();

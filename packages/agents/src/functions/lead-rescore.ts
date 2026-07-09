@@ -13,6 +13,7 @@ export async function rescoreTenant(tenantId: string): Promise<number> {
       .select({
         id: lead.id, band: lead.scoreBand, source: lead.source, state: property.state,
         roofType: property.roofType, yearBuilt: property.yearBuilt, lat: property.lat, lng: property.lng,
+        roofTypeSecondary: property.roofTypeSecondary, lastRoofReplacementAt: property.lastRoofReplacementAt,
       })
       .from(lead)
       .leftJoin(property, eq(lead.propertyId, property.id))
@@ -30,6 +31,7 @@ export async function rescoreTenant(tenantId: string): Promise<number> {
       }
       const features = buildLeadFeatures({
         source: r.source ?? "web", state: r.state, roofType: r.roofType, yearBuilt: r.yearBuilt,
+        roofTypeSecondary: r.roofTypeSecondary, lastRoofReplacementAt: r.lastRoofReplacementAt,
         storm: { eventCount: storm.eventCount, maxHailInches: storm.maxHailInches, maxWindMph: storm.maxWindMph, daysSinceWorst: storm.daysSinceWorst },
       });
       const scored = scoreLead(features, cfg);

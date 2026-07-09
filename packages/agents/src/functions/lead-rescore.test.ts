@@ -72,3 +72,69 @@ describe("rescoreTenant — nightly re-score cron (DB-backed)", () => {
     expect(row?.lane).toBe("storm");
   });
 });
+
+describe("rescoreTenant — secondary roof type routes to tile lane", () => {
+  let tenantId: string;
+  let leadId: string;
+
+  beforeAll(async () => {
+    // stormLaneThreshold pinned above 1.0 (the max possible storm sub-score) so the
+    // module-level fake storm gateway's fixed hail event never wins lane precedence over
+    // the tile signal this test is targeting (see lane.ts: storm beats tile).
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({
+        name: "RescoreSecondaryTile",
+        clerkOrgId: `org_rescore_secondary_${Date.now()}`,
+        settings: { scoring: { stormLaneThreshold: 1.5 } },
+      })
+      .returning();
+    tenantId = t!.id;
+
+    await withTenant(tenantId, async (tx) => {
+      const [c] = await tx
+        .insert(customer)
+        .values({ tenantId, name: "Rescore Secondary Cust" })
+        .returning();
+
+      // Primary roof type is asphalt_shingle, but the SECONDARY is tile — rescore should
+      // still route this lead to the "tile" lane once roofTypeSecondary is wired through
+      // buildLeadFeatures.
+      const [p] = await tx
+        .insert(property)
+        .values({
+          tenantId,
+          customerId: c!.id,
+          address: "2 Secondary Tile Rd, Phoenix AZ 85001",
+          state: "AZ",
+          lat: 33.4,
+          lng: -112.0,
+          roofType: "asphalt_shingle",
+          roofTypeSecondary: "tile",
+          yearBuilt: 2001,
+        })
+        .returning();
+
+      const [l] = await tx
+        .insert(lead)
+        .values({
+          tenantId,
+          customerId: c!.id,
+          propertyId: p!.id,
+          status: "new",
+          scoreBand: "cool",
+          score: 30,
+        })
+        .returning();
+      leadId = l!.id;
+    });
+  });
+
+  it("persists lane 'tile' after rescore, driven by the property's SECONDARY roof type", async () => {
+    await rescoreTenant(tenantId);
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select({ lane: lead.lane }).from(lead).where(eq(lead.id, leadId)),
+    );
+    expect(row?.lane).toBe("tile");
+  });
+});
