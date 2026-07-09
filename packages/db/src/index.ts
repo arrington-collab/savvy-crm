@@ -2,7 +2,7 @@ export { db, pool, schema } from "./client";
 export { adminDb, adminPool } from "./admin-client";
 export { withTenant, type Tx } from "./tenant";
 export { seedJobTasks } from "./lifecycle/seed-job-tasks";
-export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTasks, setJobTaskAutomationLevel } from "./lifecycle/job-tasks";
+export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTasks, setJobTaskAutomationLevel, completeJobTaskManually } from "./lifecycle/job-tasks";
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks } from "./lifecycle/lead-tasks";
 export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, computeTenantRollup, reconcileTaskExceptions, getTenantRollup, getJobLedger, type JobLedgerRow, listOpenTaskExceptions, type OpenTaskException, markTaskExceptionViewed, getTaskDetail, type TaskDetail, recomputeFounderMinutes, listAutomationRoadmap, type RoadmapTask } from "./lifecycle/task-health";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError, StageEvidenceError, BackwardNeedsReasonError } from "./lifecycle/record-stage-change";
