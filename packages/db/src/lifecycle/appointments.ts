@@ -14,6 +14,7 @@ import { instantiateJobTasks } from "./job-tasks";
 import { recordStageChange } from "./record-stage-change";
 import { stopDripEnrollments } from "./stop-drip";
 import { gatherStageEvidence } from "./stage-evidence-db";
+import { resolveOpenLeadTasks } from "./lead-tasks";
 
 export class SlotTakenError extends Error {
   constructor() { super("slot_taken"); this.name = "SlotTakenError"; }
@@ -224,6 +225,11 @@ export async function convertLeadToJob(args: {
   // why this job is landing outside the normal funnel. Also used as the
   // corrective job_stage_event note when the job lands above 'lead'.
   reason?: string;
+  // Task 10: conversion resolution gate. `trigger` labels the auto-resolution note on
+  // open non-manual lead tasks; `resolutions` supplies explicit dispositions for open
+  // MANUAL lead tasks (otherwise conversion throws ConversionBlockedError).
+  trigger?: string;
+  resolutions?: Record<number, { status: "done" | "not_applicable"; reason?: string }>;
 }): Promise<{ jobId: string; customerId: string }> {
   return withTenant(args.tenantId, async (tx) => {
     const [l] = await tx.select().from(lead).where(eq(lead.id, args.leadId));
@@ -275,6 +281,16 @@ export async function convertLeadToJob(args: {
       }
       return { jobId: existing.id, customerId: l.customerId! };
     }
+
+    // Task 10 gate: resolve every still-open lead task before a job can be created.
+    // Runs early (before any job row exists) so ConversionBlockedError rolls back the
+    // whole transaction — a block never leaves a half-created job behind.
+    await resolveOpenLeadTasks(tx, {
+      tenantId: args.tenantId,
+      leadId: args.leadId,
+      trigger: args.trigger ?? "manual",
+      resolutions: args.resolutions,
+    });
 
     // Red-path invariant: a job is created FROM an accepted estimate. Out-of-funnel
     // jobs (insurance emergencies) bypass this via manualJob.

@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { LeadStatus, EvidenceRef } from "@savvy/core";
+import { effectiveMode, isManual } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 import { lead, taskRegistry, tenantTaskConfig, leadTask } from "../schema/index";
 
@@ -98,4 +99,78 @@ export async function backfillLeadTasks(tenantId: string): Promise<number> {
     }
     return total;
   });
+}
+
+/**
+ * Thrown by resolveOpenLeadTasks when open MANUAL lead tasks have no caller-supplied
+ * resolution. Carries the blocking task ids so the caller can prompt for resolutions.
+ */
+export class ConversionBlockedError extends Error {
+  constructor(public readonly openManualTaskIds: number[]) {
+    super(`conversion blocked: ${openManualTaskIds.length} open manual lead task(s)`);
+    this.name = "ConversionBlockedError";
+  }
+}
+
+/**
+ * Lead→job conversion resolution gate (Task 10). Every still-open lead task must be
+ * resolved explicitly before a lead can become a job: open auto/assisted tasks are
+ * auto-marked not_applicable with a logged reason (the funnel superseded them); open
+ * MANUAL tasks block conversion unless the caller supplies an explicit resolution.
+ * Runs inside the caller's transaction so a block rolls back cleanly (no job created).
+ */
+export async function resolveOpenLeadTasks(
+  tx: Tx,
+  args: {
+    tenantId: string;
+    leadId: string;
+    trigger: string;
+    resolutions?: Record<number, { status: "done" | "not_applicable"; reason?: string }>;
+  },
+): Promise<void> {
+  const open = await tx
+    .select({
+      taskId: leadTask.taskId,
+      defaultMode: taskRegistry.defaultMode,
+      overrideMode: tenantTaskConfig.mode,
+    })
+    .from(leadTask)
+    .innerJoin(taskRegistry, eq(taskRegistry.id, leadTask.taskId))
+    .leftJoin(
+      tenantTaskConfig,
+      and(eq(tenantTaskConfig.tenantId, args.tenantId), eq(tenantTaskConfig.taskId, leadTask.taskId)),
+    )
+    .where(
+      and(
+        eq(leadTask.tenantId, args.tenantId),
+        eq(leadTask.leadId, args.leadId),
+        inArray(leadTask.status, ["pending", "in_progress"]),
+      ),
+    );
+
+  const blocked: number[] = [];
+  for (const o of open) {
+    const manual = isManual(effectiveMode(o.defaultMode, o.overrideMode ?? null));
+    if (!manual) {
+      await tx
+        .update(leadTask)
+        .set({ status: "not_applicable", note: `auto: converted via ${args.trigger}`, completedAt: new Date() })
+        .where(and(eq(leadTask.leadId, args.leadId), eq(leadTask.taskId, o.taskId)));
+      continue;
+    }
+    const res = args.resolutions?.[o.taskId];
+    if (res) {
+      await tx
+        .update(leadTask)
+        .set({
+          status: res.status,
+          note: res.reason ?? null,
+          completedAt: res.status === "done" ? new Date() : null,
+        })
+        .where(and(eq(leadTask.leadId, args.leadId), eq(leadTask.taskId, o.taskId)));
+    } else {
+      blocked.push(o.taskId);
+    }
+  }
+  if (blocked.length) throw new ConversionBlockedError(blocked);
 }
