@@ -24,6 +24,10 @@ export async function convertCanvassContractToJob(input: {
     // rescissionHoldUntil/canvassRepName fields (stamped below), not a `document`
     // row, so it doesn't satisfy the generic contract-document check itself.
     reason: `canvass: signed contract (${input.contract.rep})`,
+    // Task 10 conversion resolution gate: labels the auto-resolution note on open
+    // non-manual lead tasks. Open MANUAL lead tasks with no resolution throw
+    // ConversionBlockedError, which the caller (canvass-contract.ts) catches.
+    trigger: "canvass",
   });
 
   await withTenant(input.tenantId, async (tx) => {
