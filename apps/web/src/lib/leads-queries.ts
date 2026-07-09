@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, lead, customer, property, user, communication, count, eq, not, inArray, desc, sql, getLeadArtifacts, type LeadArtifacts } from "@savvy/db";
+import { withTenant, lead, customer, property, user, communication, count, eq, not, inArray, desc, sql, getLeadArtifacts, getLeadNotes, type LeadArtifacts } from "@savvy/db";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -66,6 +66,13 @@ export type LeadComm = {
   createdAt: Date;
 };
 
+export type LeadNoteRow = {
+  id: string;
+  body: string;
+  authorUserId: string | null;
+  createdAt: Date;
+};
+
 export type ScoreFactor = { label: string; points: number };
 
 export type LeadDetail = {
@@ -99,6 +106,7 @@ export type LeadDetail = {
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
+  notes: LeadNoteRow[];
   stormCertStatus: "pending" | "verified" | "none" | "error";
   stormCheckedAt: Date | null;
   stormCertDocumentId: string | null;
@@ -161,6 +169,13 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
           .orderBy(desc(communication.createdAt))
           .limit(20)
       : [];
+    const noteRows = await getLeadNotes(tx, { tenantId, leadId: id });
+    const notes: LeadNoteRow[] = noteRows.map((n) => ({
+      id: n.id,
+      body: n.body,
+      authorUserId: n.authorUserId,
+      createdAt: n.createdAt,
+    }));
     return {
       id: row.id,
       status: row.status,
@@ -187,6 +202,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,
+      notes,
       stormCertStatus: row.stormCertStatus,
       stormCheckedAt: row.stormCheckedAt,
       stormCertDocumentId: row.stormCertDocumentId,

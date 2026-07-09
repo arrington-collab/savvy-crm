@@ -1,10 +1,11 @@
 "use server";
-import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, property, eq } from "@savvy/db";
+import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, addLeadNote, property, eq } from "@savvy/db";
 import { leadIntakeSchema, ROOF_TYPE_VALUES, ROOF_REPLACEMENT_SOURCE_VALUES } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { createLeadForTenant } from "./intake";
 import { inngest } from "@savvy/agents";
+import { getCurrentUser } from "./current-user";
 
 export async function createLead(
   input: unknown,
@@ -126,6 +127,28 @@ export async function setRoofReplacement(
     return { ok: true };
   } catch {
     return { error: "could not save replacement" };
+  }
+}
+
+/** Append-only lead note quick-add. Rejects empty/whitespace bodies. No edit/delete by design. */
+export async function addLeadNoteAction(
+  leadId: string,
+  body: string,
+): Promise<{ ok: true } | { error: string }> {
+  if (!body.trim()) return { error: "empty note" };
+  try {
+    const { tenantId, userId } = await getCurrentUser();
+    // TEST_MODE's getCurrentUser returns the non-UUID sentinel "test-user"; the
+    // lead_note author_user_id FK takes null rather than a fake id (same pattern
+    // as job_task.owner / audit.user_id).
+    const localUserId = userId === "test-user" ? null : userId;
+    await withTenant(tenantId, (tx) =>
+      addLeadNote(tx, { tenantId, leadId, authorUserId: localUserId, body }),
+    );
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not add note" };
   }
 }
 

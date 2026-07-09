@@ -14,6 +14,7 @@ import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 import { RoofTypeEditor } from "./RoofTypeEditor";
 import { RoofReplacementEditor } from "./RoofReplacementEditor";
+import { LeadNotes } from "./LeadNotes";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
@@ -22,6 +23,11 @@ import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 
 export const dynamic = "force-dynamic";
+
+/** Notes/comms merged feed row. Document events are Slice 4 — not included here. */
+type LeadFeedItem =
+  | { kind: "comm"; id: string; at: Date; body: string; channel: string; direction: string }
+  | { kind: "note"; id: string; at: Date; body: string };
 
 export default async function LeadDetailPage({
   params,
@@ -46,6 +52,23 @@ export default async function LeadDetailPage({
   });
 
   const qualifier = resolveAgent({ agent: "comms", taskKey: "lead.qualify" });
+
+  const feed: LeadFeedItem[] = [
+    ...detail.communications.map((c): LeadFeedItem => ({
+      kind: "comm",
+      id: c.id,
+      at: c.createdAt,
+      body: c.body ?? "",
+      channel: c.channel,
+      direction: c.direction,
+    })),
+    ...detail.notes.map((n): LeadFeedItem => ({
+      kind: "note",
+      id: n.id,
+      at: n.createdAt,
+      body: n.body,
+    })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   return (
     <div className="space-y-6" data-testid="lead-detail">
@@ -129,6 +152,8 @@ export default async function LeadDetailPage({
 
       <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
 
+      <LeadNotes leadId={detail.id} />
+
       <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
 
       <LeadDocsCard leadId={detail.id} documents={documents} parseSummaries={parseSummaries} />
@@ -147,21 +172,36 @@ export default async function LeadDetailPage({
 
       <Card className="p-4">
         <div className="eyebrow mb-3">Communications</div>
-        {detail.communications.length === 0 ? (
+        {feed.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-faint)" }}>No communications yet.</p>
         ) : (
           <ul className="space-y-3">
-            {detail.communications.map((c) => (
-              <li key={c.id} className="flex items-start gap-2 text-sm">
-                <AgentAvatar persona={qualifier.persona} size="sm" />
-                <div>
-                  <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
-                    {c.channel} · {c.direction} · {ago(c.createdAt)}
+            {feed.map((item) =>
+              item.kind === "note" ? (
+                <li key={`note-${item.id}`} className="flex items-start gap-2 text-sm">
+                  <span
+                    className="mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                    style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+                  >
+                    Note
+                  </span>
+                  <div>
+                    <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>{ago(item.at)}</div>
+                    <p className="text-sm" style={{ color: "var(--text-body)" }}>{item.body}</p>
                   </div>
-                  <MessageBody body={c.body} />
-                </div>
-              </li>
-            ))}
+                </li>
+              ) : (
+                <li key={`comm-${item.id}`} className="flex items-start gap-2 text-sm">
+                  <AgentAvatar persona={qualifier.persona} size="sm" />
+                  <div>
+                    <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
+                      {item.channel} · {item.direction} · {ago(item.at)}
+                    </div>
+                    <MessageBody body={item.body} />
+                  </div>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </Card>
