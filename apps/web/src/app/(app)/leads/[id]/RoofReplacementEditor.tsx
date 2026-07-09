@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { ROOF_REPLACEMENT_SOURCE_VALUES } from "@savvy/core";
 import { setRoofReplacement } from "@/lib/lead-actions";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,7 @@ export function RoofReplacementEditor({
   at: string | null;
   source: string | null;
 }) {
-  const [dateValue, setDateValue] = useState(at ?? "");
+  const dateRef = useRef<HTMLInputElement>(null);
   const [sourceValue, setSourceValue] = useState(source ?? "owner_reported");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +35,10 @@ export function RoofReplacementEditor({
   function save() {
     setSaved(false);
     setError(null);
-    if (!dateValue) return;
+    const at = dateRef.current?.value ?? "";
+    if (!at) return;
     start(async () => {
-      const r = await setRoofReplacement(leadId, propertyId!, { at: dateValue, source: sourceValue });
+      const r = await setRoofReplacement(leadId, propertyId!, { at, source: sourceValue });
       if ("ok" in r) setSaved(true);
       else setError(r.error);
     });
@@ -49,11 +50,9 @@ export function RoofReplacementEditor({
       <input
         type="date"
         data-testid="roof-replacement-date"
-        value={dateValue}
+        defaultValue={at ?? ""}
+        ref={dateRef}
         disabled={pending}
-        onChange={(e) => {
-          setDateValue(e.target.value);
-        }}
         className="rounded-md border bg-transparent px-2 py-1"
         style={{ borderColor: "var(--border)", color: "var(--text-body)" }}
       />
@@ -73,7 +72,7 @@ export function RoofReplacementEditor({
       <button
         type="button"
         data-testid="roof-replacement-save"
-        disabled={pending || !dateValue}
+        disabled={pending}
         onClick={save}
         className="rounded-md border px-2 py-1"
         style={{ borderColor: "var(--border)", color: "var(--text-body)" }}
