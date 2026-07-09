@@ -70,24 +70,6 @@ export async function markLeadLost(
   }
 }
 
-/** Human-supplied roof type (resolves a roof_type_needed exception). Validated against the enum. */
-export async function setPropertyRoofType(
-  leadId: string,
-  propertyId: string,
-  roofType: string,
-): Promise<{ ok: true } | { error: string }> {
-  if (!(ROOF_TYPE_VALUES as readonly string[]).includes(roofType)) return { error: "invalid roof type" };
-  try {
-    const tenantId = await getTenantId();
-    await withTenant(tenantId, (tx) => tx.update(property).set({ roofType }).where(eq(property.id, propertyId)));
-    revalidatePath(`/leads/${leadId}`);
-    revalidatePath("/exceptions");
-    return { ok: true };
-  } catch {
-    return { error: "could not set roof type" };
-  }
-}
-
 /** Human-supplied primary + optional secondary roof type. Both validated against the enum. */
 export async function setPropertyRoofTypes(
   leadId: string,

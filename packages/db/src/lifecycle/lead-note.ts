@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Tx } from "../tenant";
 import { leadNote } from "../schema/index";
 
@@ -23,6 +23,6 @@ export async function getLeadNotes(tx: Tx, args: { tenantId: string; leadId: str
   return tx
     .select()
     .from(leadNote)
-    .where(eq(leadNote.leadId, args.leadId))
+    .where(and(eq(leadNote.tenantId, args.tenantId), eq(leadNote.leadId, args.leadId)))
     .orderBy(desc(leadNote.createdAt));
 }

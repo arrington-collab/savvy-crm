@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 /** Notes/comms merged feed row. Document events are Slice 4 — not included here. */
 type LeadFeedItem =
   | { kind: "comm"; id: string; at: Date; body: string; channel: string; direction: string }
-  | { kind: "note"; id: string; at: Date; body: string };
+  | { kind: "note"; id: string; at: Date; body: string; authorName: string | null };
 
 export default async function LeadDetailPage({
   params,
@@ -67,6 +67,7 @@ export default async function LeadDetailPage({
       id: n.id,
       at: n.createdAt,
       body: n.body,
+      authorName: n.authorName,
     })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -186,7 +187,10 @@ export default async function LeadDetailPage({
                     Note
                   </span>
                   <div>
-                    <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>{ago(item.at)}</div>
+                    <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
+                      {item.authorName ? `${item.authorName} · ` : ""}
+                      {ago(item.at)}
+                    </div>
                     <p className="text-sm" style={{ color: "var(--text-body)" }}>{item.body}</p>
                   </div>
                 </li>

@@ -70,6 +70,7 @@ export type LeadNoteRow = {
   id: string;
   body: string;
   authorUserId: string | null;
+  authorName: string | null;
   createdAt: Date;
 };
 
@@ -170,10 +171,19 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
           .limit(20)
       : [];
     const noteRows = await getLeadNotes(tx, { tenantId, leadId: id });
+    const authorIds = [...new Set(noteRows.map((n) => n.authorUserId).filter((v): v is string => v !== null))];
+    const authorNames = authorIds.length
+      ? await tx
+          .select({ id: user.id, name: user.name })
+          .from(user)
+          .where(inArray(user.id, authorIds))
+      : [];
+    const authorNameById = new Map(authorNames.map((a) => [a.id, a.name]));
     const notes: LeadNoteRow[] = noteRows.map((n) => ({
       id: n.id,
       body: n.body,
       authorUserId: n.authorUserId,
+      authorName: n.authorUserId ? (authorNameById.get(n.authorUserId) ?? null) : null,
       createdAt: n.createdAt,
     }));
     return {
