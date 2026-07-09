@@ -25,7 +25,7 @@ describe("buildLeadFeatures — effective roof age", () => {
   it("uses the replacement date over year_built when present", () => {
     const f = buildLeadFeatures({
       source: "web", state: "AZ", roofType: "tile", roofTypeSecondary: null,
-      yearBuilt: 1990, lastRoofReplacementAt: "2015-01-01",
+      yearBuilt: 1990, lastRoofReplacementAt: "2015-06-01",
       storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null },
     });
     expect(f.roofAgeYears).toBe(new Date().getFullYear() - 2015);
