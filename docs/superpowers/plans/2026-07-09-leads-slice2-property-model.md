@@ -357,10 +357,8 @@ describe("Slice 2 schema — property roof columns + lead_note", () => {
   it("inserts a tenant-scoped lead_note", async () => {
     const { tenantId } = await makeTenant();
     const { leadId } = await makeLeadWithProperty(tenantId);
-    const [u] = await adminDb.execute(
-      // any user in the tenant; makeTenant seeds an admin — grab one
-    ) as unknown as [{ id: string }];
-    // Insert via adminDb using a known user id from the tenant:
+    // Grab any user in the tenant for author_user_id (prefer a helper-returned
+    // userId if makeTenant/makeLeadWithProperty exposes one — check helpers.ts).
     const users = await adminDb.execute<{ id: string }>(`select id from "user" where tenant_id = '${tenantId}' limit 1`);
     const authorUserId = users.rows[0]!.id;
     const [row] = await adminDb.insert(leadNote).values({ tenantId, leadId, authorUserId, body: "dog in backyard" }).returning();
