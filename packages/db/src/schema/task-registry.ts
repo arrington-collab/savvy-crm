@@ -90,6 +90,7 @@ export const jobTask = pgTable(
     status: jobTaskStatusEnum("status").notNull().default("pending"),
     owner: text("owner"), // agent name or user id at execution time
     evidence: jsonb("evidence").$type<Evidence>(),
+    note: text("note"), // resolution/not_applicable reason (conversion gate + manual)
     agentRunId: uuid("agent_run_id").references(() => agentRun.id), // command-center feed link
     blockedBy: integer("blocked_by").array().notNull().default([]), // computed from depends_on
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -119,6 +120,7 @@ export const leadTask = pgTable(
     status: jobTaskStatusEnum("status").notNull().default("pending"),
     owner: text("owner"), // agent name or user id at execution time
     evidence: jsonb("evidence").$type<Evidence>(),
+    note: text("note"), // resolution/not_applicable reason (conversion gate + manual)
     agentRunId: uuid("agent_run_id").references(() => agentRun.id),
     blockedBy: integer("blocked_by").array().notNull().default([]), // computed from depends_on
     completedAt: timestamp("completed_at", { withTimezone: true }),
