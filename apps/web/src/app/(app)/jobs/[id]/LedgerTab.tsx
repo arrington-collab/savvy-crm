@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { groupLedgerByPhase, currentPhase, ledgerGlyph, isManual, type LedgerRowInput } from "@savvy/core";
+import { groupLedgerByPhase, currentPhase, ledgerGlyph, isManual } from "@savvy/core";
 import type { JobLedgerRow } from "@savvy/db";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -108,17 +108,8 @@ function LedgerRowItem({
  * terminal) phases start closed except the current phase.
  */
 export function LedgerTab({ rows, jobId }: { rows: JobLedgerRow[]; jobId: string }) {
-  // groupLedgerByPhase's PhaseGroup.rows is typed to the pure-logic subset
-  // (LedgerRowInput); the runtime objects are still full JobLedgerRow — this
-  // cast just restores the type view for rendering (name/evidence/owner/etc).
-  const groups = groupLedgerByPhase(rows as unknown as LedgerRowInput[]) as unknown as {
-    phase: number;
-    done: number;
-    total: number;
-    collapsed: boolean;
-    rows: JobLedgerRow[];
-  }[];
-  const active = currentPhase(groups as unknown as Parameters<typeof currentPhase>[0]);
+  const groups = groupLedgerByPhase(rows);
+  const active = currentPhase(groups);
   const nameById = new Map(rows.map((r) => [r.taskId, r.name]));
 
   if (groups.length === 0) {

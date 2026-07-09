@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql } from "drizzl
 import {
   computeTaskHealth, buildTaskExceptions, sumFounderMinutes, BREAK_GLASS_ON_FAIL_CHECK_KEYS, effectiveMode,
   type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite, type TaskMode,
+  type JobTaskStatus,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException, invoice, tenant } from "../schema/index";
@@ -587,7 +588,7 @@ export type JobLedgerRow = {
   name: string;
   phase: number;
   slug: string;
-  status: string; // job_task status: pending | blocked | done | verified | exception
+  status: JobTaskStatus;
   owner: string | null;
   evidence: { type: string; ref: string; url?: string } | null;
   blockedBy: number[];
