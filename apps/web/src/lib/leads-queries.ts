@@ -94,6 +94,8 @@ export type LeadDetail = {
   yearBuilt: number | null;
   roofType: string | null;
   roofTypeSecondary: string | null;
+  lastRoofReplacementAt: string | null;
+  lastRoofReplacementSource: string | null;
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
@@ -129,6 +131,8 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         yearBuilt: property.yearBuilt,
         roofType: property.roofType,
         roofTypeSecondary: property.roofTypeSecondary,
+        lastRoofReplacementAt: property.lastRoofReplacementAt,
+        lastRoofReplacementSource: property.lastRoofReplacementSource,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
         stormCertStatus: lead.stormCertStatus,
@@ -178,6 +182,8 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       yearBuilt: row.yearBuilt,
       roofType: row.roofType,
       roofTypeSecondary: row.roofTypeSecondary,
+      lastRoofReplacementAt: row.lastRoofReplacementAt,
+      lastRoofReplacementSource: row.lastRoofReplacementSource,
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,

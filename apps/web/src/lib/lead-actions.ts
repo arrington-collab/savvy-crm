@@ -1,6 +1,6 @@
 "use server";
 import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, property, eq } from "@savvy/db";
-import { leadIntakeSchema, ROOF_TYPE_VALUES } from "@savvy/core";
+import { leadIntakeSchema, ROOF_TYPE_VALUES, ROOF_REPLACEMENT_SOURCE_VALUES } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { createLeadForTenant } from "./intake";
@@ -105,6 +105,27 @@ export async function setPropertyRoofTypes(
     return { ok: true };
   } catch {
     return { error: "could not set roof type" };
+  }
+}
+
+/** Human-supplied last roof-replacement date + source. Rejects invalid source/date and future dates. */
+export async function setRoofReplacement(
+  leadId: string,
+  propertyId: string,
+  input: { at: string; source: string },
+): Promise<{ ok: true } | { error: string }> {
+  if (!(ROOF_REPLACEMENT_SOURCE_VALUES as readonly string[]).includes(input.source)) return { error: "invalid source" };
+  const at = new Date(input.at);
+  if (Number.isNaN(at.getTime())) return { error: "invalid date" };
+  if (at.getTime() > Date.now()) return { error: "replacement date cannot be in the future" };
+  try {
+    const tenantId = await getTenantId();
+    await withTenant(tenantId, (tx) =>
+      tx.update(property).set({ lastRoofReplacementAt: input.at, lastRoofReplacementSource: input.source }).where(eq(property.id, propertyId)));
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not save replacement" };
   }
 }
 

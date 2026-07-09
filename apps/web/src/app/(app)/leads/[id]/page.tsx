@@ -13,6 +13,7 @@ import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
 import { RoofTypeEditor } from "./RoofTypeEditor";
+import { RoofReplacementEditor } from "./RoofReplacementEditor";
 import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
@@ -125,6 +126,8 @@ export default async function LeadDetailPage({
       />
 
       <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
+
+      <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
 
       <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
 
