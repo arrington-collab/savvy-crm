@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb, timestamp, date } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { leadStatusEnum, stormCertStatusEnum } from "./enums";
@@ -37,6 +37,9 @@ export const property = pgTable("property", {
   roofSqft: integer("roof_sqft"),
   roofPitch: text("roof_pitch"),
   yearBuilt: integer("year_built"),
+  roofTypeSecondary: text("roof_type_secondary"),
+  lastRoofReplacementAt: date("last_roof_replacement_at"),
+  lastRoofReplacementSource: text("last_roof_replacement_source"),
   stories: integer("stories"),
   notes: text("notes"),
   createdAt: createdAt(),
@@ -69,3 +72,12 @@ export const lead = pgTable("lead", {
   index("lead_voice_call_id_idx").on(t.tenantId, t.voiceCallId),
   tenantIsolation(),
 ]);
+
+export const leadNote = pgTable("lead_note", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  leadId: uuid("lead_id").notNull().references(() => lead.id),
+  authorUserId: uuid("author_user_id").notNull().references(() => user.id),
+  body: text("body").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("lead_note_tenant_lead_idx").on(t.tenantId, t.leadId), tenantIsolation()]);
