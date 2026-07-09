@@ -1,6 +1,6 @@
 import type { TaskMode, JobTaskStatus } from "./enums";
 
-export type LedgerState = "pending" | "blocked" | "done" | "verified" | "exception" | "na";
+export type LedgerState = "pending" | "in_progress" | "blocked" | "done" | "verified" | "exception" | "na";
 export interface LedgerRowInput { taskId: number; phase: number; status: JobTaskStatus; blockedBy: number[]; }
 export interface PhaseGroup<T extends LedgerRowInput = LedgerRowInput> {
   phase: number;
@@ -24,6 +24,9 @@ export function ledgerGlyph(status: JobTaskStatus, blockedBy: number[]): { glyph
   if (status === "done") return { glyph: "✓", state: "done" };
   if (status === "exception" || status === "failed") return { glyph: "✗", state: "exception" };
   if (status === "not_applicable" || status === "skipped") return { glyph: "–", state: "na" };
+  // in_progress is active work — show it distinctly (and ahead of blocked, so a row
+  // someone is actively working reads as in-progress even if a stale dep lingers).
+  if (status === "in_progress") return { glyph: "◐", state: "in_progress" };
   if (blockedBy.length > 0) return { glyph: "⊘", state: "blocked" };
   return { glyph: "○", state: "pending" };
 }

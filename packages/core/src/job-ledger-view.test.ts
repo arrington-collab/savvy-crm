@@ -6,9 +6,23 @@ describe("effectiveMode", () => {
   it("falls back to default", () => expect(effectiveMode("assisted", null)).toBe("assisted"));
 });
 
+describe("effectiveMode + isManual", () => {
+  it("isManual is true only for manual mode", () => {
+    expect(isManual("manual")).toBe(true);
+    expect(isManual("assisted")).toBe(false);
+    expect(isManual("full_auto")).toBe(false);
+  });
+});
+
 describe("ledgerGlyph", () => {
   it("pending with a blocker renders blocked", () => expect(ledgerGlyph("pending", [3]).state).toBe("blocked"));
   it("pending with no blocker renders pending", () => expect(ledgerGlyph("pending", []).state).toBe("pending"));
+  it("in_progress renders its own state (not pending, not blocked)", () => {
+    expect(ledgerGlyph("in_progress", []).state).toBe("in_progress");
+    expect(ledgerGlyph("in_progress", []).glyph).toBe("◐");
+    // active work wins over a lingering blocker
+    expect(ledgerGlyph("in_progress", [3]).state).toBe("in_progress");
+  });
   it("verified renders verified", () => expect(ledgerGlyph("verified", []).state).toBe("verified"));
   it("not_applicable renders na", () => expect(ledgerGlyph("not_applicable", []).state).toBe("na"));
 });
