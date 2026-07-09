@@ -21,3 +21,15 @@ describe("deriveLane", () => {
     expect(deriveLane(f({ roofType: "asphalt_shingle" }), cfg)).toBe("standard");
   });
 });
+
+describe("deriveLane — secondary roof type", () => {
+  it("routes to tile when the SECONDARY roof type is tile", () => {
+    expect(deriveLane(f({ roofType: "asphalt_shingle", roofTypeSecondary: "tile" }), cfg)).toBe("tile");
+  });
+  it("routes to tile when the PRIMARY is tile (unchanged)", () => {
+    expect(deriveLane(f({ roofType: "tile" }), cfg)).toBe("tile");
+  });
+  it("is standard when neither roof type is tile and no storm", () => {
+    expect(deriveLane(f({ roofType: "asphalt_shingle" }), cfg)).toBe("standard");
+  });
+});
