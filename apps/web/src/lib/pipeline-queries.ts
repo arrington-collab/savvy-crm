@@ -1,5 +1,5 @@
-import { withTenant, job, jobStageEvent, jobChecklistItem, customer, property, invoice, tenant, gatherStageEvidence, eq, and, desc, isNull, sql } from "@savvy/db";
-import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, PIPELINE_COLUMNS, type PipelineColumn, type Agent, type JobHealth, type JobStage, type JobType } from "@savvy/core";
+import { withTenant, job, jobStageEvent, jobTask, taskRegistry, tenantTaskConfig, customer, property, invoice, tenant, gatherStageEvidence, eq, and, asc, desc, sql } from "@savvy/db";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, firstUnblockedIncomplete, effectiveMode, isManual, PIPELINE_COLUMNS, type PipelineColumn, type WaitingOnTask, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getLeads } from "./leads-queries";
 import { resolveAgent, resolveAgentForStage, agentLabel } from "./agents";
@@ -83,22 +83,54 @@ const LEAD_WAITING: Record<string, string> = {
  */
 export async function getPipelineBoard(): Promise<PipelineBoardData> {
   const tenantId = await getTenantId();
-  const [board, velocityDays, nextTasks, leads] = await Promise.all([
+  const [board, velocityDays, ledgerRows, leads] = await Promise.all([
     getBoard(),
     getStageVelocity(),
-    // Next pending, non-deferred checklist item per job (earliest due first).
+    // Every job_task for the tenant, joined to the registry (name/phase/mode) and
+    // the tenant's mode override, ordered by execution order (phase, then task id)
+    // — a single batched query, not one per job.
     withTenant(tenantId, (tx) =>
       tx
-        .select({ jobId: jobChecklistItem.jobId, title: jobChecklistItem.title, automationLevel: jobChecklistItem.automationLevel, ownerAgent: jobChecklistItem.ownerAgent, dueAt: jobChecklistItem.dueAt })
-        .from(jobChecklistItem)
-        .where(and(eq(jobChecklistItem.tenantId, tenantId), eq(jobChecklistItem.status, "pending"), isNull(jobChecklistItem.deferredAt)))
-        .orderBy(sql`${jobChecklistItem.dueAt} asc nulls last`),
+        .select({
+          jobId: jobTask.jobId,
+          taskId: jobTask.taskId,
+          phase: taskRegistry.phase,
+          status: jobTask.status,
+          blockedBy: jobTask.blockedBy,
+          title: taskRegistry.name,
+          owner: jobTask.owner,
+          defaultOwner: taskRegistry.defaultOwner,
+          defaultMode: taskRegistry.defaultMode,
+          overrideMode: tenantTaskConfig.mode,
+        })
+        .from(jobTask)
+        .innerJoin(taskRegistry, eq(taskRegistry.id, jobTask.taskId))
+        .leftJoin(tenantTaskConfig, and(eq(tenantTaskConfig.tenantId, tenantId), eq(tenantTaskConfig.taskId, jobTask.taskId)))
+        .where(eq(jobTask.tenantId, tenantId))
+        .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id)),
     ),
     getLeads(),
   ]);
 
-  const nextByJob = new Map<string, (typeof nextTasks)[number]>();
-  for (const t of nextTasks) if (!nextByJob.has(t.jobId)) nextByJob.set(t.jobId, t);
+  // Group in memory (still phase/taskId-ordered within each group, since the
+  // query's global order is preserved under per-jobId filtering) and pick the
+  // first unblocked incomplete task per job.
+  const ledgerByJob = new Map<string, typeof ledgerRows>();
+  for (const r of ledgerRows) {
+    const arr = ledgerByJob.get(r.jobId);
+    if (arr) arr.push(r);
+    else ledgerByJob.set(r.jobId, [r]);
+  }
+  const nextByJob = new Map<string, WaitingOnTask>();
+  for (const [jobId, rows] of ledgerByJob) {
+    const winner = firstUnblockedIncomplete(rows);
+    if (!winner) continue;
+    nextByJob.set(jobId, {
+      title: winner.title,
+      ownerAgent: winner.owner ?? winner.defaultOwner,
+      isHuman: isManual(effectiveMode(winner.defaultMode, winner.overrideMode ?? null)),
+    });
+  }
 
   // Missing-evidence label for the NEXT stage after each job's current one — only
   // computed for jobs with no pending task (deriveWaitingOn prefers the task).
@@ -120,8 +152,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
     const column = jobStageToColumn(stage as JobStage);
     if (!column) continue; // lost — hidden
     for (const c of cards) {
-      const t = nextByJob.get(c.id);
-      const nextTask = t && t.ownerAgent ? { title: t.title, automationLevel: t.automationLevel ?? "manual", ownerAgent: t.ownerAgent as Agent } : null;
+      const nextTask = nextByJob.get(c.id) ?? null;
       const w = deriveWaitingOn({ nextTask, column, missingEvidence: missingByJob.get(c.id) ?? null });
       const owner = w.isHuman
         ? "You"

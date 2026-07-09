@@ -1,4 +1,4 @@
-import type { JobStage, Agent } from "./enums";
+import type { JobStage } from "./enums";
 
 /**
  * The Operator Console Pipeline board — one continuum from lead to paid. Pure so
@@ -24,9 +24,12 @@ export function jobStageToColumn(stage: JobStage): PipelineColumn | null {
   }
 }
 
-export type WaitingOnTask = { title: string; automationLevel: "full" | "partial" | "manual"; ownerAgent: Agent };
+// ownerAgent is a loosely-typed persona/owner key (job_task.owner or the registry
+// task's default owner) — a different scale than the domain Agent enum, so it's a
+// plain string here; resolveAgent() at the render layer narrows it.
+export type WaitingOnTask = { title: string; ownerAgent: string | null; isHuman: boolean };
 export type WaitingOnInput = { nextTask: WaitingOnTask | null; column: PipelineColumn; missingEvidence?: string | null };
-export type WaitingOn = { label: string; ownerAgent: Agent | null; isHuman: boolean };
+export type WaitingOn = { label: string; ownerAgent: string | null; isHuman: boolean };
 
 // When no job_task is instantiated, derive the waiting-on from the stage. No
 // owner is named (null) — the agents own it by default; we don't fabricate a
@@ -46,7 +49,7 @@ export function deriveWaitingOn(input: WaitingOnInput): WaitingOn {
     return {
       label: input.nextTask.title,
       ownerAgent: input.nextTask.ownerAgent,
-      isHuman: input.nextTask.automationLevel !== "full",
+      isHuman: input.nextTask.isHuman,
     };
   }
   if (input.missingEvidence) {
