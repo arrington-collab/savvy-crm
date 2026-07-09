@@ -13,7 +13,10 @@ export function effectiveRoofAge(
   now: Date,
 ): number | null {
   if (input.lastRoofReplacementAt) {
-    return now.getFullYear() - new Date(input.lastRoofReplacementAt).getFullYear();
+    // Use UTC year extraction: a date-only string like "2015-01-01" parses as
+    // UTC midnight, so a local getFullYear() can read back the prior year in
+    // negative-UTC-offset timezones (e.g. MST). getUTCFullYear avoids that drift.
+    return now.getFullYear() - new Date(input.lastRoofReplacementAt).getUTCFullYear();
   }
   return input.yearBuilt ? now.getFullYear() - input.yearBuilt : null;
 }
