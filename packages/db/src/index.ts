@@ -5,9 +5,10 @@ export { seedJobTasks } from "./lifecycle/seed-job-tasks";
 export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTasks, setJobTaskAutomationLevel } from "./lifecycle/job-tasks";
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks } from "./lifecycle/lead-tasks";
 export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, computeTenantRollup, reconcileTaskExceptions, getTenantRollup, getJobLedger, type JobLedgerRow, listOpenTaskExceptions, type OpenTaskException, markTaskExceptionViewed, getTaskDetail, type TaskDetail, recomputeFounderMinutes, listAutomationRoadmap, type RoadmapTask } from "./lifecycle/task-health";
-export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError } from "./lifecycle/record-stage-change";
+export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError, StageEvidenceError, BackwardNeedsReasonError } from "./lifecycle/record-stage-change";
 export { advanceJobStageForward } from "./lifecycle/advance-stage";
 export { missingProductionPhotos, hasScheduledCrewInstall } from "./lifecycle/production-signals";
+export { gatherStageEvidence } from "./lifecycle/stage-evidence-db";
 export { detectDepreciationRecovery, draftDepreciationInvoice, sendDepreciationInvoice, DEPRECIATION_TASK_KEY, DEPRECIATION_APPROVAL_TASK_KEY } from "./lifecycle/depreciation-recovery";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
 export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
@@ -16,6 +17,7 @@ export { setCustomerEmail, findCustomersNeedingEmail, type EmailSource, type Cus
 export {
   bookAppointment, rescheduleAppointment, reassignAppointment, cancelAppointment, setAppointmentStatus,
   getBusyIntervals, getCrewBusyStarts, convertLeadToJob, setAppointmentWeatherFlag, SlotTakenError, NoAssigneeError,
+  RescissionHoldError, ManualJobEvidenceError,
 } from "./lifecycle/appointments";
 export {
   createInvoice, createInvoiceFromEstimate, sendInvoice, voidInvoice,
@@ -91,3 +93,5 @@ export { applyDeliveryReceipt } from "./lifecycle/delivery-status";
 export { getA2pRegistration, setA2pRegistration } from "./lifecycle/a2p";
 export { setJobFinancingStatus } from "./lifecycle/financing";
 export { setClaimEndorsement } from "./lifecycle/endorsement";
+
+export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";

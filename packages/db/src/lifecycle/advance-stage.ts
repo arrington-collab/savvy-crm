@@ -40,6 +40,7 @@ export async function advanceJobStageForward(
   } catch (e) {
     if (e instanceof Error && e.name === "IncompletePhotosError") return { skipped: "photo_gate" };
     if (e instanceof Error && e.name === "IncompleteDocumentsError") return { skipped: "doc_gate" };
+    if (e instanceof Error && e.name === "StageEvidenceError") return { skipped: "evidence_gate" };
     throw e;
   }
   return { toStage: opts.toStage };

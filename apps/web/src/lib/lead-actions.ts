@@ -28,7 +28,7 @@ export async function convertLead(
   try {
     // Manual "convert lead" is the out-of-funnel escape hatch (insurance
     // emergencies): create the job without requiring an accepted estimate.
-    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true });
+    const { jobId } = await convertLeadToJob({ tenantId, leadId, manualJob: true, reason: "manual convert (out-of-funnel)" });
     revalidatePath("/leads");
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/jobs");

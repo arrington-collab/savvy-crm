@@ -7,7 +7,7 @@
  *   DATABASE_URL=... DATABASE_ADMIN_URL=... pnpm test estimate-sign
  */
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, eq, tenant, customer, property, job, lead, estimate, contractTemplate } from "@savvy/db";
+import { adminDb, withTenant, eq, tenant, customer, property, job, lead, estimate, contractTemplate, document } from "@savvy/db";
 import { makeFakeDocuseal } from "@savvy/integrations";
 import { ContractTemplateRequiredError } from "@savvy/core";
 import { createEstimateSubmission, advanceJobForAcceptedEstimate } from "./estimate-sign";
@@ -31,6 +31,9 @@ async function makeJobWithEstimate(tenantId: string): Promise<{ jobId: string; e
     .insert(estimate)
     .values({ tenantId, jobId: j!.id, source: "roofr", status: "draft", lineItems: [], total: 500000 })
     .returning();
+  // Evidence gate: `approved` needs inspection evidence too — a job at `estimate` stage
+  // already implies an inspection happened.
+  await adminDb.insert(document).values({ tenantId, jobId: j!.id, kind: "photo", r2Key: `${tenantId}/${j!.id}/insp.jpg` });
   return { jobId: j!.id, estimateId: e!.id };
 }
 
@@ -134,6 +137,9 @@ describe("advanceJobForAcceptedEstimate — lead-stage acceptance creates the jo
       .insert(estimate)
       .values({ tenantId, leadId: l!.id, propertyId: p!.id, source: "roofr", status: "sent", total: 500_000 })
       .returning();
+    // Evidence gate: inspection evidence on the lead so the job it converts into can
+    // clear the `approved` gate (approval evidence comes from estimate.status='accepted').
+    await adminDb.insert(document).values({ tenantId, leadId: l!.id, kind: "photo", r2Key: `${tenantId}/${l!.id}/insp.jpg` });
     return { leadId: l!.id, estimateId: e!.id };
   }
 

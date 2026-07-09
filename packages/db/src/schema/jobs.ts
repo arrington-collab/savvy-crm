@@ -26,6 +26,11 @@ export const job = pgTable("job", {
   openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
   stageEnteredAt: timestamp("stage_entered_at", { withTimezone: true }).defaultNow().notNull(),
+  // Canvass door-sale: production/material are held until this instant (statutory rescission
+  // window, computed from signedAt in tenant tz). Null = no hold. Auto-releases passively.
+  rescissionHoldUntil: timestamp("rescission_hold_until", { withTimezone: true }),
+  // Denormalized canvass rep name (canvass_rep is not a Clerk user) for commission attribution.
+  canvassRepName: text("canvass_rep_name"),
   createdAt: createdAt(),
 }, (t) => [
   index("job_tenant_stage_idx").on(t.tenantId, t.stage),

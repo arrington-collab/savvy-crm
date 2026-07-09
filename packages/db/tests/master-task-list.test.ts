@@ -75,10 +75,11 @@ describe("master task list seed (transform)", () => {
     expect(byId(76).checkKey).toBe("claim.endorsement_no_idle"); // Mortgage company endorsement tracking (cell 16)
     expect(byId(141).checkKey).toBe("finance.stripe_match"); // Payment processing — credit card (cell 8)
     expect(byId(150).checkKey).toBe("finance.qb_reconcile"); // QuickBooks sync — invoices & payments (cell 8)
+    expect(byId(6).checkKey).toBe("canvass.contract_to_job"); // Door-to-door canvassing (contract → job)
     expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
     // Exactly the bound set carries a check_key; everything else is null.
     const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
-    expect(bound).toEqual([18, 19, 24, 28, 32, 44, 49, 52, 76, 133, 139, 141, 150, 151, 213, 214]);
+    expect(bound).toEqual([6, 18, 19, 24, 28, 32, 44, 49, 52, 76, 133, 139, 141, 150, 151, 213, 214]);
   });
 
   it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {

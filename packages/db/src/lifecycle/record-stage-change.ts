@@ -2,9 +2,10 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { job, jobChecklistItem, jobStageEvent, auditLog, document, tenant } from "../schema/index";
 import { db } from "../client";
 import type { JobStage, Agent } from "@savvy/core";
-import { parseProductionConfig, missingRequiredDocs } from "@savvy/core";
+import { parseProductionConfig, missingRequiredDocs, JOB_STAGE, deriveContiguousStage, missingEvidenceFor } from "@savvy/core";
 import { missingProductionPhotos } from "./production-signals";
 import { chargebackCommissionsForJob } from "./commission-chargeback";
+import { gatherStageEvidence } from "./stage-evidence-db";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -26,6 +27,21 @@ export class IncompleteDocumentsError extends Error {
   }
 }
 
+export class StageEvidenceError extends Error {
+  missing: string | null;
+  constructor(missing: string | null) {
+    super(missing ? `stage requires evidence: ${missing}` : "stage requires evidence");
+    this.name = "StageEvidenceError";
+    this.missing = missing;
+  }
+}
+export class BackwardNeedsReasonError extends Error {
+  constructor(public readonly fromStage: string, public readonly toStage: string) {
+    super(`backward transition ${fromStage}→${toStage} requires a reason`);
+    this.name = "BackwardNeedsReasonError";
+  }
+}
+
 const DUE_DAYS = 3; // Phase 2 default SLA offset for activated tasks
 
 /**
@@ -36,8 +52,26 @@ const DUE_DAYS = 3; // Phase 2 default SLA offset for activated tasks
  */
 export async function recordStageChange(
   tx: Tx,
-  opts: { tenantId: string; jobId: string; toStage: JobStage; byUserId?: string | null; byAgent?: Agent | null; now?: Date },
+  opts: { tenantId: string; jobId: string; toStage: JobStage; byUserId?: string | null; byAgent?: Agent | null; now?: Date; reason?: string },
 ): Promise<{ activated: number; fromStage: JobStage | null }> {
+  const now = opts.now ?? new Date();
+  const [current] = await tx.select({ stage: job.stage }).from(job).where(eq(job.id, opts.jobId));
+  const fromStage = (current?.stage ?? null) as JobStage | null;
+
+  // Evidence gate — a job's stage is a consequence of evidence. `lost` is exempt (terminal).
+  if (opts.toStage !== "lost" && fromStage) {
+    const toIdx = JOB_STAGE.indexOf(opts.toStage);
+    const fromIdx = JOB_STAGE.indexOf(fromStage);
+    if (toIdx > fromIdx) {
+      const ev = await gatherStageEvidence(tx, { tenantId: opts.tenantId, jobId: opts.jobId });
+      if (toIdx > JOB_STAGE.indexOf(deriveContiguousStage(ev))) {
+        throw new StageEvidenceError(missingEvidenceFor(opts.toStage, ev));
+      }
+    } else if (toIdx < fromIdx) {
+      if (!opts.reason) throw new BackwardNeedsReasonError(fromStage, opts.toStage);
+    }
+  }
+
   if (opts.toStage === "complete") {
     const missing = await missingProductionPhotos(tx, opts.tenantId, opts.jobId);
     if (missing.length > 0) throw new IncompletePhotosError(missing);
@@ -57,15 +91,12 @@ export async function recordStageChange(
     }
   }
 
-  const now = opts.now ?? new Date();
-  const [current] = await tx.select({ stage: job.stage }).from(job).where(eq(job.id, opts.jobId));
-  const fromStage = (current?.stage ?? null) as JobStage | null;
-
   await tx.update(job).set({ stage: opts.toStage, stageEnteredAt: now }).where(eq(job.id, opts.jobId));
 
   await tx.insert(jobStageEvent).values({
     tenantId: opts.tenantId, jobId: opts.jobId, fromStage, toStage: opts.toStage,
     enteredAt: now, byUserId: opts.byUserId ?? null, byAgent: opts.byAgent ?? null,
+    note: opts.reason ?? null,
   });
 
   const dueAt = new Date(now.getTime() + DUE_DAYS * 86_400_000);

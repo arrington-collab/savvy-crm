@@ -194,8 +194,12 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
           setBoard(prevBoard);
           if (result.error === "missing_docs") {
             toast.error(`Can't move — missing documents: ${result.missing.join(", ")}`);
-          } else {
+          } else if (result.error === "missing_photos") {
             toast.error(`Can't mark complete — missing photos: ${result.missing.join(", ")}`);
+          } else if (result.error === "needs_evidence") {
+            toast.error(`Can't move — needs ${result.missing ?? "evidence"} first`);
+          } else {
+            toast.error("Can't move backward without a reason");
           }
           return;
         }

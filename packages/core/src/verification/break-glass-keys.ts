@@ -4,4 +4,5 @@
  *  forces break_glass=true + severity="high" regardless of dollar impact. */
 export const BREAK_GLASS_ON_FAIL_CHECK_KEYS: ReadonlySet<string> = new Set([
   "comms.deliverability",
+  "canvass.contract_to_job",
 ]);

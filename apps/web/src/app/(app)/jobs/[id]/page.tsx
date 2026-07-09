@@ -79,6 +79,7 @@ export default async function JobDetailPage({
         valueFinal: job.valueFinal,
         costCents: job.costCents,
         stageEnteredAt: job.stageEnteredAt,
+        rescissionHoldUntil: job.rescissionHoldUntil,
         propertyId: job.propertyId,
         companycamProjectId: job.companycamProjectId,
         customerName: customer.name,
@@ -390,6 +391,16 @@ export default async function JobDetailPage({
   return (
     <div data-testid="job-detail" className="space-y-6">
       <Breadcrumb segments={[{ label: "Jobs", href: "/jobs" }, { label: jobRow.customerName ?? "Job" }]} />
+      {jobRow.rescissionHoldUntil && new Date(jobRow.rescissionHoldUntil) > new Date() && (
+        <div
+          className="rounded-md border p-3 text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--surface-muted)" }}
+          data-testid="rescission-hold-banner"
+        >
+          <span className="font-medium">Production held</span> — rescission window. Materials &amp; crew scheduling release{" "}
+          {new Date(jobRow.rescissionHoldUntil).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.
+        </div>
+      )}
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">

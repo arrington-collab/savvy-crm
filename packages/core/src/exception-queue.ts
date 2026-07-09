@@ -1,6 +1,6 @@
 import { materialDeliveryFlag } from "./material-order";
 
-export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile";
+export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile" | "stage_evidence";
 export type ExceptionSeverity = "high" | "medium";
 
 export type ExceptionItem = {
@@ -20,6 +20,7 @@ export type MaterialDeliveryInput = { materialOrderId: string; jobId: string; cu
 export type TaskNeedsApprovalInput = { taskId: string; jobId: string; title: string; customerName: string | null; deferredAt: Date };
 export type WeatherAtRiskInput = { appointmentId: string; jobId: string; apptType: string; startsAt: Date; customerName: string | null; note: string };
 export type RoofTypeNeededInput = { jobId: string; leadId: string | null; propertyId: string; customerName: string | null; occurredAt: Date };
+export type StageEvidenceGapInput = { jobId: string; customerName: string | null; stage: string; missing: string; occurredAt: Date | null };
 export type MarginOutlierInput = { jobId: string; customerName: string | null; marginPct: number; occurredAt: Date | null };
 export type PhotoIncompleteInput = { jobId: string; customerName: string | null; missing: string[]; occurredAt: Date | null };
 export type PhotoUnmatchedInput = { documentId: string; captureAddress: string | null; occurredAt: Date | null };
@@ -37,6 +38,7 @@ export type ExceptionQueueInput = {
   taskNeedsApprovals: TaskNeedsApprovalInput[];
   weatherAtRisks: WeatherAtRiskInput[];
   roofTypeNeeded?: RoofTypeNeededInput[];
+  stageEvidenceGaps?: StageEvidenceGapInput[];
   marginOutliers?: MarginOutlierInput[];
   photoIncomplete?: PhotoIncompleteInput[];
   photoUnmatched?: PhotoUnmatchedInput[];
@@ -53,7 +55,7 @@ export type ExceptionQueue = {
   highCount: number;
 };
 
-const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval", "weather_at_risk", "roof_type_needed", "margin_outlier", "photo_incomplete", "photo_unmatched", "photo_quality", "supplier_invoice_unmatched", "supplier_credit_review", "supplier_credit_reconcile"];
+const KINDS: ExceptionKind[] = ["job_at_risk", "invoice_overdue", "appointment_missed", "task_overdue", "material_delivery", "task_needs_approval", "weather_at_risk", "roof_type_needed", "margin_outlier", "photo_incomplete", "photo_unmatched", "photo_quality", "supplier_invoice_unmatched", "supplier_credit_review", "supplier_credit_reconcile", "stage_evidence"];
 
 function dollars(cents: number | null): string {
   return cents == null ? "" : `$${Math.round(cents / 100).toLocaleString()}`;
@@ -147,6 +149,17 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       detail: "Roof type unknown — capture it",
       href: r.leadId ? `/leads/${r.leadId}` : `/jobs/${r.jobId}`,
       occurredAt: r.occurredAt,
+    });
+  }
+
+  for (const g of input.stageEvidenceGaps ?? []) {
+    items.push({
+      kind: "stage_evidence",
+      severity: "medium",
+      title: g.customerName ?? "—",
+      detail: `Stage '${g.stage}' lacks evidence: ${g.missing}`,
+      href: `/jobs/${g.jobId}`,
+      occurredAt: g.occurredAt,
     });
   }
 

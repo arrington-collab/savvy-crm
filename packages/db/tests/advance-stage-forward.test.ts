@@ -2,21 +2,34 @@ import { describe, it, expect } from "vitest";
 import { withTenant } from "../src/tenant.js";
 import { adminDb } from "../src/admin-client.js";
 import { advanceJobStageForward } from "../src/lifecycle/advance-stage.js";
-import { job } from "../src/schema/index.js";
+import { job, appointment, document, estimate } from "../src/schema/index.js";
 import { eq } from "drizzle-orm";
 import { makeTenant, makeJobWithCustomer } from "./helpers.js";
 import type { JobStage } from "@savvy/core";
 
-async function seedJobAt(stage: JobStage): Promise<{ tenantId: string; jobId: string }> {
+async function seedJobAt(stage: JobStage): Promise<{ tenantId: string; jobId: string; propertyId: string | null }> {
   const { tenantId } = await makeTenant();
   const { jobId } = await makeJobWithCustomer(tenantId);
-  await adminDb.update(job).set({ stage }).where(eq(job.id, jobId));
-  return { tenantId, jobId };
+  const [j] = await adminDb.update(job).set({ stage }).where(eq(job.id, jobId)).returning({ propertyId: job.propertyId });
+  return { tenantId, jobId, propertyId: j?.propertyId ?? null };
+}
+
+// Full contiguous evidence chain through 'production' — the evidence-derived
+// stage gate (Task 3) requires the whole chain from 'inspected' up, not just
+// the target stage's own evidence, before a job can advance to 'production'.
+async function seedProductionEvidence(tenantId: string, jobId: string, propertyId: string | null): Promise<void> {
+  await adminDb.insert(document).values({ tenantId, jobId, propertyId: propertyId ?? undefined, kind: "photo", r2Key: `${tenantId}/${jobId}/insp.jpg` });
+  await adminDb.insert(estimate).values({ tenantId, jobId, propertyId: propertyId ?? undefined, status: "accepted", lineItems: [] });
+  await adminDb.insert(appointment).values({
+    tenantId, jobId, type: "crew", status: "scheduled",
+    startsAt: new Date(), endsAt: new Date(Date.now() + 3_600_000),
+  });
 }
 
 describe("advanceJobStageForward", () => {
   it("advances a job forward and records the stage", async () => {
-    const { tenantId, jobId } = await seedJobAt("approved");
+    const { tenantId, jobId, propertyId } = await seedJobAt("approved");
+    await seedProductionEvidence(tenantId, jobId, propertyId);
     const r = await withTenant(tenantId, (tx) =>
       advanceJobStageForward(tx, { tenantId, jobId, toStage: "production", byAgent: "scheduling" }),
     );
@@ -36,7 +49,8 @@ describe("advanceJobStageForward", () => {
   });
 
   it("is idempotent: a second identical advance skips as not_forward", async () => {
-    const { tenantId, jobId } = await seedJobAt("approved");
+    const { tenantId, jobId, propertyId } = await seedJobAt("approved");
+    await seedProductionEvidence(tenantId, jobId, propertyId);
     await withTenant(tenantId, (tx) =>
       advanceJobStageForward(tx, { tenantId, jobId, toStage: "production", byAgent: "scheduling" }),
     );

@@ -123,6 +123,26 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
+  // Every stored canvass contract becomes a WON job within 15 minutes of signing. A stored
+  // contract document (kind='contract', canvass r2Key) older than 15m whose lead is not won
+  // or has no job is a signed contract that silently failed to become a job — lost revenue.
+  // Surfaced here and paged via break-glass (BREAK_GLASS_ON_FAIL_CHECK_KEYS).
+  "canvass.contract_to_job": invariant(
+    "canvass.contract_to_job",
+    `select d.id
+       from document d
+       join lead l on l.id = d.lead_id and l.tenant_id = d.tenant_id
+      where d.tenant_id = $1
+        and d.kind = 'contract'
+        and d.r2_key like '%/canvass/contract-%'
+        and d.created_at < now() - interval '15 minutes'
+        and (
+          l.status <> 'won'
+          or not exists (select 1 from job j where j.lead_id = l.id and j.tenant_id = l.tenant_id)
+        )`,
+    { toRef: (r) => ({ type: "document", ref: String(r.id) }) },
+  ),
+
   // Every typed lead document reaches a terminal parse state within 1h (`pending` past 1h
   // is a stall; `parse_failed`/`unparsed_low_confidence` are valid *carded* states).
   // Additionally, a `parsed` typed doc must have a storage object — a parsed row with a
@@ -165,6 +185,30 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and j.stage in ('inspected','estimate','approved','production','closeout','billing')
         and p.roof_type is null
         and j.stage_entered_at < now() - interval '48 hours'`,
+    { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
+  ),
+
+  // A job's stage must be backed by that stage's own evidence. Flags any job declared past
+  // what its evidence supports (e.g. 'inspected' with no completed inspection appt and no
+  // photo) — catches write-path bypasses. Unbound, like exceptions.roof_type.
+  "job.stage_evidence": invariant(
+    "job.stage_evidence",
+    `select j.id
+       from job j
+      where j.tenant_id = $1
+        and (
+          (j.stage = 'inspected' and not (
+             exists (select 1 from appointment a where a.tenant_id = j.tenant_id and (a.job_id = j.id or a.lead_id = j.lead_id) and a.type = 'inspection' and a.status = 'done')
+             or exists (select 1 from document d where d.tenant_id = j.tenant_id and (d.job_id = j.id or d.lead_id = j.lead_id) and d.kind = 'photo')))
+          or (j.stage = 'estimate' and not exists (select 1 from estimate e where e.tenant_id = j.tenant_id and (e.job_id = j.id or e.lead_id = j.lead_id)))
+          or (j.stage = 'approved' and not (
+             exists (select 1 from estimate e where e.tenant_id = j.tenant_id and (e.job_id = j.id or e.lead_id = j.lead_id) and e.status = 'accepted')
+             or exists (select 1 from document d where d.tenant_id = j.tenant_id and (d.job_id = j.id or d.lead_id = j.lead_id) and d.kind = 'contract')))
+          or (j.stage = 'production' and not (
+             exists (select 1 from appointment a where a.tenant_id = j.tenant_id and a.job_id = j.id and a.type = 'crew' and a.status = 'scheduled')
+             or exists (select 1 from material_order m where m.tenant_id = j.tenant_id and m.job_id = j.id and m.status in ('ordered','delivered'))))
+          or (j.stage = 'billing' and not exists (select 1 from invoice i where i.tenant_id = j.tenant_id and i.job_id = j.id))
+        )`,
     { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
   ),
 

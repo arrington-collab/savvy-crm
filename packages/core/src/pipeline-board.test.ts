@@ -102,3 +102,19 @@ describe("cardMatchesFilter", () => {
     expect(cardMatchesFilter({ ...base, valueCents: null }, "over_25k")).toBe(false);
   });
 });
+
+describe("deriveWaitingOn evidence-derived missing gate", () => {
+  it("names the next stage's missing evidence when there is no pending task", () => {
+    const w = deriveWaitingOn({ nextTask: null, column: "lead", missingEvidence: "inspection" });
+    expect(w.label).toBe("needs inspection");
+    expect(w.isHuman).toBe(true);
+  });
+  it("falls back to the column label when nothing is missing", () => {
+    const w = deriveWaitingOn({ nextTask: null, column: "lead", missingEvidence: null });
+    expect(w.label).toBe("enrich & qualify");
+  });
+  it("a pending task still wins over missing-evidence", () => {
+    const w = deriveWaitingOn({ nextTask: { title: "call HO", automationLevel: "manual", ownerAgent: "comms" }, column: "lead", missingEvidence: "inspection" });
+    expect(w.label).toBe("call HO");
+  });
+});

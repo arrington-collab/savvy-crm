@@ -25,7 +25,7 @@ export function jobStageToColumn(stage: JobStage): PipelineColumn | null {
 }
 
 export type WaitingOnTask = { title: string; automationLevel: "full" | "partial" | "manual"; ownerAgent: Agent };
-export type WaitingOnInput = { nextTask: WaitingOnTask | null; column: PipelineColumn };
+export type WaitingOnInput = { nextTask: WaitingOnTask | null; column: PipelineColumn; missingEvidence?: string | null };
 export type WaitingOn = { label: string; ownerAgent: Agent | null; isHuman: boolean };
 
 // When no job_task is instantiated, derive the waiting-on from the stage. No
@@ -48,6 +48,9 @@ export function deriveWaitingOn(input: WaitingOnInput): WaitingOn {
       ownerAgent: input.nextTask.ownerAgent,
       isHuman: input.nextTask.automationLevel !== "full",
     };
+  }
+  if (input.missingEvidence) {
+    return { label: `needs ${input.missingEvidence}`, ownerAgent: null, isHuman: true };
   }
   return { label: COLUMN_FALLBACK[input.column], ownerAgent: null, isHuman: false };
 }

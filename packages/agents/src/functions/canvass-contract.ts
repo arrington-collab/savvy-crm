@@ -1,6 +1,6 @@
-import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant } from "@savvy/db";
+import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant, convertCanvassContractToJob } from "@savvy/db";
 import type { StorageGateway, EmailSender } from "@savvy/integrations";
-import { r2Storage, getEmailSender } from "@savvy/integrations";
+import { r2Storage, getEmailSender, makeFakeStorage } from "@savvy/integrations";
 import type { CanvassContract } from "@savvy/core";
 import { parseEmailConfig, resolveOrThrowContractTemplate } from "@savvy/core";
 import { inngest } from "../client";
@@ -66,6 +66,8 @@ export async function storeCanvassContract(
   await withTenant(tenantId, (tx) =>
     tx.insert(document).values({
       tenantId,
+      leadId,
+      propertyId: l.propertyId ?? null,
       customerId: l.customerId,
       kind: "contract",
       label: contract.document,
@@ -165,8 +167,18 @@ export const canvassContractSigned = inngest.createFunction(
   { id: "canvass-contract-signed" },
   { event: "canvass/contract.signed" },
   async ({ event, step }) => {
+    // R2 isn't wired in e2e (TEST_MODE); use a no-op fake so the full contract→job workflow
+    // stays exercisable (mirrors the parse pipeline's TEST_MODE storage stub).
+    const storage = process.env.TEST_MODE === "1" ? makeFakeStorage() : r2Storage;
     const stored = await step.run("store-document", () =>
-      storeCanvassContract(event.data, { storage: r2Storage }),
+      storeCanvassContract(event.data, { storage }),
+    );
+
+    // A signed canvass contract IS the authorization — convert the lead to a job (manualJob;
+    // no accepted estimate on a door sale). Runs even on a replay/already-stored path so a
+    // crash between store and convert self-heals. Idempotent: convertLeadToJob keys off job.lead_id.
+    await step.run("convert-to-job", () =>
+      convertCanvassContractToJob({ tenantId: event.data.tenantId, leadId: event.data.leadId, contract: event.data.contract }),
     );
     // Email only on first storage — a replayed event never double-sends.
     let emailed: { sent: boolean; reason?: string } = { sent: false, reason: "skipped" };

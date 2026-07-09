@@ -1,10 +1,16 @@
 /**
- * e2e: completion gate + required-photo checklist
+ * e2e: completion-photo gate + required-photo checklist
+ *
+ * Under the contiguous evidence model the completion-photo requirement is the
+ * `closeoutPhotos` rung — it gates entry into the `closeout` stage. A job that
+ * lacks the before/after photos can't advance into closeout, and the generic
+ * evidence gate reports "completion photos" as the missing rung.
  *
  * Strategy:
- *  - DB-layer gate: call recordStageChange directly (via adminDb + withTenant)
- *    to prove IncompletePhotosError is thrown when photos are absent, and that
- *    the gate passes once photos are seeded.
+ *  - DB-layer gate: seed the contiguous chain up through `production`, then
+ *    call recordStageChange(->closeout) directly (via adminDb + withTenant) to
+ *    prove StageEvidenceError is thrown while the completion photos are absent,
+ *    and that the gate passes once before/after photos are seeded.
  *  - UI checklist: navigate to /jobs/{id} → Docs tab and assert the
  *    `data-testid="required-photo-{label}"` items show ✗ (missing) before
  *    photos are seeded and ✓ (present) after.
@@ -22,8 +28,10 @@ import {
   property,
   job,
   document,
+  estimate,
+  appointment,
   recordStageChange,
-  IncompletePhotosError,
+  StageEvidenceError,
   eq,
 } from "@savvy/db";
 
@@ -69,6 +77,34 @@ async function seedPhoto(jobId: string, label: string): Promise<void> {
   });
 }
 
+/**
+ * Seed the contiguous evidence chain up through `production` (inspection,
+ * estimate, approval, production) but NOT the before/after completion photos —
+ * so `closeoutPhotos` is the only unmet rung and the evidence gate blocks the
+ * move into closeout with "completion photos". The inspection photo carries a
+ * non-checklist label so it does not accidentally satisfy the completion gate.
+ */
+async function seedProductionEvidence(jobId: string): Promise<void> {
+  await adminDb.insert(document).values({
+    tenantId,
+    jobId,
+    kind: "photo",
+    label: "inspection",
+    r2Key: `e2e/${jobId}/inspection.jpg`,
+    filename: "inspection.jpg",
+    mime: "image/jpeg",
+  });
+  await adminDb.insert(estimate).values({ tenantId, jobId, lineItems: [], status: "accepted" });
+  await adminDb.insert(appointment).values({
+    tenantId,
+    jobId,
+    type: "crew",
+    status: "scheduled",
+    startsAt: new Date(Date.now() + 7 * 86_400_000),
+    endsAt: new Date(Date.now() + 7 * 86_400_000 + 3_600_000),
+  });
+}
+
 /** Read the current stage of a job directly from the DB (admin client, bypasses RLS). */
 async function getJobStage(jobId: string): Promise<string | null> {
   const [row] = await adminDb
@@ -80,40 +116,40 @@ async function getJobStage(jobId: string): Promise<string | null> {
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
-test.describe("completion gate", () => {
-  test("gate blocks complete when required photos are missing, then allows it after photos are seeded", async () => {
+test.describe("completion-photo gate", () => {
+  test("gate blocks closeout when completion photos are missing, then allows it after before/after photos are seeded", async () => {
     const stamp = Date.now().toString(36);
     const jobId = await seedRetailJob(stamp);
+    // full chain through production, minus the before/after completion photos
+    await seedProductionEvidence(jobId);
 
-    // ── 1) Gate rejects move when no photos present ──────────────────────
+    // ── 1) Evidence gate rejects the closeout move: completion photos absent ─
     let gateError: unknown;
     try {
       await withTenant(tenantId, (tx) =>
-        recordStageChange(tx, { tenantId, jobId, toStage: "complete" }),
+        recordStageChange(tx, { tenantId, jobId, toStage: "closeout" }),
       );
     } catch (e) {
       gateError = e;
     }
-    expect(gateError).toBeInstanceOf(IncompletePhotosError);
-    const missing = (gateError as IncompletePhotosError).missing;
-    expect(missing).toContain("before");
-    expect(missing).toContain("after");
+    expect(gateError).toBeInstanceOf(StageEvidenceError);
+    expect((gateError as StageEvidenceError).missing).toBe("completion photos");
 
-    // DB confirms the job did NOT advance to complete
+    // DB confirms the job did NOT advance out of production
     expect(await getJobStage(jobId)).toBe("production");
 
-    // ── 2) Seed the two required photos via adminDb ───────────────────────
+    // ── 2) Seed the two required completion photos via adminDb ────────────
     await seedPhoto(jobId, "before");
     await seedPhoto(jobId, "after");
 
-    // ── 3) Gate now allows the move ───────────────────────────────────────
+    // ── 3) Gate now allows the closeout move ──────────────────────────────
     const result = await withTenant(tenantId, (tx) =>
-      recordStageChange(tx, { tenantId, jobId, toStage: "complete" }),
+      recordStageChange(tx, { tenantId, jobId, toStage: "closeout" }),
     );
     expect(result).toMatchObject({ activated: expect.any(Number) });
 
-    // DB confirms the job reached complete
-    expect(await getJobStage(jobId)).toBe("complete");
+    // DB confirms the job reached closeout
+    expect(await getJobStage(jobId)).toBe("closeout");
   });
 });
 
