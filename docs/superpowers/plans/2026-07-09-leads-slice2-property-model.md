@@ -517,7 +517,17 @@ git commit -m "feat(db): append-only lead-note queries (addLeadNote/getLeadNotes
 
 ---
 
-### Task 6: Enrichment gap-fill guard
+### Task 6: Enrichment gap-fill guard — SKIPPED (redundant)
+
+> **SKIPPED during execution (owner-approved 2026-07-09).** The premise was inaccurate:
+> `enrichProperty` (packages/agents/src/functions/lead-intake.ts:64-76) already preserves
+> existing roof/year (`roofType = roofType ?? prop.roofType`; `getProperty` only called when
+> `yearBuilt == null`). So `enrichment.ts:71` never clobbers owner-edited data — the guard
+> would be redundant and TDD could not go red. The spec invariant "enrichment never overwrites
+> owner-confirmed roof/year" is already satisfied. Task 1's `roofYearGapFill` helper remains
+> available but unused; `canEnrichmentWriteReplacement` stays (forward-looking, tested in Task 1).
+
+#### (original task text below, not executed)
 
 **Files:**
 - Modify: `packages/agents/src/enrichment.ts:70-73`
