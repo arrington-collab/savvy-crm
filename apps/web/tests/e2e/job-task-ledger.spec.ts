@@ -69,6 +69,11 @@ test("Tasks tab shows only job-lifecycle tasks; marketing excluded", async ({ pa
   await expect(autoRow.getByRole("checkbox")).toHaveCount(0);
   await expect(autoRow.getByTestId("ledger-evidence")).toContainText(`payment:${stamp}`);
 
+  // Owner avatar resolves the TASK_OWNER "ATLAS" to the ATLAS persona, not the
+  // SAGE fallback (the regression this row is here to catch).
+  await expect(autoRow.locator('[title^="ATLAS"]')).toBeVisible();
+  await expect(autoRow.locator('[title^="ATLAS"]')).toHaveText("AT");
+
   await expect(page.getByTestId("ledger-phase").first()).toBeVisible();
 
   // The marketing checklist item must never surface in the ledger tab.

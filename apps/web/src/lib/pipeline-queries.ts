@@ -2,7 +2,7 @@ import { withTenant, job, jobStageEvent, jobTask, taskRegistry, tenantTaskConfig
 import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, firstUnblockedIncomplete, effectiveMode, isManual, PIPELINE_COLUMNS, type PipelineColumn, type WaitingOnTask, type JobHealth, type JobStage, type JobType } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getLeads } from "./leads-queries";
-import { resolveAgent, resolveAgentForStage, agentLabel } from "./agents";
+import { resolveAgentForStage, agentLabel, resolveTaskOwner } from "./agents";
 
 export type BoardCard = {
   id: string; stage: string; customerName: string; address: string;
@@ -156,7 +156,9 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
       const w = deriveWaitingOn({ nextTask, column, missingEvidence: missingByJob.get(c.id) ?? null });
       const owner = w.isHuman
         ? "You"
-        : agentLabel(w.ownerAgent ? resolveAgent({ agent: w.ownerAgent, taskKey: null }) : resolveAgentForStage(c.stage));
+        : w.ownerAgent
+          ? resolveTaskOwner(w.ownerAgent).label
+          : agentLabel(resolveAgentForStage(c.stage));
       columns[column].push({
         id: c.id, kind: "job", column,
         name: c.customerName, address: c.address, valueCents: c.valueEstimate,

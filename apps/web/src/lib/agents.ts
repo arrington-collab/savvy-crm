@@ -118,6 +118,25 @@ export function resolveAgent(row: { agent: string; taskKey?: string | null }): R
 }
 
 /**
+ * Resolve a `job_task.owner` / `task_registry.default_owner` value. These use a
+ * disjoint vocabulary from the domain `Agent` enum — a `PersonaKey` directly
+ * (SAGE/ATLAS/NOVA/MILO/VERA/SCOUT), the literal "HUMAN", or a user UUID string
+ * for manually-completed tasks. Never route this through `resolveAgent`, which
+ * only understands `Agent` values and silently falls through to SAGE for
+ * everything else. Never throws.
+ */
+export function resolveTaskOwner(owner: string | null): { persona: Persona | null; label: string; isHuman: boolean } {
+  if (owner && owner in PERSONAS) {
+    const persona = PERSONAS[owner as PersonaKey];
+    return { persona, label: persona.name, isHuman: false };
+  }
+  if (owner) {
+    return { persona: null, label: "You", isHuman: true };
+  }
+  return { persona: null, label: "—", isHuman: false };
+}
+
+/**
  * Resolve a persona from a job's pipeline stage (presentation heuristic — jobs
  * don't carry a real owning agent yet). TODO: replace with a real per-job agent.
  */

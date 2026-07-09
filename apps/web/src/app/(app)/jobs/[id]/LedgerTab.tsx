@@ -5,7 +5,7 @@ import { groupLedgerByPhase, currentPhase, ledgerGlyph, isManual } from "@savvy/
 import type { JobLedgerRow } from "@savvy/db";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
-import { resolveAgent } from "@/lib/agents";
+import { resolveTaskOwner } from "@/lib/agents";
 import { completeManualTask } from "@/lib/job-ledger-actions";
 
 // job_task status → cockpit token, mirrors JobLedgerCard's palette so the tab
@@ -58,7 +58,23 @@ function LedgerRowItem({
           {glyph}
         </span>
       )}
-      {row.owner ? <AgentAvatar persona={resolveAgent({ agent: row.owner }).persona} size="sm" /> : null}
+      {(() => {
+        const { persona, isHuman } = resolveTaskOwner(row.owner);
+        if (persona) return <AgentAvatar persona={persona} size="sm" />;
+        if (isHuman) {
+          return (
+            <span
+              className="flex h-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[9px] font-medium"
+              style={{ color: "var(--text-faint)", border: "1px solid var(--border)" }}
+              title="You"
+              aria-label="You"
+            >
+              You
+            </span>
+          );
+        }
+        return null;
+      })()}
       <span className="min-w-0 flex-1">
         <span
           className={done ? "block truncate text-sm text-muted-foreground line-through" : "block truncate text-sm"}
