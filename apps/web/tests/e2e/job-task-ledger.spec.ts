@@ -11,10 +11,12 @@ import { adminDb, withTenant, customer, property, job, jobTask, jobChecklistItem
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
-// Task 43 = "Homeowner inspection walkthrough" (Manual, per_job, all job types).
-// Task 141 = "Payment processing — credit card" (Full Auto, per_job, all job types).
+// Task 43 = "Homeowner inspection walkthrough" (Manual, per_job, Inspection phase 3).
+// Task 46 = "Post-inspection follow-up (no sign)" (Full Auto, per_job, Inspection phase 3).
+// Both share phase 3, so the pending manual task keeps that section open — a done
+// task alone in its phase would collapse it (completed phases collapse) and hide the row.
 const MANUAL_TASK_ID = 43;
-const AUTO_TASK_ID = 141;
+const AUTO_TASK_ID = 46;
 
 test("Tasks tab shows only job-lifecycle tasks; marketing excluded", async ({ page }) => {
   const regs = await adminDb
@@ -64,7 +66,7 @@ test("Tasks tab shows only job-lifecycle tasks; marketing excluded", async ({ pa
   await expect(manualRow.getByRole("checkbox")).toBeVisible();
 
   // Auto row: no checkbox, evidence citation visible.
-  const autoRow = page.locator('[data-testid="task-row"][data-origin="job"]', { hasText: "Payment processing" });
+  const autoRow = page.locator('[data-testid="task-row"][data-origin="job"]', { hasText: "Post-inspection follow-up" });
   await expect(autoRow).toBeVisible();
   await expect(autoRow.getByRole("checkbox")).toHaveCount(0);
   await expect(autoRow.getByTestId("ledger-evidence")).toContainText(`payment:${stamp}`);
