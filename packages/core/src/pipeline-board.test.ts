@@ -42,7 +42,7 @@ describe("jobStageToColumn", () => {
 describe("deriveWaitingOn", () => {
   it("uses the next pending task's title + owner when one exists", () => {
     const w = deriveWaitingOn({
-      nextTask: { title: "Roof type", automationLevel: "manual", ownerAgent: "scheduling" },
+      nextTask: { title: "Roof type", isHuman: true, ownerAgent: "scheduling" },
       column: "inspected",
     });
     expect(w.label).toBe("Roof type");
@@ -52,11 +52,22 @@ describe("deriveWaitingOn", () => {
 
   it("treats a full-auto next task as owned by an agent, not a human", () => {
     const w = deriveWaitingOn({
-      nextTask: { title: "Enrich roof age", automationLevel: "full", ownerAgent: "orchestrator" },
+      nextTask: { title: "Enrich roof age", isHuman: false, ownerAgent: "orchestrator" },
       column: "lead",
     });
     expect(w.isHuman).toBe(false);
     expect(w.ownerAgent).toBe("orchestrator");
+  });
+
+  it("names the first unblocked incomplete task (the mode-derived isHuman flag, not automationLevel)", () => {
+    const w = deriveWaitingOn({
+      column: "production",
+      nextTask: { title: "Order materials", ownerAgent: "MILO", isHuman: false },
+      missingEvidence: null,
+    });
+    expect(w.label).toBe("Order materials");
+    expect(w.ownerAgent).toBe("MILO");
+    expect(w.isHuman).toBe(false);
   });
 
   it("falls back to a stage-derived action with no named owner when no task is instantiated", () => {
@@ -114,7 +125,7 @@ describe("deriveWaitingOn evidence-derived missing gate", () => {
     expect(w.label).toBe("enrich & qualify");
   });
   it("a pending task still wins over missing-evidence", () => {
-    const w = deriveWaitingOn({ nextTask: { title: "call HO", automationLevel: "manual", ownerAgent: "comms" }, column: "lead", missingEvidence: "inspection" });
+    const w = deriveWaitingOn({ nextTask: { title: "call HO", isHuman: true, ownerAgent: "comms" }, column: "lead", missingEvidence: "inspection" });
     expect(w.label).toBe("call HO");
   });
 });

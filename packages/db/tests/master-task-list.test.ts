@@ -3,7 +3,13 @@ import { inArray } from "drizzle-orm";
 import { evidenceChecks } from "@savvy/core";
 import { adminDb, adminPool } from "../src/admin-client.js";
 import { taskRegistry } from "../src/schema/index.js";
-import { buildTaskRegistrySeed, toAppliesTo, seedTaskRegistry, CHECK_BINDINGS } from "../seeds/master-task-list.js";
+import {
+  buildTaskRegistrySeed,
+  buildRegistryRows,
+  toAppliesTo,
+  seedTaskRegistry,
+  CHECK_BINDINGS,
+} from "../seeds/master-task-list.js";
 
 // Expected task count per phase (from the code-reviewed extraction of the PDF +
 // cell-6 deliverability monitoring (213) and onboarding-lockout guard (214),
@@ -86,6 +92,23 @@ describe("master task list seed (transform)", () => {
     for (const [taskId, checkKey] of Object.entries(CHECK_BINDINGS)) {
       expect(evidenceChecks[checkKey], `task ${taskId} -> "${checkKey}"`).toBeDefined();
     }
+  });
+});
+
+describe("master task list scope", () => {
+  it("scopes tenant-recurring marketing tasks as per_tenant_recurring", () => {
+    const rows = buildRegistryRows();
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const id of [2, 4, 12, 14]) {
+      expect(byId.get(id)?.scope, `task ${id}`).toBe("per_tenant_recurring");
+    }
+  });
+
+  it("leaves genuine per_job tasks alone", () => {
+    const rows = buildRegistryRows();
+    // a core production task (e.g. an install-phase task) stays per_job
+    const install = rows.find((r) => r.phase >= 6 && r.phase <= 8);
+    expect(install?.scope).toBe("per_job");
   });
 });
 

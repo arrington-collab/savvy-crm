@@ -1,4 +1,4 @@
-import { withTenant, eq, sql, estimate, job, lead, customer, property, contractTemplate, recordStageChange, convertLeadToJob } from "@savvy/db";
+import { withTenant, eq, sql, estimate, job, lead, customer, property, contractTemplate, recordStageChange, convertLeadToJob, ConversionBlockedError } from "@savvy/db";
 import { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "@savvy/integrations";
 import { resolveOrThrowContractTemplate } from "@savvy/core";
 import { inngest } from "../client";
@@ -73,7 +73,7 @@ export async function createEstimateSubmission(
 export async function advanceJobForAcceptedEstimate(
   tenantId: string,
   estimateId: string,
-): Promise<{ jobId: string } | { skipped: string }> {
+): Promise<{ jobId: string } | { skipped: string; openManualTaskIds?: number[] }> {
   // Step 1: mark accepted first, so the convert gate below finds an accepted
   // estimate on the lead.
   const est = await withTenant(tenantId, async (tx) => {
@@ -88,8 +88,19 @@ export async function advanceJobForAcceptedEstimate(
   let jobId = est.jobId;
   if (!jobId) {
     if (!est.leadId) return { skipped: "no_job_or_lead" };
-    const conv = await convertLeadToJob({ tenantId, leadId: est.leadId });
-    jobId = conv.jobId;
+    try {
+      const conv = await convertLeadToJob({ tenantId, leadId: est.leadId, trigger: "estimate-sign" });
+      jobId = conv.jobId;
+    } catch (e) {
+      // Task 10 conversion resolution gate: an open MANUAL lead task with no
+      // resolution blocks conversion. Leave the lead unconverted — the open
+      // task remains visible on the lead; a human resolves it, then this
+      // acceptance event (or a re-fire) converts cleanly.
+      if (e instanceof ConversionBlockedError) {
+        return { skipped: "conversion_blocked", openManualTaskIds: e.openManualTaskIds };
+      }
+      throw e;
+    }
   }
 
   // Step 3: advance the job to approved + stamp value (idempotent).

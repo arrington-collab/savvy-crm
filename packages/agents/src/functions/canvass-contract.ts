@@ -1,4 +1,4 @@
-import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant, convertCanvassContractToJob } from "@savvy/db";
+import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant, convertCanvassContractToJob, ConversionBlockedError } from "@savvy/db";
 import type { StorageGateway, EmailSender } from "@savvy/integrations";
 import { r2Storage, getEmailSender, makeFakeStorage } from "@savvy/integrations";
 import type { CanvassContract } from "@savvy/core";
@@ -163,6 +163,29 @@ ${contract.termsText ? termsHtml(contract.termsText) : `<p style="font-size:13px
   }
 }
 
+/**
+ * Converts a signed canvass contract's lead to a job, catching Task 10's conversion
+ * resolution gate. An open MANUAL lead task with no resolution throws
+ * ConversionBlockedError — leave the lead unconverted (the open task stays visible
+ * on the lead; a human resolves it, then a re-fire of the signing event converts
+ * cleanly) instead of crashing the step. Extracted so it's directly unit-testable
+ * (mirrors advanceJobForAcceptedEstimate's skip branch in estimate-sign.ts).
+ */
+export async function convertCanvassContractOrSkip(input: {
+  tenantId: string;
+  leadId: string;
+  contract: CanvassContract;
+}): Promise<{ jobId: string } | { skipped: "conversion_blocked"; openManualTaskIds: number[] }> {
+  try {
+    return await convertCanvassContractToJob(input);
+  } catch (e) {
+    if (e instanceof ConversionBlockedError) {
+      return { skipped: "conversion_blocked" as const, openManualTaskIds: e.openManualTaskIds };
+    }
+    throw e;
+  }
+}
+
 export const canvassContractSigned = inngest.createFunction(
   { id: "canvass-contract-signed" },
   { event: "canvass/contract.signed" },
@@ -177,9 +200,12 @@ export const canvassContractSigned = inngest.createFunction(
     // A signed canvass contract IS the authorization — convert the lead to a job (manualJob;
     // no accepted estimate on a door sale). Runs even on a replay/already-stored path so a
     // crash between store and convert self-heals. Idempotent: convertLeadToJob keys off job.lead_id.
-    await step.run("convert-to-job", () =>
-      convertCanvassContractToJob({ tenantId: event.data.tenantId, leadId: event.data.leadId, contract: event.data.contract }),
+    const converted = await step.run("convert-to-job", () =>
+      convertCanvassContractOrSkip({ tenantId: event.data.tenantId, leadId: event.data.leadId, contract: event.data.contract }),
     );
+    if ("skipped" in converted) {
+      return { ...stored, converted, emailed: { sent: false, reason: "skipped" } };
+    }
     // Email only on first storage — a replayed event never double-sends.
     let emailed: { sent: boolean; reason?: string } = { sent: false, reason: "skipped" };
     if (stored.stored) {

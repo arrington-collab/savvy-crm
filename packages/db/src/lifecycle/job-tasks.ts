@@ -1,7 +1,15 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { jobTaskApplies, type JobType, type JobStage, type EvidenceRef, type AutomationLevel } from "@savvy/core";
+import {
+  jobTaskApplies,
+  effectiveMode,
+  isManual,
+  type JobType,
+  type JobStage,
+  type EvidenceRef,
+  type AutomationLevel,
+} from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
-import { job, taskRegistry, tenantTaskConfig, jobTask, jobChecklistItem } from "../schema/index";
+import { job, taskRegistry, tenantTaskConfig, jobTask, jobChecklistItem, auditLog } from "../schema/index";
 
 /**
  * Set a cockpit task's automation level (Background Ops: Manual → AI-assisted → AI-auto,
@@ -103,6 +111,50 @@ export async function markJobTaskDoneTx(tx: Tx, tenantId: string, args: MarkJobT
 
 export async function markJobTaskDone(tenantId: string, args: MarkJobTaskArgs): Promise<void> {
   await withTenant(tenantId, (tx) => markJobTaskDoneTx(tx, tenantId, args));
+}
+
+/**
+ * Manual-mode job_task completion (Task 7's Tasks-tab checkbox lands here).
+ * Rejects anything whose effective mode (tenant override, else the registry
+ * default) isn't manual — assisted/full_auto tasks are done by their agent,
+ * not ticked by a human. Writes an audit_log row so completion/reopen is
+ * traceable. `userId` is the local `user.id` uuid (resolved by the caller via
+ * getCurrentUser), so it stamps both `job_task.owner` and the FK'd
+ * `audit_log.user_id`. In TEST_MODE the caller passes null (the sentinel isn't
+ * a real user row); the FK is nullable, so the audit row records null.
+ */
+export async function completeJobTaskManually(
+  tx: Tx,
+  args: { tenantId: string; jobId: string; taskId: number; userId: string | null; done: boolean },
+): Promise<void> {
+  const [reg] = await tx
+    .select({ defaultMode: taskRegistry.defaultMode })
+    .from(taskRegistry)
+    .where(eq(taskRegistry.id, args.taskId));
+  const [cfg] = await tx
+    .select({ mode: tenantTaskConfig.mode })
+    .from(tenantTaskConfig)
+    .where(and(eq(tenantTaskConfig.tenantId, args.tenantId), eq(tenantTaskConfig.taskId, args.taskId)));
+  if (!reg || !isManual(effectiveMode(reg.defaultMode, cfg?.mode ?? null))) throw new Error("not_manual");
+
+  await tx
+    .update(jobTask)
+    .set({
+      status: args.done ? "done" : "pending",
+      owner: args.done ? args.userId : null,
+      completedAt: args.done ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(jobTask.tenantId, args.tenantId), eq(jobTask.jobId, args.jobId), eq(jobTask.taskId, args.taskId)));
+
+  await tx.insert(auditLog).values({
+    tenantId: args.tenantId,
+    userId: args.userId,
+    entityType: "job",
+    entityId: args.jobId,
+    action: args.done ? "task_completed" : "task_reopened",
+    diff: { taskId: args.taskId },
+  });
 }
 
 /**

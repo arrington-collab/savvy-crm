@@ -9,7 +9,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { adminDb, customer, property, job, lead, jobChecklistItem } from "@savvy/db";
+import { adminDb, customer, property, job, lead, jobTask } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
@@ -21,7 +21,10 @@ test("Pipeline merges jobs + leads onto one board with waiting-on lines", async 
   const [jc] = await adminDb.insert(customer).values({ tenantId, name: `PJob ${stamp}`, email: `pjob-${stamp}@e2e.test` }).returning();
   const [jp] = await adminDb.insert(property).values({ tenantId, customerId: jc!.id, address: `${stamp} Pipe St` }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: jc!.id, propertyId: jp!.id, type: "insurance", stage: "estimate", valueEstimate: 32750_00 }).returning();
-  await adminDb.insert(jobChecklistItem).values({ tenantId, jobId: j!.id, key: "est-1", title: `Approve estimate ${stamp}`, ownerAgent: "finance", automationLevel: "manual", status: "pending" });
+  // Waiting-on now reads the registry-backed job_task ledger, not a custom
+  // checklist item. Task 43 = "Homeowner inspection walkthrough" (Manual,
+  // per_job) — with the registry seeded (create-tenant.ts), the join resolves it.
+  await adminDb.insert(jobTask).values({ tenantId, jobId: j!.id, taskId: 43, status: "pending" });
 
   // An open lead → shows in the Lead column (no $).
   const [lc] = await adminDb.insert(customer).values({ tenantId, name: `PLead ${stamp}`, email: `plead-${stamp}@e2e.test` }).returning();
@@ -34,7 +37,7 @@ test("Pipeline merges jobs + leads onto one board with waiting-on lines", async 
   // Job card lands in the Estimate column with its waiting-on line + owner.
   const jobCard = page.getByTestId("pipeline-card").filter({ hasText: `PJob ${stamp}` });
   await expect(jobCard).toHaveAttribute("data-column", "estimate");
-  await expect(jobCard).toContainText(`Approve estimate ${stamp}`);
+  await expect(jobCard).toContainText("Homeowner inspection walkthrough");
   await expect(jobCard).toContainText("You"); // manual task → a human owes it
 
   // Lead card lands in the Lead column (jobs + leads merged).

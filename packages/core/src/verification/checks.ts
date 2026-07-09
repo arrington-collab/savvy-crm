@@ -212,6 +212,19 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
   ),
 
+  // A job ledger must contain ONLY per_job tasks. Any job_task pointing at a
+  // task whose registry scope != 'per_job' is a scope-integrity violation
+  // (a tenant/lead-scoped task wrongly instantiated on a job). Unbound —
+  // this is a structural guard, not a per-task evidence check.
+  "job.scope_integrity": invariant(
+    "job.scope_integrity",
+    `select jt.id
+       from job_task jt
+       join task_registry tr on tr.id = jt.task_id
+      where jt.tenant_id = $1 and tr.scope <> 'per_job'`,
+    { toRef: (r) => ({ type: "job_task", ref: String(r.id) }) },
+  ),
+
   // Speed-to-lead: first rep contact within 5m of lead creation. Flags leads
   // created in-window that were never contacted (past a 15m grace) or contacted
   // late. NOTE: business-hours/tenant-TZ refinement is deferred to the sweep

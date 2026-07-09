@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
-  computeTaskHealth, buildTaskExceptions, sumFounderMinutes, BREAK_GLASS_ON_FAIL_CHECK_KEYS,
-  type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite,
+  computeTaskHealth, buildTaskExceptions, sumFounderMinutes, BREAK_GLASS_ON_FAIL_CHECK_KEYS, effectiveMode,
+  type TaskHealthInputs, type TaskHealthResult, type EvidenceResult, type TaskException, type TenantRollupLite, type TaskMode,
+  type JobTaskStatus,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 import { taskRegistry, tenantTaskConfig, taskHealth, verificationRun, jobTask, leadTask, job, tenantOpsRollup, taskException, invoice, tenant } from "../schema/index";
@@ -587,24 +588,30 @@ export type JobLedgerRow = {
   name: string;
   phase: number;
   slug: string;
-  status: string; // job_task status: pending | blocked | done | verified | exception
+  status: JobTaskStatus;
   owner: string | null;
   evidence: { type: string; ref: string; url?: string } | null;
   blockedBy: number[];
   healthStatus: string | null; // task_health status (null until the sweep scores it)
   completedAt: Date | null;
   verifiedAt: Date | null;
+  mode: TaskMode; // effective mode: tenant override or registry default
+  defaultMode: TaskMode;
+  origin: "job" | "lead"; // "lead" rows are read-only history carried from the lead
+  note: string | null;
 };
 
 /**
  * The Job Ledger for a job (read-only): every instantiated job_task joined to its
  * registry task (name/phase) and current scoreboard health, ordered by phase then
- * task id. This is the ground truth Sage cites for "is X done?" — the answer is
- * these rows + evidence refs, never model memory.
+ * task id, UNIONED with the lead's lead_task history (origin:"lead") when the job
+ * has a lead_id — the pre-conversion record stays visible instead of vanishing at
+ * job creation. This is the ground truth Sage cites for "is X done?" — the answer
+ * is these rows + evidence refs, never model memory.
  */
 export async function getJobLedger(tenantId: string, jobId: string): Promise<JobLedgerRow[]> {
-  return withTenant(tenantId, (tx) =>
-    tx
+  return withTenant(tenantId, async (tx) => {
+    const jobRows = await tx
       .select({
         taskId: jobTask.taskId,
         name: taskRegistry.name,
@@ -617,13 +624,78 @@ export async function getJobLedger(tenantId: string, jobId: string): Promise<Job
         healthStatus: taskHealth.status,
         completedAt: jobTask.completedAt,
         verifiedAt: jobTask.verifiedAt,
+        note: jobTask.note,
+        defaultMode: taskRegistry.defaultMode,
+        overrideMode: tenantTaskConfig.mode,
       })
       .from(jobTask)
       .innerJoin(taskRegistry, eq(taskRegistry.id, jobTask.taskId))
       .leftJoin(taskHealth, and(eq(taskHealth.taskId, jobTask.taskId), eq(taskHealth.tenantId, jobTask.tenantId)))
+      .leftJoin(tenantTaskConfig, and(eq(tenantTaskConfig.tenantId, tenantId), eq(tenantTaskConfig.taskId, jobTask.taskId)))
       .where(and(eq(jobTask.tenantId, tenantId), eq(jobTask.jobId, jobId)))
-      .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id)),
-  );
+      .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id));
+
+    const [jobRow] = await tx.select({ leadId: job.leadId }).from(job).where(and(eq(job.tenantId, tenantId), eq(job.id, jobId)));
+
+    const leadRows = jobRow?.leadId
+      ? await tx
+          .select({
+            taskId: leadTask.taskId,
+            name: taskRegistry.name,
+            phase: taskRegistry.phase,
+            slug: taskRegistry.slug,
+            status: leadTask.status,
+            owner: leadTask.owner,
+            evidence: leadTask.evidence,
+            blockedBy: leadTask.blockedBy,
+            note: leadTask.note,
+            defaultMode: taskRegistry.defaultMode,
+            overrideMode: tenantTaskConfig.mode,
+          })
+          .from(leadTask)
+          .innerJoin(taskRegistry, eq(taskRegistry.id, leadTask.taskId))
+          .leftJoin(tenantTaskConfig, and(eq(tenantTaskConfig.tenantId, tenantId), eq(tenantTaskConfig.taskId, leadTask.taskId)))
+          .where(and(eq(leadTask.tenantId, tenantId), eq(leadTask.leadId, jobRow.leadId)))
+          .orderBy(asc(taskRegistry.phase), asc(taskRegistry.id))
+      : [];
+
+    return [
+      ...jobRows.map((r) => ({
+        taskId: r.taskId,
+        name: r.name,
+        phase: r.phase,
+        slug: r.slug,
+        status: r.status,
+        owner: r.owner,
+        evidence: r.evidence,
+        blockedBy: r.blockedBy,
+        healthStatus: r.healthStatus,
+        completedAt: r.completedAt,
+        verifiedAt: r.verifiedAt,
+        note: r.note,
+        defaultMode: r.defaultMode,
+        mode: effectiveMode(r.defaultMode, r.overrideMode ?? null),
+        origin: "job" as const,
+      })),
+      ...leadRows.map((r) => ({
+        taskId: r.taskId,
+        name: r.name,
+        phase: r.phase,
+        slug: r.slug,
+        status: r.status,
+        owner: r.owner,
+        evidence: r.evidence,
+        blockedBy: r.blockedBy,
+        healthStatus: null,
+        completedAt: null,
+        verifiedAt: null,
+        note: r.note,
+        defaultMode: r.defaultMode,
+        mode: effectiveMode(r.defaultMode, r.overrideMode ?? null),
+        origin: "lead" as const,
+      })),
+    ];
+  });
 }
 
 /** One row of the Automation Roadmap: a human-touched task ranked by the attention it costs. */

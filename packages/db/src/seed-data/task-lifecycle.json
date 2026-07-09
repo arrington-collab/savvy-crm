@@ -24,8 +24,8 @@
     "num": 2,
     "title": "Website form submission capture",
     "phase": "Lead Generation",
-    "stage": "lead",
-    "orgLevel": false,
+    "stage": null,
+    "orgLevel": true,
     "jobTypes": [
       "retail",
       "insurance",
@@ -64,8 +64,8 @@
     "num": 4,
     "title": "Google/Facebook ad lead capture",
     "phase": "Lead Generation",
-    "stage": "lead",
-    "orgLevel": false,
+    "stage": null,
+    "orgLevel": true,
     "jobTypes": [
       "retail",
       "insurance",
@@ -206,8 +206,8 @@
     "num": 12,
     "title": "Google Business Profile management",
     "phase": "Lead Generation",
-    "stage": "lead",
-    "orgLevel": false,
+    "stage": null,
+    "orgLevel": true,
     "jobTypes": [
       "retail",
       "insurance",
@@ -246,8 +246,8 @@
     "num": 14,
     "title": "SEO content & blog publishing",
     "phase": "Lead Generation",
-    "stage": "lead",
-    "orgLevel": false,
+    "stage": null,
+    "orgLevel": true,
     "jobTypes": [
       "retail",
       "insurance",

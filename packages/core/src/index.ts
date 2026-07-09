@@ -24,6 +24,7 @@ export * from "./change-order";
 export * from "./agent-activity";
 export * from "./agent-roster";
 export * from "./job-ledger";
+export * from "./job-ledger-view";
 export * from "./crew-pin";
 export * from "./clerk-role";
 export * from "./address";

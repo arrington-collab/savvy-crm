@@ -234,36 +234,6 @@ export default async function JobDetailPage({
     })),
   ].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
 
-  // Group tasks by phase, preserving num order within each phase.
-  const tasksByPhaseMap = new Map<
-    string,
-    {
-      id: string;
-      title: string;
-      phase: string;
-      automationLevel: string;
-      status: string;
-      dueAt: string | null;
-      ownerAgent: string | null;
-    }[]
-  >();
-  for (const t of taskRows) {
-    const phase = t.phase ?? "Other";
-    if (!tasksByPhaseMap.has(phase)) tasksByPhaseMap.set(phase, []);
-    tasksByPhaseMap.get(phase)!.push({
-      id: t.id,
-      title: t.title,
-      phase,
-      automationLevel: t.automationLevel ?? "manual",
-      status: t.status,
-      dueAt: t.dueAt ? t.dueAt.toISOString() : null,
-      ownerAgent: t.ownerAgent ?? null,
-    });
-  }
-  const tasksByPhase = Array.from(tasksByPhaseMap.entries()).map(
-    ([phase, tasks]) => ({ phase, tasks }),
-  );
-
   const automationSummary = summarizeJobAutomation(
     taskRows.map((t) => ({ ownerAgent: t.ownerAgent, automationLevel: t.automationLevel, status: t.status })),
   );
@@ -479,7 +449,7 @@ export default async function JobDetailPage({
       <FlaggedPhotosPanel jobId={id} documents={flaggedPhotos} />
 
       <JobTabs
-        tasksByPhase={tasksByPhase}
+        ledgerRows={ledger}
         timeline={timeline}
         comms={comms}
         docs={docs}

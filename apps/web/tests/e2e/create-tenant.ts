@@ -1,5 +1,11 @@
 import { writeFileSync } from "node:fs";
 import { adminDb, adminPool, tenant, license, contractTemplate } from "@savvy/db";
+// NOT re-exported from the @savvy/db barrel (packages/db/src/index.ts) — the
+// registry seed uses `.js`-extension imports Turbopack can't resolve, and the
+// barrel is pulled into the Next app graph via @savvy/agents. This script runs
+// standalone under tsx (see db:seed / db:seed:registry), so importing the
+// subpath directly is safe here.
+import { seedTaskRegistry } from "@savvy/db/seeds/master-task-list";
 
 // Creates a fresh, isolated tenant for one e2e run and writes its id+key to a
 // file the playwright config + spec read. Run BEFORE `playwright test` so the
@@ -38,6 +44,15 @@ async function main() {
     clauses: ["right_to_rescind", "no_deductible_waiver", "ten_day"],
     status: "active",
   });
+
+  // The global task_registry (212 master tasks) is normally seeded by
+  // db:seed / db:seed:registry, but the e2e harness never runs either — so
+  // instantiateJobTasks/getJobLedger/waiting-on find no registry rows and the
+  // Tasks tab + pipeline waiting-on render empty. Seed it here too. It's a
+  // global, versioned table with an idempotent upsert-on-id, so this is safe
+  // to call even if the registry is already seeded.
+  const registryCount = await seedTaskRegistry(adminDb);
+  console.log(`seeded ${registryCount} registry tasks`);
 
   writeFileSync("/tmp/savvy-e2e-tenant.json", JSON.stringify({ id: t!.id, key }));
   console.log(`e2e tenant created: id=${t!.id} key=${key} (+AZ/NV/CO licenses +CO SB38 template)`);
