@@ -118,12 +118,14 @@ export async function markJobTaskDone(tenantId: string, args: MarkJobTaskArgs): 
  * Rejects anything whose effective mode (tenant override, else the registry
  * default) isn't manual — assisted/full_auto tasks are done by their agent,
  * not ticked by a human. Writes an audit_log row so completion/reopen is
- * traceable; `userId` is the Clerk subject, not a `user` table uuid, so it
- * goes in the diff rather than the FK'd audit_log.user_id column.
+ * traceable. `userId` is the local `user.id` uuid (resolved by the caller via
+ * getCurrentUser), so it stamps both `job_task.owner` and the FK'd
+ * `audit_log.user_id`. In TEST_MODE the caller passes null (the sentinel isn't
+ * a real user row); the FK is nullable, so the audit row records null.
  */
 export async function completeJobTaskManually(
   tx: Tx,
-  args: { tenantId: string; jobId: string; taskId: number; userId: string; done: boolean },
+  args: { tenantId: string; jobId: string; taskId: number; userId: string | null; done: boolean },
 ): Promise<void> {
   const [reg] = await tx
     .select({ defaultMode: taskRegistry.defaultMode })
@@ -147,10 +149,11 @@ export async function completeJobTaskManually(
 
   await tx.insert(auditLog).values({
     tenantId: args.tenantId,
+    userId: args.userId,
     entityType: "job",
     entityId: args.jobId,
     action: args.done ? "task_completed" : "task_reopened",
-    diff: { taskId: args.taskId, userId: args.userId },
+    diff: { taskId: args.taskId },
   });
 }
 
