@@ -81,6 +81,17 @@ const PHASE_SCOPE: Record<number, TaskScope> = {
   15: "per_tenant_recurring", // Reporting & Analytics
 };
 
+// Tenant-recurring tasks the Phase-1 heuristic mis-scopes as per_lead. These are
+// tenant-level marketing/ops obligations that must instantiate NOWHERE (Coverage Map only).
+// Audit result — Phase 1 recurring marketing + confirmed Phase 10/11/14/15 are already
+// per_tenant_recurring via PHASE_SCOPE; these four are the Phase-1 exceptions.
+const SCOPE_OVERRIDE: Record<number, TaskScope> = {
+  2: "per_tenant_recurring", // Website form submission capture
+  4: "per_tenant_recurring", // Google/Facebook ad lead capture
+  12: "per_tenant_recurring", // Google Business Profile management
+  14: "per_tenant_recurring", // SEO content & blog publishing
+};
+
 const kebab = (s: string): string =>
   s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -95,7 +106,7 @@ export function toAppliesTo(jobType: string): { job_types?: string[] } {
 }
 
 /** Build the 212 registry rows from the raw extraction. Slugs are unique + stable. */
-export function buildTaskRegistrySeed(raw: RawFile = loadRawTaskList()): TaskRegistrySeedRow[] {
+export function buildRegistryRows(raw: RawFile = loadRawTaskList()): TaskRegistrySeedRow[] {
   const seen = new Set<string>();
   return raw.tasks.map((t) => {
     const mode = MODE_BY_AUTOMATION[t.automation];
@@ -110,16 +121,19 @@ export function buildTaskRegistrySeed(raw: RawFile = loadRawTaskList()): TaskReg
       phase: t.phase,
       defaultOwner: "HUMAN",
       defaultMode: mode,
-      scope: PHASE_SCOPE[t.phase] ?? "per_job",
+      scope: SCOPE_OVERRIDE[t.id] ?? PHASE_SCOPE[t.phase] ?? "per_job",
       appliesTo: toAppliesTo(t.jobType),
       checkKey: CHECK_BINDINGS[t.id] ?? null,
     };
   });
 }
 
+/** @deprecated Use `buildRegistryRows` — kept as an alias for existing call sites. */
+export const buildTaskRegistrySeed = buildRegistryRows;
+
 /** Idempotent upsert of the whole registry (source-of-truth, updated by re-seed). */
 export async function seedTaskRegistry(db: typeof adminDb): Promise<number> {
-  const rows = buildTaskRegistrySeed();
+  const rows = buildRegistryRows();
   await db
     .insert(taskRegistry)
     .values(rows)
