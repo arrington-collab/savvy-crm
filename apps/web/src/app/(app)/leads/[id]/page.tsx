@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { listLeadDocuments } from "@savvy/db";
+import { listLeadDocuments, getDocumentParseSummaries } from "@savvy/db";
 import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
 import { getTenantId } from "@/lib/tenant";
@@ -36,6 +36,13 @@ export default async function LeadDetailPage({
     listLeadDocuments({ tenantId, leadId: id }),
   ]);
   if (!detail) notFound();
+
+  const parseSummaries = await getDocumentParseSummaries({
+    tenantId,
+    documentIds: documents
+      .filter((d) => d.kind === "insurance_estimate" || d.kind === "measurement_report")
+      .map((d) => d.id),
+  });
 
   const qualifier = resolveAgent({ agent: "comms", taskKey: "lead.qualify" });
 
@@ -121,7 +128,7 @@ export default async function LeadDetailPage({
 
       <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
 
-      <LeadDocsCard leadId={detail.id} documents={documents} />
+      <LeadDocsCard leadId={detail.id} documents={documents} parseSummaries={parseSummaries} />
 
       <Card className="p-4">
         <div className="eyebrow mb-3">Storm Certification</div>

@@ -3,7 +3,9 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { presignLeadDocumentUpload, recordLeadDocumentAction } from "@/lib/document-actions";
+import { presignLeadDocumentUpload, recordLeadDocumentAction, reparseDocument } from "@/lib/document-actions";
+import { DocViewer, type ViewerDoc } from "@/components/DocViewer";
+import { parseSummaryView, type DocParseSummary } from "@savvy/core";
 import type { LeadDocumentRow } from "@savvy/db";
 
 const KINDS = ["insurance_estimate", "measurement_report", "photo", "contract", "other"] as const;
@@ -25,12 +27,27 @@ function fmtTime(d: Date | string): string {
   return new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function LeadDocsCard({ leadId, documents }: { leadId: string; documents: LeadDocumentRow[] }) {
+export function LeadDocsCard({ leadId, documents, parseSummaries }: {
+  leadId: string;
+  documents: LeadDocumentRow[];
+  parseSummaries: Record<string, DocParseSummary>;
+}) {
   const router = useRouter();
   const [kind, setKind] = useState<string>("insurance_estimate");
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [viewing, setViewing] = useState<ViewerDoc | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  async function reparse(docId: string) {
+    const res = await reparseDocument(docId);
+    if ("ok" in res) {
+      toast.success("Re-parsing…");
+      router.refresh();
+    } else {
+      toast.error(`Re-parse failed: ${res.error}`);
+    }
+  }
 
   async function upload(file: File) {
     setBusy(true);
@@ -113,24 +130,81 @@ export function LeadDocsCard({ leadId, documents }: { leadId: string; documents:
         <p className="text-sm" style={{ color: "var(--text-faint)" }}>No documents yet.</p>
       ) : (
         <ul className="space-y-2">
-          {documents.map((d) => (
-            <li key={d.id} className="flex items-center justify-between gap-2 text-sm">
-              <div>
-                <div className="font-medium">{d.filename ?? "(unnamed)"}</div>
-                <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
-                  {KIND_LABELS[d.kind] ?? d.kind} · {d.uploaderName ?? "system"} · {fmtTime(d.createdAt)}
+          {documents.map((d) => {
+            const summary = parseSummaries[d.id];
+            const view = summary ? parseSummaryView(summary) : null;
+            const parseable = d.kind === "insurance_estimate" || d.kind === "measurement_report";
+            return (
+              <li key={d.id} className="rounded border p-2 text-sm" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{d.filename ?? "(unnamed)"}</div>
+                    <div className="mono text-xs" style={{ color: "var(--text-faint)" }}>
+                      {KIND_LABELS[d.kind] ?? d.kind} · {d.uploaderName ?? "system"} · {fmtTime(d.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      className="rounded border px-2 py-0.5 text-xs"
+                      style={{ borderColor: "var(--border)" }}
+                      onClick={() => setViewing({ id: d.id, filename: d.filename, mime: d.mime, uploaderName: d.uploaderName, createdAt: d.createdAt })}
+                      data-testid={`view-doc-${d.id}`}
+                    >
+                      View
+                    </button>
+                    {parseable && (
+                      <button
+                        className="rounded border px-2 py-0.5 text-xs"
+                        style={{ borderColor: "var(--border)" }}
+                        onClick={() => void reparse(d.id)}
+                      >
+                        Re-run parse
+                      </button>
+                    )}
+                    <span
+                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                      style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+                    >
+                      {PARSE_LABELS[d.parseStatus] ?? d.parseStatus}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
-              >
-                {PARSE_LABELS[d.parseStatus] ?? d.parseStatus}
-              </span>
-            </li>
-          ))}
+                {view && (
+                  <div
+                    className="mt-2 rounded border p-2"
+                    style={{ borderColor: "var(--border)", background: "var(--surface-muted)" }}
+                    data-testid={`parse-panel-${d.id}`}
+                  >
+                    <div
+                      className="text-xs font-medium"
+                      style={{ color: view.tone === "low" || view.tone === "failed" ? "var(--text-muted)" : "var(--text-body)" }}
+                    >
+                      {view.headline}
+                    </div>
+                    {view.rows.length > 0 && (
+                      <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                        {view.rows.map((r) => (
+                          <div key={r.label} className="flex justify-between gap-2">
+                            <dt style={{ color: "var(--text-faint)" }}>{r.label}</dt>
+                            <dd className="font-medium">{r.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                    {view.entityLink?.kind === "measurement" && (
+                      <a href={`/leads/${leadId}/measure`} className="mt-1 inline-block text-xs underline" style={{ color: "var(--text-muted)" }}>
+                        View measurement
+                      </a>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
+
+      <DocViewer doc={viewing} onClose={() => setViewing(null)} />
     </Card>
   );
 }

@@ -1,10 +1,11 @@
 import { withTenant } from "../tenant";
 import { document, measurement } from "../schema/ops";
+import { claim } from "../schema/insurance";
 import { lead } from "../schema/crm";
 import { auditLog } from "../schema/agents";
 import { user } from "../schema/tenancy";
-import { and, eq, isNull, desc } from "drizzle-orm";
-import { PARSEABLE_KINDS } from "@savvy/core";
+import { and, eq, isNull, desc, inArray } from "drizzle-orm";
+import { PARSEABLE_KINDS, type DocParseSummary, type ClaimSummary, type MeasurementSummary } from "@savvy/core";
 
 export interface LeadDocumentRow {
   id: string;
@@ -108,6 +109,20 @@ export async function listLeadDocuments(input: {
   });
 }
 
+/** Tenant-scoped view metadata for a document (RLS blocks cross-tenant). Null if absent. */
+export async function getDocumentForView(
+  tenantId: string,
+  documentId: string,
+): Promise<{ r2Key: string | null; mime: string | null; filename: string | null } | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [d] = await tx
+      .select({ r2Key: document.r2Key, mime: document.mime, filename: document.filename })
+      .from(document)
+      .where(eq(document.id, documentId));
+    return d ?? null;
+  });
+}
+
 /** Load the fields the parse pipeline needs for one lead document. */
 export async function getLeadDocumentForParse(
   tenantId: string,
@@ -122,14 +137,32 @@ export async function getLeadDocumentForParse(
   });
 }
 
-/** Insert an uploaded-report measurement (provider roofr, source uploaded_report). Returns its id. */
-export async function insertUploadedMeasurement(input: {
+/**
+ * Insert-or-update the property's uploaded-report measurement (provider roofr, source
+ * uploaded_report). A re-parse UPDATES the newest existing uploaded_report row rather than
+ * inserting a duplicate, so the measurement id (and its downstream estimate auto-draft) is
+ * stable across re-parses. First parse inserts. Returns the measurement id.
+ */
+export async function upsertUploadedMeasurement(input: {
   tenantId: string;
   propertyId: string;
   areas: Record<string, unknown>;
   pitch: string | null;
 }): Promise<string> {
   return withTenant(input.tenantId, async (tx) => {
+    const [existing] = await tx
+      .select({ id: measurement.id })
+      .from(measurement)
+      .where(and(eq(measurement.propertyId, input.propertyId), eq(measurement.source, "uploaded_report")))
+      .orderBy(desc(measurement.createdAt))
+      .limit(1);
+    if (existing) {
+      await tx
+        .update(measurement)
+        .set({ areas: input.areas, pitch: input.pitch, provider: "roofr" })
+        .where(eq(measurement.id, existing.id));
+      return existing.id;
+    }
     const [m] = await tx
       .insert(measurement)
       .values({
@@ -142,6 +175,82 @@ export async function insertUploadedMeasurement(input: {
       })
       .returning({ id: measurement.id });
     return m!.id;
+  });
+}
+
+/**
+ * Live parse summaries for the given documents (parseable kinds only), keyed by id.
+ * insurance_estimate → the lead's newest claim; measurement_report → the property's newest
+ * uploaded_report measurement. Status/confidence always come from the document row (accurate
+ * to this doc); entity fields are only populated when the doc is `parsed`.
+ */
+export async function getDocumentParseSummaries(input: {
+  tenantId: string;
+  documentIds: string[];
+}): Promise<Record<string, DocParseSummary>> {
+  if (input.documentIds.length === 0) return {};
+  return withTenant(input.tenantId, async (tx) => {
+    const docs = await tx
+      .select({
+        id: document.id,
+        kind: document.kind,
+        leadId: document.leadId,
+        propertyId: document.propertyId,
+        parseStatus: document.parseStatus,
+        parseConfidence: document.parseConfidence,
+      })
+      .from(document)
+      .where(inArray(document.id, input.documentIds));
+
+    const out: Record<string, DocParseSummary> = {};
+    for (const d of docs) {
+      if (d.kind === "insurance_estimate") {
+        let claimSummary: ClaimSummary | null = null;
+        if (d.parseStatus === "parsed" && d.leadId) {
+          const [row] = await tx.select().from(claim).where(eq(claim.leadId, d.leadId)).orderBy(desc(claim.createdAt)).limit(1);
+          if (row) {
+            claimSummary = {
+              id: row.id,
+              carrierName: row.carrierName,
+              claimNumber: row.claimNumber,
+              acvCents: row.acvCents,
+              rcvCents: row.rcvCents,
+              deductibleCents: row.deductibleCents,
+              lineItemCount: Array.isArray(row.lineItems) ? row.lineItems.length : 0,
+            };
+          }
+        }
+        out[d.id] = { kind: "insurance_estimate", status: d.parseStatus, confidence: d.parseConfidence, claim: claimSummary };
+      } else if (d.kind === "measurement_report") {
+        let measurementSummary: MeasurementSummary | null = null;
+        if (d.parseStatus === "parsed" && d.propertyId) {
+          const [row] = await tx
+            .select()
+            .from(measurement)
+            .where(and(eq(measurement.propertyId, d.propertyId), eq(measurement.source, "uploaded_report")))
+            .orderBy(desc(measurement.createdAt))
+            .limit(1);
+          if (row) {
+            const a = (row.areas ?? {}) as Record<string, unknown>;
+            const n = (k: string): number | null => (typeof a[k] === "number" ? (a[k] as number) : null);
+            measurementSummary = {
+              id: row.id,
+              squares: n("squares"),
+              pitch: row.pitch,
+              ridgeLf: n("ridgeLf"),
+              hipLf: n("hipLf"),
+              valleyLf: n("valleyLf"),
+              eaveLf: n("eaveLf"),
+              rakeLf: n("rakeLf"),
+              facetCount: n("facetCount"),
+              penetrationCount: n("penetrationCount"),
+            };
+          }
+        }
+        out[d.id] = { kind: "measurement_report", status: d.parseStatus, confidence: d.parseConfidence, measurement: measurementSummary };
+      }
+    }
+    return out;
   });
 }
 

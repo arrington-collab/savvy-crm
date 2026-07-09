@@ -30,13 +30,16 @@ beforeAll(async () => {
   // CLEAN: an old typed doc that reached a terminal state (parsed), plus a recent still-pending one (<1h, OK).
   const cl = await mkLead(cleanId);
   await adminDb.insert(document).values([
-    { tenantId: cleanId, leadId: cl.leadId, propertyId: cl.propertyId, kind: "measurement_report", parseStatus: "parsed", createdAt: HOURS(2) },
+    { tenantId: cleanId, leadId: cl.leadId, propertyId: cl.propertyId, kind: "measurement_report", parseStatus: "parsed", r2Key: "clean-key", createdAt: HOURS(2) },
     { tenantId: cleanId, leadId: cl.leadId, propertyId: cl.propertyId, kind: "insurance_estimate", parseStatus: "unparsed_low_confidence", createdAt: HOURS(3) },
     { tenantId: cleanId, leadId: cl.leadId, propertyId: cl.propertyId, kind: "insurance_estimate", parseStatus: "pending", createdAt: new Date() },
   ]);
-  // BAD: an old (>1h) typed doc stuck in pending.
+  // BAD: an old (>1h) typed doc stuck in pending, plus a parsed doc with no storage object (orphan).
   const bl = await mkLead(badId);
-  await adminDb.insert(document).values({ tenantId: badId, leadId: bl.leadId, propertyId: bl.propertyId, kind: "insurance_estimate", parseStatus: "pending", createdAt: HOURS(2) });
+  await adminDb.insert(document).values([
+    { tenantId: badId, leadId: bl.leadId, propertyId: bl.propertyId, kind: "insurance_estimate", parseStatus: "pending", createdAt: HOURS(2) },
+    { tenantId: badId, leadId: bl.leadId, propertyId: bl.propertyId, kind: "measurement_report", parseStatus: "parsed", r2Key: null, createdAt: HOURS(2) },
+  ]);
 
   // --- estimate.lead_stage ---
   // CLEAN: a lead estimate that cites its measurement source.
@@ -63,6 +66,13 @@ afterAll(async () => {
 });
 
 describe("lead-doc evidence invariants (real DB, green + red)", () => {
+  it("lead.doc_parse: flags a parsed doc with a null r2_key (orphan)", async () => {
+    const r = await run("lead.doc_parse", badId);
+    expect(r.status).toBe("fail");
+    // both the stuck-pending doc and the orphan parsed doc are cited
+    expect(r.refs.length).toBeGreaterThanOrEqual(2);
+  });
+
   for (const key of ["lead.doc_parse", "estimate.lead_stage"]) {
     it(`${key}: passes on the clean tenant`, async () => {
       const r = await run(key, cleanId);

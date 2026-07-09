@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { presignDocumentUpload, presignDocumentView, recordDocument } from "@/lib/document-actions";
+import { presignDocumentUpload, presignDocumentView, recordDocument, reparseDocument } from "@/lib/document-actions";
 import { linkCompanyCamProject } from "@/lib/companycam-actions";
 import { Button } from "@/components/ui/button";
+import { DocViewer, type ViewerDoc } from "@/components/DocViewer";
+import { parseSummaryView, type DocParseSummary } from "@savvy/core";
 
 // Mirrors the columns selected in page.tsx
 export interface DocRow {
@@ -16,12 +18,14 @@ export interface DocRow {
   mime: string | null;
   source: string | null;
   externalUrl: string | null;
+  parseStatus: string;
   createdAt: string;
 }
 
 interface Props {
   jobId: string;
   documents: DocRow[];
+  parseSummaries: Record<string, DocParseSummary>;
   requiredPhotos: string[];
   companycamProjectId: string | null;
 }
@@ -67,39 +71,14 @@ function DocThumb({ docId, filename }: { docId: string; filename: string | null 
   );
 }
 
-// ─── DocFile ─────────────────────────────────────────────────────────────────
-// Non-photo doc — shows filename + "View" button that presigns on click.
-function DocFile({ docId, filename }: { docId: string; filename: string | null }) {
-  const [loading, setLoading] = useState(false);
-
-  async function handleView() {
-    setLoading(true);
-    const res = await presignDocumentView(docId);
-    setLoading(false);
-    if ("ok" in res) {
-      window.open(res.url, "_blank", "noreferrer");
-    } else {
-      toast.error("Could not load document — storage may not be configured.");
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-      <span className="truncate text-muted-foreground">{filename ?? "file"}</span>
-      <Button variant="outline" size="sm" onClick={handleView} disabled={loading}>
-        {loading ? "Loading…" : "View"}
-      </Button>
-    </div>
-  );
-}
-
 // ─── DocsPanel ───────────────────────────────────────────────────────────────
-export function DocsPanel({ jobId, documents, requiredPhotos, companycamProjectId }: Props) {
+export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, companycamProjectId }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, startBusy] = useTransition();
   const [ccProjectId, setCcProjectId] = useState(companycamProjectId ?? "");
   const [ccSaving, startCcSave] = useTransition();
+  const [viewing, setViewing] = useState<ViewerDoc | null>(null);
 
   const [selectedLabel, setSelectedLabel] = useState<string>(requiredPhotos[0] ?? "other");
   const [selectedKind, setSelectedKind] = useState<DocKind>("photo");
@@ -278,9 +257,54 @@ export function DocsPanel({ jobId, documents, requiredPhotos, companycamProjectI
         <section>
           <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Documents</h3>
           <div className="space-y-2">
-            {nonPhotos.map((doc) => (
-              <DocFile key={doc.id} docId={doc.id} filename={doc.filename} />
-            ))}
+            {nonPhotos.map((doc) => {
+              const summary = parseSummaries[doc.id];
+              const view = summary ? parseSummaryView(summary) : null;
+              const parseable = doc.kind === "insurance_estimate" || doc.kind === "measurement_report";
+              return (
+                <div key={doc.id} className="rounded-md border border-border p-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-muted-foreground">{doc.filename ?? "file"}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setViewing({ id: doc.id, filename: doc.filename, mime: doc.mime, createdAt: doc.createdAt })}
+                        data-testid={`view-doc-${doc.id}`}
+                      >
+                        View
+                      </Button>
+                      {parseable && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            const r = await reparseDocument(doc.id);
+                            if ("ok" in r) { toast.success("Re-parsing…"); router.refresh(); }
+                            else toast.error(`Re-parse failed: ${r.error}`);
+                          }}
+                        >
+                          Re-run parse
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {view && view.rows.length > 0 && (
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                      {view.rows.map((r) => (
+                        <div key={r.label} className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">{r.label}</dt>
+                          <dd className="font-medium">{r.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {view && view.rows.length === 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">{view.headline}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -350,6 +374,8 @@ export function DocsPanel({ jobId, documents, requiredPhotos, companycamProjectI
           )}
         </div>
       </section>
+
+      <DocViewer doc={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

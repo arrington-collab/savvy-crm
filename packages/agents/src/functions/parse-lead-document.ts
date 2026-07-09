@@ -1,4 +1,4 @@
-import { getLeadDocumentForParse, insertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim } from "@savvy/db";
+import { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import {
   measurementReportParseSchema, MEASUREMENT_PARSE_MIN_CONFIDENCE, type MeasurementReportParse,
@@ -133,7 +133,7 @@ export const parseLeadDocument = inngest.createFunction(
             return new Uint8Array(await res.arrayBuffer());
           },
           ai: { completeObject },
-          insertMeasurement: (i) => insertUploadedMeasurement(i),
+          insertMeasurement: (i) => upsertUploadedMeasurement(i),
           setStatus: (i) => setDocumentParseStatus(i),
           attachClaim: (i) => attachOrCreateLeadClaim(i),
         },

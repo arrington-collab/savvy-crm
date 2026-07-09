@@ -178,3 +178,35 @@ export async function recordLeadDocumentAction(input: {
   revalidatePath(`/leads/${input.leadId}`);
   return { ok: true, id: res.id };
 }
+
+/**
+ * Re-run the parse pipeline for one parseable document. Sets the doc back to `pending`
+ * (instant "Parsing…" feedback), then re-emits `lead-document/received`. Idempotent: the
+ * fail-soft handler coalesce-guards confirmed claim fields and upserts the measurement, so
+ * a re-parse never clobbers human-confirmed data and never litters measurement rows.
+ */
+export async function reparseDocument(
+  documentId: string,
+): Promise<{ ok: true } | { error: "not_found" | "not_parseable" }> {
+  const { tenantId } = await getCurrentUser();
+  const doc = await withTenant(tenantId, async (tx) => {
+    const [d] = await tx
+      .select({ id: document.id, kind: document.kind, leadId: document.leadId })
+      .from(document)
+      .where(eq(document.id, documentId));
+    return d;
+  });
+  if (!doc || !doc.leadId) return { error: "not_found" };
+  if (!(PARSEABLE_KINDS as readonly string[]).includes(doc.kind)) return { error: "not_parseable" };
+  const leadId = doc.leadId;
+
+  await withTenant(tenantId, (tx) =>
+    tx.update(document).set({ parseStatus: "pending", parseConfidence: null }).where(eq(document.id, documentId)),
+  );
+  await inngest.send({
+    name: "lead-document/received",
+    data: { tenantId, documentId, leadId, kind: doc.kind },
+  }).catch(() => {});
+  revalidatePath(`/leads/${leadId}`);
+  return { ok: true };
+}

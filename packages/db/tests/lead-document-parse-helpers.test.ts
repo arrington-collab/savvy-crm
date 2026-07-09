@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  recordLeadDocument, getLeadDocumentForParse, insertUploadedMeasurement, setDocumentParseStatus,
+  recordLeadDocument, getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus,
 } from "../src/lifecycle/lead-documents.js";
-import { adminDb, document, measurement, eq } from "../src/index.js";
+import { adminDb, document, measurement, eq, and } from "../src/index.js";
 import { makeTenant, makeLeadWithProperty } from "./helpers.js";
 
 describe("lead-document parse DB helpers", () => {
@@ -18,16 +18,33 @@ describe("lead-document parse DB helpers", () => {
     expect(got).toMatchObject({ r2Key: `${tenantId}/lead/${leadId}/m.pdf`, kind: "measurement_report", leadId, propertyId });
   });
 
-  it("insertUploadedMeasurement creates a uploaded_report measurement", async () => {
+  it("upsertUploadedMeasurement creates a uploaded_report measurement", async () => {
     const { tenantId } = await makeTenant();
     const { propertyId } = await makeLeadWithProperty(tenantId);
-    const mid = await insertUploadedMeasurement({
+    const mid = await upsertUploadedMeasurement({
       tenantId, propertyId, areas: { squares: 21, predominantPitch: "7/12" }, pitch: "7/12",
     });
     const [m] = await adminDb.select().from(measurement).where(eq(measurement.id, mid));
     expect(m!.source).toBe("uploaded_report");
     expect(m!.provider).toBe("roofr");
     expect((m!.areas as { squares?: number }).squares).toBe(21);
+  });
+
+  it("upsertUploadedMeasurement is idempotent: re-parse updates one row, id stable", async () => {
+    const { tenantId } = await makeTenant();
+    const { propertyId } = await makeLeadWithProperty(tenantId);
+    const first = await upsertUploadedMeasurement({
+      tenantId, propertyId, areas: { squares: 20, predominantPitch: "6/12" }, pitch: "6/12",
+    });
+    const second = await upsertUploadedMeasurement({
+      tenantId, propertyId, areas: { squares: 24, predominantPitch: "8/12" }, pitch: "8/12",
+    });
+    expect(second).toBe(first); // same row updated, not a new insert
+    const rows = await adminDb.select().from(measurement)
+      .where(and(eq(measurement.propertyId, propertyId), eq(measurement.source, "uploaded_report")));
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!.areas as { squares: number }).squares).toBe(24);
+    expect(rows[0]!.pitch).toBe("8/12");
   });
 
   it("setDocumentParseStatus updates status + confidence", async () => {
