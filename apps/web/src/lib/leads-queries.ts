@@ -93,6 +93,7 @@ export type LeadDetail = {
   county: string | null;
   yearBuilt: number | null;
   roofType: string | null;
+  roofTypeSecondary: string | null;
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
@@ -127,6 +128,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         county: property.county,
         yearBuilt: property.yearBuilt,
         roofType: property.roofType,
+        roofTypeSecondary: property.roofTypeSecondary,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
         stormCertStatus: lead.stormCertStatus,
@@ -175,6 +177,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       county: row.county,
       yearBuilt: row.yearBuilt,
       roofType: row.roofType,
+      roofTypeSecondary: row.roofTypeSecondary,
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,

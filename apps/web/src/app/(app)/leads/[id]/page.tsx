@@ -124,7 +124,7 @@ export default async function LeadDetailPage({
         installRecommendation={detail.installRecommendation}
       />
 
-      <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} />
+      <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
 
       <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
 

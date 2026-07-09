@@ -87,6 +87,27 @@ export async function setPropertyRoofType(
   }
 }
 
+/** Human-supplied primary + optional secondary roof type. Both validated against the enum. */
+export async function setPropertyRoofTypes(
+  leadId: string,
+  propertyId: string,
+  roofTypes: { primary: string; secondary: string | null },
+): Promise<{ ok: true } | { error: string }> {
+  const okPrimary = (ROOF_TYPE_VALUES as readonly string[]).includes(roofTypes.primary);
+  const okSecondary = roofTypes.secondary === null || (ROOF_TYPE_VALUES as readonly string[]).includes(roofTypes.secondary);
+  if (!okPrimary || !okSecondary) return { error: "invalid roof type" };
+  try {
+    const tenantId = await getTenantId();
+    await withTenant(tenantId, (tx) =>
+      tx.update(property).set({ roofType: roofTypes.primary, roofTypeSecondary: roofTypes.secondary }).where(eq(property.id, propertyId)));
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/exceptions");
+    return { ok: true };
+  } catch {
+    return { error: "could not set roof type" };
+  }
+}
+
 export async function logLeadContact(leadId: string): Promise<{ ok: true } | { error: string }> {
   try {
     const tenantId = await getTenantId();
