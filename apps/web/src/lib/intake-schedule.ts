@@ -51,7 +51,7 @@ export async function confirmIntakeBooking(input: unknown): Promise<{ ok: true; 
   //    creating a duplicate lead for the same prospect.
   const intake = leadIntakeObject.safeParse({
     name: contact.name, phone: contact.phone || undefined, email: contact.email || undefined,
-    address: address.address, source: "inbound-call",
+    address: address.address, source: "inbound_call",
     city: address.city, state: address.state, zip: address.zip, county: address.county, line1: address.line1,
     lat: address.lat, lng: address.lng,
   });

@@ -67,7 +67,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return reply({ error: "unauthorized — sign in as a rep" }, 401);
   }
 
-  const leadId = await createLeadForTenant(t.id, { ...customer, source: "door-knocking" });
+  const leadId = await createLeadForTenant(t.id, { ...customer, source: "canvass" });
   try {
     await inngest.send({
       name: "canvass/contract.signed",

@@ -27,6 +27,6 @@ export async function POST(req: Request) {
   }
 
   // Inbound voice call -> create a lead (unchanged behavior).
-  await createLeadForTenant(t.id, { name: `Caller ${from}`, phone: from, address: "unknown", source: "inbound-call" });
+  await createLeadForTenant(t.id, { name: `Caller ${from}`, phone: from, address: "unknown", source: "inbound_call" });
   return xml("<Response><Say>Thanks for calling. We'll text you a booking link.</Say></Response>");
 }

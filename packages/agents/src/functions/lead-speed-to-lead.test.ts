@@ -98,7 +98,7 @@ describe("runRepAlert", () => {
   });
   it("skips inbound-call leads", async () => {
     const s = fakeSender();
-    expect(await runRepAlert({ tenantId: "t-test", source: "inbound-call", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-inbound");
+    expect(await runRepAlert({ tenantId: "t-test", source: "inbound_call", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: "+16025550142", city: null }, s as never)).toBe("skip-inbound");
     expect(s.sendSms).not.toHaveBeenCalled();
   });
   it("skips when the rep has no phone", async () => {

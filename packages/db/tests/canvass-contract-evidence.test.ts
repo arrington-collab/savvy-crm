@@ -13,7 +13,7 @@ const run = (tenantId: string) => evidenceChecks["canvass.contract_to_job"]!({ t
 async function mkLead(tid: string) {
   const [c] = await adminDb.insert(customer).values({ tenantId: tid, name: "c" }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId: tid, customerId: c!.id, address: `a-${crypto.randomUUID()}` }).returning();
-  const [l] = await adminDb.insert(lead).values({ tenantId: tid, customerId: c!.id, propertyId: p!.id, source: "door-knocking", status: "new" }).returning();
+  const [l] = await adminDb.insert(lead).values({ tenantId: tid, customerId: c!.id, propertyId: p!.id, source: "canvass", status: "new" }).returning();
   return { customerId: c!.id, propertyId: p!.id, leadId: l!.id };
 }
 

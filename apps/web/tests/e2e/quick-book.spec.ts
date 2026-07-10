@@ -68,13 +68,13 @@ test("quick-book: type → rep recommended → slot → book", async ({ page }) 
   expect(appt.jobId).toBeNull();
   expect(appt.leadId).toBeTruthy();
 
-  // The lead was created with the inbound-call source.
+  // The lead was created with the inbound_call source.
   const created = await waitFor(async () => {
     const rows = await adminDb
       .select({ id: lead.id, source: lead.source, assignedUserId: lead.assignedUserId })
       .from(lead)
       .where(and(eq(lead.tenantId, tenantId), eq(lead.assignedUserId, reps.b)));
-    return rows.find((r) => r.source === "inbound-call");
+    return rows.find((r) => r.source === "inbound_call");
   });
-  expect(created.source).toBe("inbound-call");
+  expect(created.source).toBe("inbound_call");
 });

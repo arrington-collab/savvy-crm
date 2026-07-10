@@ -15,7 +15,7 @@ beforeAll(async () => {
   propId = p!.id;
   const [l] = await adminDb
     .insert(lead)
-    .values({ tenantId: tId, customerId: custId, propertyId: propId, source: "door-knocking" })
+    .values({ tenantId: tId, customerId: custId, propertyId: propId, source: "canvass" })
     .returning();
   leadId = l!.id;
 });
@@ -158,7 +158,7 @@ async function gateTenantWithLead(state: string | null): Promise<{ tenantId: str
   const tenantId = t!.id;
   const [c] = await adminDb.insert(customer).values({ tenantId, name: "Gated HO", email: "g@x.com" }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `7 ${state ?? "None"} Rd`, state }).returning();
-  const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "door-knocking" }).returning();
+  const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "canvass" }).returning();
   return { tenantId, leadId: l!.id };
 }
 

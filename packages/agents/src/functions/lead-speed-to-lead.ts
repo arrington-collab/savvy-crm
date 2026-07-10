@@ -25,7 +25,7 @@ export type RepAlertCtx = {
  *  Returns a reason string. When no sender is injected, resolves per-tenant SMS creds.
  *  Injected sender (for tests) skips tenant resolution entirely. */
 export async function runRepAlert(ctx: RepAlertCtx, sender?: SmsSender): Promise<string> {
-  if (ctx.source === "inbound-call") return "skip-inbound";
+  if (ctx.source === "inbound_call") return "skip-inbound";
   if (!ctx.ownerPhone) return "skip-no-rep-phone";
   if (!ctx.customerPhone) return "skip-no-lead-phone";
   const body = buildRepAlertSms({ name: ctx.customerName ?? "a new lead", city: ctx.city, leadPhone: ctx.customerPhone });

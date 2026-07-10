@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         twilioSid: callSid || null, durationSeconds: duration,
       }),
     );
-    await createLeadForTenant(t.id, { name: `Voicemail ${from}`, phone: from, address: "unknown", source: "after-hours-voicemail" });
+    await createLeadForTenant(t.id, { name: `Voicemail ${from}`, phone: from, address: "unknown", source: "inbound_call" });
     return xml("<Response/>");
   }
 
