@@ -3,6 +3,7 @@ import {
   effectiveRoofAge,
   canEnrichmentWriteReplacement,
   roofYearGapFill,
+  formatRoofTypeLabel,
   ROOF_REPLACEMENT_SOURCE_VALUES,
 } from "./roof";
 
@@ -50,5 +51,22 @@ describe("roofYearGapFill", () => {
 describe("ROOF_REPLACEMENT_SOURCE_VALUES", () => {
   it("is the owner/permit/assessor vocabulary", () => {
     expect(ROOF_REPLACEMENT_SOURCE_VALUES).toEqual(["owner_reported", "permit", "assessor"]);
+  });
+});
+
+describe("formatRoofTypeLabel", () => {
+  it("maps each enum value to its human-readable label", () => {
+    expect(formatRoofTypeLabel("asphalt_shingle")).toBe("Asphalt shingle");
+    expect(formatRoofTypeLabel("tile")).toBe("Tile");
+    expect(formatRoofTypeLabel("metal")).toBe("Metal");
+    expect(formatRoofTypeLabel("flat_foam")).toBe("Flat-foam");
+    expect(formatRoofTypeLabel("other")).toBe("Other");
+  });
+  it("returns null for null/undefined", () => {
+    expect(formatRoofTypeLabel(null)).toBeNull();
+    expect(formatRoofTypeLabel(undefined)).toBeNull();
+  });
+  it("falls back to the raw value for an unknown/legacy roof type", () => {
+    expect(formatRoofTypeLabel("thatch")).toBe("thatch");
   });
 });
