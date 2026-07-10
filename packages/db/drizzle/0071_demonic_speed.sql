@@ -1,0 +1,1 @@
+ALTER TABLE "lead_note" ALTER COLUMN "author_user_id" DROP NOT NULL;

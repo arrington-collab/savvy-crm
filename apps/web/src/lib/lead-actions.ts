@@ -1,10 +1,11 @@
 "use server";
-import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, property, eq } from "@savvy/db";
-import { leadIntakeSchema, ROOF_TYPE_VALUES } from "@savvy/core";
+import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, addLeadNote, property, eq } from "@savvy/db";
+import { leadIntakeSchema, ROOF_TYPE_VALUES, ROOF_REPLACEMENT_SOURCE_VALUES } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { createLeadForTenant } from "./intake";
 import { inngest } from "@savvy/agents";
+import { getCurrentUser } from "./current-user";
 
 export async function createLead(
   input: unknown,
@@ -69,21 +70,67 @@ export async function markLeadLost(
   }
 }
 
-/** Human-supplied roof type (resolves a roof_type_needed exception). Validated against the enum. */
-export async function setPropertyRoofType(
+/** Human-supplied primary + optional secondary roof type. Both validated against the enum. */
+export async function setPropertyRoofTypes(
   leadId: string,
   propertyId: string,
-  roofType: string,
+  roofTypes: { primary: string; secondary: string | null },
 ): Promise<{ ok: true } | { error: string }> {
-  if (!(ROOF_TYPE_VALUES as readonly string[]).includes(roofType)) return { error: "invalid roof type" };
+  const okPrimary = (ROOF_TYPE_VALUES as readonly string[]).includes(roofTypes.primary);
+  const okSecondary = roofTypes.secondary === null || (ROOF_TYPE_VALUES as readonly string[]).includes(roofTypes.secondary);
+  if (!okPrimary || !okSecondary) return { error: "invalid roof type" };
   try {
     const tenantId = await getTenantId();
-    await withTenant(tenantId, (tx) => tx.update(property).set({ roofType }).where(eq(property.id, propertyId)));
+    await withTenant(tenantId, (tx) =>
+      tx.update(property).set({ roofType: roofTypes.primary, roofTypeSecondary: roofTypes.secondary }).where(eq(property.id, propertyId)));
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/exceptions");
     return { ok: true };
   } catch {
     return { error: "could not set roof type" };
+  }
+}
+
+/** Human-supplied last roof-replacement date + source. Rejects invalid source/date and future dates. */
+export async function setRoofReplacement(
+  leadId: string,
+  propertyId: string,
+  input: { at: string; source: string },
+): Promise<{ ok: true } | { error: string }> {
+  if (!(ROOF_REPLACEMENT_SOURCE_VALUES as readonly string[]).includes(input.source)) return { error: "invalid source" };
+  const at = new Date(input.at);
+  if (Number.isNaN(at.getTime())) return { error: "invalid date" };
+  if (at.getTime() > Date.now()) return { error: "replacement date cannot be in the future" };
+  try {
+    const tenantId = await getTenantId();
+    await withTenant(tenantId, (tx) =>
+      tx.update(property).set({ lastRoofReplacementAt: input.at, lastRoofReplacementSource: input.source }).where(eq(property.id, propertyId)));
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not save replacement" };
+  }
+}
+
+/** Append-only lead note quick-add. Rejects empty/whitespace bodies. No edit/delete by design. */
+export async function addLeadNoteAction(
+  leadId: string,
+  body: string,
+): Promise<{ ok: true } | { error: string }> {
+  if (!body.trim()) return { error: "empty note" };
+  try {
+    const { tenantId, userId } = await getCurrentUser();
+    // TEST_MODE's getCurrentUser returns the non-UUID sentinel "test-user"; the
+    // lead_note author_user_id FK takes null rather than a fake id (same pattern
+    // as job_task.owner / audit.user_id).
+    const localUserId = userId === "test-user" ? null : userId;
+    await withTenant(tenantId, (tx) =>
+      addLeadNote(tx, { tenantId, leadId, authorUserId: localUserId, body }),
+    );
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not add note" };
   }
 }
 

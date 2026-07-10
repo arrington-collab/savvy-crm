@@ -20,3 +20,23 @@ describe("buildLeadFeatures", () => {
     expect(f.hasContact).toBe(false);
   });
 });
+
+describe("buildLeadFeatures — effective roof age", () => {
+  it("uses the replacement date over year_built when present", () => {
+    const f = buildLeadFeatures({
+      source: "web", state: "AZ", roofType: "tile", roofTypeSecondary: null,
+      yearBuilt: 1990, lastRoofReplacementAt: "2015-06-01",
+      storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null },
+    });
+    expect(f.roofAgeYears).toBe(new Date().getFullYear() - 2015);
+  });
+  it("carries roofTypeSecondary through", () => {
+    const f = buildLeadFeatures({
+      source: "web", state: "AZ", roofType: "tile", roofTypeSecondary: "flat_foam",
+      yearBuilt: 1990, lastRoofReplacementAt: null,
+      storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null },
+    });
+    expect(f.roofTypeSecondary).toBe("flat_foam");
+    expect(f.roofAgeYears).toBe(new Date().getFullYear() - 1990);
+  });
+});

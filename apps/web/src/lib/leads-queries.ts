@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, lead, customer, property, user, communication, count, eq, not, inArray, desc, sql, getLeadArtifacts, type LeadArtifacts } from "@savvy/db";
+import { withTenant, lead, customer, property, user, communication, count, eq, not, inArray, desc, sql, getLeadArtifacts, getLeadNotes, type LeadArtifacts } from "@savvy/db";
 import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -66,6 +66,14 @@ export type LeadComm = {
   createdAt: Date;
 };
 
+export type LeadNoteRow = {
+  id: string;
+  body: string;
+  authorUserId: string | null;
+  authorName: string | null;
+  createdAt: Date;
+};
+
 export type ScoreFactor = { label: string; points: number };
 
 export type LeadDetail = {
@@ -93,9 +101,13 @@ export type LeadDetail = {
   county: string | null;
   yearBuilt: number | null;
   roofType: string | null;
+  roofTypeSecondary: string | null;
+  lastRoofReplacementAt: string | null;
+  lastRoofReplacementSource: string | null;
   assignedUserId: string | null;
   ownerName: string | null;
   communications: LeadComm[];
+  notes: LeadNoteRow[];
   stormCertStatus: "pending" | "verified" | "none" | "error";
   stormCheckedAt: Date | null;
   stormCertDocumentId: string | null;
@@ -127,6 +139,9 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         county: property.county,
         yearBuilt: property.yearBuilt,
         roofType: property.roofType,
+        roofTypeSecondary: property.roofTypeSecondary,
+        lastRoofReplacementAt: property.lastRoofReplacementAt,
+        lastRoofReplacementSource: property.lastRoofReplacementSource,
         assignedUserId: lead.assignedUserId,
         ownerName: user.name,
         stormCertStatus: lead.stormCertStatus,
@@ -155,6 +170,22 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
           .orderBy(desc(communication.createdAt))
           .limit(20)
       : [];
+    const noteRows = await getLeadNotes(tx, { tenantId, leadId: id });
+    const authorIds = [...new Set(noteRows.map((n) => n.authorUserId).filter((v): v is string => v !== null))];
+    const authorNames = authorIds.length
+      ? await tx
+          .select({ id: user.id, name: user.name })
+          .from(user)
+          .where(inArray(user.id, authorIds))
+      : [];
+    const authorNameById = new Map(authorNames.map((a) => [a.id, a.name]));
+    const notes: LeadNoteRow[] = noteRows.map((n) => ({
+      id: n.id,
+      body: n.body,
+      authorUserId: n.authorUserId,
+      authorName: n.authorUserId ? (authorNameById.get(n.authorUserId) ?? null) : null,
+      createdAt: n.createdAt,
+    }));
     return {
       id: row.id,
       status: row.status,
@@ -175,9 +206,13 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       county: row.county,
       yearBuilt: row.yearBuilt,
       roofType: row.roofType,
+      roofTypeSecondary: row.roofTypeSecondary,
+      lastRoofReplacementAt: row.lastRoofReplacementAt,
+      lastRoofReplacementSource: row.lastRoofReplacementSource,
       assignedUserId: row.assignedUserId,
       ownerName: row.ownerName,
       communications,
+      notes,
       stormCertStatus: row.stormCertStatus,
       stormCheckedAt: row.stormCheckedAt,
       stormCertDocumentId: row.stormCertDocumentId,

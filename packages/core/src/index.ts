@@ -13,6 +13,7 @@ export * from "./esign";
 export * from "./estimate-settings";
 export * from "./measurement";
 export * from "./roof-sketch";
+export * from "./roof";
 export * from "./estimate-engine";
 export * from "./estimate";
 export * from "./price-book";
