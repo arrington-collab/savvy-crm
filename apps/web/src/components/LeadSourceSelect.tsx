@@ -1,10 +1,19 @@
 "use client";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { mergeLeadSources, type LeadSource } from "@savvy/core";
+import { addLeadSourceAction } from "@/lib/lead-source-actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { addLeadSourceAction } from "@/lib/lead-source-actions";
+
+/** Human (pickable) lead-source enum members — machine sources are never offered here. */
+export const HUMAN_LEAD_SOURCES: { value: string; label: string }[] = [
+  { value: "referral", label: "Referral" },
+  { value: "insurance_agent", label: "Insurance agent" },
+  { value: "ads", label: "Ads" },
+  { value: "realtor", label: "Realtor" },
+  { value: "partner", label: "Partner" },
+  { value: "other", label: "Other" },
+];
 
 export function LeadSourceSelect({
   value,
@@ -19,7 +28,6 @@ export function LeadSourceSelect({
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, start] = useTransition();
-  const options: LeadSource[] = mergeLeadSources(custom);
 
   function add() {
     const v = draft.trim();
@@ -47,9 +55,14 @@ export function LeadSourceSelect({
           onChange={(e) => onChange(e.target.value)}
           className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
         >
-          {options.map((o) => (
+          {HUMAN_LEAD_SOURCES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
+            </option>
+          ))}
+          {custom.map((c) => (
+            <option key={c} value={c}>
+              {c}
             </option>
           ))}
         </select>

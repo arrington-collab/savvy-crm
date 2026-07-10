@@ -9,6 +9,10 @@ test("create a lead with phone auto-format + optional roof/year", async ({ page 
   await page.getByTestId("address-autocomplete").fill("100 Test St, Mesa AZ 85201");
   await page.getByTestId("roof-type").selectOption("tile");
   await page.getByTestId("year-built").fill("2004");
+  // "other" has no required source-detail fields, keeping this test focused on
+  // phone/roof/year rather than the source-taxonomy behavior (covered by
+  // lead-source-taxonomy.spec.ts).
+  await page.getByTestId("lead-source").selectOption("other");
   await page.getByTestId("new-lead-submit").click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
 });
