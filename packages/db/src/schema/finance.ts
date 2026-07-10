@@ -104,6 +104,23 @@ export const commission = pgTable("commission", {
   tenantIsolation(),
 ]);
 
+// Referral payments (Slice 3). Tracks a payout owed to whoever referred a
+// lead once it becomes a job; one row per (tenant, job) — a redelivered
+// event hits the unique index and is deduped (onConflictDoNothing).
+export const referralPayment = pgTable("referral_payment", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  leadId: uuid("lead_id").notNull().references(() => lead.id),
+  payeeName: text("payee_name").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | paid
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("referral_payment_tenant_job_uniq").on(t.tenantId, t.jobId),
+  tenantIsolation(),
+]);
+
 // Change orders (Phase 6C). A priced mid-production delta on a job, signed via
 // DocuSeal. docusealSubmissionId is globally unique within the single Savvy
 // instance; the (tenant, submission) unique index makes the webhook idempotent.

@@ -51,6 +51,7 @@ export const lead = pgTable("lead", {
   customerId: uuid("customer_id").references(() => customer.id),
   propertyId: uuid("property_id").references(() => property.id),
   source: text("source"),
+  sourceDetail: jsonb("source_detail"),
   status: leadStatusEnum("status").notNull().default("new"),
   stormCertStatus: stormCertStatusEnum("storm_cert_status").notNull().default("pending"),
   stormCheckedAt: timestamp("storm_checked_at", { withTimezone: true }),
