@@ -34,7 +34,7 @@ export function LeadArtifactsSections({
   const hasSketch = m?.source === "sketch" || m?.provider === "diy";
   return (
     <>
-      <Card className="p-4">
+      <Card className="p-4" data-section="measurement">
         <div className="mb-3 flex items-center justify-between">
           <div className="eyebrow">Measurement</div>
           {hasProperty ? (
@@ -80,7 +80,7 @@ export function LeadArtifactsSections({
         )}
       </Card>
 
-      <Card className="p-4">
+      <Card className="p-4" data-section="estimate">
         <div className="eyebrow mb-3">Estimate</div>
         {e ? (
           <dl className="grid grid-cols-3 gap-3 text-sm">

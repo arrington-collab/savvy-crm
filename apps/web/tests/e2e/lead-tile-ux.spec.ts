@@ -1,0 +1,82 @@
+import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { withTenant, customer, property, lead } from "@savvy/db";
+
+const { id: tenantId } = JSON.parse(
+  readFileSync("/tmp/savvy-e2e-tenant.json", "utf8"),
+) as { id: string };
+
+async function seedLead(name: string, status: "new" | "contacted", score: number) {
+  return withTenant(tenantId, async (tx) => {
+    const [c] = await tx.insert(customer).values({ tenantId, name, phone: "+15555550000" }).returning();
+    const [p] = await tx.insert(property).values({ tenantId, customerId: c!.id, address: `${name} St` }).returning();
+    const [l] = await tx
+      .insert(lead)
+      .values({ tenantId, customerId: c!.id, propertyId: p!.id, status, score, source: "seed" })
+      .returning();
+    return l!.id;
+  });
+}
+
+// Slice 4: the lead tile is reorganized to field-working order. Sections carry a
+// stable data-section attribute so the order is a contract, not incidental markup.
+const EXPECTED_SECTION_ORDER = [
+  "contact",
+  "score",
+  "roof",
+  "measurement",
+  "estimate",
+  "documents",
+  "source",
+  "comms",
+];
+
+test("lead tile: sections render in field-working order", async ({ page }) => {
+  const id = await seedLead("Ordered Olive", "new", 72);
+  await page.goto(`/leads/${id}`);
+  await expect(page.getByTestId("lead-detail")).toBeVisible();
+
+  const order = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("[data-section]")).map(
+      (el) => (el as HTMLElement).dataset.section,
+    ),
+  );
+  expect(order).toEqual(EXPECTED_SECTION_ORDER);
+});
+
+test("lead tile: Back to Leads preserves the list filter", async ({ page }) => {
+  const contactedId = await seedLead("Back Bertha", "contacted", 61);
+
+  // Open the filtered list, then the lead FROM that list (row carries ?from).
+  await page.goto("/leads?status=contacted&sort=age");
+  const row = page.locator(`[data-testid="lead-row"][data-lead-id="${contactedId}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByTestId("lead-detail")).toBeVisible();
+
+  // The prominent Back button returns to the SAME filtered view.
+  await page.getByTestId("back-to-leads").click();
+  await expect(page).toHaveURL(/\/leads\?status=contacted&sort=age/);
+  await expect(page.locator(`[data-testid="lead-row"][data-lead-id="${contactedId}"]`)).toBeVisible();
+});
+
+test("lead tile: Back to Leads restores list scroll position", async ({ page }) => {
+  // Enough rows to make the list scroll.
+  const ids: string[] = [];
+  for (let i = 0; i < 30; i++) ids.push(await seedLead(`Scroll ${String(i).padStart(2, "0")}`, "new", 50 + (i % 40)));
+
+  await page.goto("/leads");
+  await expect(page.getByTestId("funnel")).toBeVisible();
+  // Scroll the list down and open a row from the scrolled position.
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await page.waitForFunction(() => window.scrollY >= 500);
+  const target = ids[ids.length - 1]!;
+  await page.locator(`[data-testid="lead-row"][data-lead-id="${target}"]`).click();
+  await expect(page.getByTestId("lead-detail")).toBeVisible();
+
+  await page.getByTestId("back-to-leads").click();
+  await expect(page.getByTestId("funnel")).toBeVisible();
+  // Scroll is restored (allow a little tolerance for layout/rounding).
+  await page.waitForFunction(() => window.scrollY > 300);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+});

@@ -7,9 +7,10 @@ import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewCallButton } from "./NewCallButton";
+import { LeadsScrollRestore } from "./LeadsScrollRestore";
 import { ago } from "@/lib/format";
 import { leadStatusPersona } from "@/lib/agents";
-import { LEAD_STATUS, type LeadStatus } from "@savvy/core";
+import { LEAD_STATUS, type LeadStatus, buildLeadRowHref } from "@savvy/core";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function LeadsPage({
 
   return (
     <div className="space-y-6">
+      <LeadsScrollRestore />
       <PageHeader
         eyebrow="Funnel"
         title="Leads"
@@ -81,7 +83,7 @@ export default async function LeadsPage({
             return (
               <Link
                 key={l.id}
-                href={`/leads/${l.id}`}
+                href={buildLeadRowHref(l.id, { status, sort })}
                 data-testid="lead-row"
                 data-lead-id={l.id}
                 className={`${COLS} border-b border-white/5 px-4 py-3 text-sm hover:bg-white/[0.03]`}
