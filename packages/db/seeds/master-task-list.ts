@@ -44,6 +44,7 @@ export type TaskRegistrySeedRow = {
  * binding one of those to a single arbitrary task would mis-attribute proof.
  */
 export const CHECK_BINDINGS: Record<number, string> = {
+  3: "lead.source_taxonomy", // Referral tracking & source attribution — every lead has a recognized source
   6: "canvass.contract_to_job", // Door-to-door canvassing — a signed contract becomes a WON job
   18: "lead.dedupe", // Lead deduplication & merge
   19: "lead.score", // Lead qualification scoring

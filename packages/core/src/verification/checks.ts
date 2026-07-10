@@ -109,6 +109,22 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
+  // Every lead carries a recognized source. Machine-originated leads (web, inbound_call,
+  // canvass, direct_mail) are always stamped by their creation path, so they're never a
+  // violation here — this catches manual entry that skipped the taxonomy (null) or a
+  // stale/legacy source string that predates the enum.
+  "lead.source_taxonomy": invariant(
+    "lead.source_taxonomy",
+    `select l.id
+       from lead l
+      where l.tenant_id = $1
+        and (
+          l.source is null
+          or l.source not in ('referral','insurance_agent','ads','realtor','partner','other','web','inbound_call','canvass','direct_mail')
+        )`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
+  ),
+
   // A lead that produced a job (job.lead_id references it) must be resolved: won (the
   // normal conversion outcome) or lost. Any other status means the conversion left the
   // lead stuck in-pipeline — the bug where convertLeadToJob wrote 'booked', never 'won',
