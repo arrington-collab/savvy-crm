@@ -1,13 +1,9 @@
 import { getDocumentForView } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
+import { buildDocumentViewHeaders } from "@savvy/core";
 import { getTenantId } from "@/lib/tenant";
 
 export const runtime = "nodejs";
-
-// Types safe to render inline on the app origin. Everything else (notably text/html and
-// image/svg+xml, which can script) is forced to an attachment download with a neutral
-// content-type — so a stored file can never execute in the app's origin.
-const INLINE_SAFE = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 // Same-origin document viewer. The browser URL carries only the doc UUID — no R2 key, no
 // filename, no PII. Tenant is resolved from the session; RLS blocks cross-tenant ids (→ 404).
@@ -34,14 +30,10 @@ export async function GET(
   const upstream = await fetch(signed);
   if (!upstream.ok || !upstream.body) return new Response("Not found", { status: 404 });
 
-  const safe = (doc.filename ?? "document").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
-  const allowedInline = doc.mime != null && INLINE_SAFE.has(doc.mime);
-  const asInline = allowedInline && !download;
+  const view = buildDocumentViewHeaders({ mime: doc.mime, filename: doc.filename, download });
   const headers = new Headers();
-  // Only echo the stored mime for allowlisted types; anything else is served as a neutral
-  // octet-stream so it cannot render (defense-in-depth beyond upload-time MIME validation).
-  headers.set("Content-Type", allowedInline ? doc.mime! : "application/octet-stream");
-  headers.set("Content-Disposition", `${asInline ? "inline" : "attachment"}; filename="${safe}"`);
+  headers.set("Content-Type", view.contentType);
+  headers.set("Content-Disposition", view.disposition);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Cache-Control", "private, no-store");
   const len = upstream.headers.get("content-length");

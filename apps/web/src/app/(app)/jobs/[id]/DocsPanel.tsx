@@ -19,6 +19,7 @@ export interface DocRow {
   source: string | null;
   externalUrl: string | null;
   parseStatus: string;
+  uploaderName: string | null;
   createdAt: string;
 }
 
@@ -269,7 +270,7 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setViewing({ id: doc.id, filename: doc.filename, mime: doc.mime, createdAt: doc.createdAt })}
+                        onClick={() => setViewing({ id: doc.id, filename: doc.filename, mime: doc.mime, uploaderName: doc.uploaderName, createdAt: doc.createdAt })}
                         data-testid={`view-doc-${doc.id}`}
                       >
                         View

@@ -21,13 +21,10 @@ import { LogContactButton } from "@/components/leads/LogContactButton";
 import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
+import { TimelineDocItem } from "./TimelineDocItem";
+import { buildLeadTimelineFeed } from "@savvy/core";
 
 export const dynamic = "force-dynamic";
-
-/** Notes/comms merged feed row. Document events are Slice 4 — not included here. */
-type LeadFeedItem =
-  | { kind: "comm"; id: string; at: Date; body: string; channel: string; direction: string }
-  | { kind: "note"; id: string; at: Date; body: string; authorName: string | null };
 
 export default async function LeadDetailPage({
   params,
@@ -53,23 +50,11 @@ export default async function LeadDetailPage({
 
   const qualifier = resolveAgent({ agent: "comms", taskKey: "lead.qualify" });
 
-  const feed: LeadFeedItem[] = [
-    ...detail.communications.map((c): LeadFeedItem => ({
-      kind: "comm",
-      id: c.id,
-      at: c.createdAt,
-      body: c.body ?? "",
-      channel: c.channel,
-      direction: c.direction,
-    })),
-    ...detail.notes.map((n): LeadFeedItem => ({
-      kind: "note",
-      id: n.id,
-      at: n.createdAt,
-      body: n.body,
-      authorName: n.authorName,
-    })),
-  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+  const feed = buildLeadTimelineFeed({
+    communications: detail.communications,
+    notes: detail.notes,
+    documents,
+  });
 
   return (
     <div className="space-y-6" data-testid="lead-detail">
@@ -194,6 +179,16 @@ export default async function LeadDetailPage({
                     <p className="text-sm" style={{ color: "var(--text-body)" }}>{item.body}</p>
                   </div>
                 </li>
+              ) : item.kind === "document" ? (
+                <TimelineDocItem
+                  key={`doc-${item.id}`}
+                  id={item.id}
+                  filename={item.filename}
+                  mime={item.mime}
+                  uploaderName={item.uploaderName}
+                  at={item.at}
+                  docKind={item.docKind}
+                />
               ) : (
                 <li key={`comm-${item.id}`} className="flex items-start gap-2 text-sm">
                   <AgentAvatar persona={qualifier.persona} size="sm" />

@@ -11,6 +11,7 @@ import {
   esignRequest,
   tenant,
   referralPayment,
+  user,
   eq,
   and,
   or,
@@ -176,9 +177,11 @@ export default async function JobDetailPage({
         source: document.source,
         externalUrl: document.externalUrl,
         parseStatus: document.parseStatus,
+        uploaderName: user.name,
         createdAt: document.createdAt,
       })
       .from(document)
+      .leftJoin(user, eq(document.uploadedByUserId, user.id))
       .where(eq(document.jobId, id))
       .orderBy(desc(document.createdAt));
 
@@ -264,6 +267,7 @@ export default async function JobDetailPage({
     source: d.source ?? null,
     externalUrl: d.externalUrl ?? null,
     parseStatus: d.parseStatus,
+    uploaderName: d.uploaderName,
     createdAt: d.createdAt.toISOString(),
   }));
 

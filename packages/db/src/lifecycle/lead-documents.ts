@@ -211,6 +211,7 @@ export async function getDocumentParseSummaries(input: {
           if (row) {
             claimSummary = {
               id: row.id,
+              jobId: row.jobId,
               carrierName: row.carrierName,
               claimNumber: row.claimNumber,
               acvCents: row.acvCents,
@@ -244,6 +245,7 @@ export async function getDocumentParseSummaries(input: {
               rakeLf: n("rakeLf"),
               facetCount: n("facetCount"),
               penetrationCount: n("penetrationCount"),
+              wasteFactor: n("wasteFactor"),
             };
           }
         }
