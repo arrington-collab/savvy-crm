@@ -4,6 +4,12 @@ import { makeDeliverabilityCheck } from "./deliverability";
 import { makeQbReconcileCheck, makeStripeMatchCheck } from "./reconcile";
 import { REQUIRED_CLAUSES } from "../contract-compliance";
 import { isEndorsementIdle } from "../endorsement";
+import { LEAD_SOURCE_VALUES } from "../lead-sources";
+
+// Recognized lead.source values, derived from the shared enum const so the
+// evidence check can never drift from the zod schema / migration mapping.
+// Enum members are static, controlled strings — safe to interpolate.
+const leadSourceValuesInList = LEAD_SOURCE_VALUES.map((v) => `'${v}'`).join(",");
 
 // A stamped contract template has "drifted" out of compliance if it is no longer
 // active, or (for a gated state) it no longer carries that state's required
@@ -120,7 +126,7 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
       where l.tenant_id = $1
         and (
           l.source is null
-          or l.source not in ('referral','insurance_agent','ads','realtor','partner','other','web','inbound_call','canvass','direct_mail')
+          or l.source not in (${leadSourceValuesInList})
         )`,
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
