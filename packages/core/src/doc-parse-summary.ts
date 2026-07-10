@@ -1,5 +1,7 @@
 export interface ClaimSummary {
   id: string;
+  /** The job this claim was carried onto once the lead converts; null pre-conversion. */
+  jobId: string | null;
   carrierName: string | null;
   claimNumber: string | null;
   acvCents: number | null;
@@ -19,6 +21,8 @@ export interface MeasurementSummary {
   rakeLf: number | null;
   facetCount: number | null;
   penetrationCount: number | null;
+  /** Roof waste as a 0-1 fraction, shown only when the source measurement carries it. */
+  wasteFactor: number | null;
 }
 
 export type DocParseSummary =
@@ -29,7 +33,8 @@ export interface ParseView {
   tone: "parsed" | "low" | "failed" | "pending";
   headline: string;
   rows: { label: string; value: string }[];
-  entityLink: { kind: "claim" | "measurement"; id: string } | null;
+  // Claim links to its job (only once converted); measurement links to the lead's measure view.
+  entityLink: { kind: "claim"; jobId: string | null } | { kind: "measurement"; id: string } | null;
 }
 
 function usd(cents: number | null): string {
@@ -72,7 +77,7 @@ export function parseSummaryView(s: DocParseSummary): ParseView {
           { label: "Confidence", value: pct(s.confidence) },
         ]
       : [];
-    return { tone: "parsed", headline: "Extracted from insurance estimate", rows, entityLink: c ? { kind: "claim", id: c.id } : null };
+    return { tone: "parsed", headline: "Extracted from insurance estimate", rows, entityLink: c ? { kind: "claim", jobId: c.jobId } : null };
   }
 
   const m = s.measurement;
@@ -87,6 +92,8 @@ export function parseSummaryView(s: DocParseSummary): ParseView {
         { label: "Rake LF", value: num(m.rakeLf) },
         { label: "Facets", value: num(m.facetCount) },
         { label: "Penetrations", value: num(m.penetrationCount) },
+        // Waste only appears when the source measurement carries it (sketch/DIY); uploaded reports omit it.
+        ...(m.wasteFactor != null ? [{ label: "Waste", value: `${Math.round(m.wasteFactor * 100)}%` }] : []),
         { label: "Confidence", value: pct(s.confidence) },
       ]
     : [];

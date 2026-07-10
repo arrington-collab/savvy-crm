@@ -196,6 +196,11 @@ export function LeadDocsCard({ leadId, documents, parseSummaries }: {
                         View measurement
                       </a>
                     )}
+                    {view.entityLink?.kind === "claim" && view.entityLink.jobId && (
+                      <a href={`/jobs/${view.entityLink.jobId}`} className="mt-1 inline-block text-xs underline" style={{ color: "var(--text-muted)" }}>
+                        View claim
+                      </a>
+                    )}
                   </div>
                 )}
               </li>
