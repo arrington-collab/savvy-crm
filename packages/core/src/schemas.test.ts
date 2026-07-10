@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { leadIntakeSchema, leadIntakeObject } from "./schemas";
 
 describe("leadIntakeSchema", () => {
-  const base = { name: "Jane", address: "1 Main St, Mesa AZ" };
+  const base = { name: "Jane", address: "1 Main St, Mesa AZ", source: "web" };
   const withPhone = { ...base, phone: "(480) 555-1234" };
 
   it("normalizes phone to E.164 on parse", () => {
@@ -12,7 +12,9 @@ describe("leadIntakeSchema", () => {
   it("rejects an unparseable phone", () => {
     expect(leadIntakeSchema.safeParse({ ...withPhone, phone: "555" }).success).toBe(false);
   });
-  it("defaults source to web and leaves optional fields undefined", () => {
+  it("requires an explicit source (no longer defaults to web) and leaves optional fields undefined", () => {
+    const { source: _omit, ...noSource } = withPhone;
+    expect(leadIntakeSchema.safeParse(noSource).success).toBe(false); // source is now required
     const r = leadIntakeSchema.parse(withPhone);
     expect(r.source).toBe("web");
     expect(r.city).toBeUndefined();
