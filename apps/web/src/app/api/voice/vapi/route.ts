@@ -106,7 +106,7 @@ export async function POST(req: Request): Promise<NextResponse> {
               name,
               phone: msg.fromNumber ?? undefined,
               address: address.length >= 3 ? address : "Unknown",
-              source: "inbound-call",
+              source: "inbound_call",
               city: city || undefined,
               zip,
             });
@@ -203,7 +203,7 @@ export async function POST(req: Request): Promise<NextResponse> {
               name: "Inbound caller",
               phone: msg.fromNumber,
               address: "Unknown",
-              source: "inbound-call",
+              source: "inbound_call",
             });
           }
         }

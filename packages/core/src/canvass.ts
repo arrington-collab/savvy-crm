@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { leadIntakeObject } from "./schemas";
 
-// Signed-contract intake from the canvass (door-knocking) field app.
+// Signed-contract intake from the canvass field app.
 // POST /api/canvass/contract — see apps/web/src/app/api/canvass/contract/route.ts.
 //
 // customer reuses the lead-intake shape (same phone/email normalization);
-// `source` is omitted because the route sets it to "door-knocking" server-side.
+// `source` is omitted because the route sets it to "canvass" server-side.
 export const canvassCustomerObject = leadIntakeObject.omit({ source: true });
 
 export const CANVASS_CONTRACT_KINDS = ["insurance", "retail"] as const;

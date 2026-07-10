@@ -81,6 +81,9 @@ test("leads: create via form + assign owner", async ({ page }) => {
   await page.fill('input[name="name"]', "Formed Fiona");
   await page.fill('input[name="phone"]', "+15555551212");
   await page.fill('input[name="address"]', "12 Form Ave");
+  // "other" has no required source-detail fields; source-taxonomy behavior is
+  // covered by lead-source-taxonomy.spec.ts.
+  await page.getByTestId("lead-source").selectOption("other");
   await page.getByTestId("new-lead-submit").click();
   await page.waitForURL(/\/leads\/[0-9a-f-]+$/);
   await expect(page.getByTestId("lead-detail")).toBeVisible();
@@ -95,6 +98,7 @@ test("leads: create an email-only lead (no phone) shows a mailto link", async ({
   await page.fill('input[name="name"]', "Emailing Ed");
   await page.fill('input[name="email"]', "ed@example.com");
   await page.fill('input[name="address"]', "9 Email Way, Mesa AZ");
+  await page.getByTestId("lead-source").selectOption("other");
   await page.getByTestId("new-lead-submit").click();
   await page.waitForURL(/\/leads\/[0-9a-f-]+$/);
   await expect(page.getByTestId("lead-detail")).toBeVisible();

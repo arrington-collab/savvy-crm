@@ -72,6 +72,7 @@ export async function createLeadForTenant(tenantId: string, input: LeadIntakeInp
 
     const [l] = await tx.insert(lead).values({
       tenantId, customerId: c.id, propertyId, source: input.source, status: "new",
+      sourceDetail: (input as { sourceDetail?: unknown }).sourceDetail ?? null,
     }).returning();
     await instantiateLeadTasks(tx, { tenantId, leadId: l!.id });
     return l!.id;

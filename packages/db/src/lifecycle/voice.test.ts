@@ -49,7 +49,7 @@ async function mkLead(tid: string) {
   return withTenant(tid, async (tx) => {
     const [c] = await tx.insert(customer).values({ tenantId: tid, name: "Caller", phone: "+16025550111" }).returning({ id: customer.id });
     const [p] = await tx.insert(property).values({ tenantId: tid, customerId: c!.id, address: "1 Main St" }).returning({ id: property.id });
-    const [l] = await tx.insert(lead).values({ tenantId: tid, customerId: c!.id, propertyId: p!.id, source: "inbound-call" }).returning({ id: lead.id });
+    const [l] = await tx.insert(lead).values({ tenantId: tid, customerId: c!.id, propertyId: p!.id, source: "inbound_call" }).returning({ id: lead.id });
     return l!.id;
   });
 }

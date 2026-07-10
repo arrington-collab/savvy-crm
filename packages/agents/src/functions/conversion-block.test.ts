@@ -84,7 +84,7 @@ describe("convertCanvassContractOrSkip — conversion resolution gate", () => {
     const tenantId = await makeTenant("conv-block-canvass");
     const [c] = await adminDb.insert(customer).values({ tenantId, name: "Canvass Cathy" }).returning();
     const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "5 Canvass Ct" }).returning();
-    const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "door-knocking" }).returning();
+    const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "canvass" }).returning();
     await adminDb.insert(leadTask).values({ tenantId, leadId: l!.id, taskId: MANUAL_TASK, status: "pending" });
 
     const res = await convertCanvassContractOrSkip({

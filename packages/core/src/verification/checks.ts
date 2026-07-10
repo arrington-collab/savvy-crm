@@ -4,6 +4,12 @@ import { makeDeliverabilityCheck } from "./deliverability";
 import { makeQbReconcileCheck, makeStripeMatchCheck } from "./reconcile";
 import { REQUIRED_CLAUSES } from "../contract-compliance";
 import { isEndorsementIdle } from "../endorsement";
+import { LEAD_SOURCE_VALUES } from "../lead-sources";
+
+// Recognized lead.source values, derived from the shared enum const so the
+// evidence check can never drift from the zod schema / migration mapping.
+// Enum members are static, controlled strings — safe to interpolate.
+const leadSourceValuesInList = LEAD_SOURCE_VALUES.map((v) => `'${v}'`).join(",");
 
 // A stamped contract template has "drifted" out of compliance if it is no longer
 // active, or (for a gated state) it no longer carries that state's required
@@ -106,6 +112,22 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and created_at < now() - interval '1 hour'
         and status in ('new','contacted','qualified','booked')
         and (score is null or score_reason is null)`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
+  ),
+
+  // Every lead carries a recognized source. Machine-originated leads (web, inbound_call,
+  // canvass, direct_mail) are always stamped by their creation path, so they're never a
+  // violation here — this catches manual entry that skipped the taxonomy (null) or a
+  // stale/legacy source string that predates the enum.
+  "lead.source_taxonomy": invariant(
+    "lead.source_taxonomy",
+    `select l.id
+       from lead l
+      where l.tenant_id = $1
+        and (
+          l.source is null
+          or l.source not in (${leadSourceValuesInList})
+        )`,
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 

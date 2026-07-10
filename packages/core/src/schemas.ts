@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizePhone } from "./phone";
+import { LEAD_SOURCE_VALUES, leadSourceDetailSchema } from "./lead-sources";
 
 // Re-export zod so cross-package consumers (the Next.js app) use THIS package's
 // single zod instance — extending leadIntakeSchema with the app's own zod would
@@ -39,7 +40,8 @@ export const leadIntakeObject = z.object({
   phone: phoneOptional,
   email: emailOptional,
   address: z.string().min(3).max(240),
-  source: z.string().min(1).max(60).default("web"),
+  source: z.enum(LEAD_SOURCE_VALUES),
+  sourceDetail: z.unknown().optional(),
   // optional structured address (Google Places) + optional roof/year
   city: z.string().max(120).optional(),
   state: z.string().max(40).optional(),
@@ -62,5 +64,10 @@ export const contactMethodIssue: { message: string; path: (string | number)[] } 
   path: ["phone"],
 };
 
-export const leadIntakeSchema = leadIntakeObject.refine(hasContactMethod, contactMethodIssue);
+export const leadIntakeSchema = leadIntakeObject
+  .refine(hasContactMethod, contactMethodIssue)
+  .refine(
+    (d) => leadSourceDetailSchema(d.source).safeParse(d.sourceDetail ?? (d.source === "other" ? {} : null)).success,
+    { message: "Fill in the required details for this source", path: ["sourceDetail"] },
+  );
 export type LeadIntakeInput = z.infer<typeof leadIntakeSchema>;

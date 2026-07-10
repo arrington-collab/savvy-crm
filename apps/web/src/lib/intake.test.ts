@@ -239,3 +239,29 @@ describe("createLeadForTenant — instantiates the lead ledger", () => {
     expect(rows[0]!.status).toBe("pending");
   });
 });
+
+describe("createLeadForTenant — persists source_detail", () => {
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const [t] = await adminDb
+      .insert(tenant)
+      .values({ name: "SourceDetailTest", clerkOrgId: `org_sourcedetail_${Date.now()}` })
+      .returning();
+    tenantId = t!.id;
+  });
+
+  it("stores sourceDetail on a referral lead", async () => {
+    const leadId = await createLeadForTenant(tenantId, {
+      name: "Referral Lead", phone: "+16025558000",
+      address: "1 Referral St, Phoenix AZ 85001", state: "AZ",
+      source: "referral",
+      sourceDetail: { referrer_name: "Sue", referral_fee_cents: 10000 },
+    });
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select({ sourceDetail: lead.sourceDetail }).from(lead).where(eq(lead.id, leadId)),
+    );
+    expect(row).toBeDefined();
+    expect((row!.sourceDetail as { referrer_name?: string }).referrer_name).toBe("Sue");
+  });
+});
