@@ -87,3 +87,37 @@ export async function recordReferralPayment(input: {
     return { created: true, status };
   });
 }
+
+/**
+ * The one-tap "approve" on the over-threshold referral-fee approval card: flips the
+ * pending `referral_payment` to `approved` and closes the approval task. Modeled on
+ * `sendDepreciationInvoice` in depreciation-recovery.ts.
+ */
+export async function approveReferralPayment(input: {
+  tenantId: string;
+  jobId: string;
+  now?: Date;
+}): Promise<{ approved: true } | { skipped: string }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [rp] = await tx
+      .select({ status: referralPayment.status })
+      .from(referralPayment)
+      .where(and(eq(referralPayment.tenantId, input.tenantId), eq(referralPayment.jobId, input.jobId)));
+    if (!rp) return { skipped: "no_payable" };
+    if (rp.status !== "pending") return { skipped: "not_pending" };
+
+    const now = input.now ?? new Date();
+
+    await tx
+      .update(referralPayment)
+      .set({ status: "approved" })
+      .where(and(eq(referralPayment.tenantId, input.tenantId), eq(referralPayment.jobId, input.jobId)));
+
+    await tx
+      .update(jobChecklistItem)
+      .set({ status: "done", completedAt: now })
+      .where(and(eq(jobChecklistItem.jobId, input.jobId), eq(jobChecklistItem.key, REFERRAL_FEE_APPROVAL_TASK_KEY)));
+
+    return { approved: true };
+  });
+}

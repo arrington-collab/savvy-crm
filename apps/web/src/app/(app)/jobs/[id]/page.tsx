@@ -10,6 +10,7 @@ import {
   document,
   esignRequest,
   tenant,
+  referralPayment,
   eq,
   and,
   or,
@@ -21,6 +22,7 @@ import {
   getAdjusterAppointmentForJob,
   getJobLedger,
   DEPRECIATION_APPROVAL_TASK_KEY,
+  REFERRAL_FEE_APPROVAL_TASK_KEY,
   listFlaggedPhotosForJob,
   getDocumentParseSummaries,
 } from "@savvy/db";
@@ -53,6 +55,7 @@ import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { PropertyMap } from "@/components/PropertyMap";
 import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 import { SupplierInvoicesPanel } from "./SupplierInvoicesPanel";
+import { ReferralFeeApproval } from "./ReferralFeeApproval";
 
 export const dynamic = "force-dynamic";
 
@@ -196,7 +199,12 @@ export default async function JobDetailPage({
       .from(tenant)
       .where(eq(tenant.id, tenantId));
 
-    return { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow };
+    const [referralPaymentRow] = await tx
+      .select({ amountCents: referralPayment.amountCents, status: referralPayment.status })
+      .from(referralPayment)
+      .where(eq(referralPayment.jobId, id));
+
+    return { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow, referralPaymentRow };
   });
 
   if (!data) {
@@ -207,7 +215,7 @@ export default async function JobDetailPage({
     );
   }
 
-  const { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow } = data;
+  const { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow, referralPaymentRow } = data;
 
   // The Job Ledger — registry tasks instantiated for this job + evidence + health.
   const ledger = await getJobLedger(tenantId, id);
@@ -349,6 +357,10 @@ export default async function JobDetailPage({
       }
     : null;
 
+  // Over-threshold referral-fee approval card (Task 5/10): surfaced as a one-tap approve.
+  const referralApproval =
+    referralPaymentRow?.status === "pending" ? taskRows.find((t) => t.key === REFERRAL_FEE_APPROVAL_TASK_KEY) : undefined;
+
   // Serialize measurement areas for client component (jsonb -> plain object).
   const measurementForClient = measurement
     ? {
@@ -413,6 +425,10 @@ export default async function JobDetailPage({
           </div>
         </div>
       </Card>
+
+      {referralApproval && referralPaymentRow && (
+        <ReferralFeeApproval jobId={id} title={referralApproval.title} amountCents={referralPaymentRow.amountCents} />
+      )}
 
       <Card data-testid="job-margin" className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-6">
