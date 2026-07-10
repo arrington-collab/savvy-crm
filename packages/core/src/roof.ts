@@ -27,6 +27,20 @@ export function canEnrichmentWriteReplacement(
   return SOURCE_RANK[incoming] > SOURCE_RANK[existing];
 }
 
+const ROOF_TYPE_LABELS: Record<string, string> = {
+  asphalt_shingle: "Asphalt shingle",
+  tile: "Tile",
+  metal: "Metal",
+  flat_foam: "Flat-foam",
+  other: "Other",
+};
+
+/** Human-readable roof-type label for display; passes unknown/legacy values through unchanged, null for empty. */
+export function formatRoofTypeLabel(roofType: string | null | undefined): string | null {
+  if (!roofType) return null;
+  return ROOF_TYPE_LABELS[roofType] ?? roofType;
+}
+
 /** Gap-fill: return only the roof/year fields whose stored value is null (never overwrite owner-edited values). */
 export function roofYearGapFill(
   existing: { roofType: string | null; yearBuilt: number | null },
