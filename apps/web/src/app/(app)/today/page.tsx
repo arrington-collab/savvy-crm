@@ -188,7 +188,12 @@ export default async function TodayPage() {
       {/* DIGEST + MONEY */}
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card className="p-4" data-testid="digest-panel">
-          <div className="eyebrow mb-2">While you were out · last 24h · {digest.totalActions} agent action{digest.totalActions === 1 ? "" : "s"}</div>
+          <div className="eyebrow mb-2 flex items-center justify-between">
+            <span>While you were out · last 24h · {digest.totalActions} agent action{digest.totalActions === 1 ? "" : "s"}</span>
+            <Link href="/activity" className="underline" style={{ color: "var(--accent-deep)" }} data-testid="today-activity-link">
+              view live feed →
+            </Link>
+          </div>
           {digest.perAgent.length === 0 ? (
             <p className="text-sm" style={{ color: "var(--text-faint)" }}>No agent activity in the last 24 hours.</p>
           ) : (

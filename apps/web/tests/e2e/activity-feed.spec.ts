@@ -49,3 +49,9 @@ test("activity feed deep-links a single job via ?job=", async ({ page }) => {
   await page.goto(`/activity?job=${jobId}`);
   await expect(page.getByTestId("activity-row").first()).toBeVisible();
 });
+
+test("Today's 'While you were out' panel links to the live feed", async ({ page }) => {
+  await page.goto("/today");
+  await page.getByRole("link", { name: /view live feed/i }).click();
+  await expect(page).toHaveURL(/\/activity/);
+});
