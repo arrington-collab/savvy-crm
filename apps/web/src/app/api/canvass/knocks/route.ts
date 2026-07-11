@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
-import { withTenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { withTenant, upsertCanvassKnock, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
-// POST — a rep logs a knock (bearer session). The client also sends its live GPS
-//   (deviceLat/Lng); the server flags the knock if the marked door is far from it.
-//   Idempotent on (tenant, clientId).
+// POST — a rep logs OR EDITS a knock (bearer session). The client also sends its
+//   live GPS (deviceLat/Lng); the server flags the knock if the marked door is
+//   far from it. Upserts on (tenant, clientId): a replay is a no-op-shaped
+//   update, and an edit (outcome change from the contact sheet, appt→sale after
+//   a contract signs) overwrites the mutable fields instead of being dropped.
 // GET  — the whole team's knocks for the shared map (bearer session, or ?key=).
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, OPTIONS") });
@@ -39,30 +41,27 @@ export async function POST(req: Request): Promise<NextResponse> {
     gpsFlagged = gpsDistanceM > CANVASS_GPS_FLAG_METERS;
   }
 
-  const rows = await withTenant(sess.tenantId, (tx) =>
-    tx
-      .insert(canvassKnock)
-      .values({
-        tenantId: sess.tenantId,
-        repId: sess.repId,
-        clientId: k.clientId,
-        lat: k.lat,
-        lng: k.lng,
-        outcome: k.outcome,
-        address: k.address ?? null,
-        contactName: k.contactName ?? null,
-        contactPhone: k.contactPhone ?? null,
-        notes: k.notes ?? null,
-        amount: k.amount ?? null,
-        scheduledAt: k.scheduledAt ? new Date(k.scheduledAt) : null,
-        gpsFlagged,
-        gpsDistanceM,
-      })
-      .onConflictDoNothing({ target: [canvassKnock.tenantId, canvassKnock.clientId] })
-      .returning({ id: canvassKnock.id }),
+  const { id } = await withTenant(sess.tenantId, (tx) =>
+    upsertCanvassKnock(tx, {
+      tenantId: sess.tenantId,
+      repId: sess.repId,
+      clientId: k.clientId,
+      lat: k.lat,
+      lng: k.lng,
+      outcome: k.outcome,
+      address: k.address,
+      contactName: k.contactName,
+      contactPhone: k.contactPhone,
+      notes: k.notes,
+      amount: k.amount,
+      scheduledAt: k.scheduledAt ? new Date(k.scheduledAt) : null,
+      territoryClientId: k.territoryClientId,
+      gpsFlagged,
+      gpsDistanceM,
+    }),
   );
   if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
-  return reply({ ok: true, id: rows[0]?.id ?? null, gpsFlagged, gpsDistanceM }, 201);
+  return reply({ ok: true, id, gpsFlagged, gpsDistanceM }, 201);
 }
 
 export async function GET(req: Request): Promise<NextResponse> {

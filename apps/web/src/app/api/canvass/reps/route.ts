@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { canvassRepCreateObject, canvassDeactivateObject, hashPin } from "@savvy/core";
 import { adminDb, canvassRep, and, eq, sql } from "@savvy/db";
 import { tenantByKey } from "@/lib/intake";
-import { getTenantId } from "@/lib/tenant";
-import { isOrgAdmin } from "@/lib/authz";
+import { canvassManagerTenantId } from "@/lib/canvass-authz";
 import { canvassCors } from "@/lib/canvass-cors";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
@@ -12,12 +11,13 @@ export const runtime = "nodejs";
 
 // GET   /api/canvass/reps?key=  → active reps (id, name, photoUrl) for the login picker
 //   (public, read-only — field login devices are unauthenticated).
-// POST  /api/canvass/reps       → manager creates a rep (name + PIN). Auth = an
-//   authenticated org-admin session; the tenant is derived from that session, NOT
-//   from a client-supplied public key. PIN is scrypt-hashed server-side; the
-//   plaintext PIN never persists.
-// PATCH /api/canvass/reps       → manager deactivates/reactivates a rep. Auth = same
-//   org-admin session model as POST (tenant from session, never public key).
+// POST  /api/canvass/reps       → manager creates a rep (name + PIN). Auth = a
+//   canvass MANAGER bearer token (field app) or an org-admin Clerk session (web
+//   app) — see canvassManagerTenantId. Tenant derived from the session either
+//   way, NOT from a client-supplied public key. PIN is scrypt-hashed server-side;
+//   the plaintext PIN never persists.
+// PATCH /api/canvass/reps       → manager deactivates/reactivates a rep. Auth =
+//   same dual model as POST (tenant from session, never public key).
 
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, PATCH, OPTIONS") });
@@ -40,16 +40,10 @@ export async function POST(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, PATCH, OPTIONS");
   const reply = (body: unknown, status: number) => NextResponse.json(body, { status, headers });
 
-  // Privileged mutation: require an authenticated org-admin session and derive the
-  // tenant from it — never from a client-supplied public key (the publicKey is not
-  // a secret). Field devices (unauthenticated) only use GET /reps + /login.
-  let tenantId: string;
-  try {
-    tenantId = await getTenantId();
-  } catch {
-    return reply({ error: "unauthorized" }, 401);
-  }
-  if (!(await isOrgAdmin())) return reply({ error: "forbidden" }, 403);
+  // Privileged mutation: manager bearer token or org-admin session; tenant from
+  // the session — never from a client-supplied public key (publicKey isn't secret).
+  const tenantId = await canvassManagerTenantId(req);
+  if (!tenantId) return reply({ error: "unauthorized" }, 401);
 
   let json: unknown;
   try {
@@ -90,15 +84,10 @@ export async function PATCH(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, PATCH, OPTIONS");
   const reply = (body: unknown, status: number) => NextResponse.json(body, { status, headers });
 
-  // Privileged mutation: require an authenticated org-admin session and derive the
-  // tenant from it — never from a client-supplied public key.
-  let tenantId: string;
-  try {
-    tenantId = await getTenantId();
-  } catch {
-    return reply({ error: "unauthorized" }, 401);
-  }
-  if (!(await isOrgAdmin())) return reply({ error: "forbidden" }, 403);
+  // Privileged mutation: manager bearer token or org-admin session; tenant from
+  // the session — never from a client-supplied public key.
+  const tenantId = await canvassManagerTenantId(req);
+  if (!tenantId) return reply({ error: "unauthorized" }, 401);
 
   let json: unknown;
   try {

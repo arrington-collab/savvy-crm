@@ -95,6 +95,9 @@ export const canvassKnockObject = z.object({
   notes: z.string().max(2000).optional(),
   amount: z.number().nonnegative().max(100_000_000).optional(),
   scheduledAt: z.string().datetime({ offset: true }).optional(),
+  // The app's local id of the territory this door falls in (client-side
+  // point-in-polygon); the server resolves it to canvass_territory.id.
+  territoryClientId: z.string().min(1).max(64).optional(),
   deviceLat: z.number().optional(),
   deviceLng: z.number().optional(),
 });

@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { canvassTerritoryObject } from "@savvy/core";
-import { withTenant, canvassTerritory } from "@savvy/db";
+import { withTenant, canvassTerritory, isNotNull } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
-import { getTenantId } from "@/lib/tenant";
-import { isOrgAdmin } from "@/lib/authz";
+import { canvassManagerTenantId } from "@/lib/canvass-authz";
 import { canvassCors } from "@/lib/canvass-cors";
 
 export const runtime = "nodejs";
 
 // Shared canvassing territories.
-// GET  → list territories (field-accessible: bearer session or ?key=).
-// POST → create territory (manager-only: requires org-admin session, tenant from
-//         session — NOT from a client-supplied public key).
+// GET  → list territories (bearer session).
+// POST → create/update territory (manager-only: canvass MANAGER bearer token from
+//         the field app, or an org-admin Clerk session from the web app — tenant
+//         from the session, NOT from a client-supplied public key). Upserts on
+//         (tenant, clientId) so a re-synced field territory never duplicates.
 
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, OPTIONS") });
@@ -36,15 +37,10 @@ export async function POST(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, POST, OPTIONS");
   const reply = (b: unknown, s: number) => NextResponse.json(b, { status: s, headers });
 
-  // Privileged mutation: require an authenticated org-admin session and derive the
-  // tenant from it — never from a client-supplied public key.
-  let tenantId: string;
-  try {
-    tenantId = await getTenantId();
-  } catch {
-    return reply({ error: "unauthorized" }, 401);
-  }
-  if (!(await isOrgAdmin())) return reply({ error: "forbidden" }, 403);
+  // Privileged mutation: manager bearer token or org-admin session; tenant from
+  // the session — never from a client-supplied public key.
+  const tenantId = await canvassManagerTenantId(req);
+  if (!tenantId) return reply({ error: "unauthorized" }, 401);
 
   let json: unknown;
   try {
@@ -57,7 +53,17 @@ export async function POST(req: Request): Promise<NextResponse> {
   const t = parsed.data;
 
   const [row] = await withTenant(tenantId, (tx) =>
-    tx.insert(canvassTerritory).values({ tenantId, name: t.name, color: t.color ?? null, points: t.points }).returning({ id: canvassTerritory.id }),
+    tx
+      .insert(canvassTerritory)
+      .values({ tenantId, clientId: t.clientId, name: t.name, color: t.color ?? null, points: t.points })
+      .onConflictDoUpdate({
+        target: [canvassTerritory.tenantId, canvassTerritory.clientId],
+        // the unique index is partial (client_id IS NOT NULL) — the conflict
+        // target must carry the same predicate to match it
+        targetWhere: isNotNull(canvassTerritory.clientId),
+        set: { name: t.name, color: t.color ?? null, points: t.points },
+      })
+      .returning({ id: canvassTerritory.id }),
   );
   return reply({ ok: true, id: row?.id ?? null }, 201);
 }

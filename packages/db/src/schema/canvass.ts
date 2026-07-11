@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, boolean, index, jsonb, doublePrecision, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 
@@ -20,14 +21,22 @@ export const canvassRep = pgTable("canvass_rep", {
 }, (t) => [index("canvass_rep_tenant_idx").on(t.tenantId), tenantIsolation()]);
 
 // A canvassing territory (drawn polygon) shared across the tenant's reps.
+// `clientId` is the field app's local id — the unique (tenant, clientId) index
+// makes POST /territories idempotent on retry and lets knocks reference their
+// territory by the id the device knows. Null on legacy/web-created rows.
 export const canvassTerritory = pgTable("canvass_territory", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  clientId: text("client_id"),
   name: text("name").notNull(),
   color: text("color"),
   points: jsonb("points").$type<number[][]>().notNull(),
   createdAt: createdAt(),
-}, (t) => [index("canvass_territory_tenant_idx").on(t.tenantId), tenantIsolation()]);
+}, (t) => [
+  index("canvass_territory_tenant_idx").on(t.tenantId),
+  uniqueIndex("canvass_territory_client_uniq").on(t.tenantId, t.clientId).where(sql`${t.clientId} IS NOT NULL`),
+  tenantIsolation(),
+]);
 
 // A logged door-knock. Synced from the field app so the whole team shares the
 // map, and managers get real rollups. `clientId` is the app's local id — a
