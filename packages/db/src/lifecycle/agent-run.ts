@@ -1,8 +1,8 @@
-import { and, desc, eq, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
-import type { Agent } from "@savvy/core";
+import { SHOWCASE, type Agent } from "@savvy/core";
 
 export type AgentRunStatus = "running" | "ok" | "error" | "skipped";
 
@@ -159,6 +159,14 @@ export async function listAgentActivity(
  * on throw. Wrap ONLY the slow work you want to show as in-flight — for
  * skip-with-reason paths, call this AFTER the guard so you never flash a
  * spinner for a run that wasn't really working.
+ *
+ * Orphan guard: when this runs inside an Inngest `step.run`, a step retry
+ * re-executes `work` from scratch, which can leave a prior `running` row
+ * orphaned (its own try/catch never fires because the step process was
+ * killed/retried out from under it). We don't try to detect that here —
+ * the reaper (`markStaleRunsTimedOut`, 10 min cutoff) plus the 90s UI
+ * spinner cap are the intended guards against an orphaned row spinning
+ * forever.
  */
 export async function withAgentRun<T>(
   meta: {
@@ -180,7 +188,16 @@ export async function withAgentRun<T>(
     await completeAgentRun({ tenantId: meta.tenantId, runId, status: r.status, error: r.error ?? null, modelUsed: r.modelUsed ?? null });
     return result;
   } catch (e) {
-    await completeAgentRun({ tenantId: meta.tenantId, runId, status: "error", error: (e as Error).message });
+    try {
+      await completeAgentRun({
+        tenantId: meta.tenantId,
+        runId,
+        status: "error",
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } catch {
+      // Swallow: don't let a failure to close the run row mask the original error.
+    }
     throw e;
   }
 }
@@ -205,8 +222,12 @@ export async function listRunningRuns(tenantId: string): Promise<RunningRunRow[]
       .where(and(
         eq(agentRun.status, "running"),
         or(isNotNull(agentRun.jobId), isNotNull(agentRun.leadId)),
+        // A stalled reaper (markStaleRunsTimedOut hasn't run) shouldn't let this
+        // poll grow unboundedly — bound to the spinner window plus a hard limit.
+        gte(agentRun.startedAt, new Date(Date.now() - SHOWCASE.SPINNER_MAX_SECONDS * 1000)),
       ))
-      .orderBy(desc(agentRun.startedAt)),
+      .orderBy(desc(agentRun.startedAt))
+      .limit(200),
   );
 }
 

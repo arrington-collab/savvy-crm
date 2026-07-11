@@ -18,6 +18,8 @@ export function shapeInflight(
   for (const r of rows) {
     if ((now.getTime() - r.startedAt.getTime()) / 1000 > maxSeconds) continue; // stale → no dot
     const entry: InflightEntry = { agent: r.agent, verb: verbFor(r.taskKey).verb, startedAt: r.startedAt.toISOString() };
+    // A run carrying BOTH jobId and leadId is bucketed to jobs only — job
+    // supersedes lead, since once a job exists the lead is converted.
     const bucket = r.jobId ? jobs : leads;
     const key = r.jobId ?? r.leadId!;
     const prev = bucket[key];
