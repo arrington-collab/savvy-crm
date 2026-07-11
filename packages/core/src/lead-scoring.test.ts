@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { scoreLead, deriveBand, stormSubScore, parseScoringConfig } from "./lead-scoring";
+import { scoreLead, deriveBand, stormSubScore, parseScoringConfig, scoreBandLegend } from "./lead-scoring";
 import type { LeadFeatures } from "./lead-features";
 
 const cfg = parseScoringConfig({});
 const f = (over: Partial<LeadFeatures> = {}): LeadFeatures => ({
   source: "web", state: "AZ", inTerritory: true, hasContact: true,
   roofType: null, roofTypeSecondary: null, yearBuilt: null, roofAgeYears: null,
+  roofReplacementYear: null,
   storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null },
   ...over,
 });
@@ -79,5 +80,62 @@ describe("scoreLead", () => {
     expect(r.disqualified).toBe(true);
     expect(r.band).toBe("cold");
     expect(r.reasons.some((x) => /out of area/i.test(x))).toBe(true);
+  });
+});
+
+describe("scoreLead — slice 5: rationale cites effective roof age", () => {
+  it("cites the replacement year when the age comes from a known replacement", () => {
+    // roof effectively ~9 yrs because it was replaced in 2017 (not ~28 from a 1997 build).
+    const r = scoreLead(f({ roofType: "asphalt_shingle", yearBuilt: 1997, roofAgeYears: 9, roofReplacementYear: 2017 }), cfg);
+    const roofReason = r.reasons.find((x) => /roof/i.test(x));
+    expect(roofReason).toBeDefined();
+    expect(roofReason).toMatch(/replaced 2017/);
+    expect(roofReason).toMatch(/~9\s*yrs/);
+  });
+
+  it("does NOT claim a replacement when the age is from build year", () => {
+    const r = scoreLead(f({ roofType: "asphalt_shingle", yearBuilt: 1997, roofAgeYears: 28, roofReplacementYear: null }), cfg);
+    const roofReason = r.reasons.find((x) => /roof/i.test(x));
+    expect(roofReason).toBeDefined();
+    expect(roofReason).not.toMatch(/replaced/i);
+  });
+});
+
+describe("scoreLead — slice 5: secondary roof type contributes", () => {
+  it("a tile SECONDARY roof earns the tile bump like a tile primary", () => {
+    const primaryTile = scoreLead(f({ roofType: "tile", roofTypeSecondary: null, roofAgeYears: 15 }), cfg).components.roof;
+    const secondaryTile = scoreLead(f({ roofType: "asphalt_shingle", roofTypeSecondary: "tile", roofAgeYears: 15 }), cfg).components.roof;
+    const noTile = scoreLead(f({ roofType: "asphalt_shingle", roofTypeSecondary: null, roofAgeYears: 15 }), cfg).components.roof;
+    expect(secondaryTile).toBeGreaterThan(noTile);
+    expect(secondaryTile).toBeCloseTo(primaryTile, 10);
+  });
+});
+
+describe("scoreBandLegend — slice 5: the in-app scale documentation", () => {
+  it("documents 0–100 with contiguous Hot/Warm/Cool/Cold ranges from the config cutoffs", () => {
+    const legend = scoreBandLegend(cfg);
+    expect(legend).toEqual([
+      { band: "hot", label: "Hot", min: 80, max: 100 },
+      { band: "warm", label: "Warm", min: 60, max: 79 },
+      { band: "cool", label: "Cool", min: 40, max: 59 },
+      { band: "cold", label: "Cold", min: 0, max: 39 },
+    ]);
+  });
+
+  it("tracks custom band cutoffs", () => {
+    const legend = scoreBandLegend(parseScoringConfig({ bands: { hot: 90, warm: 70, cool: 50 } }));
+    expect(legend.map((b) => [b.label, b.min, b.max])).toEqual([
+      ["Hot", 90, 100], ["Warm", 70, 89], ["Cool", 50, 69], ["Cold", 0, 49],
+    ]);
+  });
+});
+
+describe("scoreLead — slice 5: source intent ordering", () => {
+  it("referral > insurance_agent/realtor > web > ads baseline", () => {
+    const q = (source: string) => scoreLead(f({ source, roofAgeYears: 12 }), cfg).components.source;
+    expect(q("referral")).toBeGreaterThan(q("insurance_agent"));
+    expect(q("insurance_agent")).toBeCloseTo(q("realtor"), 10);
+    expect(q("insurance_agent")).toBeGreaterThan(q("web"));
+    expect(q("web")).toBeGreaterThan(q("ads"));
   });
 });

@@ -57,6 +57,16 @@ beforeAll(async () => {
   const [bc] = await adminDb.insert(customer).values({ tenantId: badId, name: "unscored", phone: "+16025550400" }).returning();
   await adminDb.insert(lead).values({ tenantId: badId, customerId: bc!.id, source: "test", status: "new", createdAt: HOURS(2) });
 
+  // --- lead.effective_age (slice 5) --- both leads' properties carry a KNOWN
+  // replacement date; the rationale must cite it. CLEAN cites "replaced 2017";
+  // BAD was scored off build-year age (~28 yrs) and never cites the replacement.
+  const [cea] = await adminDb.insert(customer).values({ tenantId: cleanId, name: "eff-age-ok", phone: "+16025550900" }).returning();
+  const [ceap] = await adminDb.insert(property).values({ tenantId: cleanId, customerId: cea!.id, address: "eff-age-clean", lastRoofReplacementAt: "2017-06-01", lastRoofReplacementSource: "owner_reported" }).returning();
+  await adminDb.insert(lead).values({ tenantId: cleanId, customerId: cea!.id, propertyId: ceap!.id, source: "test", status: "new", createdAt: HOURS(2), firstRepContactAt: plus(HOURS(2), 2), score: 55, scoreReason: "roof replaced 2017", scoreFeatures: { reasons: ["Roof ~9 yrs — replaced 2017"] } as never });
+  const [bea] = await adminDb.insert(customer).values({ tenantId: badId, name: "eff-age-bad", phone: "+16025551000" }).returning();
+  const [beap] = await adminDb.insert(property).values({ tenantId: badId, customerId: bea!.id, address: "eff-age-bad", lastRoofReplacementAt: "2017-06-01", lastRoofReplacementSource: "assessor" }).returning();
+  await adminDb.insert(lead).values({ tenantId: badId, customerId: bea!.id, propertyId: beap!.id, source: "test", status: "new", createdAt: HOURS(2), firstRepContactAt: plus(HOURS(2), 2), score: 40, scoreReason: "roof ~28 yrs", scoreFeatures: { reasons: ["Roof ~28 yrs"] } as never });
+
   // --- exceptions.roof_type --- CLEAN: post-inspection job WITH roof type. BAD: null roof type past 48h SLA.
   const mkJob = async (tid: string, roofType: string | null, stageEnteredAt: Date) => {
     const [c] = await adminDb.insert(customer).values({ tenantId: tid, name: "rt", phone: null }).returning();
@@ -142,8 +152,8 @@ afterAll(async () => {
 
 describe("evidence invariants (real DB, green + red)", () => {
   const cases = [
-    "comms.no_double_send", "comms.body_quality", "lead.dedupe", "lead.score", "exceptions.roof_type",
-    "lead.speed_to_contact", "lead.enrich.geocode", "lead.enrich.stormproof",
+    "comms.no_double_send", "comms.body_quality", "lead.dedupe", "lead.score", "lead.effective_age",
+    "exceptions.roof_type", "lead.speed_to_contact", "lead.enrich.geocode", "lead.enrich.stormproof",
     "drip.appended_guard", "finance.invoice_math", "finance.commissions",
   ];
 

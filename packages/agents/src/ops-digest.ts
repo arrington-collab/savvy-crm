@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, computeCalibration } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, recordAgentRun, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
@@ -25,7 +25,10 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const window = { start: new Date(now.getTime() - 24 * 60 * 60 * 1000), end: now };
   const recoverySummary = await getCreditRecoverySummary(tenantId, window);
   const recoveryLine = buildRecoveryLine(recoverySummary);
-  const body = recoveryLine ? `${msg.body}\n${recoveryLine}` : msg.body;
+  // Slice 5: ride the owner digest with the score-calibration line once it's active
+  // (≥50 resolved leads); below that it stays silent rather than surfacing noise.
+  const calibrationLine = buildCalibrationLine(computeCalibration(await getCalibrationInputs(tenantId)));
+  const body = [msg.body, recoveryLine, calibrationLine].filter(Boolean).join("\n");
 
   const [owner] = await adminDb
     .select({ phone: user.phone, email: user.email })

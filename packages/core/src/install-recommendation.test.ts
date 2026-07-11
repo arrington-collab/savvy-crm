@@ -5,6 +5,7 @@ import type { LeadFeatures } from "./lead-features";
 const f = (over: Partial<LeadFeatures> = {}): LeadFeatures => ({
   source: "web", state: "AZ", inTerritory: true, hasContact: true,
   roofType: null, roofTypeSecondary: null, yearBuilt: null, roofAgeYears: null,
+  roofReplacementYear: null,
   storm: { eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null }, ...over,
 });
 
