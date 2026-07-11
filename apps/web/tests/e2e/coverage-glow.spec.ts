@@ -20,15 +20,17 @@ test("a coverage cell flips to pass and toasts when a check is genuinely earned"
     ranAt: new Date(),
   });
 
-  // Deterministically drive the poll: intercept /api/coverage and return the real
-  // rows with THIS cell flipped to pass. This exercises the client transition (glow +
-  // toast) without racing a DB write against the 15s poll under CI load. coverageWins
-  // (unit-tested) is the honesty gate; the SSR render covers the DB→proof query.
-  await page.route("**/api/coverage", async (route) => {
-    const res = await route.fetch();
-    const rows = (await res.json()) as { checkKey: string; status: string }[];
-    await route.fulfill({ json: rows.map((r) => (r.checkKey === checkKey ? { ...r, status: "pass" } : r)) });
-  });
+  // Deterministically drive the poll: intercept /api/coverage and return THIS cell as
+  // pass. A fully synthetic response (no route.fetch / DB read) exercises the client
+  // transition (glow + toast) without racing a DB write against the 15s poll under CI
+  // load. coverageWins (unit-tested) is the honesty gate; the SSR render (prev=fail)
+  // makes this a real fail→pass transition; other money specs cover the DB→proof query.
+  await page.route("**/api/coverage", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([{ checkKey, label: "E2E coverage check", status: "pass", message: null, refCount: 0, ranAt: new Date().toISOString() }]),
+    }),
+  );
 
   await page.goto("/money");
   const row = page.locator(`[data-testid="proof-row"][data-checkkey="${checkKey}"]`);
