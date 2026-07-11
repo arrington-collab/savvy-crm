@@ -10,8 +10,8 @@
  *   DATABASE_URL=... DATABASE_ADMIN_URL=... pnpm test estimate-generate
  */
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, ensurePriceBook, measurement, tenant, property, customer, job } from "@savvy/db";
-import { generateUpsells } from "./estimate-generate";
+import { adminDb, withTenant, ensurePriceBook, measurement, tenant, property, customer, job, agentRun, eq, and } from "@savvy/db";
+import { generateUpsells, draftEstimateWithRun } from "./estimate-generate";
 
 // ---------------------------------------------------------------------------
 // Helpers — bootstrap a real tenant + job + measurement in the DB.
@@ -114,5 +114,28 @@ describe("createEstimateFromMeasurement (via generateEstimateOnMeasurement path)
     expect(est!.total).toBeGreaterThan(0);
     // upsellSuggestions defaults to [] (AI not run in this direct test)
     expect(Array.isArray(est!.upsellSuggestions)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// draftEstimateWithRun: wraps the job-stage draft in a live agent_run
+// ---------------------------------------------------------------------------
+describe("draftEstimateWithRun", () => {
+  it("opens and resolves an agent_run row attributed to the job", async () => {
+    const { tenantId } = await makeTestTenant();
+    await ensurePriceBook(tenantId);
+    const { jobId, measurementId } = await makeJobWithMeasurement(tenantId);
+
+    const est = await draftEstimateWithRun({ tenantId, jobId, measurementId });
+
+    expect(est).not.toBeNull();
+    expect(est!.status).toBe("draft");
+
+    const rows = await withTenant(tenantId, (tx) =>
+      tx.select().from(agentRun).where(and(eq(agentRun.taskKey, "estimating-049"), eq(agentRun.jobId, jobId))),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe("ok");
+    expect(rows[0]!.jobId).toBe(jobId);
   });
 });

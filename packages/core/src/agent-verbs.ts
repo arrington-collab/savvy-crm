@@ -20,6 +20,7 @@ const VERBS: Record<string, { verb: string; category: string }> = {
   "ops.digest": { verb: "sent the daily digest", category: "ops" },
   "ops.health_sweep": { verb: "ran the health sweep", category: "ops" },
   "ops.break_glass": { verb: "broke glass", category: "ops" },
+  "estimating-049": { verb: "drafting an estimate", category: "estimate" },
 };
 
 function humanize(taskKey: string): { verb: string; category: string } {

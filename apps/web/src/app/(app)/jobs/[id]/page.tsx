@@ -57,6 +57,7 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 import { SupplierInvoicesPanel } from "./SupplierInvoicesPanel";
 import { ReferralFeeApproval } from "./ReferralFeeApproval";
+import { CardInflight } from "@/components/inflight/CardInflight";
 
 export const dynamic = "force-dynamic";
 
@@ -417,6 +418,7 @@ export default async function JobDetailPage({
                 {jobRow.stage}
               </Badge>
               <AgentAvatar persona={resolveAgentForStage(jobRow.stage).persona} size="sm" />
+              <CardInflight kind="job" id={id} />
             </div>
           </div>
           <div className="text-right">

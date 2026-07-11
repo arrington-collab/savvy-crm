@@ -24,6 +24,7 @@ import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
 import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend } from "@savvy/core";
 import { ScoreScaleTooltip } from "./ScoreScaleTooltip";
+import { CardInflight } from "@/components/inflight/CardInflight";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -77,7 +78,12 @@ export default async function LeadDetailPage({
       <PageHeader
         eyebrow="Lead"
         title={detail.customerName ?? "Lead"}
-        right={<StatusBadge status={detail.status} />}
+        right={
+          <div className="flex items-center gap-1.5">
+            <StatusBadge status={detail.status} />
+            <CardInflight kind="lead" id={id} />
+          </div>
+        }
       />
 
       {/* 1 — Contact / address + map (+ owner) */}

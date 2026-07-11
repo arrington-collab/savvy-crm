@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PIPELINE_COLUMNS, cardMatchesFilter, type PipelineColumn, type PipelineFilter } from "@savvy/core";
 import type { PipelineBoardCard, PipelineBoardData } from "@/lib/pipeline-queries";
+import { CardInflight } from "@/components/inflight/CardInflight";
 
 const COLUMN_LABEL: Record<PipelineColumn, string> = {
   lead: "Lead", inspected: "Inspected", estimate: "Estimate", approved: "Approved",
@@ -81,6 +82,7 @@ export function PipelineBoard({ data }: { data: PipelineBoardData }) {
                     href={c.href}
                     data-testid="pipeline-card"
                     data-column={col}
+                    data-id={c.id}
                     data-kind={c.kind}
                     data-stuck={c.isStuck ? "true" : undefined}
                     className="block rounded-md p-2.5 transition-colors"
@@ -92,6 +94,7 @@ export function PipelineBoard({ data }: { data: PipelineBoardData }) {
                     </div>
                     <div className="truncate text-[11px]" style={{ color: "var(--text-faint)" }}>{c.address}</div>
                     <div className="mono mt-2 flex items-center gap-1.5 text-[10px] leading-relaxed" style={{ color: c.isStuck ? "var(--status-error)" : "var(--text-muted)" }} data-testid="waiting-on">
+                      <CardInflight kind={c.kind} id={c.id} />
                       <span style={{ color: "var(--text-faint)" }}>waiting on:</span>
                       <span>{c.waitingLabel}</span>
                       <span style={{ color: c.waitingIsHuman ? "var(--accent-gold)" : "var(--text-faint)" }}>· {c.waitingOwner}</span>

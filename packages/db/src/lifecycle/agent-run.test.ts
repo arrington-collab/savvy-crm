@@ -1,15 +1,33 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminDb } from "../admin-client.js";
 import { withTenant } from "../tenant.js";
-import { agentRun, tenant } from "../schema/index.js";
+import { agentRun, tenant, customer, property, lead } from "../schema/index.js";
 import {
   recordAgentRun,
   beginAgentRun,
   completeAgentRun,
   markStaleRunsTimedOut,
   listAgentActivity,
+  withAgentRun,
+  listRunningRuns,
 } from "./agent-run.js";
+
+let sharedTenantId: string;
+let sharedLeadId: string;
+
+beforeAll(async () => {
+  const [t] = await adminDb.insert(tenant).values({
+    name: "AR Running", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+  }).returning();
+  sharedTenantId = t!.id;
+  await withTenant(sharedTenantId, async (tx) => {
+    const [c] = await tx.insert(customer).values({ tenantId: sharedTenantId, name: "Homeowner", phone: "+16025550001" }).returning();
+    const [p] = await tx.insert(property).values({ tenantId: sharedTenantId, customerId: c!.id, address: "1 Main" }).returning();
+    const [l] = await tx.insert(lead).values({ tenantId: sharedTenantId, customerId: c!.id, propertyId: p!.id, status: "new" }).returning();
+    sharedLeadId = l!.id;
+  });
+});
 
 describe("recordAgentRun", () => {
   it("writes an agent_run row with taskKey, skipped status, finishedAt set", async () => {
@@ -109,5 +127,80 @@ describe("listAgentActivity", () => {
     const page1 = await listAgentActivity(tenantId, { limit: 1 });
     const page2 = await listAgentActivity(tenantId, { limit: 1, before: page1[0]!.startedAt });
     expect(page2[0]?.id).not.toBe(page1[0]!.id); // cursor advanced
+  });
+});
+
+describe("withAgentRun", () => {
+  it("withAgentRun opens a running row during work and completes ok", async () => {
+    const [t] = await adminDb.insert(tenant).values({
+      name: "AR", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+    }).returning();
+    const tenantId = t!.id;
+
+    let sawRunning = false;
+    const result = await withAgentRun(
+      { tenantId, agent: "orchestrator", taskKey: "test.wrap", leadId: null },
+      async () => {
+        const [row] = await withTenant(tenantId, (tx) =>
+          tx.select().from(agentRun).where(eq(agentRun.taskKey, "test.wrap")));
+        sawRunning = row?.status === "running" && row?.finishedAt === null;
+        return 42;
+      },
+    );
+    expect(result).toBe(42);
+    expect(sawRunning).toBe(true);
+    const [done] = await withTenant(tenantId, (tx) =>
+      tx.select().from(agentRun).where(eq(agentRun.taskKey, "test.wrap")));
+    expect(done!.status).toBe("ok");
+    expect(done!.finishedAt).not.toBeNull();
+  });
+
+  it("withAgentRun maps a result to skipped via resolve", async () => {
+    const [t] = await adminDb.insert(tenant).values({
+      name: "AR", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+    }).returning();
+    const tenantId = t!.id;
+
+    await withAgentRun(
+      { tenantId, agent: "orchestrator", taskKey: "test.skip" },
+      async () => ({ outcome: "skipped" as const }),
+      { resolve: (r) => (r.outcome === "skipped" ? { status: "skipped", error: "nothing to do" } : { status: "ok" }) },
+    );
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select().from(agentRun).where(eq(agentRun.taskKey, "test.skip")));
+    expect(row!.status).toBe("skipped");
+    expect(row!.error).toBe("nothing to do");
+  });
+
+  it("withAgentRun completes error and rethrows on throw", async () => {
+    const [t] = await adminDb.insert(tenant).values({
+      name: "AR", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+    }).returning();
+    const tenantId = t!.id;
+
+    await expect(withAgentRun(
+      { tenantId, agent: "orchestrator", taskKey: "test.throw" },
+      async () => { throw new Error("boom"); },
+    )).rejects.toThrow("boom");
+    const [row] = await withTenant(tenantId, (tx) =>
+      tx.select().from(agentRun).where(eq(agentRun.taskKey, "test.throw")));
+    expect(row!.status).toBe("error");
+    expect(row!.error).toContain("boom");
+  });
+});
+
+describe("listRunningRuns", () => {
+  it("listRunningRuns returns open runs attributed to a job or lead", async () => {
+    const tenantId = sharedTenantId;
+    const leadId = sharedLeadId;
+    const leadRun = await beginAgentRun({ tenantId, agent: "orchestrator", taskKey: "test.run.lead", leadId });
+    await beginAgentRun({ tenantId, agent: "orchestrator", taskKey: "test.run.none" }); // no entity → excluded
+    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "test.run.done", leadId, status: "ok" }); // terminal → excluded
+    const rows = await listRunningRuns(tenantId);
+    const keys = rows.map((r) => r.taskKey);
+    expect(keys).toContain("test.run.lead");
+    expect(keys).not.toContain("test.run.none");
+    expect(keys).not.toContain("test.run.done");
+    expect(rows.find((r) => r.id === leadRun)?.leadId).toBe(leadId);
   });
 });
