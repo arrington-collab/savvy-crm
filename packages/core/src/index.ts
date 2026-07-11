@@ -24,6 +24,7 @@ export * from "./rep-performance";
 export * from "./change-order";
 export * from "./agent-activity";
 export * from "./agent-roster";
+export * from "./activity-query";
 export * from "./job-ledger";
 export * from "./job-ledger-view";
 export * from "./crew-pin";

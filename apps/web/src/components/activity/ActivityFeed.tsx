@@ -17,11 +17,15 @@ export function ActivityFeed({ initial }: { initial: FeedRow[] }) {
       const v = params.get(k);
       if (v) qs.set(k, v);
     }
-    const res = await fetch(`/api/activity?${qs.toString()}`, { cache: "no-store" });
-    if (res.ok) {
-      setRows((await res.json()).rows);
-      setLive(true);
-    } else {
+    try {
+      const res = await fetch(`/api/activity?${qs.toString()}`, { cache: "no-store" });
+      if (res.ok) {
+        setRows((await res.json()).rows);
+        setLive(true);
+      } else {
+        setLive(false);
+      }
+    } catch {
       setLive(false);
     }
   }, [params]);

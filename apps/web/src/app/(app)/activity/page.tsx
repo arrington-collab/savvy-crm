@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { parseActivityQuery } from "@savvy/core";
 import { loadActivityPage } from "@/lib/command-center-queries";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 
@@ -6,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const sp = await searchParams;
-  const { rows } = await loadActivityPage({ agent: sp.agent, status: sp.status, jobId: sp.job });
+  const opts = parseActivityQuery((k) => sp[k]);
+  const { rows } = await loadActivityPage(opts);
   return (
     <div className="space-y-6">
       <div>

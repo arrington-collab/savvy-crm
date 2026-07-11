@@ -68,7 +68,7 @@ export async function recordAgentRun(input: {
   tenantId: string;
   agent: Agent;
   taskKey: string;
-  status: AgentRunStatus;
+  status: Exclude<AgentRunStatus, "running">;
   jobId?: string | null;
   leadId?: string | null;
   modelUsed?: string | null;
@@ -86,7 +86,6 @@ export async function recordAgentRun(input: {
     inngestRunId: input.inngestRunId,
     modelUsed: input.modelUsed,
   });
-  if (input.status === "running") return; // caller explicitly wants an open run
   await completeAgentRun({
     tenantId: input.tenantId,
     runId,
