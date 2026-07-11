@@ -15,13 +15,17 @@ export function LeadsScrollRestore() {
     let restoring = Number.isFinite(saved) && saved > 0;
     let timer: ReturnType<typeof setInterval> | undefined;
 
+    const save = () => {
+      // Never overwrite the target while we're actively restoring toward it.
+      if (!restoring) sessionStorage.setItem(KEY, String(window.scrollY));
+    };
+
     if (restoring) {
       // Poll-restore for up to ~3s. Re-applying on an interval (not a single frame)
       // both waits out the streamed server-rendered list — while it's still too short
       // the scroll clamps below `saved`, so we keep trying — and outlasts the App
       // Router's scroll-to-top on navigation (it resets once; we re-apply after).
-      // Only stop once the offset has held for several consecutive ticks, so a late
-      // reset can't win the final frame.
+      // Only stop once the offset has held for several consecutive ticks.
       const deadline = Date.now() + 3000;
       let held = 0;
       timer = setInterval(() => {
@@ -36,10 +40,10 @@ export function LeadsScrollRestore() {
 
     let saveRaf = 0;
     const onScroll = () => {
-      if (restoring || saveRaf) return; // don't clobber the saved target mid-restore
+      if (restoring || saveRaf) return;
       saveRaf = requestAnimationFrame(() => {
         saveRaf = 0;
-        sessionStorage.setItem(KEY, String(window.scrollY));
+        save();
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -47,6 +51,10 @@ export function LeadsScrollRestore() {
       window.removeEventListener("scroll", onScroll);
       if (saveRaf) cancelAnimationFrame(saveRaf);
       if (timer) clearInterval(timer);
+      // Persist the final position at the unmount / navigate-away moment. This is the
+      // one that matters: the scroll-event save is rAF-throttled and would otherwise
+      // be cancelled here before it fires when the rep scrolls then taps a lead fast.
+      save();
     };
   }, []);
   return null;

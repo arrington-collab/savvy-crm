@@ -74,9 +74,13 @@ test("lead tile: Back to Leads restores list scroll position", async ({ page }) 
   await page.locator(`[data-testid="lead-row"][data-lead-id="${target}"]`).click();
   await expect(page.getByTestId("lead-detail")).toBeVisible();
 
+  // The list persisted its scroll position at navigate-away time.
+  expect(await page.evaluate(() => Number(sessionStorage.getItem("leads:list:scrollY")))).toBeGreaterThan(300);
+
   await page.getByTestId("back-to-leads").click();
   await expect(page.getByTestId("funnel")).toBeVisible();
-  // Scroll is restored (allow a little tolerance for layout/rounding).
-  await page.waitForFunction(() => window.scrollY > 300);
+  // Scroll is restored (allow a little tolerance for layout/rounding). Bounded to the
+  // component's ~3s restore budget rather than the default 90s.
+  await page.waitForFunction(() => window.scrollY > 300, undefined, { timeout: 6000 });
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
 });
