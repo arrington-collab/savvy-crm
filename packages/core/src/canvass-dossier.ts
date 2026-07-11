@@ -139,3 +139,86 @@ export function buildCanvassDossier(input: BuildDossierInput): CanvassDossier {
     isExistingCustomer: within.some((r) => r.distanceM <= DOSSIER_SAME_DOOR_METERS),
   };
 }
+
+// ── Phase 2: StormProof storm history + roof age/material ────────────────
+// The gateway lives in @savvy/integrations; core only sees structural types so
+// there is no core→integrations dependency. The route feeds real gateway
+// results (or cached payloads) through these shapers.
+
+export const DOSSIER_STORM_MONTHS = 24;
+export const DOSSIER_STORM_TTL_DAYS = 7;
+export const DOSSIER_PROPERTY_TTL_DAYS = 30;
+
+// Cache key: coordinates rounded to 4 decimals (~11 m — door-level). The spec
+// suggested ~5, but 5 dp is ~1.1 m, tighter than map-tap/GPS jitter, which
+// would defeat the cache on repeat knocks at the same door.
+export function dossierCoordKey(lat: number, lng: number): string {
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+export function dossierCacheFresh(fetchedAt: Date, ttlDays: number, now = new Date()): boolean {
+  return now.getTime() - fetchedAt.getTime() < ttlDays * 86_400_000;
+}
+
+export interface StormEventLike {
+  date: string;
+  eventType: "hail" | "wind";
+  size?: number;
+  windMph?: number;
+}
+
+export interface StormSummaryLike {
+  events: StormEventLike[];
+  eventCount: number;
+  maxHailInches: number;
+  maxWindMph: number;
+  daysSinceWorst: number | null;
+}
+
+export interface PropertyDataLike {
+  yearBuilt: number | null;
+  roofAge: number | null;
+  roofType: string | null;
+  supported: boolean;
+}
+
+export interface DossierStorm {
+  worstDate: string | null;
+  hailInches: number | null;
+  windMph: number | null;
+  daysSince: number | null;
+  eventCount: number;
+}
+
+export interface DossierProperty {
+  roofAgeYears: number | null;
+  roofType: string | null;
+  yearBuilt: number | null;
+  supported: true;
+}
+
+// worstDate is the date of the event the CARD describes — hail-first (the
+// sales-relevant peril; the card only falls back to wind when there's no
+// hail), NOT the gateway's hail*10+wind worst-event scoring, which would let
+// a strong wind event's date sit next to the max-hail size and mislead reps.
+export function shapeDossierStorm(s: StormSummaryLike | null | undefined): DossierStorm | null {
+  if (!s || s.eventCount === 0) return null;
+  const biggest = (type: "hail" | "wind") =>
+    s.events
+      .filter((e) => e.eventType === type)
+      .sort((a, b) => (type === "hail" ? (b.size ?? 0) - (a.size ?? 0) : (b.windMph ?? 0) - (a.windMph ?? 0)))[0] ?? null;
+  const worst = s.maxHailInches > 0 ? biggest("hail") : biggest("wind");
+  return {
+    worstDate: worst?.date ? worst.date.slice(0, 10) : null,
+    hailInches: s.maxHailInches > 0 ? s.maxHailInches : null,
+    windMph: s.maxWindMph > 0 ? s.maxWindMph : null,
+    daysSince: s.daysSinceWorst,
+    eventCount: s.eventCount,
+  };
+}
+
+export function shapeDossierProperty(p: PropertyDataLike | null | undefined): DossierProperty | null {
+  if (!p || !p.supported) return null;
+  if (p.roofAge == null && p.roofType == null && p.yearBuilt == null) return null;
+  return { roofAgeYears: p.roofAge, roofType: p.roofType, yearBuilt: p.yearBuilt, supported: true };
+}

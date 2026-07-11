@@ -57,3 +57,19 @@ export const canvassKnock = pgTable("canvass_knock", {
   uniqueIndex("canvass_knock_client_uniq").on(t.tenantId, t.clientId),
   tenantIsolation(),
 ]);
+
+// Cached StormProof lookups for the door dossier, keyed by rounded coordinates
+// so repeat knocks on the same door never re-charge the gateway. kind is
+// "storms" (TTL ~7 days) or "property" (TTL ~30 days) — freshness is enforced
+// by the reader (@savvy/core dossierCacheFresh), not the table.
+export const dossierCache = pgTable("dossier_cache", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  kind: text("kind").notNull(), // storms | property
+  coordKey: text("coord_key").notNull(), // dossierCoordKey(lat,lng) — 4-dp rounded "lat,lng"
+  payload: jsonb("payload"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("dossier_cache_tenant_kind_coord_uniq").on(t.tenantId, t.kind, t.coordKey),
+  tenantIsolation(),
+]);

@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   buildCanvassDossier,
   dossierBoundingBox,
+  dossierCacheFresh,
+  dossierCoordKey,
   escapeIlike,
   normalizeStreetName,
+  shapeDossierProperty,
+  shapeDossierStorm,
   DOSSIER_JOB_BBOX_DEG,
   DOSSIER_NEARBY_LIMIT,
   type DossierJobRow,
   type DossierKnockRow,
+  type StormSummaryLike,
 } from "./canvass-dossier";
 
 // Denver-ish anchor point. ~0.00001° lat ≈ 1.11 m, so offsets below are metres-ish.
@@ -135,5 +140,79 @@ describe("buildCanvassDossier", () => {
       priorKnock: null,
       isExistingCustomer: false,
     });
+  });
+});
+
+describe("dossierCoordKey / dossierCacheFresh", () => {
+  it("rounds to 4 decimals so door-level jitter maps to one key", () => {
+    expect(dossierCoordKey(39.73921, -104.99034)).toBe("39.7392,-104.9903");
+    expect(dossierCoordKey(39.739205, -104.990341)).toBe("39.7392,-104.9903");
+    expect(dossierCoordKey(39.74, -104.99)).toBe("39.7400,-104.9900");
+  });
+  it("freshness respects the per-kind TTL", () => {
+    const now = new Date("2026-07-11T00:00:00Z");
+    const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);
+    expect(dossierCacheFresh(daysAgo(6), 7, now)).toBe(true);
+    expect(dossierCacheFresh(daysAgo(8), 7, now)).toBe(false);
+    expect(dossierCacheFresh(daysAgo(29), 30, now)).toBe(true);
+    expect(dossierCacheFresh(daysAgo(31), 30, now)).toBe(false);
+  });
+});
+
+describe("shapeDossierStorm", () => {
+  const summary = (over: Partial<StormSummaryLike> = {}): StormSummaryLike => ({
+    events: [
+      { date: "2026-06-12T00:00:00Z", eventType: "hail", size: 2.75 },
+      { date: "2026-04-02T00:00:00Z", eventType: "wind", windMph: 78 },
+      { date: "2026-05-20T00:00:00Z", eventType: "hail", size: 1.0 },
+    ],
+    eventCount: 3,
+    maxHailInches: 2.75,
+    maxWindMph: 78,
+    daysSinceWorst: 24,
+    ...over,
+  });
+
+  it("picks the worst event's date (hail-dominant scoring) and maps the maxima", () => {
+    expect(shapeDossierStorm(summary())).toEqual({
+      worstDate: "2026-06-12",
+      hailInches: 2.75,
+      windMph: 78,
+      daysSince: 24,
+      eventCount: 3,
+    });
+  });
+
+  it("nulls zero maxima (wind-only storm has no hail line)", () => {
+    const windOnly = summary({
+      events: [{ date: "2026-04-02T00:00:00Z", eventType: "wind", windMph: 78 }],
+      eventCount: 1,
+      maxHailInches: 0,
+    });
+    const s = shapeDossierStorm(windOnly)!;
+    expect(s.hailInches).toBeNull();
+    expect(s.windMph).toBe(78);
+    expect(s.worstDate).toBe("2026-04-02");
+  });
+
+  it("omits the storm block for empty or missing summaries", () => {
+    expect(shapeDossierStorm(null)).toBeNull();
+    expect(shapeDossierStorm(summary({ events: [], eventCount: 0, maxHailInches: 0, maxWindMph: 0, daysSinceWorst: null }))).toBeNull();
+  });
+});
+
+describe("shapeDossierProperty", () => {
+  it("maps roof age/type/yearBuilt when supported", () => {
+    expect(shapeDossierProperty({ yearBuilt: 2007, roofAge: 19, roofType: "shake", supported: true })).toEqual({
+      roofAgeYears: 19,
+      roofType: "shake",
+      yearBuilt: 2007,
+      supported: true,
+    });
+  });
+  it("omits the block when unsupported, null, or empty", () => {
+    expect(shapeDossierProperty(null)).toBeNull();
+    expect(shapeDossierProperty({ yearBuilt: 2007, roofAge: 19, roofType: "shake", supported: false })).toBeNull();
+    expect(shapeDossierProperty({ yearBuilt: null, roofAge: null, roofType: null, supported: true })).toBeNull();
   });
 });
