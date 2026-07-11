@@ -1,4 +1,4 @@
-import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, priceBookItem, gateAgentAutomation } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, priceBookItem, gateAgentAutomation, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -77,6 +77,26 @@ async function attachUpsells(tenantId: string, estimateId: string, measurementId
 }
 
 /**
+ * Drafts a job-stage estimate wrapped in a live `agent_run`: opens a `running` row
+ * attributed to the job (visible in-flight while the DB work happens), completes it
+ * `ok` on success. Not injected via deps — unlike parse-lead-document, this path does
+ * real DB I/O and its test uses a real Postgres DB, so it calls `withAgentRun` directly.
+ * Return value is identical to `createEstimateFromMeasurement`'s so `if (!est)` callers
+ * are unaffected.
+ */
+export async function draftEstimateWithRun(input: {
+  tenantId: string;
+  jobId: string;
+  leadId?: string | null;
+  measurementId: string;
+}): ReturnType<typeof createEstimateFromMeasurement> {
+  return withAgentRun(
+    { tenantId: input.tenantId, agent: "claims", taskKey: ESTIMATE_TASK_KEY, jobId: input.jobId, leadId: input.leadId ?? null },
+    () => createEstimateFromMeasurement({ tenantId: input.tenantId, measurementId: input.measurementId, jobId: input.jobId }),
+  );
+}
+
+/**
  * Inngest function: drafts a lead's estimate once the inspection is complete AND a
  * measurement (Roofr or DIY — first data wins) has landed. Fired by BOTH
  * `measurement/ready` and `appointment/completed`, so whichever lands last triggers
@@ -138,7 +158,7 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
     if (!gate.proceed) return { skipped: "automation_deferred", level: gate.level };
 
     const est = await step.run("generate", () =>
-      createEstimateFromMeasurement({ tenantId, measurementId, jobId }),
+      draftEstimateWithRun({ tenantId, jobId, leadId: leadId ?? null, measurementId }),
     );
     if (!est) return { skipped: "no_measurement" };
     const upsells = await step.run("upsell", () => attachUpsells(tenantId, est.id, measurementId));

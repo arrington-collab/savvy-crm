@@ -5,6 +5,7 @@ describe("verbFor", () => {
   it("maps known task keys to plain words", () => {
     expect(verbFor("lead.rep.alert").verb).toBe("alerted the rep");
     expect(verbFor("ops.digest").verb).toBe("sent the daily digest");
+    expect(verbFor("estimating-049").verb).toBe("drafting an estimate");
   });
   it("humanizes unknown dotted keys as a fallback (never the raw key)", () => {
     const r = verbFor("finance.qb.reconcile");
