@@ -13,7 +13,7 @@ describe("summarizeMinutesSaved", () => {
     expect(r.totalMinutes).toBe(50); // 2×20 + 1×10
     expect(r.lines.map((l) => l.taskKey)).toEqual(["estimate.generate", "ops.digest"]);
     expect(r.lines[0]).toMatchObject({ count: 2, minutesEach: 20, subtotal: 40 });
-    expect(r.lines[0].verb.length).toBeGreaterThan(0);
+    expect((r.lines[0]?.verb ?? "").length).toBeGreaterThan(0);
   });
 
   it("unknown task key contributes 0 minutes, never a guess", () => {
