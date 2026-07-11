@@ -63,6 +63,25 @@ export function instantAtLocalHourOnDayOf(anchor: Date, tz: string, hour: number
   return new Date(guess - offset);
 }
 
+/** Add `n` calendar days to a `YYYY-MM-DD` civil date (month/year wrap, negatives OK). Pure. */
+export function addCalendarDays(civilDate: string, n: number): string {
+  const [y, m, d] = civilDate.split("-").map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * The UTC instant of 00:00 LOCAL time on `civilDate` (YYYY-MM-DD) in IANA zone `tz`.
+ * DST-correct (resolves the zone's offset at that local midnight). Pairs with
+ * `addCalendarDays` to bound a tenant-local calendar day `[start, end)`.
+ */
+export function startOfLocalDayInTimeZone(civilDate: string, tz: string): Date {
+  const [y, m, d] = civilDate.split("-").map(Number) as [number, number, number];
+  const guess = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const offset = tzOffsetMs(new Date(guess), tz);
+  return new Date(guess - offset);
+}
+
 /**
  * The UTC instant whose wall-clock reading in `tz` is the same hour:minute:second
  * as `sourceLocalTime`, but on calendar day `targetCivilDate` (YYYY-MM-DD).
