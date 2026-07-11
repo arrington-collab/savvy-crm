@@ -2,7 +2,7 @@ import { and, desc, eq, gte, isNotNull, lt, or, sql, type SQL } from "drizzle-or
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
-import { SHOWCASE, type Agent } from "@savvy/core";
+import { SHOWCASE, type Agent, type AgentRunLite } from "@savvy/core";
 
 export type AgentRunStatus = "running" | "ok" | "error" | "skipped";
 
@@ -229,6 +229,27 @@ export async function listRunningRuns(tenantId: string): Promise<RunningRunRow[]
       .orderBy(desc(agentRun.startedAt))
       .limit(200),
   );
+}
+
+/**
+ * Lite agent_run rows since `since`, for coverage rollups (`summarizeAgentCoverage`).
+ * RLS-scoped via withTenant, so it only ever returns the caller tenant's runs.
+ */
+export async function loadAgentCoverageWindow(tenantId: string, since: Date): Promise<AgentRunLite[]> {
+  const rows = await withTenant(tenantId, (tx) =>
+    tx
+      .select({ agent: agentRun.agent, status: agentRun.status, modelUsed: agentRun.modelUsed, costCents: agentRun.costCents, startedAt: agentRun.startedAt })
+      .from(agentRun)
+      .where(and(eq(agentRun.tenantId, tenantId), gte(agentRun.startedAt, since)))
+      .orderBy(desc(agentRun.startedAt)),
+  );
+  return rows.map((r) => ({
+    agent: r.agent as Agent,
+    status: r.status,
+    modelUsed: r.modelUsed,
+    costCents: r.costCents,
+    startedAt: new Date(r.startedAt as unknown as string),
+  }));
 }
 
 /** Reaper: close running rows older than the cutoff so no card spins forever. */
