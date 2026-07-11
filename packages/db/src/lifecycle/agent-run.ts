@@ -153,6 +153,38 @@ export async function listAgentActivity(
   );
 }
 
+/**
+ * Runs `work` with a live agent_run: opens a `running` row (visible in-flight),
+ * then completes it ok (or a caller-mapped status) on success, or error+rethrow
+ * on throw. Wrap ONLY the slow work you want to show as in-flight — for
+ * skip-with-reason paths, call this AFTER the guard so you never flash a
+ * spinner for a run that wasn't really working.
+ */
+export async function withAgentRun<T>(
+  meta: {
+    tenantId: string; agent: Agent; taskKey: string;
+    jobId?: string | null; leadId?: string | null; modelUsed?: string | null;
+  },
+  work: () => Promise<T>,
+  opts: {
+    resolve?: (result: T) => { status: Exclude<AgentRunStatus, "running">; error?: string | null; modelUsed?: string | null };
+  } = {},
+): Promise<T> {
+  const runId = await beginAgentRun({
+    tenantId: meta.tenantId, agent: meta.agent, taskKey: meta.taskKey,
+    jobId: meta.jobId ?? null, leadId: meta.leadId ?? null, modelUsed: meta.modelUsed ?? null,
+  });
+  try {
+    const result = await work();
+    const r = opts.resolve?.(result) ?? { status: "ok" as const };
+    await completeAgentRun({ tenantId: meta.tenantId, runId, status: r.status, error: r.error ?? null, modelUsed: r.modelUsed ?? null });
+    return result;
+  } catch (e) {
+    await completeAgentRun({ tenantId: meta.tenantId, runId, status: "error", error: (e as Error).message });
+    throw e;
+  }
+}
+
 /** Reaper: close running rows older than the cutoff so no card spins forever. */
 export async function markStaleRunsTimedOut(tenantId: string, cutoff: Date): Promise<number> {
   return withTenant(tenantId, async (tx) => {
