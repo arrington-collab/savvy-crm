@@ -18,6 +18,7 @@ import type { BoardCard } from "@/lib/pipeline-queries";
 import { sumCardValues, type JobStage } from "@savvy/core";
 import { moveJobToStage } from "@/lib/job-actions";
 import { resolveAgent, resolveAgentForStage, personaLine } from "@/lib/agents";
+import { CardInflight } from "@/components/inflight/CardInflight";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
 
 const ACTIVE_STAGES: JobStage[] = [
@@ -98,6 +99,7 @@ function JobCard({ card }: { card: BoardCard }) {
           <div className="mt-2 flex min-w-0 items-center gap-1.5" style={{ borderTop: "1px solid var(--border-panel)", paddingTop: 8 }}>
             <AgentAvatar persona={persona} size="sm" />
             <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
+            <CardInflight kind="job" id={card.id} />
           </div>
         </Link>
       </div>

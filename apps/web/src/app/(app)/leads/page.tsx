@@ -11,6 +11,7 @@ import { LeadsScrollRestore } from "./LeadsScrollRestore";
 import { ago } from "@/lib/format";
 import { leadStatusPersona } from "@/lib/agents";
 import { LEAD_STATUS, type LeadStatus, buildLeadRowHref } from "@savvy/core";
+import { CardInflight } from "@/components/inflight/CardInflight";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,10 @@ export default async function LeadsPage({
                 <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>{l.source ?? "—"}</span>
                 <span><StatusBadge status={l.status} /></span>
                 <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>{ago(l.createdAt)}</span>
-                <span><AgentAvatar persona={persona} size="sm" dimmed={dimmed} /></span>
+                <span className="flex items-center gap-1.5">
+                  <AgentAvatar persona={persona} size="sm" dimmed={dimmed} />
+                  <CardInflight kind="lead" id={l.id} />
+                </span>
               </Link>
             );
           })
