@@ -512,6 +512,13 @@
       "when": 1783659215721,
       "tag": "0072_wet_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1783753516410,
+      "tag": "0073_large_crystal",
+      "breakpoints": true
     }
   ]
 }

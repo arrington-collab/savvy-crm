@@ -22,7 +22,14 @@ export const agentRun = pgTable("agent_run", {
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   error: text("error"),
-}, (t) => [index("agent_run_tenant_idx").on(t.tenantId), tenantIsolation()]);
+}, (t) => [
+  index("agent_run_tenant_idx").on(t.tenantId),
+  index("agent_run_started_idx").on(t.tenantId, t.startedAt.desc()),
+  index("agent_run_job_idx").on(t.jobId),
+  index("agent_run_lead_idx").on(t.leadId),
+  index("agent_run_status_idx").on(t.status),
+  tenantIsolation(),
+]);
 
 export const auditLog = pgTable("audit_log", {
   id: idCol(),
