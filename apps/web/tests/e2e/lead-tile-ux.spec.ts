@@ -62,19 +62,27 @@ test("lead tile: Back to Leads preserves the list filter", async ({ page }) => {
 
 test("lead tile: Back to Leads restores list scroll position", async ({ page }) => {
   // Enough rows to make the list scroll.
-  const ids: string[] = [];
-  for (let i = 0; i < 30; i++) ids.push(await seedLead(`Scroll ${String(i).padStart(2, "0")}`, "new", 50 + (i % 40)));
+  for (let i = 0; i < 30; i++) await seedLead(`Scroll ${String(i).padStart(2, "0")}`, "new", 50 + (i % 40));
 
   await page.goto("/leads");
   await expect(page.getByTestId("funnel")).toBeVisible();
   // Scroll capture attaches after hydration — wait for its readiness marker so the
   // row click is captured (the row's ?from href works without JS, but scroll doesn't).
   await page.waitForSelector("html[data-leads-scroll-ready]");
-  // Scroll the list down and open a row from the scrolled position.
+  // Scroll the list down, then open a row that is ALREADY visible at this offset —
+  // clicking a far row would make Playwright auto-scroll to it first, changing the
+  // captured position. This mirrors a rep scrolling then tapping a card in view.
   await page.evaluate(() => window.scrollTo(0, 600));
   await page.waitForFunction(() => window.scrollY >= 500);
-  const target = ids[ids.length - 1]!;
-  await page.locator(`[data-testid="lead-row"][data-lead-id="${target}"]`).click();
+  const visibleId = await page.evaluate(() => {
+    for (const r of Array.from(document.querySelectorAll('[data-testid="lead-row"]'))) {
+      const b = (r as HTMLElement).getBoundingClientRect();
+      if (b.top >= 8 && b.bottom <= window.innerHeight - 8) return r.getAttribute("data-lead-id");
+    }
+    return null;
+  });
+  expect(visibleId).toBeTruthy();
+  await page.locator(`[data-testid="lead-row"][data-lead-id="${visibleId}"]`).click();
   await expect(page.getByTestId("lead-detail")).toBeVisible();
 
   // The list persisted its scroll position at navigate-away time.
