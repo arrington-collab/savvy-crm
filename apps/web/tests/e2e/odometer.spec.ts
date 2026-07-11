@@ -29,7 +29,11 @@ test("odometer shows real actions + minutes under reduced motion (final value, n
   const minutes = Number((await page.getByTestId("odometer-minutes").textContent())?.replace(/[^\d]/g, ""));
   expect(minutes).toBeGreaterThanOrEqual(40); // 2×10 + 1×20; the skipped alert adds 0
 
-  // Methodology tooltip is present in the DOM and cites the equivalents.
+  // Methodology tooltip is present in the DOM and cites the equivalents. Assert
+  // the per-each rate ("· 20m =") and the verb, which are stable regardless of
+  // how many estimate runs are on the shared tenant — never a count-dependent
+  // subtotal (accumulation across reruns makes subtotals unstable).
   await expect(page.getByTestId("odometer-methodology")).toContainText("How this is counted");
-  await expect(page.getByTestId("odometer-methodology")).toContainText("= 20m");
+  await expect(page.getByTestId("odometer-methodology")).toContainText("drafted an estimate");
+  await expect(page.getByTestId("odometer-methodology")).toContainText("· 20m =");
 });
