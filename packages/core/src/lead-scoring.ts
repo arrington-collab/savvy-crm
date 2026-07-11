@@ -17,9 +17,17 @@ const DEFAULTS = {
   roofAgeMinYears: 10,
   roofAgeMaxYears: 22,
   tileBump: 0.1,
+  // Source intent (slice 3 taxonomy + machine sources). Ordering per spec:
+  // referral > insurance_agent/realtor > web > ads baseline. Legacy keys kept so
+  // pre-migration rows / older tests still resolve.
   sourceQuality: {
-    referral: 1.0, repeat: 0.95, carrier: 0.8, storm_canvass: 0.7, google: 0.5,
-    website: 0.45, web: 0.45, door_knock: 0.45, facebook: 0.4, yard_sign: 0.35,
+    // slice-3 structured sources
+    referral: 1.0, insurance_agent: 0.8, realtor: 0.8, partner: 0.75, ads: 0.35,
+    // machine sources
+    web: 0.45, inbound_call: 0.6, canvass: 0.7, direct_mail: 0.5,
+    // legacy (pre-taxonomy) values
+    repeat: 0.95, carrier: 0.8, storm_canvass: 0.7, google: 0.5,
+    website: 0.45, door_knock: 0.45, facebook: 0.4, yard_sign: 0.35,
     manual: 0.3, other: 0.25,
   } as Record<string, number>,
   sourceDefault: 0.4,
@@ -92,7 +100,9 @@ function roofSubScore(f: LeadFeatures, cfg: ScoringConfig): number {
   if (f.roofAgeYears == null) return 0.5; // neutral, not zero
   const span = Math.max(1, cfg.roofAgeMaxYears - cfg.roofAgeMinYears);
   let s = Math.max(0, Math.min(1, (f.roofAgeYears - cfg.roofAgeMinYears) / span));
-  if (f.roofType === "tile") s = Math.min(1, s + cfg.tileBump);
+  // Tile drives service value; a tile facet in EITHER slot earns the bump (slice 5:
+  // e.g. an asphalt+tile or tile+foam roof scores like its tile component).
+  if (f.roofType === "tile" || f.roofTypeSecondary === "tile") s = Math.min(1, s + cfg.tileBump);
   return s;
 }
 
@@ -105,6 +115,19 @@ export function deriveBand(score: number, cfg: ScoringConfig): ScoreBand {
   if (score >= cfg.bands.warm) return "warm";
   if (score >= cfg.bands.cool) return "cool";
   return "cold";
+}
+
+export type ScoreBandLegendRow = { band: ScoreBand; label: string; min: number; max: number };
+
+/** The 0–100 scale as contiguous band ranges, for the in-app score-chip tooltip (slice 5). */
+export function scoreBandLegend(cfg: ScoringConfig): ScoreBandLegendRow[] {
+  const { hot, warm, cool } = cfg.bands;
+  return [
+    { band: "hot", label: "Hot", min: hot, max: 100 },
+    { band: "warm", label: "Warm", min: warm, max: hot - 1 },
+    { band: "cool", label: "Cool", min: cool, max: warm - 1 },
+    { band: "cold", label: "Cold", min: 0, max: cool - 1 },
+  ];
 }
 
 export function scoreLead(f: LeadFeatures, cfg: ScoringConfig): ScoredLead {
@@ -129,8 +152,14 @@ export function scoreLead(f: LeadFeatures, cfg: ScoringConfig): ScoredLead {
     const kind = f.storm.maxHailInches >= 0.75 ? `${f.storm.maxHailInches}" hail` : `${f.storm.maxWindMph}mph wind`;
     reasons.push(mo == null ? `Storm exposure (${kind})` : `${kind} ${mo} mo ago`);
   }
-  if (f.roofAgeYears != null && f.roofAgeYears >= cfg.roofAgeMinYears) {
-    reasons.push(`Roof ~${f.roofAgeYears} yrs${f.roofType === "tile" ? " (tile)" : ""}`);
+  const tile = f.roofType === "tile" || f.roofTypeSecondary === "tile" ? " (tile)" : "";
+  if (f.roofAgeYears != null && f.roofReplacementYear) {
+    // A KNOWN replacement is always cited (even for a young roof), so the rationale
+    // reflects the effective age instead of implying a build-year age. This is what
+    // the lead.effective_age invariant enforces (slice 5 — "roof ~9 yrs — replaced 2017").
+    reasons.push(`Roof ~${f.roofAgeYears} yrs — replaced ${f.roofReplacementYear}${tile}`);
+  } else if (f.roofAgeYears != null && f.roofAgeYears >= cfg.roofAgeMinYears) {
+    reasons.push(`Roof ~${f.roofAgeYears} yrs${tile}`);
   }
   if (source >= 0.7) reasons.push(`${f.source} lead`);
 

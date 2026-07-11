@@ -177,6 +177,8 @@ export const leadIntake = inngest.createFunction(
         let lng: number | null = null;
         let yearBuilt: number | null = null;
         let roofType: string | null = null;
+        let roofTypeSecondary: string | null = null;
+        let lastRoofReplacementAt: string | null = null;
         let state: string | null = null;
         let county: string | null = null;
         let city: string | null = null;
@@ -189,6 +191,8 @@ export const leadIntake = inngest.createFunction(
             lng = p.lng ?? null;
             yearBuilt = p.yearBuilt ?? null;
             roofType = p.roofType ?? null;
+            roofTypeSecondary = p.roofTypeSecondary ?? null;
+            lastRoofReplacementAt = p.lastRoofReplacementAt ?? null;
             state = p.state ?? null;
             county = p.county ?? null;
             city = p.city ?? null;
@@ -204,6 +208,8 @@ export const leadIntake = inngest.createFunction(
           lng,
           yearBuilt,
           roofType,
+          roofTypeSecondary,
+          lastRoofReplacementAt,
           propertyId,
           state,
           county,
@@ -241,7 +247,9 @@ export const leadIntake = inngest.createFunction(
     const scored = await step.run("ai-qualify", async () => {
       const features = buildLeadFeatures({
         source: ctx.source, state: ctx.state, phone: ctx.phone,
-        roofType: enriched.roofType, yearBuilt: enriched.yearBuilt, storm: enriched.storm,
+        roofType: enriched.roofType, roofTypeSecondary: ctx.roofTypeSecondary,
+        yearBuilt: enriched.yearBuilt, lastRoofReplacementAt: ctx.lastRoofReplacementAt,
+        storm: enriched.storm,
       });
       const cfg = parseScoringConfig(await getScoringSettings(tenantId));
       const r = await hybridScore(features, cfg);

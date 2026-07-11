@@ -11,6 +11,21 @@ import { LEAD_SOURCE_VALUES } from "../lead-sources";
 // Enum members are static, controlled strings — safe to interpolate.
 const leadSourceValuesInList = LEAD_SOURCE_VALUES.map((v) => `'${v}'`).join(",");
 
+// Slice 5: a scored lead whose property carries a KNOWN roof-replacement date must
+// cite that effective age in its rationale — i.e. score_features.reasons contains a
+// "replaced <year>" entry (see lead-scoring.ts). A lead scored off build-year age
+// instead (no "replaced" citation) is the violation. Shared verbatim by the named
+// lead.effective_age check and the task-19 lead.score sweep (aliases are controlled).
+const effectiveAgeUncited = (l: string, p: string) =>
+  `${p}.last_roof_replacement_at is not null
+     and ${l}.score is not null
+     and coalesce((
+       select bool_or(e.txt ilike '%replaced%')
+         from jsonb_array_elements_text(
+           case when jsonb_typeof(${l}.score_features->'reasons') = 'array'
+                then ${l}.score_features->'reasons' else '[]'::jsonb end
+         ) as e(txt)), false) = false`;
+
 // A stamped contract template has "drifted" out of compliance if it is no longer
 // active, or (for a gated state) it no longer carries that state's required
 // clauses. Built from REQUIRED_CLAUSES so the sweep SQL and the pure resolver
@@ -103,7 +118,10 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 
-  // Every lead older than 1h carries a score + rationale (the scoring agent ran).
+  // Every lead older than 1h carries a score + rationale (the scoring agent ran),
+  // AND — when its property has a known replacement date — the rationale cites the
+  // effective age (slice 5, enforced here under the scoring task since the registry
+  // has no distinct roof-age task; see effectiveAgeUncited + lead.effective_age).
   "lead.score": invariant(
     "lead.score",
     `select id
@@ -111,7 +129,31 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
       where tenant_id = $1
         and created_at < now() - interval '1 hour'
         and status in ('new','contacted','qualified','booked')
-        and (score is null or score_reason is null)`,
+        and (score is null or score_reason is null)
+      union
+     select l.id
+       from lead l
+       join property p on p.id = l.property_id and p.tenant_id = l.tenant_id
+      where l.tenant_id = $1
+        and l.created_at < now() - interval '1 hour'
+        and l.status in ('new','contacted','qualified','booked')
+        and ${effectiveAgeUncited("l", "p")}`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
+  ),
+
+  // Named effective-age invariant (slice 5): a scored lead whose property has a
+  // replacement date must cite it in its rationale. Its assertion is ALSO enforced
+  // in prod via lead.score above (task 19); this standalone key is the red-path
+  // target and keeps the scoring-quality guard independently testable/reusable.
+  "lead.effective_age": invariant(
+    "lead.effective_age",
+    `select l.id
+       from lead l
+       join property p on p.id = l.property_id and p.tenant_id = l.tenant_id
+      where l.tenant_id = $1
+        and l.created_at < now() - interval '1 hour'
+        and l.status in ('new','contacted','qualified','booked')
+        and ${effectiveAgeUncited("l", "p")}`,
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 

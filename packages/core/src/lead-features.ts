@@ -13,6 +13,10 @@ export type LeadFeatures = {
   roofTypeSecondary: string | null;
   yearBuilt: number | null;
   roofAgeYears: number | null;
+  // The calendar year of a KNOWN roof replacement, when the effective age was
+  // derived from one (else null). Lets the rationale cite "replaced 2017" instead
+  // of implying a build-year age. (slice 5)
+  roofReplacementYear: number | null;
   storm: StormFeature;
 };
 
@@ -28,6 +32,9 @@ export function buildLeadFeatures(input: {
   storm: StormFeature;
 }): LeadFeatures {
   const year = input.yearBuilt;
+  const replacementYear = input.lastRoofReplacementAt
+    ? new Date(input.lastRoofReplacementAt).getFullYear()
+    : null;
   return {
     source: input.source,
     state: input.state,
@@ -37,6 +44,7 @@ export function buildLeadFeatures(input: {
     roofTypeSecondary: input.roofTypeSecondary ?? null,
     yearBuilt: year,
     roofAgeYears: effectiveRoofAge({ lastRoofReplacementAt: input.lastRoofReplacementAt ?? null, yearBuilt: year }, new Date()),
+    roofReplacementYear: replacementYear,
     storm: {
       eventCount: input.storm.eventCount,
       maxHailInches: input.storm.maxHailInches,

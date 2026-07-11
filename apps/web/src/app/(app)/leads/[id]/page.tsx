@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { listLeadDocuments, getDocumentParseSummaries } from "@savvy/db";
+import { listLeadDocuments, getDocumentParseSummaries, getScoringSettings } from "@savvy/db";
 import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
 import { getTenantId } from "@/lib/tenant";
@@ -22,7 +22,8 @@ import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
-import { buildLeadTimelineFeed, parseLeadsListReturn } from "@savvy/core";
+import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend } from "@savvy/core";
+import { ScoreScaleTooltip } from "./ScoreScaleTooltip";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -39,13 +40,16 @@ export default async function LeadDetailPage({
   const { from } = await searchParams;
   const backHref = parseLeadsListReturn(from);
   const tenantId = await getTenantId();
-  const [detail, users, artifacts, documents] = await Promise.all([
+  const [detail, users, artifacts, documents, scoringSettings] = await Promise.all([
     getLeadDetail(id),
     listUsers(),
     getLeadArtifactsForLead(id),
     listLeadDocuments({ tenantId, leadId: id }),
+    getScoringSettings(tenantId),
   ]);
   if (!detail) notFound();
+
+  const bandLegend = scoreBandLegend(parseScoringConfig(scoringSettings));
 
   const parseSummaries = await getDocumentParseSummaries({
     tenantId,
@@ -126,6 +130,7 @@ export default async function LeadDetailPage({
               {detail.scoreBand}
             </span>
           )}
+          <ScoreScaleTooltip legend={bandLegend} />
         </div>
         <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
           {detail.scoreReason ?? "Not yet qualified."}
