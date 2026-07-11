@@ -67,6 +67,9 @@ test("lead tile: Back to Leads restores list scroll position", async ({ page }) 
 
   await page.goto("/leads");
   await expect(page.getByTestId("funnel")).toBeVisible();
+  // Scroll capture attaches after hydration — wait for its readiness marker so the
+  // row click is captured (the row's ?from href works without JS, but scroll doesn't).
+  await page.waitForSelector("html[data-leads-scroll-ready]");
   // Scroll the list down and open a row from the scrolled position.
   await page.evaluate(() => window.scrollTo(0, 600));
   await page.waitForFunction(() => window.scrollY >= 500);
@@ -79,8 +82,9 @@ test("lead tile: Back to Leads restores list scroll position", async ({ page }) 
 
   await page.getByTestId("back-to-leads").click();
   await expect(page.getByTestId("funnel")).toBeVisible();
+  await page.waitForSelector("html[data-leads-scroll-ready]");
   // Scroll is restored (allow a little tolerance for layout/rounding). Bounded to the
-  // component's ~3s restore budget rather than the default 90s.
-  await page.waitForFunction(() => window.scrollY > 300, undefined, { timeout: 6000 });
+  // component's ~3s restore budget plus hydration slack.
+  await page.waitForFunction(() => window.scrollY > 300, undefined, { timeout: 8000 });
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
 });

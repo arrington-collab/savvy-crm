@@ -42,8 +42,12 @@ export function LeadsScrollRestore() {
       }
     };
     document.addEventListener("click", onDocClickCapture, true);
+    // Readiness marker: the save listener is attached only after hydration, so this
+    // signals when scroll capture is live (an e2e can wait on it before interacting).
+    document.documentElement.dataset.leadsScrollReady = "1";
     return () => {
       document.removeEventListener("click", onDocClickCapture, true);
+      delete document.documentElement.dataset.leadsScrollReady;
       if (timer) clearInterval(timer);
     };
   }, []);
