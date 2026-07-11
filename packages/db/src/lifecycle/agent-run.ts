@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
@@ -138,4 +138,15 @@ export async function listAgentActivity(tenantId: string, limit: number): Promis
       .orderBy(desc(agentRun.startedAt))
       .limit(limit),
   );
+}
+
+/** Reaper: close running rows older than the cutoff so no card spins forever. */
+export async function markStaleRunsTimedOut(tenantId: string, cutoff: Date): Promise<number> {
+  return withTenant(tenantId, async (tx) => {
+    const res = await tx.update(agentRun)
+      .set({ status: "error", error: "timed_out", finishedAt: new Date() })
+      .where(and(eq(agentRun.status, "running"), lt(agentRun.startedAt, cutoff)))
+      .returning({ id: agentRun.id });
+    return res.length;
+  });
 }

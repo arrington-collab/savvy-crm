@@ -16,6 +16,7 @@ import { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 import { createMaterialOrderOnAccepted } from "./functions/material-order";
 import { meterUsageMonthly } from "./functions/meter-usage";
 import { coldArchiveDocuments } from "./functions/cold-archive";
+import { runReaper } from "./functions/run-reaper";
 import { enrichmentSweep } from "./functions/enrichment-sweep";
 import { taskHealthSweep } from "./functions/task-health-sweep";
 import { opsDigest } from "./functions/ops-digest";
@@ -60,6 +61,7 @@ export { sendEstimateForSignature, estimateAcceptedAdvanceJob } from "./function
 export { createMaterialOrderOnAccepted } from "./functions/material-order";
 export { meterUsageMonthly } from "./functions/meter-usage";
 export { coldArchiveDocuments } from "./functions/cold-archive";
+export { runReaper } from "./functions/run-reaper";
 export { enrichmentSweep } from "./functions/enrichment-sweep";
 export { taskHealthSweep } from "./functions/task-health-sweep";
 export { opsDigest } from "./functions/ops-digest";
@@ -90,4 +92,4 @@ export { priceGuardSupplierInvoice, priceGuardHandler } from "./functions/suppli
 export { getTenantSms } from "./telephony";
 export { canvassContractSigned, storeCanvassContract, emailSignedCopy } from "./functions/canvass-contract";
 export { parseLeadDocument, parseLeadDocumentHandler } from "./functions/parse-lead-document";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument];
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, runReaper, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument];

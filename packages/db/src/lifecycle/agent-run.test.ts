@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { adminDb } from "../admin-client.js";
 import { withTenant } from "../tenant.js";
 import { agentRun, tenant } from "../schema/index.js";
-import { recordAgentRun, beginAgentRun, completeAgentRun } from "./agent-run.js";
+import { recordAgentRun, beginAgentRun, completeAgentRun, markStaleRunsTimedOut } from "./agent-run.js";
 
 describe("recordAgentRun", () => {
   it("writes an agent_run row with taskKey, skipped status, finishedAt set", async () => {
@@ -60,5 +60,29 @@ describe("two-phase agent run lifecycle", () => {
       tx.select().from(agentRun).where(eq(agentRun.taskKey, "test.record")));
     expect(row!.status).toBe("ok");
     expect(row!.finishedAt).not.toBeNull();
+  });
+});
+
+describe("markStaleRunsTimedOut", () => {
+  it("closes orphaned running rows past the cutoff", async () => {
+    const [t] = await adminDb.insert(tenant).values({
+      name: "AR", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+    }).returning();
+    const tenantId = t!.id;
+
+    const stale = await beginAgentRun({ tenantId, agent: "orchestrator", taskKey: "test.stale" });
+    // force startedAt into the past
+    await withTenant(tenantId, (tx) =>
+      tx.update(agentRun).set({ startedAt: new Date(Date.now() - 60 * 60_000) }).where(eq(agentRun.id, stale)));
+    const fresh = await beginAgentRun({ tenantId, agent: "orchestrator", taskKey: "test.fresh" });
+
+    const n = await markStaleRunsTimedOut(tenantId, new Date(Date.now() - 10 * 60_000));
+    expect(n).toBe(1);
+
+    const [staleRow] = await withTenant(tenantId, (tx) => tx.select().from(agentRun).where(eq(agentRun.id, stale)));
+    const [freshRow] = await withTenant(tenantId, (tx) => tx.select().from(agentRun).where(eq(agentRun.id, fresh)));
+    expect(staleRow!.status).toBe("error");
+    expect(staleRow!.error).toBe("timed_out");
+    expect(freshRow!.status).toBe("running"); // young run untouched
   });
 });
