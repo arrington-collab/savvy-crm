@@ -62,11 +62,13 @@ export function Odometer({ view }: { view: OdometerView }) {
           <span
             tabIndex={0}
             data-testid="odometer-minutes-label"
+            aria-describedby="odometer-methodology-tip"
             className="cursor-help underline decoration-dotted underline-offset-2"
           >
             min of your time saved
             <span
               role="tooltip"
+              id="odometer-methodology-tip"
               data-testid="odometer-methodology"
               className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max max-w-xs rounded-md border p-2 text-[11px] group-hover:block group-focus-within:block"
               style={{ background: "var(--popover)", borderColor: "var(--accent-030)", color: "var(--text-muted)" }}
