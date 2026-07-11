@@ -6,7 +6,7 @@ const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "
 
 test("a job with no touch in COLD_DAYS shows a cold badge linking to its activity; a freshly-touched job does not", async ({ page }) => {
   // Cold job: created 10 days ago, no agent_run/comm/appointment.
-  const { coldId, warmId, coldLeadId } = await withTenant(tenantId, async (tx) => {
+  const { coldId, warmId, coldLeadId, contactedLeadId } = await withTenant(tenantId, async (tx) => {
     const [c] = await tx.insert(customer).values({ tenantId, name: "Heartbeat HO" }).returning();
     const [p] = await tx.insert(property).values({ tenantId, customerId: c.id, address: "1 Heartbeat Way, Mesa AZ" }).returning();
     const old = new Date(Date.now() - 10 * 86_400_000);
@@ -14,7 +14,10 @@ test("a job with no touch in COLD_DAYS shows a cold badge linking to its activit
     const [warm] = await tx.insert(job).values({ tenantId, customerId: c.id, propertyId: p.id, stage: "production" }).returning();
     // Cold lead: created 12 days ago, never touched.
     const [coldLead] = await tx.insert(lead).values({ tenantId, customerId: c.id, propertyId: p.id, status: "new", source: "seed", createdAt: new Date(Date.now() - 12 * 86_400_000) }).returning();
-    return { coldId: cold.id, warmId: warm.id, coldLeadId: coldLead.id };
+    // Rep-contacted lead: created 15 days ago, no note/appt/agent_run, but "Log
+    // Contact" was clicked today (firstRepContactAt) → must NOT read cold.
+    const [contactedLead] = await tx.insert(lead).values({ tenantId, customerId: c.id, propertyId: p.id, status: "new", source: "seed", createdAt: new Date(Date.now() - 15 * 86_400_000), firstRepContactAt: new Date() }).returning();
+    return { coldId: cold.id, warmId: warm.id, coldLeadId: coldLead.id, contactedLeadId: contactedLead.id };
   });
   // Give the warm job a fresh agent_run touch.
   await adminDb.insert(agentRun).values({ tenantId, agent: "orchestrator", taskKey: "ops.digest", status: "ok", jobId: warmId });
@@ -44,4 +47,9 @@ test("a job with no touch in COLD_DAYS shows a cold badge linking to its activit
   const leadDetail = page.getByTestId("heartbeat-cold").first();
   await expect(leadDetail).toBeVisible();
   await expect(leadDetail).toHaveAttribute("href", `/activity?lead=${coldLeadId}`);
+
+  // --- Honesty: a lead contacted via firstRepContactAt (Log Contact) is NOT cold ---
+  await page.goto(`/leads/${contactedLeadId}`);
+  await expect(page.getByTestId("heartbeat")).toBeVisible();
+  await expect(page.getByTestId("heartbeat-cold")).toHaveCount(0); // rep-contacted → not cold
 });

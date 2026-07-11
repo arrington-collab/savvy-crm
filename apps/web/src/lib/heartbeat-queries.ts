@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant, agentRun, communication, appointment, leadNote, and, eq, inArray, sql } from "@savvy/db";
+import { withTenant, agentRun, communication, appointment, leadNote, lead, and, eq, inArray, isNotNull, sql } from "@savvy/db";
 import { mergeLastTouch } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -18,14 +18,20 @@ export async function lastTouchForJobs(jobIds: string[]): Promise<Map<string, Da
   return mergeLastTouch([clean(runs as Row[]), clean(comms as Row[]), clean(appts as Row[])]);
 }
 
-/** Newest agent OR human touch per lead. */
+/**
+ * Newest agent OR human touch per lead. Human touch includes a note, an
+ * appointment, AND `lead.firstRepContactAt` — the timestamp the "Log Contact"
+ * button writes (its only side effect). Without that source a rep-contacted lead
+ * would falsely read cold, violating the honesty invariant.
+ */
 export async function lastTouchForLeads(leadIds: string[]): Promise<Map<string, Date>> {
   if (leadIds.length === 0) return new Map();
   const tenantId = await getTenantId();
-  const [runs, notes, appts] = await Promise.all([
+  const [runs, notes, appts, contacts] = await Promise.all([
     withTenant(tenantId, (tx) => tx.select({ id: agentRun.leadId, ts: sql<string>`max(${agentRun.startedAt})` }).from(agentRun).where(and(eq(agentRun.tenantId, tenantId), inArray(agentRun.leadId, leadIds))).groupBy(agentRun.leadId)),
     withTenant(tenantId, (tx) => tx.select({ id: leadNote.leadId, ts: sql<string>`max(${leadNote.createdAt})` }).from(leadNote).where(and(eq(leadNote.tenantId, tenantId), inArray(leadNote.leadId, leadIds))).groupBy(leadNote.leadId)),
     withTenant(tenantId, (tx) => tx.select({ id: appointment.leadId, ts: sql<string>`max(${appointment.createdAt})` }).from(appointment).where(and(eq(appointment.tenantId, tenantId), inArray(appointment.leadId, leadIds))).groupBy(appointment.leadId)),
+    withTenant(tenantId, (tx) => tx.select({ id: lead.id, ts: sql<string>`max(${lead.firstRepContactAt})` }).from(lead).where(and(eq(lead.tenantId, tenantId), inArray(lead.id, leadIds), isNotNull(lead.firstRepContactAt))).groupBy(lead.id)),
   ]);
-  return mergeLastTouch([clean(runs as Row[]), clean(notes as Row[]), clean(appts as Row[])]);
+  return mergeLastTouch([clean(runs as Row[]), clean(notes as Row[]), clean(appts as Row[]), clean(contacts as Row[])]);
 }
