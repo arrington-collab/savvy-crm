@@ -3,7 +3,7 @@ import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPip
 import { getTenantId } from "./tenant";
 import { getLeads } from "./leads-queries";
 import { resolveAgentForStage, agentLabel, resolveTaskOwner } from "./agents";
-import { lastTouchForJobs } from "./heartbeat-queries";
+import { lastTouchForJobs, lastTouchForLeads } from "./heartbeat-queries";
 
 export type BoardCard = {
   id: string; stage: string; customerName: string; address: string;
@@ -66,7 +66,7 @@ export type PipelineBoardCard = {
   name: string; address: string; valueCents: number | null;
   isClaim: boolean; isStuck: boolean;
   waitingLabel: string; waitingOwner: string; waitingIsHuman: boolean;
-  href: string;
+  href: string; heartbeat: HeartbeatState;
 };
 export type PipelineBoardData = {
   columns: Record<PipelineColumn, PipelineBoardCard[]>;
@@ -114,6 +114,9 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
     ),
     getLeads(),
   ]);
+
+  const now = new Date();
+  const leadTouch = await lastTouchForLeads(leads.map((l) => l.id));
 
   // Group in memory (still phase/taskId-ordered within each group, since the
   // query's global order is preserved under per-jobId filtering) and pick the
@@ -167,7 +170,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
         name: c.customerName, address: c.address, valueCents: c.valueEstimate,
         isClaim: c.type === "insurance", isStuck: c.health.stuck || c.health.late,
         waitingLabel: w.label, waitingOwner: owner, waitingIsHuman: w.isHuman,
-        href: `/jobs/${c.id}`,
+        href: `/jobs/${c.id}`, heartbeat: c.heartbeat,
       });
     }
   }
@@ -181,6 +184,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
       isClaim: false, isStuck: false,
       waitingLabel: LEAD_WAITING[l.status], waitingOwner: "agents", waitingIsHuman: false,
       href: `/leads/${l.id}`,
+      heartbeat: heartbeatState(leadTouch.get(l.id) ?? null, new Date(l.createdAt), now, SHOWCASE.COLD_DAYS),
     });
   }
 

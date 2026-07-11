@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PIPELINE_COLUMNS, cardMatchesFilter, type PipelineColumn, type PipelineFilter } from "@savvy/core";
 import type { PipelineBoardCard, PipelineBoardData } from "@/lib/pipeline-queries";
 import { CardInflight } from "@/components/inflight/CardInflight";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
 
 const COLUMN_LABEL: Record<PipelineColumn, string> = {
   lead: "Lead", inspected: "Inspected", estimate: "Estimate", approved: "Approved",
@@ -98,6 +99,7 @@ export function PipelineBoard({ data }: { data: PipelineBoardData }) {
                       <span style={{ color: "var(--text-faint)" }}>waiting on:</span>
                       <span>{c.waitingLabel}</span>
                       <span style={{ color: c.waitingIsHuman ? "var(--accent-gold)" : "var(--text-faint)" }}>· {c.waitingOwner}</span>
+                      <Heartbeat kind={c.kind} id={c.id} state={c.heartbeat} />
                     </div>
                     {c.isClaim ? <span className="eyebrow mt-1 inline-block" style={{ fontSize: "0.5rem", color: "var(--text-faint)" }}>claim</span> : null}
                   </Link>
