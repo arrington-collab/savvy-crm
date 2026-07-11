@@ -21,7 +21,7 @@ describe("listAgentActivity", () => {
     const { tenantId } = await makeTenant();
     const { leadId } = await makeLeadWithCustomer(tenantId);
     await recordAgentRun({ tenantId, agent: "comms", taskKey: "lead.qualify", status: "ok", leadId });
-    const rows = await listAgentActivity(tenantId, 10);
+    const rows = await listAgentActivity(tenantId, { limit: 10 });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.target).toBe("Test Customer");
     expect(rows[0]!.taskKey).toBe("lead.qualify");
@@ -31,14 +31,14 @@ describe("listAgentActivity", () => {
     const { tenantId } = await makeTenant();
     const { jobId } = await makeJobWithCustomer(tenantId);
     await recordAgentRun({ tenantId, agent: "scheduling", taskKey: "job.x", status: "ok", jobId });
-    const rows = await listAgentActivity(tenantId, 10);
+    const rows = await listAgentActivity(tenantId, { limit: 10 });
     expect(rows[0]!.target).toBe("Test Customer");
   });
 
   it("returns a null target when the run links to neither a lead nor a job", async () => {
     const { tenantId } = await makeTenant();
     await recordAgentRun({ tenantId, agent: "finance", taskKey: "noop", status: "skipped" });
-    const rows = await listAgentActivity(tenantId, 10);
+    const rows = await listAgentActivity(tenantId, { limit: 10 });
     expect(rows[0]!.target).toBeNull();
   });
 
@@ -47,7 +47,7 @@ describe("listAgentActivity", () => {
     const b = await makeTenant();
     const { leadId } = await makeLeadWithCustomer(b.tenantId);
     await recordAgentRun({ tenantId: b.tenantId, agent: "comms", taskKey: "b.only", status: "ok", leadId });
-    const rows = await listAgentActivity(a.tenantId, 10);
+    const rows = await listAgentActivity(a.tenantId, { limit: 10 });
     expect(rows).toHaveLength(0);
   });
 });

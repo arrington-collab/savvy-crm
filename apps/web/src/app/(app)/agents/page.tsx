@@ -28,9 +28,14 @@ export default async function AgentsPage() {
         eyebrow="Agents · Roster & Audit"
         title="Agents"
         right={
-          <Link href="/command-center" className="mono text-[11px] hover:text-accent-gold" style={{ color: "var(--text-muted)" }} data-testid="telemetry-link">
-            Telemetry (Command Center) ↗
-          </Link>
+          <span className="flex items-center gap-3">
+            <Link href="/command-center" className="mono text-[11px] hover:text-accent-gold" style={{ color: "var(--text-muted)" }} data-testid="telemetry-link">
+              Telemetry (Command Center) ↗
+            </Link>
+            <Link href="/activity" className="mono text-[11px] hover:text-accent-gold" style={{ color: "var(--text-muted)" }} data-testid="activity-link">
+              Live activity ↗
+            </Link>
+          </span>
         }
       />
       <p className="max-w-2xl text-sm" style={{ color: "var(--text-muted)" }}>

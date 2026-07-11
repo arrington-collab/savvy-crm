@@ -48,7 +48,7 @@ export { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseSta
 export { saveSketchMeasurement, type SketchScope, type SaveSketchMeasurementResult } from "./lifecycle/measurement";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
-export { recordAgentRun, listAgentActivity, type AgentRunStatus, type AgentActivityRow } from "./lifecycle/agent-run";
+export { beginAgentRun, completeAgentRun, recordAgentRun, listAgentActivity, markStaleRunsTimedOut, type AgentRunStatus, type AgentActivityRow } from "./lifecycle/agent-run";
 export {
   recordEnrichmentAttempt,
   findPropertiesNeedingGeocode,

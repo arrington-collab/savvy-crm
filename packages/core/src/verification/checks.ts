@@ -513,6 +513,27 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
   // exactly what separates a locked-out customer from a fresh signup. Per-tenant
   // (tenant_id = $1); the tenant row itself is the violation ref. A gate regression
   // that re-introduces the lockout reds this task and pages via the nightly sweep.
+  // Activity-feed attribution guard: every agent_run that COULD name a customer should
+  // (jobId or leadId set). Flags rows with neither, EXCEPT the genuinely tenant-level
+  // writers below — actions with no single customer (a digest, a sweep, a monthly
+  // calibration, a break-glass page). Attributable-but-unattributed writers are a real
+  // bug to backfill, not to allowlist — see checks.test.ts / task-10 report for the
+  // allowlist rationale.
+  "activity.attribution": invariant(
+    "activity.attribution",
+    `select id from agent_run
+       where tenant_id = $1 and started_at >= $2 and started_at < $3
+         and job_id is null and lead_id is null
+         and task_key not in (
+           'ops.digest','ops.health_sweep','lead.calibration',
+           'ops.break_glass','lead.rescore.upgraded'
+         )`,
+    {
+      params: (ctx) => [ctx.tenantId, ctx.window.start, ctx.window.end],
+      toRef: (r) => ({ type: "agent_run", ref: String(r.id) }),
+    },
+  ),
+
   "onboarding.no_lockout": invariant(
     "onboarding.no_lockout",
     `select t.id
