@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
@@ -183,6 +183,31 @@ export async function withAgentRun<T>(
     await completeAgentRun({ tenantId: meta.tenantId, runId, status: "error", error: (e as Error).message });
     throw e;
   }
+}
+
+export interface RunningRunRow {
+  id: string;
+  agent: string;
+  taskKey: string | null;
+  jobId: string | null;
+  leadId: string | null;
+  startedAt: Date;
+}
+
+/** Open (`running`) runs attributed to a job or lead — drives the in-flight dots. */
+export async function listRunningRuns(tenantId: string): Promise<RunningRunRow[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({
+      id: agentRun.id, agent: agentRun.agent, taskKey: agentRun.taskKey,
+      jobId: agentRun.jobId, leadId: agentRun.leadId, startedAt: agentRun.startedAt,
+    })
+      .from(agentRun)
+      .where(and(
+        eq(agentRun.status, "running"),
+        or(isNotNull(agentRun.jobId), isNotNull(agentRun.leadId)),
+      ))
+      .orderBy(desc(agentRun.startedAt)),
+  );
 }
 
 /** Reaper: close running rows older than the cutoff so no card spins forever. */
