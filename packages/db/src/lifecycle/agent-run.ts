@@ -117,7 +117,7 @@ export interface AgentActivityRow {
  */
 export async function listAgentActivity(
   tenantId: string,
-  opts: { limit: number; before?: Date; agent?: string; status?: string; jobId?: string },
+  opts: { limit: number; before?: Date; agent?: string; status?: string; jobId?: string; leadId?: string },
 ): Promise<AgentActivityRow[]> {
   const jobCustomer = alias(customer, "job_customer");
   const leadCustomer = alias(customer, "lead_customer");
@@ -129,6 +129,7 @@ export async function listAgentActivity(
   if (opts.agent) conds.push(eq(agentRun.agent, opts.agent as Agent));
   if (opts.status) conds.push(eq(agentRun.status, opts.status));
   if (opts.jobId) conds.push(eq(agentRun.jobId, opts.jobId));
+  if (opts.leadId) conds.push(eq(agentRun.leadId, opts.leadId));
   return withTenant(tenantId, (tx) =>
     tx
       .select({
