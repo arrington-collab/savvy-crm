@@ -1,39 +1,56 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { adminDb, agentRun } from "@savvy/db";
 
 const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "utf8")) as { id: string };
 
-// The e2e tenant is shared across specs, so other ok runs may exist. Seed a known
-// batch of mapped ok runs and assert the odometer reflects AT LEAST our
-// contribution — robust to whatever else is on the tenant.
-test("odometer shows real actions + minutes under reduced motion (final value, no ramp)", async ({ page }) => {
+// Reads the odometer's current actions + minutes, tolerating every state the
+// component can render: "quiet" (no numbers) and "counting" with zero minutes
+// (the minutes clause is omitted when view.minutes === 0). This keeps the test
+// robust whether the shared tenant starts empty or already has activity.
+async function readOdometer(page: Page): Promise<{ actions: number; minutes: number }> {
+  await page.goto("/today");
+  const odometer = page.getByTestId("odometer");
+  await expect(odometer).toBeVisible();
+  const mode = await odometer.getAttribute("data-mode");
+  const actions = mode === "counting" ? Number((await page.getByTestId("odometer-actions").textContent())?.trim()) : 0;
+  const minutesEl = page.getByTestId("odometer-minutes");
+  const minutes = (await minutesEl.count()) > 0 ? Number((await minutesEl.textContent())?.replace(/[^\d]/g, "")) : 0;
+  return { actions, minutes };
+}
+
+// Proves the honesty model by measuring OUR OWN delta across seeds (deterministic
+// and falsifiable on the shared tenant): ok runs credit EXACTLY their config
+// minutes, and a skipped run is counted as an action but credits ZERO minutes.
+test("odometer credits ok-run minutes exactly and a skipped run adds an action but 0 minutes", async ({ page }) => {
+  // Reduced motion → count-up short-circuits to the final value, so reads are stable.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  const before = await readOdometer(page);
+
+  // Seed known ok runs: 2×ops.digest (10m) + 1×estimate.generate (20m) = +40 min, +3 actions.
   await adminDb.insert(agentRun).values([
-    { tenantId, agent: "orchestrator", taskKey: "ops.digest", status: "ok", modelUsed: null }, // 10m
-    { tenantId, agent: "orchestrator", taskKey: "ops.digest", status: "ok", modelUsed: null }, // 10m
-    { tenantId, agent: "orchestrator", taskKey: "estimate.generate", status: "ok", modelUsed: null }, // 20m
-    // status="skipped" must NOT add minutes — proves the ok-only honesty rule live.
-    { tenantId, agent: "comms", taskKey: "lead.rep.alert", status: "skipped", modelUsed: null },
+    { tenantId, agent: "orchestrator", taskKey: "ops.digest", status: "ok", modelUsed: null },
+    { tenantId, agent: "orchestrator", taskKey: "ops.digest", status: "ok", modelUsed: null },
+    { tenantId, agent: "orchestrator", taskKey: "estimate.generate", status: "ok", modelUsed: null },
   ]);
 
-  // Reduced motion → the count-up short-circuits to the final value immediately.
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/today");
+  const afterOk = await readOdometer(page);
+  expect(afterOk.minutes - before.minutes).toBe(40); // exact: ok runs credit their config minutes, nothing more
+  expect(afterOk.actions - before.actions).toBe(3);
 
-  const odometer = page.getByTestId("odometer");
-  await expect(odometer).toHaveAttribute("data-mode", "counting");
+  // Seed ONE skipped run — it must add an ACTION but ZERO minutes (the core honesty rule).
+  await adminDb.insert(agentRun).values([
+    { tenantId, agent: "comms", taskKey: "lead.rep.alert", status: "skipped", modelUsed: null, error: "quiet-hours" },
+  ]);
 
-  const actions = Number((await page.getByTestId("odometer-actions").textContent())?.trim());
-  expect(actions).toBeGreaterThanOrEqual(4); // our 4 seeded runs (skipped still counts as an action)
+  const afterSkip = await readOdometer(page);
+  expect(afterSkip.actions - afterOk.actions).toBe(1); // skipped IS an action — the machine still worked
+  expect(afterSkip.minutes).toBe(afterOk.minutes); // …but credits NO founder-minutes — falsifiable proof
 
-  const minutes = Number((await page.getByTestId("odometer-minutes").textContent())?.replace(/[^\d]/g, ""));
-  expect(minutes).toBeGreaterThanOrEqual(40); // 2×10 + 1×20; the skipped alert adds 0
-
-  // Methodology tooltip is present in the DOM and cites the equivalents. Assert
-  // the per-each rate ("· 20m =") and the verb, which are stable regardless of
-  // how many estimate runs are on the shared tenant — never a count-dependent
-  // subtotal (accumulation across reruns makes subtotals unstable).
-  await expect(page.getByTestId("odometer-methodology")).toContainText("How this is counted");
-  await expect(page.getByTestId("odometer-methodology")).toContainText("drafted an estimate");
-  await expect(page.getByTestId("odometer-methodology")).toContainText("· 20m =");
+  // Methodology tooltip cites real, config-derived equivalents (count-independent per-each rate + verb).
+  const methodology = page.getByTestId("odometer-methodology");
+  await expect(methodology).toContainText("How this is counted");
+  await expect(methodology).toContainText("drafted an estimate");
+  await expect(methodology).toContainText("· 20m =");
 });
