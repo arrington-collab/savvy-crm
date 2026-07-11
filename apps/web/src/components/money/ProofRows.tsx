@@ -48,7 +48,7 @@ export function ProofRows({ initial }: { initial: ProofRow[] }) {
         if (wins.length > 0) {
           const labelOf = Object.fromEntries(next.map((r) => [r.checkKey, r.label]));
           setGlowing((g) => new Set([...g, ...wins]));
-          for (const k of wins) toast.success(`${labelOf[k] ?? k} — coverage restored ✓`);
+          for (const k of wins) toast.success(`${labelOf[k] ?? k} — coverage restored ✓`, { duration: 10_000 });
           timers.push(
             setTimeout(() => {
               if (alive) setGlowing((g) => new Set([...g].filter((k) => !wins.includes(k))));
@@ -59,6 +59,7 @@ export function ProofRows({ initial }: { initial: ProofRow[] }) {
         /* keep last known rows */
       }
     };
+    tick(); // poll immediately so a genuine win is caught without waiting a full interval
     const h = setInterval(tick, SHOWCASE.POLL_SECONDS * 1000);
     return () => {
       alive = false;

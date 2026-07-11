@@ -6,7 +6,8 @@ const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-tenant.json", "
 
 test("a coverage cell flips to pass and toasts when a check is genuinely earned", async ({ page }) => {
   const [reg] = await adminDb.select({ id: taskRegistry.id }).from(taskRegistry).limit(1);
-  const checkKey = "lead.dedupe"; // labeled "No duplicate active leads"
+  // Unique per run so the test is isolated from any pre-existing verification_run rows.
+  const checkKey = `e2e.coverage.${Date.now()}`;
 
   // Seed a FAILING latest run so the proof panel renders (the client poller mounts).
   await adminDb.insert(verificationRun).values({
@@ -26,6 +27,8 @@ test("a coverage cell flips to pass and toasts when a check is genuinely earned"
   // and celebrate — only because fail → pass is a real win (coverageWins).
   await adminDb.insert(verificationRun).values({ tenantId, taskId: reg!.id, checkKey, status: "pass", ranAt: new Date() });
 
-  await expect(page.getByText(/coverage restored/i)).toBeVisible({ timeout: 25_000 });
-  await expect(row).toHaveAttribute("data-status", "pass");
+  // The cell flip is the persistent proof of the transition (survives auto-retry);
+  // the toast is the ephemeral celebration on the same poll tick.
+  await expect(row).toHaveAttribute("data-status", "pass", { timeout: 25_000 });
+  await expect(page.getByText(/coverage restored/i)).toBeVisible({ timeout: 10_000 });
 });
