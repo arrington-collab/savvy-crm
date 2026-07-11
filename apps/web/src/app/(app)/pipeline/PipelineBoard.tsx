@@ -99,7 +99,7 @@ export function PipelineBoard({ data }: { data: PipelineBoardData }) {
                       <span style={{ color: "var(--text-faint)" }}>waiting on:</span>
                       <span>{c.waitingLabel}</span>
                       <span style={{ color: c.waitingIsHuman ? "var(--accent-gold)" : "var(--text-faint)" }}>· {c.waitingOwner}</span>
-                      <Heartbeat kind={c.kind} id={c.id} state={c.heartbeat} />
+                      <Heartbeat kind={c.kind} id={c.id} state={c.heartbeat} interactive={false} />
                     </div>
                     {c.isClaim ? <span className="eyebrow mt-1 inline-block" style={{ fontSize: "0.5rem", color: "var(--text-faint)" }}>claim</span> : null}
                   </Link>

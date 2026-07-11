@@ -108,7 +108,7 @@ export default async function LeadsPage({
                 <span className="flex items-center gap-1.5">
                   <AgentAvatar persona={persona} size="sm" dimmed={dimmed} />
                   <CardInflight kind="lead" id={l.id} />
-                  <Heartbeat kind="lead" id={l.id} state={hbByLead.get(l.id)!} />
+                  <Heartbeat kind="lead" id={l.id} state={hbByLead.get(l.id)!} interactive={false} />
                 </span>
               </Link>
             );
