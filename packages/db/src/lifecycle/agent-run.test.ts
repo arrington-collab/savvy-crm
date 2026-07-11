@@ -3,7 +3,13 @@ import { eq } from "drizzle-orm";
 import { adminDb } from "../admin-client.js";
 import { withTenant } from "../tenant.js";
 import { agentRun, tenant } from "../schema/index.js";
-import { recordAgentRun, beginAgentRun, completeAgentRun, markStaleRunsTimedOut } from "./agent-run.js";
+import {
+  recordAgentRun,
+  beginAgentRun,
+  completeAgentRun,
+  markStaleRunsTimedOut,
+  listAgentActivity,
+} from "./agent-run.js";
 
 describe("recordAgentRun", () => {
   it("writes an agent_run row with taskKey, skipped status, finishedAt set", async () => {
@@ -84,5 +90,24 @@ describe("markStaleRunsTimedOut", () => {
     expect(staleRow!.status).toBe("error");
     expect(staleRow!.error).toBe("timed_out");
     expect(freshRow!.status).toBe("running"); // young run untouched
+  });
+});
+
+describe("listAgentActivity", () => {
+  it("filters by status and paginates with before-cursor", async () => {
+    const [t] = await adminDb.insert(tenant).values({
+      name: "AR", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
+    }).returning();
+    const tenantId = t!.id;
+
+    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "f.ok", status: "ok" });
+    await recordAgentRun({ tenantId, agent: "orchestrator", taskKey: "f.err", status: "error" });
+    const errs = await listAgentActivity(tenantId, { limit: 50, status: "error" });
+    expect(errs.every((r) => r.status === "error")).toBe(true);
+    expect(errs.length).toBeGreaterThan(0);
+
+    const page1 = await listAgentActivity(tenantId, { limit: 1 });
+    const page2 = await listAgentActivity(tenantId, { limit: 1, before: page1[0]!.startedAt });
+    expect(page2[0]?.id).not.toBe(page1[0]!.id); // cursor advanced
   });
 });

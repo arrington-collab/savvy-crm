@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
@@ -105,6 +105,7 @@ export interface AgentActivityRow {
   status: string;
   modelUsed: string | null;
   startedAt: Date;
+  finishedAt: Date | null;
   /** Customer name the run worked on, via job→customer OR lead→customer. */
   target: string | null;
   error: string | null;
@@ -115,9 +116,17 @@ export interface AgentActivityRow {
  * through EITHER the linked job or the linked lead (whichever the run carries).
  * RLS-scoped via withTenant, so it only ever returns the caller tenant's runs.
  */
-export async function listAgentActivity(tenantId: string, limit: number): Promise<AgentActivityRow[]> {
+export async function listAgentActivity(
+  tenantId: string,
+  opts: { limit: number; before?: Date; agent?: string; status?: string; jobId?: string },
+): Promise<AgentActivityRow[]> {
   const jobCustomer = alias(customer, "job_customer");
   const leadCustomer = alias(customer, "lead_customer");
+  const conds: SQL[] = [];
+  if (opts.before) conds.push(lt(agentRun.startedAt, opts.before));
+  if (opts.agent) conds.push(eq(agentRun.agent, opts.agent as Agent));
+  if (opts.status) conds.push(eq(agentRun.status, opts.status));
+  if (opts.jobId) conds.push(eq(agentRun.jobId, opts.jobId));
   return withTenant(tenantId, (tx) =>
     tx
       .select({
@@ -127,6 +136,7 @@ export async function listAgentActivity(tenantId: string, limit: number): Promis
         status: agentRun.status,
         modelUsed: agentRun.modelUsed,
         startedAt: agentRun.startedAt,
+        finishedAt: agentRun.finishedAt,
         target: sql<string | null>`coalesce(${jobCustomer.name}, ${leadCustomer.name})`,
         error: agentRun.error,
       })
@@ -135,8 +145,9 @@ export async function listAgentActivity(tenantId: string, limit: number): Promis
       .leftJoin(jobCustomer, eq(jobCustomer.id, job.customerId))
       .leftJoin(lead, eq(lead.id, agentRun.leadId))
       .leftJoin(leadCustomer, eq(leadCustomer.id, lead.customerId))
+      .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(agentRun.startedAt))
-      .limit(limit),
+      .limit(opts.limit),
   );
 }
 

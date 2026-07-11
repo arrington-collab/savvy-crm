@@ -25,7 +25,7 @@ export type ActivityRow = AgentActivityRow;
  * against Postgres; this is a thin tenant-scoped delegate.
  */
 export async function getAgentActivity(tenantId: string, limit: number): Promise<ActivityRow[]> {
-  return listAgentActivity(tenantId, limit);
+  return listAgentActivity(tenantId, { limit });
 }
 
 // Page-facing wrappers (resolve the active tenant from Clerk/TEST_MODE).
