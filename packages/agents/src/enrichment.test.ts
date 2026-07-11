@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, tenant, customer, property, lead, eq } from "@savvy/db";
+import { adminDb, withTenant, tenant, customer, property, lead, agentRun, eq, and } from "@savvy/db";
 import { makeFakeStormProof, type GeoPoint } from "@savvy/integrations";
 import { makeGeocodeEnricher, makeStormproofEnricher, sweepTenant } from "./enrichment";
 
@@ -35,6 +35,21 @@ describe("enrichment sweep convergence", () => {
     expect(p!.county).toBe("Maricopa");
     expect(result.geocode!.filled).toBe(1);
     expect(result["property-stormproof"]!.filled).toBe(1);
+  });
+
+  it("attributes the stormproof run to the lead and records it ok via withAgentRun", async () => {
+    const { tenantId, propertyId, leadId } = await seed();
+    await withTenant(tenantId, (tx) => tx.update(property).set({ lat: 33.42, lng: -111.83 }).where(eq(property.id, propertyId)));
+    const enricher = makeStormproofEnricher(makeFakeStormProof());
+    const outcome = await enricher.run(tenantId, { propertyId, address: "882 W Elm St, Mesa AZ 85203" });
+    expect(outcome).toBe("filled");
+
+    const runs = await withTenant(tenantId, (tx) =>
+      tx.select().from(agentRun).where(and(eq(agentRun.taskKey, "enrich.property"), eq(agentRun.leadId, leadId))),
+    );
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.status).toBe("ok");
+    expect(runs[0]!.leadId).toBe(leadId);
   });
 
   it("records no_data and does NOT re-hammer next sweep (backoff)", async () => {
