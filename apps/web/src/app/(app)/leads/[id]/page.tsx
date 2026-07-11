@@ -22,16 +22,22 @@ import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
-import { buildLeadTimelineFeed } from "@savvy/core";
+import { buildLeadTimelineFeed, parseLeadsListReturn } from "@savvy/core";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const backHref = parseLeadsListReturn(from);
   const tenantId = await getTenantId();
   const [detail, users, artifacts, documents] = await Promise.all([
     getLeadDetail(id),
@@ -58,42 +64,21 @@ export default async function LeadDetailPage({
 
   return (
     <div className="space-y-6" data-testid="lead-detail">
-      <Breadcrumb segments={[{ label: "Leads", href: "/leads" }, { label: detail.customerName ?? "Lead" }]} />
+      <div className="flex items-center justify-between">
+        <Link href={backHref} data-testid="back-to-leads">
+          <Button variant="secondary" size="sm">← Back to Leads</Button>
+        </Link>
+        <Breadcrumb segments={[{ label: "Leads", href: backHref }, { label: detail.customerName ?? "Lead" }]} />
+      </div>
       <PageHeader
         eyebrow="Lead"
         title={detail.customerName ?? "Lead"}
         right={<StatusBadge status={detail.status} />}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-4">
-          <div className="eyebrow mb-1">AI score · ATLAS</div>
-          <div className="flex items-center gap-2">
-            <div className="text-3xl font-semibold" style={{ color: "var(--text-primary)" }} data-testid="lead-score">
-              {detail.score ?? "—"}
-            </div>
-            {detail.scoreBand && (
-              <span
-                data-testid="lead-band"
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-                style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
-              >
-                {detail.scoreBand}
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-            {detail.scoreReason ?? "Not yet qualified."}
-          </p>
-          {Array.isArray(detail.scoreFeatures?.reasons) && (
-            <ul className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-              {detail.scoreFeatures.reasons.map((r, i) => (
-                <li key={i}>• {r}</li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        <Card className="p-4">
+      {/* 1 — Contact / address + map (+ owner) */}
+      <div className="grid gap-4 md:grid-cols-3" data-section="contact">
+        <Card className="p-4 md:col-span-2">
           <div className="eyebrow mb-1">Contact</div>
           <p className="text-sm" style={{ color: "var(--text-body)" }}>{detail.address ?? "—"}</p>
           <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }} data-testid="lead-phone">{detail.phone ?? "no phone"}</p>
@@ -104,7 +89,6 @@ export default async function LeadDetailPage({
               </a>
             </p>
           )}
-          <p className="mono mt-1 text-xs" style={{ color: "var(--text-muted)" }}>source: {detail.source ?? "—"}</p>
           <PropertyMap
             address={detail.address}
             lat={detail.lat}
@@ -126,37 +110,80 @@ export default async function LeadDetailPage({
         </Card>
       </div>
 
-      <LeadEnrichmentCard
-        scoreFeatures={detail.scoreFeatures}
-        yearBuilt={detail.yearBuilt}
-        roofType={detail.roofType}
-        county={detail.county}
-        installRecommendation={detail.installRecommendation}
-      />
-
-      <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
-
-      <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
-
-      <LeadNotes leadId={detail.id} />
-
-      <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
-
-      <LeadDocsCard leadId={detail.id} documents={documents} parseSummaries={parseSummaries} />
-
-      <Card className="p-4">
-        <div className="eyebrow mb-3">Storm Certification</div>
-        <StormCertSection
-          stormCertStatus={detail.stormCertStatus}
-          stormCheckedAt={detail.stormCheckedAt}
-          stormCertDocumentId={detail.stormCertDocumentId}
-          leadId={detail.id}
-        />
+      {/* 2 — Score */}
+      <Card className="p-4" data-section="score">
+        <div className="eyebrow mb-1">AI score · ATLAS</div>
+        <div className="flex items-center gap-2">
+          <div className="text-3xl font-semibold" style={{ color: "var(--text-primary)" }} data-testid="lead-score">
+            {detail.score ?? "—"}
+          </div>
+          {detail.scoreBand && (
+            <span
+              data-testid="lead-band"
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+              style={{ background: "var(--surface-muted)", color: "var(--text-muted)" }}
+            >
+              {detail.scoreBand}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+          {detail.scoreReason ?? "Not yet qualified."}
+        </p>
+        {Array.isArray(detail.scoreFeatures?.reasons) && (
+          <ul className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            {detail.scoreFeatures.reasons.map((r, i) => (
+              <li key={i}>• {r}</li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <LeadActions leadId={detail.id} status={detail.status} users={users} ownerId={detail.assignedUserId} />
 
-      <Card className="p-4">
+      {/* 3 — Roof: types ×2, effective age + replacement, enrichment, storm cert */}
+      <div className="space-y-4" data-section="roof">
+        <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
+        <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
+        <LeadEnrichmentCard
+          scoreFeatures={detail.scoreFeatures}
+          yearBuilt={detail.yearBuilt}
+          roofType={detail.roofType}
+          county={detail.county}
+          installRecommendation={detail.installRecommendation}
+        />
+        <Card className="p-4">
+          <div className="eyebrow mb-3">Storm Certification</div>
+          <StormCertSection
+            stormCertStatus={detail.stormCertStatus}
+            stormCheckedAt={detail.stormCheckedAt}
+            stormCertDocumentId={detail.stormCertDocumentId}
+            leadId={detail.id}
+          />
+        </Card>
+      </div>
+
+      {/* 4 & 5 — Measurement + Estimate (each carries its own data-section) */}
+      <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />
+
+      {/* 6 — Documents */}
+      <div data-section="documents">
+        <LeadDocsCard leadId={detail.id} documents={documents} parseSummaries={parseSummaries} />
+      </div>
+
+      {/* 7 — Source + notes */}
+      <div className="space-y-4" data-section="source">
+        <Card className="p-4">
+          <div className="eyebrow mb-1">Source</div>
+          <p className="mono text-sm" style={{ color: "var(--text-body)" }} data-testid="lead-source-value">
+            {detail.source ?? "—"}
+          </p>
+        </Card>
+        <LeadNotes leadId={detail.id} />
+      </div>
+
+      {/* 8 — Communications timeline */}
+      <Card className="p-4" data-section="comms">
         <div className="eyebrow mb-3">Communications</div>
         {feed.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-faint)" }}>No communications yet.</p>
