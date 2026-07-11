@@ -15,13 +15,15 @@ export function LeadsScrollRestore() {
     let restoreRaf = 0;
     let restoring = saved > 0;
     if (Number.isFinite(saved) && saved > 0) {
-      // Re-apply for a few frames so we win the race with the router's scroll-to-top
-      // on navigation, and so it still lands once the (async server-rendered) list has
-      // laid out tall enough to scroll. Stop when we reach it or after ~20 frames.
-      let tries = 0;
+      // Re-apply the saved offset every frame until it lands, for up to ~3s. This
+      // wins the race with the router's scroll-to-top on navigation AND waits out
+      // the streamed (server-rendered) list: while the page is still too short the
+      // scroll clamps below `saved`, so we simply keep trying until it has laid out
+      // tall enough — then stop. Time-budgeted so a genuinely short list gives up.
+      const deadline = Date.now() + 3000;
       const reapply = () => {
         window.scrollTo(0, saved);
-        if (Math.abs(window.scrollY - saved) > 4 && tries++ < 20) {
+        if (Math.abs(window.scrollY - saved) > 4 && Date.now() < deadline) {
           restoreRaf = requestAnimationFrame(reapply);
         } else {
           restoring = false;
