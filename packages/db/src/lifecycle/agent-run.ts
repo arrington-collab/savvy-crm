@@ -11,6 +11,59 @@ export type AgentRunStatus = "running" | "ok" | "error" | "skipped";
  * (matches the existing ad-hoc inserts). `status` is free text by convention:
  * running|ok|error|skipped (skipped = a legitimate no-op, e.g. Stripe unconfigured).
  */
+export async function beginAgentRun(input: {
+  tenantId: string;
+  agent: Agent;
+  taskKey: string;
+  jobId?: string | null;
+  leadId?: string | null;
+  inngestRunId?: string | null;
+  modelUsed?: string | null;
+}): Promise<string> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [row] = await tx
+      .insert(agentRun)
+      .values({
+        tenantId: input.tenantId,
+        agent: input.agent,
+        taskKey: input.taskKey,
+        status: "running",
+        jobId: input.jobId ?? null,
+        leadId: input.leadId ?? null,
+        inngestRunId: input.inngestRunId ?? null,
+        modelUsed: input.modelUsed ?? null,
+        finishedAt: null,
+      })
+      .returning({ id: agentRun.id });
+    return row!.id;
+  });
+}
+
+export async function completeAgentRun(input: {
+  tenantId: string;
+  runId: string;
+  status: Exclude<AgentRunStatus, "running">;
+  tokens?: number | null;
+  costCents?: number | null;
+  modelUsed?: string | null;
+  error?: string | null;
+}): Promise<void> {
+  await withTenant(input.tenantId, (tx) =>
+    tx
+      .update(agentRun)
+      .set({
+        status: input.status,
+        tokens: input.tokens ?? null,
+        costCents: input.costCents ?? null,
+        modelUsed: input.modelUsed ?? undefined, // keep begin's model if not re-supplied
+        error: input.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(eq(agentRun.id, input.runId)),
+  );
+}
+
+/** Back-compat wrapper: one-shot terminal write, identical to the old behaviour. */
 export async function recordAgentRun(input: {
   tenantId: string;
   agent: Agent;
@@ -24,22 +77,25 @@ export async function recordAgentRun(input: {
   inngestRunId?: string | null;
   error?: string | null;
 }): Promise<void> {
-  await withTenant(input.tenantId, (tx) =>
-    tx.insert(agentRun).values({
-      tenantId: input.tenantId,
-      agent: input.agent,
-      taskKey: input.taskKey,
-      status: input.status,
-      jobId: input.jobId ?? null,
-      leadId: input.leadId ?? null,
-      modelUsed: input.modelUsed ?? null,
-      tokens: input.tokens ?? null,
-      costCents: input.costCents ?? null,
-      inngestRunId: input.inngestRunId ?? null,
-      error: input.error ?? null,
-      finishedAt: new Date(),
-    }),
-  );
+  const runId = await beginAgentRun({
+    tenantId: input.tenantId,
+    agent: input.agent,
+    taskKey: input.taskKey,
+    jobId: input.jobId,
+    leadId: input.leadId,
+    inngestRunId: input.inngestRunId,
+    modelUsed: input.modelUsed,
+  });
+  if (input.status === "running") return; // caller explicitly wants an open run
+  await completeAgentRun({
+    tenantId: input.tenantId,
+    runId,
+    status: input.status,
+    tokens: input.tokens,
+    costCents: input.costCents,
+    modelUsed: input.modelUsed,
+    error: input.error,
+  });
 }
 
 export interface AgentActivityRow {
