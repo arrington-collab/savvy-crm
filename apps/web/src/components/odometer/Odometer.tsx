@@ -3,9 +3,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { OdometerView } from "@savvy/core";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
-// useLayoutEffect on the client (paints the 0-start before the browser shows the
-// target, so motion users never see a backward jump); useEffect on the server to
-// avoid the SSR warning.
+// useLayoutEffect on the client so the animate decision (and any reset to 0)
+// happens before paint; useEffect on the server to avoid the SSR warning. Reduced
+// motion comes from useReducedMotion (useSyncExternalStore) so it is already
+// correct on first commit — a reduced-motion user never sees a frame of movement.
+// Motion users may briefly see the SSR-rendered final numbers before the ramp
+// restarts from 0; that is an accepted cosmetic tradeoff for opted-in motion.
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 const COUNT_MS = 900;
 
@@ -66,7 +69,7 @@ export function Odometer({ view }: { view: OdometerView }) {
               role="tooltip"
               data-testid="odometer-methodology"
               className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max max-w-xs rounded-md border p-2 text-[11px] group-hover:block group-focus-within:block"
-              style={{ background: "var(--surface-raised, #14110b)", borderColor: "var(--accent-030)", color: "var(--text-muted)" }}
+              style={{ background: "var(--popover)", borderColor: "var(--accent-030)", color: "var(--text-muted)" }}
             >
               <b style={{ color: "var(--text-body)" }}>How this is counted</b> — completed actions only, conservative per-task equivalents:
               <ul className="mono mt-1 space-y-0.5">

@@ -1,21 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribe(onChange: () => void): () => void {
+  const mq = window.matchMedia(QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+/** Client snapshot: the live OS preference. */
+function getSnapshot(): boolean {
+  return window.matchMedia(QUERY).matches;
+}
+
+/** Server snapshot: assume motion. The odometer renders its final numbers on the
+ *  server regardless, so this only governs whether the client animates. */
+function getServerSnapshot(): boolean {
+  return false;
+}
 
 /**
- * True when the user has asked the OS for reduced motion. Defaults to `false`
- * (assume motion) so server + first client render match; the effect corrects it
- * on mount and on live preference changes. Shared by the odometer (S2) and the
- * orb pulse (S5).
+ * True when the user has asked the OS for reduced motion. Uses useSyncExternalStore
+ * so the value is correct and tear-free during hydration — resolved before the
+ * browser paints, so a reduced-motion consumer never shows a frame of movement.
+ * Shared by the odometer (S2) and the orb pulse (S5).
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: sync on mount for hydration safety
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return reduced;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
