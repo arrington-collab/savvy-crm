@@ -36,3 +36,23 @@ describe("finance.price_guard", () => {
     expect(result.refs).toEqual([]);
   });
 });
+
+describe("activity.attribution", () => {
+  it("is registered", () => {
+    expect(getCheck("activity.attribution")).toBeDefined();
+  });
+
+  it("fails and returns an agent_run ref when an unattributed run is returned", async () => {
+    const check = getCheck("activity.attribution")!;
+    const result = await check(ctx([{ id: "run-1" }]));
+    expect(result.status).toBe("fail");
+    expect(result.refs).toEqual([{ type: "agent_run", ref: "run-1" }]);
+  });
+
+  it("passes when no violation rows are returned", async () => {
+    const check = getCheck("activity.attribution")!;
+    const result = await check(ctx([]));
+    expect(result.status).toBe("pass");
+    expect(result.refs).toEqual([]);
+  });
+});

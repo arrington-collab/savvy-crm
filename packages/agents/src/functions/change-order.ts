@@ -8,7 +8,7 @@ export async function applyAcceptedChangeOrder(
   changeOrderId: string,
 ): Promise<{ invoiceCreated: boolean; invoiceId: string | null }> {
   const res = await approveChangeOrder({ tenantId, changeOrderId });
-  await recordAgentRun({ tenantId, agent: "finance", taskKey: "change-order.apply", status: "ok" });
+  await recordAgentRun({ tenantId, agent: "finance", taskKey: "change-order.apply", status: "ok", jobId: res.jobId });
   return res;
 }
 
