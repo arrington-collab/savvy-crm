@@ -123,6 +123,9 @@ export async function listAgentActivity(
   const jobCustomer = alias(customer, "job_customer");
   const leadCustomer = alias(customer, "lead_customer");
   const conds: SQL[] = [];
+  // Cursor is startedAt-only: rows sharing an identical startedAt at a page
+  // boundary can be skipped on the next poll. Accepted limitation for this
+  // internal, top-polled feed — a composite cursor is out of scope here.
   if (opts.before) conds.push(lt(agentRun.startedAt, opts.before));
   if (opts.agent) conds.push(eq(agentRun.agent, opts.agent as Agent));
   if (opts.status) conds.push(eq(agentRun.status, opts.status));
@@ -146,7 +149,7 @@ export async function listAgentActivity(
       .leftJoin(lead, eq(lead.id, agentRun.leadId))
       .leftJoin(leadCustomer, eq(leadCustomer.id, lead.customerId))
       .where(conds.length ? and(...conds) : undefined)
-      .orderBy(desc(agentRun.startedAt))
+      .orderBy(desc(agentRun.startedAt), desc(agentRun.id))
       .limit(opts.limit),
   );
 }
