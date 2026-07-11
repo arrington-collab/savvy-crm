@@ -12,10 +12,15 @@ describe("buildLeadRowHref — carry list filters onto the row link", () => {
     );
   });
 
-  it("ignores an unknown status but keeps a valid sort", () => {
-    expect(buildLeadRowHref("abc", { status: "bogus", sort: "score" })).toBe(
-      "/leads/abc?from=sort%3Dscore",
+  it("ignores an unknown status but keeps a non-default sort", () => {
+    expect(buildLeadRowHref("abc", { status: "bogus", sort: "age" })).toBe(
+      "/leads/abc?from=sort%3Dage",
     );
+  });
+
+  it("omits the default 'score' sort so the default view keeps a clean href", () => {
+    expect(buildLeadRowHref("abc", { status: undefined, sort: "score" })).toBe("/leads/abc");
+    expect(buildLeadRowHref("abc", { status: "won", sort: "score" })).toBe("/leads/abc?from=status%3Dwon");
   });
 });
 
