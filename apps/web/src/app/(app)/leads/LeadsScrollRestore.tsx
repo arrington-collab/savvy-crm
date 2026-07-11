@@ -12,28 +12,31 @@ const KEY = "leads:list:scrollY";
 export function LeadsScrollRestore() {
   useEffect(() => {
     const saved = Number(sessionStorage.getItem(KEY) ?? "");
-    let restoreRaf = 0;
-    let restoring = saved > 0;
-    if (Number.isFinite(saved) && saved > 0) {
-      // Re-apply the saved offset every frame until it lands, for up to ~3s. This
-      // wins the race with the router's scroll-to-top on navigation AND waits out
-      // the streamed (server-rendered) list: while the page is still too short the
-      // scroll clamps below `saved`, so we simply keep trying until it has laid out
-      // tall enough — then stop. Time-budgeted so a genuinely short list gives up.
+    let restoring = Number.isFinite(saved) && saved > 0;
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    if (restoring) {
+      // Poll-restore for up to ~3s. Re-applying on an interval (not a single frame)
+      // both waits out the streamed server-rendered list — while it's still too short
+      // the scroll clamps below `saved`, so we keep trying — and outlasts the App
+      // Router's scroll-to-top on navigation (it resets once; we re-apply after).
+      // Only stop once the offset has held for several consecutive ticks, so a late
+      // reset can't win the final frame.
       const deadline = Date.now() + 3000;
-      const reapply = () => {
+      let held = 0;
+      timer = setInterval(() => {
         window.scrollTo(0, saved);
-        if (Math.abs(window.scrollY - saved) > 4 && Date.now() < deadline) {
-          restoreRaf = requestAnimationFrame(reapply);
-        } else {
+        held = Math.abs(window.scrollY - saved) <= 4 ? held + 1 : 0;
+        if (held >= 4 || Date.now() >= deadline) {
           restoring = false;
+          if (timer) clearInterval(timer);
         }
-      };
-      restoreRaf = requestAnimationFrame(reapply);
+      }, 50);
     }
+
     let saveRaf = 0;
     const onScroll = () => {
-      if (restoring || saveRaf) return; // don't overwrite the target mid-restore
+      if (restoring || saveRaf) return; // don't clobber the saved target mid-restore
       saveRaf = requestAnimationFrame(() => {
         saveRaf = 0;
         sessionStorage.setItem(KEY, String(window.scrollY));
@@ -43,7 +46,7 @@ export function LeadsScrollRestore() {
     return () => {
       window.removeEventListener("scroll", onScroll);
       if (saveRaf) cancelAnimationFrame(saveRaf);
-      if (restoreRaf) cancelAnimationFrame(restoreRaf);
+      if (timer) clearInterval(timer);
     };
   }, []);
   return null;
