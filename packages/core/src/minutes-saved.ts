@@ -7,8 +7,8 @@ import { verbFor } from "./agent-verbs";
  * written across packages/agents. The ops owner tunes these freely.
  */
 export const MINUTES_SAVED: Record<string, number> = {
-  "estimate.generate": 20, // draft estimate
-  "estimating-049": 20, // draft estimate (ESTIMATE_TASK_KEY)
+  "estimate.generate": 20, // draft estimate (alt task key)
+  "estimating-049": 20, // draft estimate (ESTIMATE_TASK_KEY — the key the estimate-generate function actually emits)
   "lead.doc_parse": 15, // parse insurance / measurement document
   "ops.digest": 10, // compose the daily digest
   "enrich.property": 5, // property enrichment

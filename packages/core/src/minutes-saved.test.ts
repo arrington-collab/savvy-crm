@@ -37,6 +37,13 @@ describe("summarizeMinutesSaved", () => {
     const r = summarizeMinutesSaved([ok("ops.health_sweep")]);
     expect(r.totalMinutes).toBe(0);
   });
+
+  it("credits the real runtime estimate taskKey (estimating-049)", () => {
+    const r = summarizeMinutesSaved([ok("estimating-049")]);
+    expect(r.totalMinutes).toBe(20);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]).toMatchObject({ taskKey: "estimating-049", count: 1, minutesEach: 20, subtotal: 20 });
+  });
 });
 
 describe("describeOdometer", () => {
