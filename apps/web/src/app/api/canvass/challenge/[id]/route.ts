@@ -31,10 +31,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const done = await acceptChallenge(tx, sess.tenantId, id, sess.repId);
       return done ? { ok: true } : { error: "not a participant" as const };
     }
-    if (action === "decline" || action === "cancel") {
-      // decline: opponent rejects; cancel: creator withdraws
-      if (action === "cancel" && ch.createdByRepId !== sess.repId) return { error: "forbidden" as const };
-      await setChallengeStatus(tx, sess.tenantId, id, action === "decline" ? "declined" : "cancelled");
+    if (action === "decline") {
+      // only the invited opponent can decline, and only while still pending —
+      // never a bystander, the creator, or a live/settled challenge.
+      const isParticipant = ch.participantIds.includes(sess.repId);
+      if (!isParticipant || ch.createdByRepId === sess.repId) return { error: "forbidden" as const };
+      if (ch.status !== "pending") return { error: "bad action" as const };
+      await setChallengeStatus(tx, sess.tenantId, id, "declined");
+      return { ok: true };
+    }
+    if (action === "cancel") {
+      // creator withdraws their own challenge
+      if (ch.createdByRepId !== sess.repId) return { error: "forbidden" as const };
+      await setChallengeStatus(tx, sess.tenantId, id, "cancelled");
       return { ok: true };
     }
     return { error: "bad action" as const };
