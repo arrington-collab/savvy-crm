@@ -202,7 +202,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     return {
       ...buildCanvassDossier({ lat, lng, address, ...internal }),
       storm: shapeDossierStorm(external.storms),
-      property: shapeDossierProperty(external.prop),
+      property: shapeDossierProperty(external.prop, { lat, lng }),
     };
   });
 
