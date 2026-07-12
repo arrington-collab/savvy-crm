@@ -49,6 +49,7 @@ export { saveSketchMeasurement, type SketchScope, type SaveSketchMeasurementResu
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
 export { beginAgentRun, completeAgentRun, recordAgentRun, withAgentRun, listAgentActivity, listAgentActivityForDay, markStaleRunsTimedOut, listRunningRuns, loadAgentCoverageWindow, type AgentRunStatus, type AgentActivityRow, type RunningRunRow } from "./lifecycle/agent-run";
+export { userByPhone, startPhoneVerification, confirmPhoneVerification, saveSageDigest, getActiveSageDigest, recordSageRemoteAction, findResolvedAction, getPendingConfirm, resolvePendingConfirm, loadSageActionables } from "./lifecycle/sage";
 export {
   recordEnrichmentAttempt,
   findPropertiesNeedingGeocode,
