@@ -8,6 +8,7 @@ import {
   toolResult,
   isValidZip,
   buildInboundAssistant,
+  buildSageAssistant,
   parseFinanceConfig,
 } from "@savvy/core";
 import {
@@ -21,10 +22,14 @@ import {
   getLeadByVoiceCallId,
   setLeadVoiceCallId,
   getVapiConnection,
+  userByPhone,
 } from "@savvy/db";
 import { inngest, getTenantSms } from "@savvy/agents";
 import { getRecommendedSlots, slotsForRep } from "@/lib/recommended-slots";
 import { createLeadForTenant, resolveInboundTenant } from "@/lib/intake";
+import { handleSageVoiceTool } from "@/lib/sage-remote";
+
+const SAGE_TOOL_NAMES = new Set(["readSageQueue", "sageItemDetail", "resolveSageItem", "confirmSageAction"]);
 
 export const runtime = "nodejs"; // node:crypto + DB
 
@@ -62,6 +67,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     const t = await resolveInboundTenant(msg);
     if (!t) return NextResponse.json({ error: "No assistant is configured for this number." });
     const tz = parseFinanceConfig((t.settings as { finance?: unknown } | null)?.finance).timezone;
+    // Slice 1b: a call from a verified owner number gets the private Sage ops
+    // line (queue readout + numbered commands), NOT the lead-intake receptionist.
+    const owner = msg.fromNumber ? await userByPhone(t.id, msg.fromNumber, { verifiedOnly: true }) : null;
+    if (owner) {
+      const sage = buildSageAssistant({ tenantName: t.name, tenantId: t.id, tz });
+      const conn = await getVapiConnection(t.id);
+      const aid = conn?.status === "active" && conn.assistantId ? conn.assistantId : process.env.VAPI_ASSISTANT_ID;
+      return NextResponse.json({ assistantId: aid, assistantOverrides: sage });
+    }
     const assistantOverrides = buildInboundAssistant({ tenantName: t.name, tenantId: t.id, tz });
     // A BYO tenant answers with their OWN Vapi assistant (the call rides their account);
     // platform tenants fall back to the shared env assistant. assistantId reads non-secret
@@ -83,6 +97,19 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Outbound injects tenantId+leadId in metadata; inbound resolves tenant by the dialed number.
       const tenantId =
         msg.metadata.tenantId ?? (await resolveInboundTenant(msg))?.id ?? null;
+
+      // --- Sage voice tools: only for a verified owner caller; reuses the SMS
+      // lifecycle (verified gate, idempotency, money confirm, evidence).
+      if (SAGE_TOOL_NAMES.has(tc.name)) {
+        if (!tenantId || !msg.fromNumber)
+          return NextResponse.json(toolResult(tc.id, { speak: "I can't verify this line right now." }));
+        const out = await handleSageVoiceTool(tenantId, msg.fromNumber, {
+          name: tc.name,
+          n: typeof tc.args.n === "number" ? tc.args.n : Number(tc.args.n),
+          confirm: tc.args.confirm === true || tc.args.confirm === "true",
+        });
+        return NextResponse.json(toolResult(tc.id, out));
+      }
 
       // --- setCallDetails: capture address+zip, create/find the call's lead, assign rep, offer slots
       if (tc.name === "setCallDetails") {

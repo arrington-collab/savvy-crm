@@ -2,6 +2,7 @@ import "server-only";
 import {
   parseSageCommand,
   buildSageDigestText,
+  buildSpokenQueue,
   describeSageItem,
   requiresConfirm,
   confirmPrompt,
@@ -150,6 +151,72 @@ export async function handleSageCommand(tenantId: string, opts: { from: string; 
 
   // freetext → cited Sage answer
   return { reply: await answerSageFreeText(tenantId, cmd.text) };
+}
+
+/**
+ * The Sage VOICE surface (slice 1b): the Vapi webhook dispatches the persona's
+ * numbered-command tools here. Reuses the exact same lifecycle + dispatch as
+ * the SMS path — the verified-owner gate, idempotency, money confirm, and
+ * evidence logging all hold identically. Returns the line the agent speaks.
+ */
+export async function handleSageVoiceTool(
+  tenantId: string,
+  callerPhone: string,
+  tool: { name: string; n?: number; confirm?: boolean },
+): Promise<{ speak: string }> {
+  const owner = await userByPhone(tenantId, callerPhone, { verifiedOnly: true });
+  if (!owner) return { speak: "I can't verify this number for account actions. Please use the Savvy app." };
+  const tz = await tenantTimezone(tenantId);
+
+  if (tool.name === "readSageQueue") {
+    const items = await loadSageActionables(tenantId);
+    if (items.length > 0) {
+      await saveSageDigest(tenantId, owner.id, items.map((it, i) => ({ ...it, n: i + 1 })));
+    }
+    return { speak: buildSpokenQueue(items) };
+  }
+
+  if (tool.name === "sageItemDetail") {
+    const digest = await getActiveSageDigest(tenantId, owner.id);
+    const n = tool.n ?? 0;
+    const row = digest?.items[n - 1];
+    if (!row) return { speak: `I don't have an item ${n}. Say "read the queue" to hear it again.` };
+    return { speak: describeSageItem(toItem(row), n) };
+  }
+
+  if (tool.name === "resolveSageItem") {
+    const digest = await getActiveSageDigest(tenantId, owner.id);
+    const n = tool.n ?? 0;
+    const row = digest?.items[n - 1];
+    if (!digest || !row) return { speak: `I don't have an item ${n}.` };
+    const item = toItem(row);
+    const already = await findResolvedAction(tenantId, digest.id, n);
+    if (already) return { speak: `That one's already done, at ${formatTime(already.resolvedAt, tz)}.` };
+    if (!item.action) return { speak: describeSageItem(item, n) };
+    const cfg = await estimateConfig(tenantId);
+    if (requiresConfirm(item, cfg)) {
+      await recordSageRemoteAction({ tenantId, userId: owner.id, phone: callerPhone, digestId: digest.id, n, kind: item.kind, exceptionRef: item.entityId, action: item.action, confirmationState: "pending", verified: true });
+      return { speak: confirmPrompt(item).replace(/^Reply YES to/, "Just say yes to") };
+    }
+    const res = await dispatchSageAction(tenantId, item);
+    await recordSageRemoteAction({ tenantId, userId: owner.id, phone: callerPhone, digestId: digest.id, n, kind: item.kind, exceptionRef: item.entityId, action: item.action, confirmationState: "immediate", verified: true, result: res.ok ? "executed" : "failed", resolvedAt: res.ok ? new Date() : null });
+    return { speak: res.message };
+  }
+
+  if (tool.name === "confirmSageAction") {
+    const pend = await getPendingConfirm(tenantId, owner.id);
+    if (!pend) return { speak: "There's nothing waiting to confirm." };
+    if (!tool.confirm) {
+      await resolvePendingConfirm(tenantId, pend.id, "rejected", "canceled", new Date());
+      return { speak: "Okay, canceled." };
+    }
+    const item = await pendingItem(tenantId, owner.id, pend);
+    const res = await dispatchSageAction(tenantId, item);
+    await resolvePendingConfirm(tenantId, pend.id, "confirmed", res.ok ? "executed" : "failed", new Date());
+    return { speak: res.message };
+  }
+
+  return { speak: "I didn't catch that. You can say a number, or say read the queue." };
 }
 
 async function pendingItem(
