@@ -140,13 +140,65 @@ function milesBetween(aLat: number, aLng: number, bLat: number, bLng: number): n
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-// Map-overlay payload: hail swaths only (wind tracks triple the bytes for
-// little door-knocking value), trimmed to what Leaflet needs to draw them.
-export type HailSwath = { rings: number[][][]; size: number | null; date: string };
-export function slimHailTracks(tracks: VerifiedTrack[]): HailSwath[] {
-  return tracks
-    .filter((t) => t.eventType === "hail" && Array.isArray(t.rings) && t.rings.length > 0)
-    .map((t) => ({ rings: t.rings!, size: t.size ?? null, date: t.date }));
+// ── Map overlay: swaths + target zones ────────────────────────────────────
+// Per Brett (2026-07-11): hail swaths within 24 months, wind within 12 months
+// (a wind date-of-loss older than ~a year is rarely claimable) and only
+// NWS-severe gusts (≥58 mph — where shingle damage gets credible).
+export const SWATH_HAIL_MONTHS = 24;
+export const SWATH_WIND_MONTHS = 12;
+export const SWATH_WIND_MIN_MPH = 58;
+
+export type StormSwath = { kind: "hail" | "wind"; rings: number[][][]; size: number | null; windMph: number | null; date: string };
+
+const monthsAgo = (m: number, now: Date) => now.getTime() - m * 30.44 * 86_400_000;
+// 5-dp vertices (~1 m) are plenty at swath scale and cut the payload ~30%
+const q5 = (rings: number[][][]) => rings.map((r) => r.map(([a, b]) => [Math.round(a! * 1e5) / 1e5, Math.round(b! * 1e5) / 1e5]));
+
+export function slimStormSwaths(tracks: VerifiedTrack[], now = new Date()): StormSwath[] {
+  const out: StormSwath[] = [];
+  for (const t of tracks) {
+    if (!Array.isArray(t.rings) || t.rings.length === 0 || !t.date) continue;
+    const ts = Date.parse(t.date);
+    if (!Number.isFinite(ts)) continue;
+    if (t.eventType === "hail") {
+      if (ts < monthsAgo(SWATH_HAIL_MONTHS, now)) continue;
+    } else if (t.eventType === "wind") {
+      if (ts < monthsAgo(SWATH_WIND_MONTHS, now)) continue;
+      if ((t.windMph ?? 0) < SWATH_WIND_MIN_MPH) continue;
+    } else continue;
+    out.push({ kind: t.eventType, rings: q5(t.rings), size: t.size ?? null, windMph: t.windMph ?? null, date: t.date });
+  }
+  return out;
+}
+
+// Target zones: grid the area (~1.1 km cells within ~16 km of the request
+// point) and count DISTINCT wind/hail events whose swath covers each cell
+// center. Cells with 2+ wind hits are knock targets ("hit twice this season");
+// the route enriches the top ones with assessor year-built for the gold tier.
+export const HOT_CELL_DEG = 0.01;
+export const HOT_GRID_SPAN_DEG = 0.15;
+export const HOT_MIN_WIND_HITS = 2;
+export const HOT_CELL_CAP = 40;
+
+export type HotCell = { lat: number; lng: number; wind: number; hail: number };
+
+export function computeHotCells(swaths: StormSwath[], center: { lat: number; lng: number }): HotCell[] {
+  const wind = swaths.filter((s) => s.kind === "wind");
+  const hail = swaths.filter((s) => s.kind === "hail");
+  if (!wind.length) return [];
+  const cells: HotCell[] = [];
+  const start = (v: number) => Math.round((v - HOT_GRID_SPAN_DEG) / HOT_CELL_DEG) * HOT_CELL_DEG;
+  for (let lat = start(center.lat); lat <= center.lat + HOT_GRID_SPAN_DEG; lat += HOT_CELL_DEG) {
+    for (let lng = start(center.lng); lng <= center.lng + HOT_GRID_SPAN_DEG; lng += HOT_CELL_DEG) {
+      const cLat = Math.round(lat * 1e5) / 1e5;
+      const cLng = Math.round(lng * 1e5) / 1e5;
+      const hits = (list: StormSwath[]) => list.filter((s) => s.rings.some((r) => pointInRing(cLat, cLng, r))).length;
+      const w = hits(wind);
+      if (w < HOT_MIN_WIND_HITS) continue;
+      cells.push({ lat: cLat, lng: cLng, wind: w, hail: hits(hail) });
+    }
+  }
+  return cells.sort((a, b) => b.wind - a.wind || b.hail - a.hail).slice(0, HOT_CELL_CAP);
 }
 
 export function parseVerifiedTracks(tracks: VerifiedTrack[], lat: number, lng: number): StormEvent[] {

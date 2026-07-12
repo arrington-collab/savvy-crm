@@ -1,23 +1,65 @@
 import { NextResponse } from "next/server";
-import { dossierCacheFresh, DOSSIER_STORM_MONTHS, DOSSIER_STORM_TTL_DAYS } from "@savvy/core";
-import { httpStormProof, slimHailTracks, type StormProofGateway, type HailSwath } from "@savvy/integrations";
+import { dossierCacheFresh, DOSSIER_STORM_TTL_DAYS } from "@savvy/core";
+import {
+  httpStormProof,
+  slimStormSwaths,
+  computeHotCells,
+  SWATH_HAIL_MONTHS,
+  type StormProofGateway,
+  type StormSwath,
+  type HotCell,
+} from "@savvy/integrations";
 import { withTenant, dossierCache, eq, and } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
+import { reverseGeocode } from "@/lib/geocode";
 
 export const runtime = "nodejs";
 
-// GET — verified HAIL swath polygons around a point, for the field app's map
-//   overlay (reps knock INTO the swath). Read-only StormProof lookup; wind
-//   tracks are dropped server-side (they triple the payload for little
-//   door-knocking value). Bearer session; cached in dossier_cache (kind
-//   "stormtracks") on a ~1 km coord key — an area overlay, so nearby teammates
-//   share the entry. generateCertificate is never called here.
+// GET — the storm-targeting overlay for the field app map:
+//   swaths  — verified HAIL (≤24 mo) + severe WIND (≤12 mo, ≥58 mph) polygons;
+//   targets — ~1.1 km cells hit by 2+ wind events, the "where to knock" layer,
+//             enriched with assessor year-built (gold = older roofs). Maricopa's
+//             assessor needs an address, so each cell is reverse-geocoded first.
+//   Read-only lookups; generateCertificate is never called. Bearer session;
+//   cached in dossier_cache (kind "stormtargets", ~1 km key, 7 d) so the team
+//   shares one fetch — enrichment costs (geocode + assessor) are paid once.
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, OPTIONS") });
 }
 
 const gateway: { sp: StormProofGateway } = { sp: httpStormProof }; // injectable seam
+
+// Gold tier: 2+ wind hits AND the sampled parcel is ≥15 years old. The cell
+// center's parcel stands in for the tract — subdivisions build out together,
+// so one year-built is a fair neighborhood proxy.
+const GOLD_MIN_ROOF_YEARS = 15;
+const ENRICH_CELL_CAP = 25;
+
+type Target = HotCell & { yearBuilt: number | null; gold: boolean };
+type Payload = { swaths: StormSwath[]; targets: Target[] };
+
+async function enrichCells(sp: StormProofGateway, cells: HotCell[]): Promise<Target[]> {
+  const nowYear = new Date().getFullYear();
+  const targets: Target[] = [];
+  // small batches: each cell = reverse-geocode + assessor lookup
+  for (let i = 0; i < cells.length; i += 5) {
+    const batch = await Promise.all(
+      cells.slice(i, i + 5).map(async (c): Promise<Target> => {
+        try {
+          const geo = await reverseGeocode(c.lat, c.lng);
+          const prop = await sp.getProperty({ lat: c.lat, lng: c.lng, address: geo?.address ?? undefined });
+          const yearBuilt = prop?.yearBuilt ?? null;
+          return { ...c, yearBuilt, gold: yearBuilt != null && nowYear - yearBuilt >= GOLD_MIN_ROOF_YEARS };
+        } catch {
+          return { ...c, yearBuilt: null, gold: false };
+        }
+      }),
+    );
+    targets.push(...batch);
+  }
+  return targets;
+}
 
 export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, OPTIONS");
@@ -31,31 +73,36 @@ export async function GET(req: Request): Promise<NextResponse> {
   const lng = Number(url.searchParams.get("lng"));
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return reply({ error: "lat and lng are required numbers" }, 400);
 
-  if (!process.env.STORMPROOF_API_BASE) return reply({ swaths: [] }, 200);
+  if (!process.env.STORMPROOF_API_BASE) return reply({ swaths: [], targets: [] }, 200);
 
   const coordKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
-  const swaths = await withTenant(sess.tenantId, async (tx) => {
+  const payload = await withTenant(sess.tenantId, async (tx): Promise<Payload> => {
     const [hit] = await tx
       .select({ payload: dossierCache.payload, fetchedAt: dossierCache.fetchedAt })
       .from(dossierCache)
-      .where(and(eq(dossierCache.kind, "stormtracks"), eq(dossierCache.coordKey, coordKey)));
-    if (hit && dossierCacheFresh(hit.fetchedAt, DOSSIER_STORM_TTL_DAYS)) return hit.payload as HailSwath[];
+      .where(and(eq(dossierCache.kind, "stormtargets"), eq(dossierCache.coordKey, coordKey)));
+    if (hit && dossierCacheFresh(hit.fetchedAt, DOSSIER_STORM_TTL_DAYS)) return hit.payload as Payload;
 
-    const tracks = await gateway.sp.lookupStormTracks({ lat, lng, months: DOSSIER_STORM_MONTHS }).catch(() => []);
-    const slim = slimHailTracks(tracks);
+    // one 24-mo pull covers both perils; the wind window narrows in slimStormSwaths
+    const tracks = await gateway.sp.lookupStormTracks({ lat, lng, months: SWATH_HAIL_MONTHS }).catch(() => []);
+    const swaths = slimStormSwaths(tracks);
+    const cells = computeHotCells(swaths, { lat, lng }).slice(0, ENRICH_CELL_CAP);
+    const targets = cells.length ? await enrichCells(gateway.sp, cells) : []; // cells already carry ≥HOT_MIN_WIND_HITS wind hits
+    const fresh: Payload = { swaths, targets };
+
     if (tracks.length > 0) {
       // cache only real answers — a gateway failure returns [] and shouldn't
       // pin an empty overlay to this square for a week
       await tx
         .insert(dossierCache)
-        .values({ tenantId: sess.tenantId, kind: "stormtracks", coordKey, payload: slim, fetchedAt: new Date() })
+        .values({ tenantId: sess.tenantId, kind: "stormtargets", coordKey, payload: fresh, fetchedAt: new Date() })
         .onConflictDoUpdate({
           target: [dossierCache.tenantId, dossierCache.kind, dossierCache.coordKey],
-          set: { payload: slim, fetchedAt: new Date() },
+          set: { payload: fresh, fetchedAt: new Date() },
         });
     }
-    return slim;
+    return fresh;
   });
 
-  return reply({ swaths }, 200);
+  return reply(payload, 200);
 }

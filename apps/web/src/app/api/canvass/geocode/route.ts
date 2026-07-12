@@ -3,6 +3,7 @@ import { dossierCacheFresh } from "@savvy/core";
 import { withTenant, dossierCache, eq, and } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
+import { reverseGeocode, type Geo } from "@/lib/geocode";
 
 export const runtime = "nodejs";
 
@@ -18,37 +19,6 @@ export function OPTIONS(req: Request): NextResponse {
 }
 
 const GEOCODE_TTL_DAYS = 30;
-
-type Geo = { address: string | null; label: string | null };
-
-async function viaMapTiler(lat: number, lng: number, key: string): Promise<Geo | null> {
-  const u = new URL(`https://api.maptiler.com/geocoding/${lng},${lat}.json`);
-  u.searchParams.set("key", key);
-  u.searchParams.set("types", "address");
-  u.searchParams.set("limit", "1");
-  const res = await fetch(u);
-  if (!res.ok) return null;
-  const d = (await res.json()) as { features?: { text?: string; address?: string; place_name?: string }[] };
-  const f = d.features?.[0];
-  if (!f) return { address: null, label: null };
-  const address = [f.address, f.text].filter(Boolean).join(" ") || null;
-  const label = f.place_name ? f.place_name.split(",").slice(0, 2).join(",") : address;
-  return { address, label };
-}
-
-async function viaNominatim(lat: number, lng: number): Promise<Geo | null> {
-  const u = new URL("https://nominatim.openstreetmap.org/reverse");
-  u.searchParams.set("format", "jsonv2");
-  u.searchParams.set("lat", String(lat));
-  u.searchParams.set("lon", String(lng));
-  // OSM policy requires an identifying UA; the browser default from phones was neither
-  const res = await fetch(u, { headers: { "User-Agent": "savvy-canvass/1.0 (support@getsavvy.com)" } });
-  if (!res.ok) return null;
-  const d = (await res.json()) as { address?: { house_number?: string; road?: string }; display_name?: string };
-  const address = [d.address?.house_number, d.address?.road].filter(Boolean).join(" ") || null;
-  const label = address || (d.display_name ? d.display_name.split(",").slice(0, 2).join(",") : null);
-  return { address, label };
-}
 
 export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, OPTIONS");
@@ -70,13 +40,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       .where(and(eq(dossierCache.kind, "geocode"), eq(dossierCache.coordKey, coordKey)));
     if (hit && dossierCacheFresh(hit.fetchedAt, GEOCODE_TTL_DAYS)) return hit.payload as Geo;
 
-    const key = process.env.MAPTILER_API_KEY;
-    let fresh: Geo | null = null;
-    try {
-      fresh = key ? await viaMapTiler(lat, lng, key) : await viaNominatim(lat, lng);
-    } catch {
-      fresh = null;
-    }
+    const fresh: Geo | null = await reverseGeocode(lat, lng);
     if (fresh?.address) {
       await tx
         .insert(dossierCache)
