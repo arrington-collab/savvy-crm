@@ -16,9 +16,12 @@ import { createLeadForTenant } from "../src/lifecycle/lead-intake";
 import { withTenant } from "../src/tenant";
 import { setLeadOwner } from "../src/lifecycle/leads";
 
+// Hermetic isolation: own demo tenant per run (unique clerkOrgId), unpolluted by the singleton.
+const SUFFIX = `funnel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
 describe("funnel: lead → approved job through the gates", () => {
   it("produces a job whose stage is at least 'approved' with real evidence", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const repId = await demoStaff(tenantId, "usr_demo_repA");
     const { jobId } = await seedApprovedJob(tenantId, {
       name: "Approved Homeowner",
@@ -33,7 +36,7 @@ describe("funnel: lead → approved job through the gates", () => {
   });
 
   it("books distinct, non-colliding inspection slots for two leads on the same rep", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const repId = await demoStaff(tenantId, "usr_demo_repB");
 
     // Pick a slot well past the shared deterministic "next Thursday 10:00" default so
@@ -79,7 +82,7 @@ describe("funnel: lead → approved job through the gates", () => {
   });
 
   it("is idempotent: re-running the inspection booking for the same lead reuses its appointment", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const repId = await demoStaff(tenantId, "usr_demo_repA");
     const { leadId } = await seedLeadToInspected(tenantId, {
       name: "Idempotent Lead",

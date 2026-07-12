@@ -20,14 +20,37 @@ export const DEMO_STAFF = [
   { clerkUserId: "usr_demo_crew", name: "Carlos Crew", email: "carlos@demo-roofing.test", role: "crew" as const },
 ];
 
-export async function provisionDemoTenant(): Promise<{ tenantId: string }> {
+/**
+ * Options for provisioning the demo tenant.
+ *
+ * With NO options this provisions the ONE real singleton demo tenant ("Demo Roofing
+ * (Savvy)", fixed org id) — the production deliverable. `keySuffix` (or an explicit
+ * `clerkOrgId`) provisions an ISOLATED tenant with a unique, globally-non-colliding
+ * clerk org id + owner + name, so hermetic tests can seed without touching (or being
+ * polluted by) the singleton. Contact natural keys (phones/emails/addresses) don't need
+ * suffixing: they carry no global unique constraint and every seed lookup is tenant-scoped.
+ */
+export interface ProvisionDemoOpts {
+  clerkOrgId?: string;
+  keySuffix?: string;
+}
+
+export async function provisionDemoTenant(opts: ProvisionDemoOpts = {}): Promise<{ tenantId: string }> {
+  const suffix = opts.keySuffix;
+  // The only globally-unique lever is tenant.clerkOrgId — vary it (+ owner + name) per
+  // isolated tenant. Defaults reproduce the singleton EXACTLY when no suffix is given.
+  const clerkOrgId = opts.clerkOrgId ?? (suffix ? `${DEMO_CLERK_ORG_ID}_${suffix}` : DEMO_CLERK_ORG_ID);
+  const name = suffix ? `${DEMO_TENANT_NAME} [${suffix}]` : DEMO_TENANT_NAME;
+  const ownerClerkId = suffix ? `${DEMO_OWNER_CLERK_ID}_${suffix}` : DEMO_OWNER_CLERK_ID;
+  const ownerEmail = suffix ? `owner+${suffix}@demo-roofing.test` : DEMO_OWNER_EMAIL;
+  const licenseNumber = suffix ? `ROC-DEMO-${suffix}` : "ROC-DEMO-0001";
   const res = await provisionTenant(
     {
-      name: DEMO_TENANT_NAME,
-      clerkOrgId: DEMO_CLERK_ORG_ID,
+      name,
+      clerkOrgId,
       timezone: "America/Phoenix",
-      owner: { clerkUserId: DEMO_OWNER_CLERK_ID, name: "Demo Owner", email: DEMO_OWNER_EMAIL },
-      licenses: [{ state: "AZ", authority: "ROC", licenseNumber: "ROC-DEMO-0001" }],
+      owner: { clerkUserId: ownerClerkId, name: "Demo Owner", email: ownerEmail },
+      licenses: [{ state: "AZ", authority: "ROC", licenseNumber }],
     },
     {},
     { dryRun: false },

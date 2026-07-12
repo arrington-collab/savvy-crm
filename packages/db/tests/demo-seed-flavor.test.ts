@@ -9,9 +9,12 @@ import { lead } from "../src/schema/crm";
 import { provisionDemoTenant } from "../src/lifecycle/demo-seed/config";
 import { seedFlavorJobs } from "../src/lifecycle/demo-seed/flavor";
 
+// Hermetic isolation: own demo tenant per run (unique clerkOrgId), unpolluted by the singleton.
+const SUFFIX = `flavor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
 describe("seedFlavorJobs", () => {
   it("insurance job has a claim ledger with acv/rcv/deductible + a depreciation invoice + estimate doc", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedFlavorJobs(tenantId);
 
     const [j] = await adminDb.select().from(job).where(eq(job.id, ids.insurance));
@@ -30,7 +33,7 @@ describe("seedFlavorJobs", () => {
   }, 120_000);
 
   it("canvass job carries a rescission hold in the future + a stored contract document", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedFlavorJobs(tenantId);
 
     const [j] = await adminDb.select().from(job).where(eq(job.id, ids.canvass));
@@ -46,7 +49,7 @@ describe("seedFlavorJobs", () => {
   }, 120_000);
 
   it("stuck estimate is aged ~12 days with no response, owned by Rep B", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedFlavorJobs(tenantId);
 
     const [est] = await adminDb.select().from(estimate).where(eq(estimate.leadId, ids.stuck));
@@ -58,7 +61,7 @@ describe("seedFlavorJobs", () => {
   }, 120_000);
 
   it("manual-hatch job exists via the manualJob escape hatch (no accepted estimate) + a contract doc", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedFlavorJobs(tenantId);
 
     const [j] = await adminDb.select().from(job).where(eq(job.id, ids.manual));
@@ -80,7 +83,7 @@ describe("seedFlavorJobs", () => {
   }, 120_000);
 
   it("is idempotent — a second run reuses the same four ids", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const first = await seedFlavorJobs(tenantId);
     const second = await seedFlavorJobs(tenantId);
     expect(second).toEqual(first);

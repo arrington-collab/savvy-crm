@@ -6,9 +6,12 @@ import { dripEnrollment } from "../src/schema/comms";
 import { provisionDemoTenant } from "../src/lifecycle/demo-seed/config";
 import { seedDemoLeads } from "../src/lifecycle/demo-seed/leads";
 
+// Hermetic isolation: own demo tenant per run (unique clerkOrgId), unpolluted by the singleton.
+const SUFFIX = `leads-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
 describe("seedDemoLeads", () => {
   it("creates one lead in each of new/contacted/qualified/booked/lost", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedDemoLeads(tenantId);
     const rows = await adminDb.select().from(lead).where(eq(lead.tenantId, tenantId));
     const byStatus = new Map(rows.map((r) => [r.id, r.status]));
@@ -20,14 +23,14 @@ describe("seedDemoLeads", () => {
   });
 
   it("has a real score on the qualified lead", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedDemoLeads(tenantId);
     const [row] = await adminDb.select().from(lead).where(eq(lead.id, ids.qualified));
     expect(row!.score).toBeGreaterThan(0);
   });
 
   it("has an active drip enrollment for the contacted lead", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const ids = await seedDemoLeads(tenantId);
     const rows = await adminDb
       .select()
@@ -38,7 +41,7 @@ describe("seedDemoLeads", () => {
   });
 
   it("is idempotent: seeding twice yields the same 5 lead ids and no duplicate rows", async () => {
-    const { tenantId } = await provisionDemoTenant();
+    const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const first = await seedDemoLeads(tenantId);
     const second = await seedDemoLeads(tenantId);
     expect(second).toEqual(first);

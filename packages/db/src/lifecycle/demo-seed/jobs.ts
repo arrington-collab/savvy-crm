@@ -93,8 +93,11 @@ async function jobRefs(jobId: string): Promise<{ customerId: string; propertyId:
   return { customerId: row.customerId, propertyId: row.propertyId };
 }
 
-/** Idempotently attach ONE material order to a job (unique per estimate). */
-async function ensureMaterialOrder(tenantId: string, jobId: string, estimateId: string, status: "ordered" | "delivered"): Promise<void> {
+/** Idempotently attach ONE material order to a job (unique per estimate).
+ *  NOTE: a `draft` order is NOT production evidence (gatherStageEvidence only counts
+ *  status IN ('ordered','delivered')), so the approved-stage job carries PENDING (draft)
+ *  materials and stably stays at `approved` — never drifting to production on re-derive. */
+async function ensureMaterialOrder(tenantId: string, jobId: string, estimateId: string, status: "draft" | "ordered" | "delivered"): Promise<void> {
   const [existing] = await adminDb.select({ id: materialOrder.id }).from(materialOrder).where(eq(materialOrder.estimateId, estimateId));
   const lines: MaterialOrderLine[] = [
     { key: "shingle-arch", name: "Architectural shingles (sq)", quantity: 20, unit: "square", unitPriceCents: 12_000, amountCents: 240_000, unitCostCents: 8_500, lineCostCents: 170_000 },
@@ -103,14 +106,17 @@ async function ensureMaterialOrder(tenantId: string, jobId: string, estimateId: 
   const costSubtotal = lines.reduce((s, l) => s + (l.lineCostCents ?? 0), 0);
   const subtotal = lines.reduce((s, l) => s + l.amountCents, 0);
   const now = new Date();
+  // A draft is not yet ordered (so no orderedAt); ordered/delivered carry an ordered timestamp.
+  const orderedAt = status === "draft" ? null : now;
+  const deliveredAt = status === "delivered" ? now : null;
   if (existing) {
-    await adminDb.update(materialOrder).set({ status, deliveredAt: status === "delivered" ? now : null }).where(eq(materialOrder.id, existing.id));
+    await adminDb.update(materialOrder).set({ status, orderedAt, deliveredAt }).where(eq(materialOrder.id, existing.id));
     return;
   }
   await adminDb.insert(materialOrder).values({
     tenantId, jobId, estimateId, status, lineItems: lines,
     subtotalCents: subtotal, costSubtotalCents: costSubtotal,
-    orderedAt: now, deliveredAt: status === "delivered" ? now : null,
+    orderedAt, deliveredAt,
   });
 }
 
@@ -252,12 +258,16 @@ export async function seedStageJobs(tenantId: string): Promise<StageJobIds> {
   const crew = await demoStaff(tenantId, "usr_demo_crew");
   const mk = (state: keyof StageJobIds): DemoLeadInput => ({ ...STAGE_SEEDS[state], assigneeUserId: repA });
 
-  // ---- approved: as seedApprovedJob lands it, plus deposit invoice + material order + landed cost.
+  // ---- approved: as seedApprovedJob lands it, plus deposit invoice + PENDING (draft) material
+  // order + landed cost. Materials are draft (not ordered) so they are NOT production evidence —
+  // the approved job holds no evidence above its stage and stays at `approved` across re-runs.
   const approvedJob = await ensureApprovedStageJob(tenantId, mk("approved"));
   {
     const estimateId = await jobEstimateId(tenantId, approvedJob);
     await ensureDepositInvoice(tenantId, approvedJob);
-    await ensureMaterialOrder(tenantId, approvedJob, estimateId, "ordered");
+    await ensureMaterialOrder(tenantId, approvedJob, estimateId, "draft");
+    // Landed cost still resolves: recomputeJobActualCost prefers the parsed supplier-invoice
+    // actuals (selectJobCost), which don't depend on the material order's status.
     await ensureSupplierInvoice(tenantId, approvedJob);
     await recomputeJobActualCost(tenantId, approvedJob);
   }
