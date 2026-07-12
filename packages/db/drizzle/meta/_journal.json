@@ -533,6 +533,13 @@
       "when": 1783829585909,
       "tag": "0075_fast_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1783830673662,
+      "tag": "0076_chunky_barracuda",
+      "breakpoints": true
     }
   ]
 }

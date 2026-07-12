@@ -82,6 +82,7 @@ export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-aut
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
 export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, attachOrCreateLeadClaim, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
 export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setCrewPinHash, getCrewLoginCandidates, addCrewMember, removeCrewMember, listCrewIdsForUser, getCrewContacts, type CrewRow } from "./lifecycle/crew";
+export { getCrewLanguage, setCrewLanguage, setCanvassRepLanguage, crewByMemberPhone } from "./lifecycle/crew-language";
 export {
   getTelephonyMode, setTelephonyMode, upsertTwilioConnection, getTelephonyConnection,
   getTwilioSecret, setTelephonyConnectionStatus, requestManagedTelephonySetup,

@@ -26,6 +26,11 @@ export const communication = pgTable("communication", {
   aiHandled: boolean("ai_handled").default(false).notNull(),
   durationSeconds: integer("duration_seconds"),
   dedupeKey: text("dedupe_key"),
+  // Slice 3: crew-recipient messages carry the crew they went to + the language
+  // they were rendered in, so comms.crew_language can verify no crew message was
+  // sent in a language other than the crew's preference.
+  crewId: uuid("crew_id").references(() => crew.id),
+  language: text("language"),
   createdAt: createdAt(),
 }, (t) => [
   index("comm_tenant_job_idx").on(t.tenantId, t.jobId),
