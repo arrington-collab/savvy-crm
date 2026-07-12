@@ -40,3 +40,36 @@ export function scoreKnock(k: ScoredKnockLike, w: CanvassPointWeights = DEFAULT_
 export function scoreRep(knocks: ScoredKnockLike[], w: CanvassPointWeights = DEFAULT_POINT_WEIGHTS): number {
   return knocks.reduce((sum, k) => sum + scoreKnock(k, w), 0);
 }
+
+export const LEVEL_TIERS = [
+  { tier: "Rookie", min: 0 },
+  { tier: "Runner", min: 500 },
+  { tier: "Closer", min: 2000 },
+  { tier: "Veteran", min: 6000 },
+  { tier: "Legend", min: 15000 },
+] as const;
+
+export interface RepLevel {
+  tier: string;
+  next: string | null;
+  pointsToNext: number | null;
+  progressPct: number;
+}
+
+export function levelFor(points: number): RepLevel {
+  let idx = 0;
+  for (let i = 0; i < LEVEL_TIERS.length; i++) {
+    if (points >= LEVEL_TIERS[i]!.min) idx = i;
+  }
+  const cur = LEVEL_TIERS[idx]!;
+  const nextTier = LEVEL_TIERS[idx + 1];
+  if (!nextTier) return { tier: cur.tier, next: null, pointsToNext: null, progressPct: 100 };
+  const span = nextTier.min - cur.min;
+  const into = points - cur.min;
+  return {
+    tier: cur.tier,
+    next: nextTier.tier,
+    pointsToNext: nextTier.min - points,
+    progressPct: Math.max(0, Math.min(100, Math.round((into / span) * 100))),
+  };
+}
