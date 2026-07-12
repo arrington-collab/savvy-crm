@@ -112,6 +112,7 @@ export type LeadDetail = {
   stormCheckedAt: Date | null;
   stormCertDocumentId: string | null;
   firstRepContactAt: Date | null;
+  createdAt: Date;
 };
 
 export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
@@ -148,6 +149,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
         stormCheckedAt: lead.stormCheckedAt,
         stormCertDocumentId: lead.stormCertDocumentId,
         firstRepContactAt: lead.firstRepContactAt,
+        createdAt: lead.createdAt,
       })
       .from(lead)
       .leftJoin(customer, eq(customer.id, lead.customerId))
@@ -217,6 +219,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail | null> {
       stormCheckedAt: row.stormCheckedAt,
       stormCertDocumentId: row.stormCertDocumentId,
       firstRepContactAt: row.firstRepContactAt,
+      createdAt: row.createdAt,
     };
   });
 }

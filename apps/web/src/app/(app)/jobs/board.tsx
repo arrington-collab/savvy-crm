@@ -20,6 +20,7 @@ import { moveJobToStage } from "@/lib/job-actions";
 import { resolveAgent, resolveAgentForStage, personaLine } from "@/lib/agents";
 import { CardInflight } from "@/components/inflight/CardInflight";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
 
 const ACTIVE_STAGES: JobStage[] = [
   "lead",
@@ -100,6 +101,7 @@ function JobCard({ card }: { card: BoardCard }) {
             <AgentAvatar persona={persona} size="sm" />
             <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{personaLine(persona, seedFromId(card.id))}</span>
             <CardInflight kind="job" id={card.id} />
+            <Heartbeat kind="job" id={card.id} state={card.heartbeat} interactive={false} />
           </div>
         </Link>
       </div>

@@ -23,9 +23,11 @@ import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
-import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend } from "@savvy/core";
+import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend, heartbeatState, SHOWCASE } from "@savvy/core";
 import { ScoreScaleTooltip } from "./ScoreScaleTooltip";
 import { CardInflight } from "@/components/inflight/CardInflight";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
+import { lastTouchForLeads } from "@/lib/heartbeat-queries";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -50,6 +52,9 @@ export default async function LeadDetailPage({
     getScoringSettings(tenantId),
   ]);
   if (!detail) notFound();
+
+  const leadTouch = await lastTouchForLeads([id]);
+  const hb = heartbeatState(leadTouch.get(id) ?? null, new Date(detail.createdAt), new Date(), SHOWCASE.COLD_DAYS);
 
   const bandLegend = scoreBandLegend(parseScoringConfig(scoringSettings));
 
@@ -83,6 +88,7 @@ export default async function LeadDetailPage({
           <div className="flex items-center gap-1.5">
             <StatusBadge status={detail.status} />
             <CardInflight kind="lead" id={id} />
+            <Heartbeat kind="lead" id={id} state={hb} />
           </div>
         }
       />

@@ -14,6 +14,7 @@ export interface ActivityQuery {
   agent?: string;
   status?: string;
   jobId?: string;
+  leadId?: string;
 }
 
 /**
@@ -54,6 +55,11 @@ export function parseActivityQuery(get: (key: string) => string | null | undefin
   const jobRaw = get("job");
   if (jobRaw != null && UUID_RE.test(jobRaw)) {
     result.jobId = jobRaw;
+  }
+
+  const leadRaw = get("lead");
+  if (leadRaw != null && UUID_RE.test(leadRaw)) {
+    result.leadId = leadRaw;
   }
 
   return result;
