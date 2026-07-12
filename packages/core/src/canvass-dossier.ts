@@ -183,6 +183,8 @@ export interface PropertyDataLike {
   roofAge: number | null;
   roofType: string | null;
   supported: boolean;
+  /** Census-block median (NSI fallback), not this parcel's record. */
+  approximate?: boolean;
 }
 
 export interface DossierStorm {
@@ -236,6 +238,9 @@ export function shapeDossierStorm(s: StormSummaryLike | null | undefined, now = 
 
 export function shapeDossierProperty(p: PropertyDataLike | null | undefined): DossierProperty | null {
   if (!p || !p.supported) return null;
+  // Block-median data (approximate) is fine for area-level target flags but
+  // must not be shown as THIS house's age on the knock card — omit the line.
+  if (p.approximate) return null;
   if (p.roofAge == null && p.roofType == null && p.yearBuilt == null) return null;
   return { roofAgeYears: p.roofAge, roofType: p.roofType, yearBuilt: p.yearBuilt, supported: true };
 }

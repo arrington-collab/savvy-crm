@@ -263,4 +263,8 @@ describe("shapeDossierProperty", () => {
     expect(shapeDossierProperty({ yearBuilt: 2007, roofAge: 19, roofType: "shake", supported: false })).toBeNull();
     expect(shapeDossierProperty({ yearBuilt: null, roofAge: null, roofType: null, supported: true })).toBeNull();
   });
+
+  it("omits approximate (block-median) data — never shown as THIS house's age", () => {
+    expect(shapeDossierProperty({ yearBuilt: 1985, roofAge: 41, roofType: null, supported: true, approximate: true })).toBeNull();
+  });
 });

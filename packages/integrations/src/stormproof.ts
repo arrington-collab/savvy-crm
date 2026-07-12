@@ -8,7 +8,17 @@ export type StormEvent = {
       Absent (legacy events-shaped payloads, fakes) is treated as at-point. */
   atPoint?: boolean;
 };
-export type PropertyData = { yearBuilt: number | null; roofAge: number | null; roofType: string | null; county: string | null; supported: boolean };
+export type PropertyData = {
+  yearBuilt: number | null;
+  roofAge: number | null;
+  roofType: string | null;
+  county: string | null;
+  supported: boolean;
+  /** True when year built is a census-block MEDIAN (USACE NSI fallback —
+      Arapahoe CO), not the parcel's own record. Fine for area-level flags,
+      too coarse to present as a specific house's age. */
+  approximate?: boolean;
+};
 export type StormSummary = {
   events: StormEvent[]; eventCount: number;
   maxHailInches: number; maxWindMph: number;
@@ -57,6 +67,7 @@ export const httpStormProof: StormProofGateway = {
         roofType: typeof d.roofType === "string" ? d.roofType : null,
         county: typeof d.county === "string" ? d.county : null,
         supported: Boolean(d.supported),
+        approximate: d.approximate === true ? true : undefined,
       };
     } catch { return null; }
   },
