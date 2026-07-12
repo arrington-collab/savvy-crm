@@ -8,9 +8,7 @@ import {
   invoice,
   job,
   customer,
-  jobChecklistItem,
   estimate,
-  creditRequest,
   tenant,
 } from "../schema/index";
 import type { SageDigestItemRow } from "../schema/sage";
@@ -273,41 +271,11 @@ export async function loadSageActionables(tenantId: string): Promise<SageDigestI
       }
     }
 
-    // Drafted credit requests → send_credit
-    const creditRows = await tx
-      .select({ id: creditRequest.id, jobId: creditRequest.jobId, supplierName: creditRequest.supplierName, claimedCents: creditRequest.claimedCents })
-      .from(creditRequest)
-      .where(eq(creditRequest.status, "drafted"));
-    for (const r of creditRows) {
-      out.push({
-        kind: "supplier_credit_review",
-        entityId: r.id,
-        jobId: r.jobId,
-        title: r.supplierName ?? "credit request",
-        detail: `credit ${usdCents(r.claimedCents)} — ${r.supplierName ?? "supplier"}`,
-        action: "send_credit",
-        confirmAmountCents: null,
-      });
-    }
-
-    // Overdue manual tasks → complete_task
-    const taskRows = await tx
-      .select({ id: jobChecklistItem.id, jobId: jobChecklistItem.jobId, title: jobChecklistItem.title, name: customer.name })
-      .from(jobChecklistItem)
-      .leftJoin(job, eq(job.id, jobChecklistItem.jobId))
-      .leftJoin(customer, eq(customer.id, job.customerId))
-      .where(sql`${jobChecklistItem.dueAt} is not null and ${jobChecklistItem.dueAt} < now() and ${jobChecklistItem.status} not in ('done','skipped')`);
-    for (const r of taskRows) {
-      out.push({
-        kind: "task_overdue",
-        entityId: r.id,
-        jobId: r.jobId,
-        title: r.name ?? "—",
-        detail: `task overdue: ${r.title}`,
-        action: "complete_task",
-        confirmAmountCents: null,
-      });
-    }
+    // v1 surfaces only the two actions with a clean, real underlying trigger
+    // over SMS: approve_estimate (estimate/send.requested) and send_invoice
+    // (sendInvoice). send_credit has no app-level send path (only the
+    // supplier-invoice Inngest pipeline sends), and complete_task straddles two
+    // task systems — both are documented fast-follows, not surfaced here.
 
     // Money-first, cap the list so the digest SMS stays readable.
     out.sort((a, b) => (b.confirmAmountCents ?? -1) - (a.confirmAmountCents ?? -1));
