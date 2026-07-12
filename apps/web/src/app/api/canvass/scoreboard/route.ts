@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { scoreRep, levelFor, currentStreak, dateKeyInTimeZone, DEFAULT_POINT_WEIGHTS } from "@savvy/core";
-import { withTenant, tenant, canvassRep, canvassKnock, eq, and, gte } from "@savvy/db";
+import { withTenant, tenant, canvassRep, canvassKnock, eq, gte } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { checkRateLimit } from "@/lib/rate-limit";
