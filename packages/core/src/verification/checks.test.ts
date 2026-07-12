@@ -56,3 +56,23 @@ describe("activity.attribution", () => {
     expect(result.refs).toEqual([]);
   });
 });
+
+describe("sage.remote_actions", () => {
+  it("is registered", () => {
+    expect(getCheck("sage.remote_actions")).toBeDefined();
+  });
+
+  it("fails and returns a sage_remote_action ref for an un-rejected action from an unverified number", async () => {
+    const check = getCheck("sage.remote_actions")!;
+    const result = await check(ctx([{ id: "sra1" }]));
+    expect(result.status).toBe("fail");
+    expect(result.refs).toEqual([{ type: "sage_remote_action", ref: "sra1" }]);
+  });
+
+  it("passes when no unverified actions slipped through", async () => {
+    const check = getCheck("sage.remote_actions")!;
+    const result = await check(ctx([]));
+    expect(result.status).toBe("pass");
+    expect(result.refs).toEqual([]);
+  });
+});
