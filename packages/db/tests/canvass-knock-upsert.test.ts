@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { adminDb, adminPool, pool, eq, tenant, canvassRep, canvassTerritory, canvassKnock } from "../src/index";
 import { withTenant } from "../src/tenant";
-import { upsertCanvassKnock, isCanvassManager } from "../src/lifecycle/canvass-knock";
+import { upsertCanvassKnock, isCanvassManager, isCanvassRepActive } from "../src/lifecycle/canvass-knock";
 
 let tId: string, repA: string, repB: string, mgrId: string, terrId: string;
 
@@ -81,6 +81,20 @@ describe("upsertCanvassKnock", () => {
     expect(id).toBeTruthy();
     const [row] = await adminDb.select().from(canvassKnock).where(eq(canvassKnock.clientId, "knock-2"));
     expect(row!.territoryId).toBeNull();
+  });
+});
+
+describe("isCanvassRepActive", () => {
+  it("is true for an active rep, false once deactivated or unknown", async () => {
+    await withTenant(tId, async (tx) => {
+      expect(await isCanvassRepActive(tx, tId, repB)).toBe(true);
+      expect(await isCanvassRepActive(tx, tId, "00000000-0000-0000-0000-000000000000")).toBe(false);
+    });
+    await adminDb.update(canvassRep).set({ active: false }).where(eq(canvassRep.id, repB));
+    await withTenant(tId, async (tx) => {
+      expect(await isCanvassRepActive(tx, tId, repB)).toBe(false);
+    });
+    await adminDb.update(canvassRep).set({ active: true }).where(eq(canvassRep.id, repB));
   });
 });
 

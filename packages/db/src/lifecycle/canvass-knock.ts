@@ -71,3 +71,15 @@ export async function isCanvassManager(tx: Tx, tenantId: string, repId: string):
     .where(and(eq(canvassRep.tenantId, tenantId), eq(canvassRep.id, repId)));
   return !!rep && rep.manager && rep.active !== false;
 }
+
+// True when the rep behind a still-valid bearer token is still active. Bearer
+// tokens are stateless (HMAC + 12h expiry), so deactivating a rep otherwise
+// leaves their token usable until it expires — the consequential write/cost
+// routes call this to close that window.
+export async function isCanvassRepActive(tx: Tx, tenantId: string, repId: string): Promise<boolean> {
+  const [rep] = await tx
+    .select({ active: canvassRep.active })
+    .from(canvassRep)
+    .where(and(eq(canvassRep.tenantId, tenantId), eq(canvassRep.id, repId)));
+  return !!rep && rep.active !== false;
+}

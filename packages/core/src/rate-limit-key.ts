@@ -3,6 +3,11 @@ export const RATE_LIMITS = {
   leads: { limit: 10, windowSeconds: 60 },
   "crew-pin": { limit: 5, windowSeconds: 60 },
   canvass: { limit: 10, windowSeconds: 60 },
+  // Authed field reads (dossier/geocode/storms) fire on every knock-modal open
+  // and map pan — generous ceiling, just enough to stop a runaway/leaked token.
+  "canvass-read": { limit: 90, windowSeconds: 60 },
+  // Certificate minting has upstream cost — tighter, per-rep.
+  "canvass-cert": { limit: 20, windowSeconds: 60 },
 } as const;
 
 export type RateBucket = keyof typeof RATE_LIMITS;

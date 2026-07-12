@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
-import { withTenant, upsertCanvassKnock, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { withTenant, upsertCanvassKnock, isCanvassRepActive, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -41,8 +41,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     gpsFlagged = gpsDistanceM > CANVASS_GPS_FLAG_METERS;
   }
 
-  const { id } = await withTenant(sess.tenantId, (tx) =>
-    upsertCanvassKnock(tx, {
+  const result = await withTenant(sess.tenantId, async (tx) => {
+    // reject a deactivated rep whose bearer token hasn't expired yet (distinct
+    // from upsert returning id:null when setWhere blocks a teammate's-knock edit)
+    if (!(await isCanvassRepActive(tx, sess.tenantId, sess.repId))) return { denied: true as const };
+    return upsertCanvassKnock(tx, {
       tenantId: sess.tenantId,
       repId: sess.repId,
       clientId: k.clientId,
@@ -58,10 +61,11 @@ export async function POST(req: Request): Promise<NextResponse> {
       territoryClientId: k.territoryClientId,
       gpsFlagged,
       gpsDistanceM,
-    }),
-  );
+    });
+  });
+  if ("denied" in result) return reply({ error: "unauthorized" }, 401);
   if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
-  return reply({ ok: true, id, gpsFlagged, gpsDistanceM }, 201);
+  return reply({ ok: true, id: result.id, gpsFlagged, gpsDistanceM }, 201);
 }
 
 export async function GET(req: Request): Promise<NextResponse> {

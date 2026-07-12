@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { dossierCoordKey } from "@savvy/core";
 import { httpStormProof, type StormProofGateway } from "@savvy/integrations";
-import { withTenant, dossierCache, eq, and } from "@savvy/db";
+import { withTenant, dossierCache, isCanvassRepActive, eq, and } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -29,6 +30,13 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const sess = verifyCanvassToken(bearerToken(req.headers));
   if (!sess) return reply({ error: "unauthorized" }, 401);
+
+  // Cost-bearing mint: throttle per rep and reject deactivated reps whose
+  // token hasn't expired yet.
+  const { ok } = await checkRateLimit("canvass-cert", `${sess.tenantId}:${sess.repId}`);
+  if (!ok) return reply({ error: "rate_limited" }, 429);
+  const active = await withTenant(sess.tenantId, (tx) => isCanvassRepActive(tx, sess.tenantId, sess.repId));
+  if (!active) return reply({ error: "unauthorized" }, 401);
 
   let json: { lat?: number; lng?: number; address?: string };
   try {
