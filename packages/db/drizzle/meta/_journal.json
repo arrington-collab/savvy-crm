@@ -533,6 +533,13 @@
       "when": 1783871808634,
       "tag": "0075_mature_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1783894084821,
+      "tag": "0076_bumpy_naoko",
+      "breakpoints": true
     }
   ]
 }

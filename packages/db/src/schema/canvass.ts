@@ -98,3 +98,42 @@ export const canvassAchievement = pgTable("canvass_achievement", {
   index("canvass_achievement_tenant_idx").on(t.tenantId),
   tenantIsolation(),
 ]);
+
+// A gamification challenge/contest. Standings are DERIVED from participants'
+// knocks within [windowStart, windowEnd); only the instance + settled winner
+// persist. kind h2h|koth|contest, metric points|doors|contacts|appts|sales|
+// revenue, status pending|active|settled|declined|cancelled.
+export const canvassChallenge = pgTable("canvass_challenge", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  kind: text("kind").notNull(),
+  metric: text("metric").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdByRepId: uuid("created_by_rep_id").notNull().references(() => canvassRep.id),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+  winnerRepId: uuid("winner_rep_id").references(() => canvassRep.id),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  index("canvass_challenge_tenant_idx").on(t.tenantId),
+  index("canvass_challenge_tenant_status_idx").on(t.tenantId, t.status),
+  tenantIsolation(),
+]);
+
+// A participant in a challenge; final_score is stamped at settlement. The unique
+// (challenge, rep) index keeps a rep from joining a challenge twice.
+export const canvassChallengeParticipant = pgTable("canvass_challenge_participant", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  challengeId: uuid("challenge_id").notNull().references(() => canvassChallenge.id),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  finalScore: doublePrecision("final_score"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("canvass_challenge_participant_uniq").on(t.challengeId, t.repId),
+  index("canvass_challenge_participant_tenant_idx").on(t.tenantId),
+  tenantIsolation(),
+]);
