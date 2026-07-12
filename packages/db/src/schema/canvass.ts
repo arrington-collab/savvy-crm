@@ -82,3 +82,19 @@ export const dossierCache = pgTable("dossier_cache", {
   uniqueIndex("dossier_cache_tenant_kind_coord_uniq").on(t.tenantId, t.kind, t.coordKey),
   tenantIsolation(),
 ]);
+
+// Unlocked achievement badges per rep (Approach A: everything else is derived
+// from canvass_knock; only badge unlocks persist). Idempotent via the unique
+// (tenant, rep, badge_key) index.
+export const canvassAchievement = pgTable("canvass_achievement", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id),
+  badgeKey: text("badge_key").notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  unlockedAt: createdAt(),
+}, (t) => [
+  uniqueIndex("canvass_achievement_uniq").on(t.tenantId, t.repId, t.badgeKey),
+  index("canvass_achievement_tenant_idx").on(t.tenantId),
+  tenantIsolation(),
+]);
