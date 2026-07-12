@@ -12,14 +12,22 @@ import { bookingLink } from "../../schema/booking-link";
 import { materialOrder } from "../../schema/procurement";
 import { supplierInvoice } from "../../schema/supplier-invoice";
 import { createInvoice, createInvoiceFromEstimate, sendInvoice, recordStripePayment } from "../invoices";
-import { bookAppointment, SlotTakenError } from "../appointments";
+import { bookAppointment, SlotTakenError, convertLeadToJob } from "../appointments";
 import { recomputeJobActualCost } from "../supplier-invoice";
 import { createStatusLink } from "../booking-link";
 import { recordStageChange } from "../record-stage-change";
-import { seedApprovedJob, demoStaff, type DemoLeadInput } from "./funnel";
+import { createLeadForTenant } from "../lead-intake";
+import { setLeadOwner } from "../leads";
+import { saveSketchMeasurement } from "../measurement";
+import { draftLeadEstimateIfReady } from "../estimate";
+import { ConversionBlockedError } from "../lead-tasks";
+import { squareSketch } from "./sketch-fixture";
+import { seedApprovedJob, demoStaff, ensureLeadInspectionAppointment, type DemoLeadInput } from "./funnel";
 
 /** Job ids keyed by the pipeline stage each one lands at (all derived from real evidence). */
 export interface StageJobIds {
+  inspected: string;
+  estimate: string;
   approved: string;
   production: string;
   closeout: string;
@@ -34,6 +42,8 @@ export interface StageJobIds {
  * existence-guarded, so a second run is a no-op.
  */
 const STAGE_SEEDS: Record<keyof StageJobIds, { name: string; phone: string; email: string; address: string }> = {
+  inspected: { name: "Ingrid Inspected", phone: "+16025550406", email: "ingrid.inspected@demo.test", address: "406 N Central Ave, Phoenix, AZ 85004" },
+  estimate: { name: "Ezra Estimate", phone: "+16025550407", email: "ezra.estimate@demo.test", address: "407 N Central Ave, Phoenix, AZ 85004" },
   approved: { name: "Ava Approved", phone: "+16025550410", email: "ava.approved@demo.test", address: "410 N Central Ave, Phoenix, AZ 85004" },
   production: { name: "Pedro Production", phone: "+16025550420", email: "pedro.production@demo.test", address: "420 N Central Ave, Phoenix, AZ 85004" },
   closeout: { name: "Cora Closeout", phone: "+16025550430", email: "cora.closeout@demo.test", address: "430 N Central Ave, Phoenix, AZ 85004" },
@@ -77,6 +87,79 @@ async function ensureApprovedStageJob(tenantId: string, input: DemoLeadInput): P
   const existing = await findExistingStageJob(tenantId, input.phone);
   if (existing) return existing;
   const { jobId } = await seedApprovedJob(tenantId, input);
+  return jobId;
+}
+
+/** Convert a lead to a job, auto-resolving any open MANUAL lead tasks the same way
+ * `seedApprovedJob` does (mirrors flavor.ts's identically-named private helper — kept
+ * local rather than shared since each file's error-resolution note differs). */
+async function convertLeadToJobResolvingBlocks(args: {
+  tenantId: string;
+  leadId: string;
+  manualJob?: boolean;
+  reason?: string;
+  trigger?: string;
+}): Promise<{ jobId: string }> {
+  try {
+    return await convertLeadToJob(args);
+  } catch (err) {
+    if (err instanceof ConversionBlockedError) {
+      const resolutions: Record<number, { status: "not_applicable"; reason: string }> = {};
+      for (const taskId of err.openManualTaskIds) {
+        resolutions[taskId] = { status: "not_applicable", reason: "demo seed: stage job superseded" };
+      }
+      return await convertLeadToJob({ ...args, resolutions });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Reuse the existing seeded job for this natural key, else drive a lead through a
+ * DONE inspection (evidence: `inspection`) with NO estimate, then convert it via the
+ * `manualJob` escape hatch (no accepted estimate exists yet). `deriveContiguousStage`
+ * gathers evidence fresh on conversion and lands the job at exactly `inspected` — the
+ * evidence chain is real, only the funnel skip (no estimate drafted) is deliberate.
+ */
+async function ensureInspectedStageJob(tenantId: string, input: DemoLeadInput): Promise<string> {
+  const existing = await findExistingStageJob(tenantId, input.phone);
+  if (existing) return existing;
+  const leadId = await createLeadForTenant(tenantId, {
+    name: input.name, phone: input.phone, email: input.email, address: input.address, source: "web",
+  });
+  await withTenant(tenantId, async (tx) => {
+    await setLeadOwner(tx, { tenantId, leadId, userId: input.assigneeUserId });
+  });
+  await ensureLeadInspectionAppointment(tenantId, leadId);
+  const { jobId } = await convertLeadToJobResolvingBlocks({
+    tenantId, leadId, manualJob: true, reason: "demo seed: inspected-stage evidence snapshot (no estimate drafted yet)",
+  });
+  return jobId;
+}
+
+/**
+ * Reuse the existing seeded job for this natural key, else drive a lead through a DONE
+ * inspection + a DRAFTED (not accepted) estimate — `gatherStageEvidence`'s `estimate` key
+ * only requires an estimate to exist, not be sent/accepted — then convert via `manualJob`
+ * (still no *accepted* estimate). Lands at exactly `estimate`.
+ */
+async function ensureEstimateStageJob(tenantId: string, input: DemoLeadInput): Promise<string> {
+  const existing = await findExistingStageJob(tenantId, input.phone);
+  if (existing) return existing;
+  const leadId = await createLeadForTenant(tenantId, {
+    name: input.name, phone: input.phone, email: input.email, address: input.address, source: "web",
+  });
+  await withTenant(tenantId, async (tx) => {
+    await setLeadOwner(tx, { tenantId, leadId, userId: input.assigneeUserId });
+  });
+  await ensureLeadInspectionAppointment(tenantId, leadId);
+  const saved = await saveSketchMeasurement({ tenantId, scope: { kind: "lead", id: leadId }, sketch: squareSketch() });
+  if ("error" in saved) throw new Error(`saveSketchMeasurement failed: ${saved.error}`);
+  const drafted = await draftLeadEstimateIfReady({ tenantId, leadId });
+  if (!("estimateId" in drafted)) throw new Error(`draftLeadEstimateIfReady skipped (${drafted.skipped})`);
+  const { jobId } = await convertLeadToJobResolvingBlocks({
+    tenantId, leadId, manualJob: true, reason: "demo seed: estimate-stage evidence snapshot (estimate drafted but not accepted)",
+  });
   return jobId;
 }
 
@@ -258,6 +341,12 @@ export async function seedStageJobs(tenantId: string): Promise<StageJobIds> {
   const crew = await demoStaff(tenantId, "usr_demo_crew");
   const mk = (state: keyof StageJobIds): DemoLeadInput => ({ ...STAGE_SEEDS[state], assigneeUserId: repA });
 
+  // ---- inspected: done inspection, no estimate drafted yet.
+  const inspectedJob = await ensureInspectedStageJob(tenantId, mk("inspected"));
+
+  // ---- estimate: done inspection + a drafted (unsent, unaccepted) estimate.
+  const estimateJob = await ensureEstimateStageJob(tenantId, mk("estimate"));
+
   // ---- approved: as seedApprovedJob lands it, plus deposit invoice + PENDING (draft) material
   // order + landed cost. Materials are draft (not ordered) so they are NOT production evidence —
   // the approved job holds no evidence above its stage and stays at `approved` across re-runs.
@@ -325,5 +414,8 @@ export async function seedStageJobs(tenantId: string): Promise<StageJobIds> {
     await advanceTo(tenantId, completeJob, "complete");
   }
 
-  return { approved: approvedJob, production: productionJob, closeout: closeoutJob, billing: billingJob, complete: completeJob };
+  return {
+    inspected: inspectedJob, estimate: estimateJob,
+    approved: approvedJob, production: productionJob, closeout: closeoutJob, billing: billingJob, complete: completeJob,
+  };
 }
