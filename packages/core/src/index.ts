@@ -94,6 +94,7 @@ export * from "./canvass";
 export * from "./canvass-dossier";
 export * from "./canvass-points";
 export * from "./canvass-streak";
+export * from "./canvass-achievements";
 export * from "./a2p";
 export * from "./deliverability-throttle";
 export * from "./license";
