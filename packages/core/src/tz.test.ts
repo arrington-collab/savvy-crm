@@ -1,5 +1,5 @@
 import { test, expect, describe, it } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate } from "./tz";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate, dateKeyInTimeZone } from "./tz";
 
 // Phoenix is UTC-7 year-round (no DST); Denver is UTC-6 in July (MDT).
 test("returns the local hour (0-23) for the given IANA zone", () => {
@@ -71,4 +71,15 @@ it("places the source wall-clock time onto a different calendar day", () => {
   const get = (t: string) => parts.find((p) => p.type === t)!.value;
   expect(`${get("year")}-${get("month")}-${get("day")}`).toBe("2026-07-13");
   expect(`${get("hour")}:${get("minute")}`).toBe("09:30");
+});
+
+describe("dateKeyInTimeZone", () => {
+  it("returns the LOCAL calendar day, not the UTC day (the EOD report bug)", () => {
+    // 01:30 UTC = 6:30 PM the PREVIOUS day in Phoenix (UTC-7)
+    const lateEveningPhx = new Date("2026-07-12T01:30:00Z");
+    expect(dateKeyInTimeZone(lateEveningPhx, "America/Phoenix")).toBe("2026-07-11");
+    expect(dateKeyInTimeZone(lateEveningPhx, "UTC")).toBe("2026-07-12");
+    // midday agrees
+    expect(dateKeyInTimeZone(new Date("2026-07-09T19:00:00Z"), "America/Phoenix")).toBe("2026-07-09");
+  });
 });

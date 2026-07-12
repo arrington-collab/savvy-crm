@@ -17,6 +17,13 @@ export function tenantsDueAtHour<T extends { timezone: string }>(tenants: T[], n
   return tenants.filter((t) => hourInTimeZone(now, t.timezone) === hour);
 }
 
+/** "YYYY-MM-DD" of the local calendar day at `now` in an IANA zone. Used to
+ * bucket/report by the tenant's day, not the server's UTC day. */
+export function dateKeyInTimeZone(now: Date, tz: string): string {
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
 /** The local day-of-month (1-31) at `now` in an IANA zone — gates day-of-month crons (e.g. the 1st). */
 export function dayOfMonthInTimeZone(now: Date, tz: string): number {
   const d = new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "numeric" }).format(now);

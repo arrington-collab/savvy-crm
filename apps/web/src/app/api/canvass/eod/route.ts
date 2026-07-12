@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { withTenant, canvassRep, canvassKnock, eq, sql } from "@savvy/db";
+import { dateKeyInTimeZone } from "@savvy/core";
+import { withTenant, tenant, canvassRep, canvassKnock, eq, sql } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 
@@ -20,7 +21,14 @@ export async function GET(req: Request): Promise<NextResponse> {
   const tenantId = sess?.tenantId;
   if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
 
-  const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
+  // Bucket by the tenant's local day, not the server's UTC day: created_at is
+  // UTC, and `::date` in a UTC session would roll every after-5pm-Phoenix knock
+  // onto the next day and default "today" to the wrong date each evening.
+  const [tRow] = await withTenant(tenantId, (tx) =>
+    tx.select({ timezone: tenant.timezone }).from(tenant).where(eq(tenant.id, tenantId)),
+  );
+  const tz = tRow?.timezone ?? "UTC";
+  const date = url.searchParams.get("date") || dateKeyInTimeZone(new Date(), tz);
 
   const reps = await withTenant(tenantId, (tx) =>
     tx.select({ id: canvassRep.id, name: canvassRep.name }).from(canvassRep).where(eq(canvassRep.active, true)),
@@ -35,7 +43,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         gpsFlagged: canvassKnock.gpsFlagged,
       })
       .from(canvassKnock)
-      .where(sql`${canvassKnock.createdAt}::date = ${date}::date`),
+      .where(sql`(${canvassKnock.createdAt} AT TIME ZONE ${tz})::date = ${date}::date`),
   );
 
   const by = new Map(
