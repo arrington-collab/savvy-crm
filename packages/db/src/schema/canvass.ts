@@ -16,6 +16,8 @@ export const canvassRep = pgTable("canvass_rep", {
   // manager views (dashboard, EOD, team) in the field app.
   manager: boolean("manager").notNull().default(false),
   active: boolean("active").notNull().default(true),
+  // Slice 3: rep-facing message language ('en'|'es', @savvy/core CrewLanguage).
+  language: text("language").notNull().default("en"),
   createdAt: createdAt(),
 }, (t) => [index("canvass_rep_tenant_idx").on(t.tenantId), tenantIsolation()]);
 
