@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { withTenant } from "../tenant";
 import { agentRun, job, lead, customer } from "../schema/index";
@@ -151,6 +151,40 @@ export async function listAgentActivity(
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(agentRun.startedAt), desc(agentRun.id))
       .limit(opts.limit),
+  );
+}
+
+/**
+ * One calendar day's runs, OLDEST first, for the replay scrubber. Same customer-name
+ * join as listAgentActivity, bounded to `[start, end)` and ordered ASC by startedAt so
+ * the timeline plays forward. RLS-scoped, SELECT-only.
+ */
+export async function listAgentActivityForDay(
+  tenantId: string,
+  window: { start: Date; end: Date },
+): Promise<AgentActivityRow[]> {
+  const jobCustomer = alias(customer, "job_customer");
+  const leadCustomer = alias(customer, "lead_customer");
+  return withTenant(tenantId, (tx) =>
+    tx
+      .select({
+        id: agentRun.id,
+        agent: agentRun.agent,
+        taskKey: agentRun.taskKey,
+        status: agentRun.status,
+        modelUsed: agentRun.modelUsed,
+        startedAt: agentRun.startedAt,
+        finishedAt: agentRun.finishedAt,
+        target: sql<string | null>`coalesce(${jobCustomer.name}, ${leadCustomer.name})`,
+        error: agentRun.error,
+      })
+      .from(agentRun)
+      .leftJoin(job, eq(job.id, agentRun.jobId))
+      .leftJoin(jobCustomer, eq(jobCustomer.id, job.customerId))
+      .leftJoin(lead, eq(lead.id, agentRun.leadId))
+      .leftJoin(leadCustomer, eq(leadCustomer.id, lead.customerId))
+      .where(and(gte(agentRun.startedAt, window.start), lt(agentRun.startedAt, window.end)))
+      .orderBy(asc(agentRun.startedAt), asc(agentRun.id)),
   );
 }
 

@@ -27,6 +27,7 @@ export * from "./showcase-motion";
 export * from "./shift-report";
 export * from "./agent-roster";
 export * from "./activity-query";
+export * from "./replay";
 export * from "./inflight";
 export * from "./job-ledger";
 export * from "./job-ledger-view";
