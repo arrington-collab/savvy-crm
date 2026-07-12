@@ -7,7 +7,8 @@ import { loadOpenTaskExceptions, loadTenantRollup } from "@/lib/scoreboard-queri
 import { getTodayMoney, getTodayDigest, getTenantIdentity } from "@/lib/today-queries";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
-import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete } from "@savvy/core";
+import { Odometer } from "@/components/odometer/Odometer";
+import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete, describeOdometer } from "@savvy/core";
 import { A2P_REGISTRATION_STEPS } from "@/lib/deliverability-copy";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
@@ -78,6 +79,7 @@ export default async function TodayPage() {
   const coverage = summarizeTenantCoverage(rollup);
   const estMinutes = estimateDecisionMinutes(decisions.length);
   const today = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: identity.timezone }).format(new Date());
+  const odometer = describeOdometer(digest.totalActions, digest.minutesSaved);
 
   return (
     <div className="space-y-7" data-testid="today-page">
@@ -128,6 +130,9 @@ export default async function TodayPage() {
             <>Estimated <b style={{ color: "var(--accent-gold)" }}>{estMinutes} minute{estMinutes === 1 ? "" : "s"}</b> of your attention · everything else is running in the background</>
           )}
         </p>
+        <div className="mt-2">
+          <Odometer view={odometer} />
+        </div>
       </section>
 
       {/* DECISION QUEUE */}

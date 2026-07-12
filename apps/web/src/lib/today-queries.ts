@@ -1,6 +1,6 @@
 import "server-only";
 import { withTenant, adminDb, tenant, invoice, payment, agentRun, inArray, gte, and, eq, sql, desc } from "@savvy/db";
-import { summarizeMoneyStrip, summarizeAgentCoverage, parseFinanceConfig, type Agent, type MoneyStrip, type AgentCoverage } from "@savvy/core";
+import { summarizeMoneyStrip, summarizeAgentCoverage, summarizeMinutesSaved, parseFinanceConfig, type Agent, type MoneyStrip, type AgentCoverage, type MinutesSaved } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { loadTenantRollup } from "./scoreboard-queries";
 
@@ -16,7 +16,7 @@ const WEEK_MS = 7 * 86_400_000;
 const DAY_MS = 86_400_000;
 
 export type TodayMoney = MoneyStrip;
-export type TodayDigest = { totalActions: number; activeAgents: number; perAgent: AgentCoverage[]; since: Date };
+export type TodayDigest = { totalActions: number; activeAgents: number; perAgent: AgentCoverage[]; minutesSaved: MinutesSaved; since: Date };
 
 /**
  * The money strip + "while you were out" digest for the Today console. Reads are
@@ -61,17 +61,19 @@ export async function getTodayDigest(now: Date = new Date()): Promise<TodayDiges
   const dayAgo = new Date(now.getTime() - DAY_MS);
   const runs = await withTenant(tenantId, (tx) =>
     tx
-      .select({ agent: agentRun.agent, status: agentRun.status, modelUsed: agentRun.modelUsed, costCents: agentRun.costCents, startedAt: agentRun.startedAt })
+      .select({ agent: agentRun.agent, status: agentRun.status, taskKey: agentRun.taskKey, modelUsed: agentRun.modelUsed, costCents: agentRun.costCents, startedAt: agentRun.startedAt })
       .from(agentRun)
       .where(and(eq(agentRun.tenantId, tenantId), gte(agentRun.startedAt, dayAgo)))
       .orderBy(desc(agentRun.startedAt)),
   );
   const lite = runs.map((r) => ({ agent: r.agent as Agent, status: r.status, modelUsed: r.modelUsed, costCents: r.costCents, startedAt: new Date(r.startedAt as unknown as string) }));
   const perAgent = summarizeAgentCoverage(lite, now);
+  const minutesSaved = summarizeMinutesSaved(runs.map((r) => ({ taskKey: r.taskKey, status: r.status })));
   return {
     totalActions: lite.length,
     activeAgents: new Set(lite.map((r) => r.agent)).size,
     perAgent: perAgent.filter((a) => a.total > 0),
+    minutesSaved,
     since: dayAgo,
   };
 }
