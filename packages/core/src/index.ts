@@ -93,6 +93,7 @@ export * from "./pipeline-board";
 export * from "./canvass";
 export * from "./canvass-dossier";
 export * from "./canvass-points";
+export * from "./canvass-streak";
 export * from "./a2p";
 export * from "./deliverability-throttle";
 export * from "./license";
