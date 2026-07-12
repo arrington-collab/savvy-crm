@@ -24,7 +24,7 @@ import {
   type SupplierInvoiceLine,
   type SnapshotLine,
 } from "@savvy/core";
-import { getEmailSender } from "@savvy/integrations";
+import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
 // The finance persona task key for the guard checklist item.
@@ -321,7 +321,8 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         sendEmail: async (opts) => {
           // No outbound email in e2e / test mode.
           if (process.env.TEST_MODE === "1") return { id: "test-email" };
-          return getEmailSender({ gmailConnectionId: null }).sendEmail({
+          const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: null });
+          return emailSender.sendEmail({
             ...opts,
             from: process.env.EMAIL_FROM ?? "noreply@example.com",
           });

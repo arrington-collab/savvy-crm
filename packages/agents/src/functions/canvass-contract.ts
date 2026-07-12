@@ -1,8 +1,9 @@
 import { withTenant, and, eq, lead, property, contractTemplate, document, adminDb, tenant, convertCanvassContractToJob, ConversionBlockedError } from "@savvy/db";
 import type { StorageGateway, EmailSender } from "@savvy/integrations";
-import { r2Storage, getEmailSender, makeFakeStorage } from "@savvy/integrations";
+import { r2Storage, makeFakeStorage } from "@savvy/integrations";
 import type { CanvassContract } from "@savvy/core";
 import { parseEmailConfig, resolveOrThrowContractTemplate } from "@savvy/core";
+import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
 /**
@@ -223,6 +224,7 @@ export const canvassContractSigned = inngest.createFunction(
           if (!l?.propertyId) return null;
           return (await tx.select({ state: property.state }).from(property).where(eq(property.id, l.propertyId)))[0]?.state ?? null;
         });
+        const emailSender = await getTenantEmail(event.data.tenantId, { gmailConnectionId });
         return emailSignedCopy(
           {
             contract: event.data.contract,
@@ -231,7 +233,7 @@ export const canvassContractSigned = inngest.createFunction(
             companyName: t?.name ?? "Your contractor",
             state,
           },
-          { email: getEmailSender({ gmailConnectionId }) },
+          { email: emailSender },
         );
       });
     }

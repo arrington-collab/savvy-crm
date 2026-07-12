@@ -9,8 +9,9 @@ import {
   buildWeatherMoveHomeownerBody, buildWeatherMoveCrewBody, isWithinQuietHours,
   toCivilDate, tenantsDueAtHour, type WeatherConfig, type HomeownerConfig,
 } from "@savvy/core";
-import { forecast, getEmailSender, type ForecastGateway } from "@savvy/integrations";
+import { forecast, type ForecastGateway } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
 type WeatherResult = { flagged: number; cleared: number; rescheduled: number; rescheduledAppointmentIds: string[] };
@@ -139,7 +140,10 @@ async function notifyWeatherMove(
     try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "sms", direction: "outbound", to: r.phone, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
   if (r.email && !r.emailOptOut) {
-    try { await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({ to: r.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Your roofing install has moved", html: `<p>${body}</p>` }); } catch { /* fail-soft */ }
+    try {
+      const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: ctx.gmailConnectionId });
+      await emailSender.sendEmail({ to: r.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Your roofing install has moved", html: `<p>${body}</p>` });
+    } catch { /* fail-soft */ }
     try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "email", direction: "outbound", to: r.email, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
 
@@ -151,7 +155,10 @@ async function notifyWeatherMove(
       try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: contact.phone, from, body: crewBody }); } catch { /* fail-soft */ }
       try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "sms", direction: "outbound", to: contact.phone, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     } else if (contact.email) {
-      try { await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({ to: contact.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Weather move: install rescheduled", html: `<p>${crewBody}</p>` }); } catch { /* fail-soft */ }
+      try {
+        const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: ctx.gmailConnectionId });
+        await emailSender.sendEmail({ to: contact.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Weather move: install rescheduled", html: `<p>${crewBody}</p>` });
+      } catch { /* fail-soft */ }
       try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "email", direction: "outbound", to: contact.email, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     }
   }

@@ -1,7 +1,7 @@
 import { adminDb, withTenant, lead, customer, tenant, communication, eq } from "@savvy/db";
 import { parseLeadCadenceConfig, parseFinanceConfig, shouldSendChannel, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { buildAckSms, buildAckEmail } from "./lead-intake";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
@@ -85,7 +85,10 @@ export const leadCadence = inngest.createFunction(
           }));
         } else {
           const { subject, html } = buildAckEmail(vars);
-          try { await getEmailSender({ gmailConnectionId: null }).sendEmail({ to: ctx.email!, from: process.env.RESEND_FROM ?? "noreply@savvy.app", subject, html }); } catch { /* dev */ }
+          try {
+            const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: null });
+            await emailSender.sendEmail({ to: ctx.email!, from: process.env.RESEND_FROM ?? "noreply@savvy.app", subject, html });
+          } catch { /* dev */ }
           await withTenant(tenantId, (tx) => tx.insert(communication).values({
             tenantId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: ctx.email, body: subject, aiHandled: false,
           }));

@@ -15,8 +15,8 @@ import {
   communication,
   agentRun,
 } from "@savvy/db";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
 /**
@@ -124,7 +124,8 @@ export const dunningRun = inngest.createFunction(
             commBody = mail.subject;
             try {
               // id is not used further — fail-soft, the comm row is always inserted.
-              await getEmailSender({ gmailConnectionId: setup.gmailConnectionId }).sendEmail({
+              const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: setup.gmailConnectionId });
+              await emailSender.sendEmail({
                 to: phase1.email,
                 from: process.env.EMAIL_FROM ?? "noreply@example.com",
                 subject: mail.subject,

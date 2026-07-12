@@ -1,8 +1,8 @@
 import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, computeCalibration } from "@savvy/core";
 import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, recordAgentRun, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
+import { getTenantEmail } from "./email";
 
 type SmsDep = { sender: SmsSender; from: string } | null;
 export interface DigestDeps {
@@ -47,7 +47,7 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
     }
   }
   if (owner?.email) {
-    const email = deps.email ?? getEmailSender({ gmailConnectionId: null });
+    const email = deps.email ?? (await getTenantEmail(tenantId, { gmailConnectionId: null }));
     try {
       await email.sendEmail({ to: owner.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: msg.subject, html: `<p>${body}</p>` });
     } catch {

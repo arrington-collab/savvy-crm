@@ -5,8 +5,8 @@ import {
   markLeadTaskDoneTx,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms, isOutboundThrottled } from "../telephony";
+import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string };
@@ -203,9 +203,10 @@ export const dripRun = inngest.createFunction(
           });
         }
         const { sender, from } = await getTenantSms(tenantId);
+        const email = await getTenantEmail(tenantId, { gmailConnectionId: setup.gmailConnectionId });
         return sendDripStep(
           { tenantId, enrollmentId: setup.enrollmentId, customerId, step: s, templateBody, jobId, leadId },
-          { sms: sender, from, email: getEmailSender({ gmailConnectionId: setup.gmailConnectionId }) },
+          { sms: sender, from, email },
         );
       });
     }
