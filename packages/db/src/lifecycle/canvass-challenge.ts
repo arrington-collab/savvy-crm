@@ -2,6 +2,7 @@ import { and, eq, inArray, gte, lt } from "drizzle-orm";
 import { metricValue, rankStandings, settleWinner, type ChallengeMetric, type Standing } from "@savvy/core";
 import type { Tx } from "../tenant";
 import { canvassChallenge, canvassChallengeParticipant, canvassKnock } from "../schema/index";
+import { createSettlementSpiffs } from "./canvass-spiff";
 
 export interface CreateChallengeArgs {
   tenantId: string;
@@ -113,10 +114,12 @@ export async function settleDueChallenges(tx: Tx, tenantId: string, now: Date): 
         .set({ finalScore: s.score })
         .where(and(eq(canvassChallengeParticipant.challengeId, ch.id), eq(canvassChallengeParticipant.repId, s.repId)));
     }
+    const winner = settleWinner(standings);
     await tx
       .update(canvassChallenge)
-      .set({ status: "settled", winnerRepId: settleWinner(standings), settledAt: now })
+      .set({ status: "settled", winnerRepId: winner, settledAt: now })
       .where(eq(canvassChallenge.id, ch.id));
+    await createSettlementSpiffs(tx, tenantId, ch.id, { kind: ch.kind, meta: ch.meta }, standings, winner);
   }
   return due.length;
 }

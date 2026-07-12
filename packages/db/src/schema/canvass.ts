@@ -137,3 +137,26 @@ export const canvassChallengeParticipant = pgTable("canvass_challenge_participan
   index("canvass_challenge_participant_tenant_idx").on(t.tenantId),
   tenantIsolation(),
 ]);
+
+// A money ledger entry for spiffs — wagers, contest prizes, or manual bonuses
+// owed to a rep. kind wager|contest_prize|manual, status owed|paid|void.
+// challengeId is set null on delete since the ledger entry should outlive a
+// deleted challenge; the rep FKs cascade since a deleted rep's ledger has no
+// meaning.
+export const canvassSpiff = pgTable("canvass_spiff", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  challengeId: uuid("challenge_id").references(() => canvassChallenge.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  winnerRepId: uuid("winner_rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }),
+  fromRepId: uuid("from_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("owed"),
+  note: text("note"),
+  createdAt: createdAt(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+}, (t) => [
+  index("canvass_spiff_tenant_idx").on(t.tenantId),
+  index("canvass_spiff_winner_idx").on(t.winnerRepId),
+  tenantIsolation(),
+]);
