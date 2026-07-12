@@ -561,6 +561,24 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
          and confirmation_state <> 'rejected'`,
     { toRef: (r) => ({ type: "sage_remote_action", ref: String(r.id) }) },
   ),
+
+  // Slice 3 (Spanish crew comms): every crew-recipient message must render in
+  // the crew's preferred language. A crew communication in this window whose
+  // language differs from the crew's current preference is a violation.
+  // Window-scoped so a message sent under a prior preference (before a flip)
+  // isn't retroactively flagged. Cross-cutting → UNBOUND.
+  "comms.crew_language": invariant(
+    "comms.crew_language",
+    `select c.id from communication c
+       join crew cr on cr.id = c.crew_id and cr.tenant_id = c.tenant_id
+      where c.tenant_id = $1 and c.created_at >= $2 and c.created_at < $3
+        and c.crew_id is not null
+        and c.language is distinct from cr.language`,
+    {
+      params: (ctx) => [ctx.tenantId, ctx.window.start, ctx.window.end],
+      toRef: (r) => ({ type: "communication", ref: String(r.id) }),
+    },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

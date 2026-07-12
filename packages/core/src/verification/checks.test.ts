@@ -76,3 +76,23 @@ describe("sage.remote_actions", () => {
     expect(result.refs).toEqual([]);
   });
 });
+
+describe("comms.crew_language", () => {
+  it("is registered", () => {
+    expect(getCheck("comms.crew_language")).toBeDefined();
+  });
+
+  it("fails with a communication ref when a crew message went out in the wrong language", async () => {
+    const check = getCheck("comms.crew_language")!;
+    const result = await check(ctx([{ id: "comm1" }]));
+    expect(result.status).toBe("fail");
+    expect(result.refs).toEqual([{ type: "communication", ref: "comm1" }]);
+  });
+
+  it("passes when every crew message matched the crew's language", async () => {
+    const check = getCheck("comms.crew_language")!;
+    const result = await check(ctx([]));
+    expect(result.status).toBe("pass");
+    expect(result.refs).toEqual([]);
+  });
+});

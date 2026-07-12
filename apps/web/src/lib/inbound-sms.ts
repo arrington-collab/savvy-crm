@@ -1,7 +1,8 @@
 import {
   withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
+  crewByMemberPhone, setCrewLanguage,
 } from "@savvy/db";
-import { isStopKeyword, isCancelKeyword } from "@savvy/core";
+import { isStopKeyword, isCancelKeyword, parseLanguageFlip, languageFlipConfirmation } from "@savvy/core";
 import { inngest, getTenantSms } from "@savvy/agents";
 import { handleSageCommand } from "./sage-remote";
 
@@ -29,6 +30,24 @@ export async function handleInboundSms(
       console.error("sage reply send failed", e);
     }
     return { matched: true, stopped: null };
+  }
+
+  // 0b) Slice 3 self-serve flip: a crew member texting "ESPAÑOL"/"ENGLISH" flips
+  //     their crew's message language; confirm in the NEW language. Precedes the
+  //     customer match (a crew member isn't a customer).
+  const flip = parseLanguageFlip(opts.body);
+  if (flip) {
+    const crew = await crewByMemberPhone(tenantId, opts.from);
+    if (crew) {
+      await setCrewLanguage(tenantId, crew.crewId, flip);
+      try {
+        const { sender, from } = await getTenantSms(tenantId);
+        await sender.sendSms({ to: opts.from, from, body: languageFlipConfirmation(flip) });
+      } catch (e) {
+        console.error("crew language flip reply failed", e);
+      }
+      return { matched: true, stopped: null };
+    }
   }
 
   // 1) Log inbound communication + match customer by phone
