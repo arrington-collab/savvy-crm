@@ -99,7 +99,12 @@ async function cachedStormProperty(
       : sp
           .getProperty({ lat: o.lat, lng: o.lng, address: o.address })
           .then(async (p) => {
-            if (p) await put("property", p);
+            // Cache only payloads with actual roof data. Some county assessors
+            // are address-based, and the knock modal's FIRST dossier call fires
+            // before reverse-geocoding resolves the address — caching that
+            // empty {supported:true} answer would starve the address-carrying
+            // second call (and every knock at this door) for a full TTL.
+            if (p && (p.yearBuilt != null || p.roofAge != null || p.roofType != null)) await put("property", p);
             return p as PropertyDataLike | null;
           })
           .catch(() => null),

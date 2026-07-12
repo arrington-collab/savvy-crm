@@ -165,6 +165,9 @@ export interface StormEventLike {
   eventType: "hail" | "wind";
   size?: number;
   windMph?: number;
+  /** False when the event's swath does NOT cover the queried point (merely
+      nearby). Absent = at-point (legacy events-shaped payloads, fakes). */
+  atPoint?: boolean;
 }
 
 export interface StormSummaryLike {
@@ -188,6 +191,9 @@ export interface DossierStorm {
   windMph: number | null;
   daysSince: number | null;
   eventCount: number;
+  /** True = the swath covers this door ("Verified hail …"); false = within
+      ~10 mi but not overhead ("Hail nearby …"). */
+  atPoint: boolean;
 }
 
 export interface DossierProperty {
@@ -197,23 +203,34 @@ export interface DossierProperty {
   supported: true;
 }
 
-// worstDate is the date of the event the CARD describes — hail-first (the
-// sales-relevant peril; the card only falls back to wind when there's no
-// hail), NOT the gateway's hail*10+wind worst-event scoring, which would let
-// a strong wind event's date sit next to the max-hail size and mislead reps.
-export function shapeDossierStorm(s: StormSummaryLike | null | undefined): DossierStorm | null {
+// The card describes ONE event, so every field comes from a coherent pool.
+// Priority: at-point hail > NEARBY hail > at-point wind > nearby wind — hail is
+// the sales-relevant peril, so 1" hail two streets over beats a wind gust that
+// grazed this exact roof (real Mesa data surfaced exactly that case). Within a
+// peril, prefer events whose swath covers the door, then the biggest. This is
+// deliberately NOT the gateway's hail*10+wind worst scoring — that would let a
+// wind event's date sit next to the max-hail size. daysSince is likewise
+// recomputed from the shown event, not the gateway's global worst.
+export function shapeDossierStorm(s: StormSummaryLike | null | undefined, now = new Date()): DossierStorm | null {
   if (!s || s.eventCount === 0) return null;
-  const biggest = (type: "hail" | "wind") =>
-    s.events
-      .filter((e) => e.eventType === type)
-      .sort((a, b) => (type === "hail" ? (b.size ?? 0) - (a.size ?? 0) : (b.windMph ?? 0) - (a.windMph ?? 0)))[0] ?? null;
-  const worst = s.maxHailInches > 0 ? biggest("hail") : biggest("wind");
+  const poolOf = (type: "hail" | "wind") => {
+    const ofType = s.events.filter((e) => e.eventType === type && (type === "hail" ? (e.size ?? 0) > 0 : (e.windMph ?? 0) > 0));
+    const atPt = ofType.filter((e) => e.atPoint !== false);
+    const pool = atPt.length ? atPt : ofType;
+    return pool.sort((a, b) => (type === "hail" ? (b.size ?? 0) - (a.size ?? 0) : (b.windMph ?? 0) - (a.windMph ?? 0)));
+  };
+  const hailPool = poolOf("hail");
+  const windPool = poolOf("wind");
+  const worst = hailPool[0] ?? windPool[0];
+  if (!worst) return null;
+  const days = Math.floor((now.getTime() - Date.parse(worst.date)) / 86_400_000);
   return {
-    worstDate: worst?.date ? worst.date.slice(0, 10) : null,
-    hailInches: s.maxHailInches > 0 ? s.maxHailInches : null,
-    windMph: s.maxWindMph > 0 ? s.maxWindMph : null,
-    daysSince: s.daysSinceWorst,
+    worstDate: worst.date.slice(0, 10),
+    hailInches: hailPool.length ? (hailPool[0]!.size ?? null) : null,
+    windMph: windPool.length ? (windPool[0]!.windMph ?? null) : null,
+    daysSince: Number.isFinite(days) ? days : null,
     eventCount: s.eventCount,
+    atPoint: worst.atPoint !== false,
   };
 }
 

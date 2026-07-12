@@ -1,4 +1,13 @@
-export type StormEvent = { date: string; eventType: "hail" | "wind"; size?: number; windMph?: number; id?: string };
+export type StormEvent = {
+  date: string;
+  eventType: "hail" | "wind";
+  size?: number;
+  windMph?: number;
+  id?: string;
+  /** True when the queried point sits INSIDE the storm swath (vs merely nearby).
+      Absent (legacy events-shaped payloads, fakes) is treated as at-point. */
+  atPoint?: boolean;
+};
 export type PropertyData = { yearBuilt: number | null; roofAge: number | null; roofType: string | null; county: string | null; supported: boolean };
 export type StormSummary = {
   events: StormEvent[]; eventCount: number;
@@ -59,8 +68,13 @@ export const httpStormProof: StormProofGateway = {
       u.searchParams.set("months", String(months));
       const res = await fetch(u, { headers: headers() });
       if (!res.ok) return EMPTY_STORMS;
-      const d = (await res.json()) as { events?: StormEvent[] };
-      return summarize(d.events ?? []);
+      // /api/storms/verified returns IEM+SPC swath TRACKS ({tracks:[{rings,…}]}),
+      // not flat events — reading d.events here meant the storm block was empty
+      // for every address on earth. Parse tracks; keep the events shape as a
+      // fallback for older payloads.
+      const d = (await res.json()) as { tracks?: VerifiedTrack[]; events?: StormEvent[] };
+      const events = d.events ?? parseVerifiedTracks(d.tracks ?? [], lat, lng);
+      return summarize(events);
     } catch { return EMPTY_STORMS; }
   },
   async generateCertificate({ address, lat, lng, months = 24 }) {
@@ -73,6 +87,61 @@ export const httpStormProof: StormProofGateway = {
     return (await res.json()) as StormCertResult;
   },
 };
+
+// One merged IEM+SPC storm track from /api/storms/verified. Rings are swath
+// polygons as [lat,lng] vertex arrays; size = max hail inches, windMph = max gust.
+export type VerifiedTrack = {
+  rings?: number[][][];
+  center?: { lat: number; lng: number };
+  eventType: "hail" | "wind";
+  size?: number | null;
+  windMph?: number | null;
+  date: string;
+};
+
+// Tracks come back within the API's search radius (up to ~50 mi for hail),
+// which is far too wide to claim "verified hail at this door". Keep a track when
+// the point is INSIDE one of its swath rings (atPoint) or its center is within
+// ~10 mi — the field card words those two cases differently.
+export const STORM_NEARBY_MILES = 10;
+
+export function pointInRing(lat: number, lng: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, xi] = ring[i]!;
+    const [yj, xj] = ring[j]!;
+    if (yi === undefined || xi === undefined || yj === undefined || xj === undefined) continue;
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function milesBetween(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 3958.8;
+  const toRad = (d: number): number => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+export function parseVerifiedTracks(tracks: VerifiedTrack[], lat: number, lng: number): StormEvent[] {
+  const events: StormEvent[] = [];
+  for (const t of tracks) {
+    if (!t?.date || (t.eventType !== "hail" && t.eventType !== "wind")) continue;
+    const atPoint = (t.rings ?? []).some((r) => Array.isArray(r) && pointInRing(lat, lng, r));
+    const near = atPoint || (t.center != null && milesBetween(lat, lng, t.center.lat, t.center.lng) <= STORM_NEARBY_MILES);
+    if (!near) continue;
+    events.push({
+      date: t.date,
+      eventType: t.eventType,
+      size: t.size ?? undefined,
+      windMph: t.windMph ?? undefined,
+      atPoint,
+    });
+  }
+  return events;
+}
 
 function summarize(events: StormEvent[]): StormSummary {
   if (events.length === 0) return EMPTY_STORMS;

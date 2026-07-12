@@ -173,14 +173,62 @@ describe("shapeDossierStorm", () => {
     ...over,
   });
 
-  it("picks the worst event's date (hail-dominant scoring) and maps the maxima", () => {
-    expect(shapeDossierStorm(summary())).toEqual({
+  const NOW = new Date("2026-07-06T00:00:00Z");
+
+  it("picks the worst event's date (hail-first) and recomputes daysSince from it", () => {
+    expect(shapeDossierStorm(summary(), NOW)).toEqual({
       worstDate: "2026-06-12",
       hailInches: 2.75,
       windMph: 78,
       daysSince: 24,
       eventCount: 3,
+      atPoint: true,
     });
+  });
+
+  it("prefers at-point events over bigger merely-nearby ones", () => {
+    const s = shapeDossierStorm(
+      summary({
+        events: [
+          { date: "2026-06-20T00:00:00Z", eventType: "hail", size: 3.0, atPoint: false }, // big but 8 mi away
+          { date: "2026-06-12T00:00:00Z", eventType: "hail", size: 1.25, atPoint: true }, // hit THIS door
+        ],
+        eventCount: 2,
+      }),
+      NOW,
+    )!;
+    expect(s.atPoint).toBe(true);
+    expect(s.worstDate).toBe("2026-06-12");
+    expect(s.hailInches).toBe(1.25); // magnitude from the at-point pool, not the nearby monster
+  });
+
+  it("prefers NEARBY hail over at-point wind (hail is the sales peril — real Mesa case)", () => {
+    const s = shapeDossierStorm(
+      summary({
+        events: [
+          { date: "2026-06-04T00:00:00Z", eventType: "wind", windMph: 58, atPoint: true }, // grazed this roof
+          { date: "2026-06-26T00:00:00Z", eventType: "hail", size: 1.0, atPoint: false }, // 2 streets over
+        ],
+        eventCount: 2,
+      }),
+      NOW,
+    )!;
+    expect(s.worstDate).toBe("2026-06-26");
+    expect(s.hailInches).toBe(1.0);
+    expect(s.atPoint).toBe(false); // card reads "Hail nearby", not "Verified hail"
+    expect(s.windMph).toBe(58); // wind still reported from its own pool
+  });
+
+  it("falls back to nearby events (atPoint:false) when nothing hit the door", () => {
+    const s = shapeDossierStorm(
+      summary({
+        events: [{ date: "2026-06-20T00:00:00Z", eventType: "hail", size: 3.0, atPoint: false }],
+        eventCount: 1,
+      }),
+      NOW,
+    )!;
+    expect(s.atPoint).toBe(false);
+    expect(s.hailInches).toBe(3.0);
   });
 
   it("nulls zero maxima (wind-only storm has no hail line)", () => {
@@ -189,7 +237,7 @@ describe("shapeDossierStorm", () => {
       eventCount: 1,
       maxHailInches: 0,
     });
-    const s = shapeDossierStorm(windOnly)!;
+    const s = shapeDossierStorm(windOnly, NOW)!;
     expect(s.hailInches).toBeNull();
     expect(s.windMph).toBe(78);
     expect(s.worstDate).toBe("2026-04-02");
