@@ -1,7 +1,9 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
-import { adminDb, adminPool, pool, eq, tenant, canvassRep, canvassTerritory, canvassKnock } from "../src/index";
+import { adminDb, adminPool, pool, eq, tenant, canvassRep, canvassTerritory, canvassKnock, canvassAchievement } from "../src/index";
 import { withTenant } from "../src/tenant";
 import { upsertCanvassKnock, isCanvassManager, isCanvassRepActive } from "../src/lifecycle/canvass-knock";
+import { evaluateAchievements } from "@savvy/core";
+import { unlockAchievements } from "../src/lifecycle/canvass-achievement";
 
 let tId: string, repA: string, repB: string, mgrId: string, terrId: string;
 
@@ -28,6 +30,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await adminDb.delete(canvassKnock).where(eq(canvassKnock.tenantId, tId));
+  await adminDb.delete(canvassAchievement).where(eq(canvassAchievement.tenantId, tId));
   await adminDb.delete(canvassTerritory).where(eq(canvassTerritory.tenantId, tId));
   await adminDb.delete(canvassRep).where(eq(canvassRep.tenantId, tId));
   await adminDb.delete(tenant).where(eq(tenant.id, tId));
@@ -109,5 +112,16 @@ describe("isCanvassManager", () => {
     await withTenant(tId, async (tx) => {
       expect(await isCanvassManager(tx, tId, mgrId)).toBe(false);
     });
+  });
+});
+
+describe("achievements on knock", () => {
+  it("first_sale unlocks once a sale exists", async () => {
+    await withTenant(tId, (tx) => upsertCanvassKnock(tx, { ...base(repA), clientId: "ach-1", outcome: "sale", amount: 1000 }));
+    const earned = await withTenant(tId, async (tx) => {
+      const earnedKeys = evaluateAchievements({ knocks: [{ outcome: "sale", amount: 1000, at: new Date() }], tz: "America/Phoenix" });
+      return unlockAchievements(tx, tId, repA, earnedKeys);
+    });
+    expect(earned).toContain("first_sale");
   });
 });

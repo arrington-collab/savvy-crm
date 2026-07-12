@@ -526,6 +526,13 @@
       "when": 1783807829144,
       "tag": "0074_adorable_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1783871808634,
+      "tag": "0075_mature_killmonger",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTas
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks, resolveOpenLeadTasks, ConversionBlockedError } from "./lifecycle/lead-tasks";
 export { addLeadNote, getLeadNotes } from "./lifecycle/lead-note";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
+export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, computeTenantRollup, reconcileTaskExceptions, getTenantRollup, getJobLedger, type JobLedgerRow, listOpenTaskExceptions, type OpenTaskException, markTaskExceptionViewed, getTaskDetail, type TaskDetail, recomputeFounderMinutes, listAutomationRoadmap, type RoadmapTask } from "./lifecycle/task-health";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError, StageEvidenceError, BackwardNeedsReasonError } from "./lifecycle/record-stage-change";
 export { advanceJobStageForward } from "./lifecycle/advance-stage";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
-import { withTenant, upsertCanvassKnock, isCanvassRepActive, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS, evaluateAchievements } from "@savvy/core";
+import { withTenant, upsertCanvassKnock, isCanvassRepActive, unlockAchievements, listAchievementKeys, tenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -65,7 +65,26 @@ export async function POST(req: Request): Promise<NextResponse> {
   });
   if ("denied" in result) return reply({ error: "unauthorized" }, 401);
   if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
-  return reply({ ok: true, id: result.id, gpsFlagged, gpsDistanceM }, 201);
+
+  // Re-evaluate this rep's badges from their full history; unlock any new ones.
+  let newBadges: string[] = [];
+  try {
+    newBadges = await withTenant(sess.tenantId, async (tx) => {
+      const [tRow] = await tx.select({ timezone: tenant.timezone }).from(tenant).where(eq(tenant.id, sess.tenantId));
+      const tz = tRow?.timezone ?? "UTC";
+      const rows = await tx
+        .select({ outcome: canvassKnock.outcome, amount: canvassKnock.amount, createdAt: canvassKnock.createdAt })
+        .from(canvassKnock)
+        .where(eq(canvassKnock.repId, sess.repId));
+      const earned = evaluateAchievements({ knocks: rows.map((r) => ({ outcome: r.outcome, amount: r.amount, at: r.createdAt })), tz });
+      const already = new Set(await listAchievementKeys(tx, sess.tenantId, sess.repId));
+      const toUnlock = earned.filter((k) => !already.has(k));
+      return unlockAchievements(tx, sess.tenantId, sess.repId, toUnlock);
+    });
+  } catch {
+    newBadges = []; // never fail a knock over gamification
+  }
+  return reply({ ok: true, id: result.id, gpsFlagged, gpsDistanceM, newBadges }, 201);
 }
 
 export async function GET(req: Request): Promise<NextResponse> {
