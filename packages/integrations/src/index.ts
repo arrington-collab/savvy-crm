@@ -12,7 +12,7 @@ export { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "./docuseal
 export { companyCam, httpCompanyCam, makeFakeCompanyCam, type CompanyCamGateway, type CompanyCamEvent } from "./companycam";
 export { ringcentralSms, makeRingCentralSms, parseRingCentralInboundSms, type InboundSms } from "./ringcentral";
 export { sms, selectSms, smsFrom } from "./comms";
-export { stormProof, httpStormProof, makeFakeStormProof, type StormProofGateway, type StormEvent, type PropertyData, type StormSummary } from "./stormproof";
+export { stormProof, httpStormProof, makeFakeStormProof, parseVerifiedTracks, pointInRing, slimHailTracks, type StormProofGateway, type StormEvent, type PropertyData, type StormSummary, type VerifiedTrack, type HailSwath } from "./stormproof";
 export { distance, httpDistance, makeFakeDistance, fakeDriveMinutes, type DistanceGateway, type LatLng } from "./distance";
 export { voice, httpVapi, makeFakeVoice, makeHttpVapi, verifyVapiCreds, type VoiceGateway, type VapiApiCreds } from "./vapi";
 export { httpForecastNws, makeFakeForecast, forecast, type ForecastGateway, type DailyForecast } from "./forecast";

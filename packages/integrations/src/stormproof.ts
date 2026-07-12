@@ -26,6 +26,8 @@ export type StormCertResult = {
 export interface StormProofGateway {
   getProperty(o: { lat?: number; lng?: number; address?: string }): Promise<PropertyData | null>;
   lookupStorms(o: { lat?: number; lng?: number; address?: string; months?: number }): Promise<StormSummary>;
+  /** Raw verified swath tracks (for the map overlay). Fail-soft to []. */
+  lookupStormTracks(o: { lat?: number; lng?: number; months?: number }): Promise<VerifiedTrack[]>;
   generateCertificate(o: { address?: string; lat?: number; lng?: number; months?: number }): Promise<StormCertResult>;
 }
 
@@ -77,6 +79,19 @@ export const httpStormProof: StormProofGateway = {
       return summarize(events);
     } catch { return EMPTY_STORMS; }
   },
+  async lookupStormTracks({ lat, lng, months = 24 }) {
+    try {
+      if (lat == null || lng == null) return [];
+      const u = new URL(`${BASE()}/api/storms/verified`);
+      u.searchParams.set("lat", String(lat));
+      u.searchParams.set("lng", String(lng));
+      u.searchParams.set("months", String(months));
+      const res = await fetch(u, { headers: headers() });
+      if (!res.ok) return [];
+      const d = (await res.json()) as { tracks?: VerifiedTrack[] };
+      return d.tracks ?? [];
+    } catch { return []; }
+  },
   async generateCertificate({ address, lat, lng, months = 24 }) {
     const res = await fetch(`${BASE()}/api/leads/certify`, {
       method: "POST",
@@ -125,6 +140,15 @@ function milesBetween(aLat: number, aLng: number, bLat: number, bLng: number): n
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+// Map-overlay payload: hail swaths only (wind tracks triple the bytes for
+// little door-knocking value), trimmed to what Leaflet needs to draw them.
+export type HailSwath = { rings: number[][][]; size: number | null; date: string };
+export function slimHailTracks(tracks: VerifiedTrack[]): HailSwath[] {
+  return tracks
+    .filter((t) => t.eventType === "hail" && Array.isArray(t.rings) && t.rings.length > 0)
+    .map((t) => ({ rings: t.rings!, size: t.size ?? null, date: t.date }));
+}
+
 export function parseVerifiedTracks(tracks: VerifiedTrack[], lat: number, lng: number): StormEvent[] {
   const events: StormEvent[] = [];
   for (const t of tracks) {
@@ -170,6 +194,19 @@ export function makeFakeStormProof(): StormProofGateway & { calls: { op: string 
     async lookupStorms() {
       calls.push({ op: "lookupStorms" });
       return summarize([{ date: "2026-05-01", eventType: "hail", size: 1.5, id: "evt_fake_1" }]);
+    },
+    async lookupStormTracks({ lat, lng }) {
+      calls.push({ op: "lookupStormTracks" });
+      if (lat == null || lng == null) return [];
+      const d = 0.01;
+      return [{
+        rings: [[[lat - d, lng - d], [lat + d, lng - d], [lat + d, lng + d], [lat - d, lng + d]]],
+        center: { lat, lng },
+        eventType: "hail" as const,
+        size: 1.5,
+        windMph: null,
+        date: "2026-05-01",
+      }];
     },
     async generateCertificate({ lat, lng }: { address?: string; lat?: number; lng?: number; months?: number }) {
       calls.push({ op: "generateCertificate" });

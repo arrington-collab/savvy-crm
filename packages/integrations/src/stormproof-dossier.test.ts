@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shapeDossierProperty, shapeDossierStorm, DOSSIER_STORM_MONTHS } from "@savvy/core";
-import { makeFakeStormProof, parseVerifiedTracks, pointInRing } from "./stormproof";
+import { makeFakeStormProof, parseVerifiedTracks, pointInRing, slimHailTracks } from "./stormproof";
 
 // The dossier route feeds real gateway results through the @savvy/core shapers.
 // This test wires the fake gateway end-to-end: results in → dossier lines out.
@@ -73,5 +73,18 @@ describe("pointInRing", () => {
     expect(pointInRing(5, 5, square)).toBe(true);
     expect(pointInRing(15, 5, square)).toBe(false);
     expect(pointInRing(-1, -1, square)).toBe(false);
+  });
+});
+
+describe("slimHailTracks (map overlay payload)", () => {
+  it("keeps only hail tracks with rings, trimmed to draw fields", async () => {
+    const sp = makeFakeStormProof();
+    const tracks = await sp.lookupStormTracks({ lat: 33.42, lng: -111.88 });
+    const wind = { rings: [[[1, 1], [2, 2], [3, 3]]], eventType: "wind" as const, size: null, windMph: 70, date: "2026-01-01" };
+    const ringless = { eventType: "hail" as const, size: 2, windMph: null, date: "2026-01-02" };
+    const slim = slimHailTracks([...tracks, wind, ringless]);
+    expect(slim).toHaveLength(1);
+    expect(slim[0]).toEqual({ rings: tracks[0]!.rings, size: 1.5, date: "2026-05-01" });
+    expect(sp.calls.map((c) => c.op)).toEqual(["lookupStormTracks"]);
   });
 });
