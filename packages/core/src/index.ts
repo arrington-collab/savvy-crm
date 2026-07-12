@@ -85,6 +85,7 @@ export * from "./sage/command";
 export * from "./sage/digest-text";
 export * from "./sage/confirm";
 export * from "./sage/match";
+export * from "./sage/voice";
 export * from "./founder-minutes";
 export * from "./digest";
 export * from "./tz";

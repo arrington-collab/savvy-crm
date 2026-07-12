@@ -94,6 +94,43 @@ const VOICE_TOOLS: VoiceToolDef[] = [GET_SLOTS_TOOL, BOOK_SLOT_TOOL];
 // Inbound: no lead yet — must capture details first, then offer + book.
 const INBOUND_TOOLS: VoiceToolDef[] = [SET_CALL_DETAILS_TOOL, GET_SLOTS_TOOL, BOOK_SLOT_TOOL];
 
+// --- Sage voice line (slice 1b): a verified owner runs their exception queue by
+// voice. Tight scope — read the queue, hear an item's detail, resolve a numbered
+// item, confirm a money action. NEVER open-ended and NEVER lead intake.
+const READ_QUEUE_TOOL: VoiceToolDef = {
+  type: "function",
+  function: {
+    name: "readSageQueue",
+    description: "Read the owner's current numbered exception queue aloud. No arguments; the queue is resolved from the verified caller.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+const ITEM_DETAIL_TOOL: VoiceToolDef = {
+  type: "function",
+  function: {
+    name: "sageItemDetail",
+    description: "Get more detail about one numbered queue item. Use when the owner asks about a specific number.",
+    parameters: { type: "object", properties: { n: { type: "number", description: "The 1-based item number the owner said" } }, required: ["n"] },
+  },
+};
+const RESOLVE_ITEM_TOOL: VoiceToolDef = {
+  type: "function",
+  function: {
+    name: "resolveSageItem",
+    description: "Act on one numbered queue item (e.g. approve an estimate, send an invoice). If the result asks for confirmation, read it back verbatim and wait for a clear yes before calling confirmSageAction.",
+    parameters: { type: "object", properties: { n: { type: "number", description: "The 1-based item number to act on" } }, required: ["n"] },
+  },
+};
+const CONFIRM_ACTION_TOOL: VoiceToolDef = {
+  type: "function",
+  function: {
+    name: "confirmSageAction",
+    description: "Confirm or cancel a pending money action. Call with confirm=true only after the owner clearly says yes.",
+    parameters: { type: "object", properties: { confirm: { type: "boolean", description: "true = yes/proceed, false = no/cancel" } }, required: ["confirm"] },
+  },
+};
+const SAGE_TOOLS: VoiceToolDef[] = [READ_QUEUE_TOOL, ITEM_DETAIL_TOOL, RESOLVE_ITEM_TOOL, CONFIRM_ACTION_TOOL];
+
 // Shared persona rules so inbound and outbound sound like the same upbeat rep.
 const TONE_LINE =
   "Be warm, upbeat, and confident — smile in your voice and sound genuinely glad to help. Speak in smooth, complete sentences, never clipped fragments. Don't hedge or sound unsure: skip filler like 'um', 'uh', 'maybe', or 'I think'. If you miss something, cheerfully ask them to repeat it.";
@@ -185,6 +222,45 @@ export function buildInboundAssistant(ctx: VoiceInboundContext): AssistantOverri
       tools: INBOUND_TOOLS,
     },
     voice: { speed: 1.0 },
+    variableValues: { tenantId: ctx.tenantId },
+  };
+}
+
+export type VoiceSageContext = {
+  tenantName: string;
+  tenantId: string;
+  tz: string;
+};
+
+/**
+ * The Sage voice persona — returned ONLY when the webhook has verified the
+ * caller is an org-admin's registered number. It reads the exception queue and
+ * takes the same numbered commands as the SMS digest, with a spoken confirm
+ * round-trip on money. Deliberately tight: queue readout, item detail, resolve,
+ * confirm — never open-ended, never lead intake.
+ */
+export function buildSageAssistant(ctx: VoiceSageContext): AssistantOverrides {
+  const systemPrompt = [
+    `You're Sage, the private operations line for the owner of ${ctx.tenantName}. The caller has been verified as an authorized admin.`,
+    `Today is ${todaySpokenIn(ctx.tz)}.`,
+    `Your only job: help the owner run their exception queue by voice. Start by calling readSageQueue and reading it back.`,
+    `When the owner says a number, call resolveSageItem with that number. When they ask about a number, call sageItemDetail. Speak the number they said — never invent or renumber items.`,
+    `If resolveSageItem returns a confirmation prompt (a money action), read it back word for word and wait for a clear yes or no, then call confirmSageAction with confirm true or false. Never assume yes.`,
+    `Guardrails (follow exactly):`,
+    `- Only ever take the actions these tools expose. Never promise or perform anything else — no new payments, no arbitrary changes.`,
+    `- If a tool says already done, tell the owner it was already handled and when.`,
+    `- Keep it brief and factual. If the owner wants something outside the queue, tell them to use the Savvy app.`,
+  ].join("\n");
+
+  return {
+    firstMessage: `Hi, it's Sage. Want me to run through what needs you?`,
+    model: {
+      provider: "openai",
+      model: "gpt-4o",
+      messages: [{ role: "system", content: systemPrompt }],
+      tools: SAGE_TOOLS,
+    },
+    voice: { speed: 1.05 },
     variableValues: { tenantId: ctx.tenantId },
   };
 }
