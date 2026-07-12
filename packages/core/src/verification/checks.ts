@@ -546,6 +546,21 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
   ),
+
+  // Slice 1 (Sage-by-text) security invariant: an action taken over SMS/voice
+  // is only ever recorded verified=true; an unverified sender's command is
+  // always logged verified=false with confirmation_state='rejected' and NEVER
+  // executed. Any verified=false row in a non-rejected state means the gate
+  // leaked — a red-path bug. Cross-cutting → intentionally UNBOUND (not in
+  // CHECK_BINDINGS).
+  "sage.remote_actions": invariant(
+    "sage.remote_actions",
+    `select id from sage_remote_action
+       where tenant_id = $1
+         and verified = false
+         and confirmation_state <> 'rejected'`,
+    { toRef: (r) => ({ type: "sage_remote_action", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

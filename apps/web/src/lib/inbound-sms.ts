@@ -2,7 +2,8 @@ import {
   withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
 } from "@savvy/db";
 import { isStopKeyword, isCancelKeyword } from "@savvy/core";
-import { inngest } from "@savvy/agents";
+import { inngest, getTenantSms } from "@savvy/agents";
+import { handleSageCommand } from "./sage-remote";
 
 /**
  * Handles an inbound SMS for a tenant:
@@ -16,6 +17,20 @@ export async function handleInboundSms(
   tenantId: string,
   opts: { from: string; body: string; twilioSid?: string },
 ): Promise<{ matched: boolean; stopped: "opted_out" | "reply" | null }> {
+  // 0) Sage-by-text: a verified owner number short-circuits here (an owner
+  //    texting from their cell isn't a customer, so this must precede the
+  //    customer match below). Returns null for everyone else → normal handling.
+  const sage = await handleSageCommand(tenantId, opts);
+  if (sage) {
+    try {
+      const { sender, from } = await getTenantSms(tenantId);
+      await sender.sendSms({ to: opts.from, from, body: sage.reply });
+    } catch (e) {
+      console.error("sage reply send failed", e);
+    }
+    return { matched: true, stopped: null };
+  }
+
   // 1) Log inbound communication + match customer by phone
   const c = await withTenant(tenantId, async (tx) => {
     const [row] = await tx.select().from(customer).where(eq(customer.phone, opts.from));

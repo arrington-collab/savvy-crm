@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, computeCalibration, summarizeAgentCoverage, buildSageDigestText } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, recordAgentRun, loadSageActionables, saveSageDigest, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
@@ -36,13 +36,24 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const coverage = summarizeAgentCoverage(await loadAgentCoverageWindow(tenantId, window.start), now);
   const { narrative, modelUsed } = await composeShiftReport(coverage, deps.aiClient);
   const exceptionBlock = [msg.body, recoveryLine, calibrationLine].filter(Boolean).join("\n");
-  const body = `${narrative}\n\n${exceptionBlock}`;
 
   const [owner] = await adminDb
-    .select({ phone: user.phone, email: user.email })
+    .select({ id: user.id, phone: user.phone, email: user.email })
     .from(user)
     .where(and(eq(user.tenantId, tenantId), eq(user.role, "owner")))
     .limit(1);
+
+  // Slice 1 (Sage-by-text): the numbered reply-to-act block. Persist the
+  // mapping so an inbound "reply N" resolves this exact snapshot (supersedes
+  // the owner's prior digest). Money-first, capped in loadSageActionables.
+  let sageBlock = "";
+  const actionables = await loadSageActionables(tenantId);
+  if (actionables.length > 0 && owner?.id) {
+    const numbered = actionables.map((it, i) => ({ ...it, n: i + 1 }));
+    await saveSageDigest(tenantId, owner.id, numbered);
+    sageBlock = `\n\n${buildSageDigestText(actionables).body}`;
+  }
+  const body = `${narrative}\n\n${exceptionBlock}${sageBlock}`;
 
   if (owner?.phone) {
     const smsDep: SmsDep = deps.sms !== undefined ? deps.sms : await getTenantSms(tenantId).catch(() => null);
