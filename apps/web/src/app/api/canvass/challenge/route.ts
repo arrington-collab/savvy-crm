@@ -24,7 +24,10 @@ export async function POST(req: Request): Promise<NextResponse> {
   const { ok } = await checkRateLimit("canvass", `${sess.tenantId}:${sess.repId}`);
   if (!ok) return reply({ error: "rate_limited" }, 429);
 
-  let body: { kind?: string; metric?: string; targetRepId?: string; participantIds?: string[]; windowHours?: number };
+  let body: {
+    kind?: string; metric?: string; targetRepId?: string; participantIds?: string[]; windowHours?: number;
+    wagerCents?: number; prizePoolCents?: number;
+  };
   try { body = (await req.json()) as typeof body; } catch { return reply({ error: "invalid json" }, 400); }
 
   const kind = body.kind as ChallengeKind;
@@ -52,9 +55,17 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (body.windowHours) windowEnd = new Date(now.getTime() + body.windowHours * 3600_000);
     else if (kind === "h2h") windowEnd = instantAtLocalHourOnDayOf(new Date(now.getTime() + 24 * 3600_000), tz, 0);
     else windowEnd = new Date(now.getTime() + 24 * 3600_000);
+    // optional wager (h2h/koth) or prize pool (contest) passthrough — additive,
+    // absent/invalid amounts leave meta empty exactly as before.
+    const meta: Record<string, number> = {};
+    if (kind === "contest" && Number.isFinite(Number(body.prizePoolCents)) && Number(body.prizePoolCents) > 0) {
+      meta.prizePoolCents = Math.floor(Number(body.prizePoolCents));
+    } else if (kind !== "contest" && Number.isFinite(Number(body.wagerCents)) && Number(body.wagerCents) > 0) {
+      meta.wagerCents = Math.floor(Number(body.wagerCents));
+    }
     const { id } = await createChallenge(tx, {
       tenantId: sess.tenantId, createdByRepId: sess.repId, kind, metric,
-      windowStart: now, windowEnd, participantRepIds,
+      windowStart: now, windowEnd, participantRepIds, meta,
     });
     return { id };
   });
