@@ -519,6 +519,27 @@
       "when": 1783753516410,
       "tag": "0073_large_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1783820454714,
+      "tag": "0074_fresh_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1783829585909,
+      "tag": "0075_fast_cassandra_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1783830673662,
+      "tag": "0076_chunky_barracuda",
+      "breakpoints": true
     }
   ]
 }

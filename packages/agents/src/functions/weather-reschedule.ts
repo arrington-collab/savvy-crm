@@ -1,14 +1,15 @@
 import {
   adminDb, withTenant, tenant, appointment, job, property, customer, communication,
-  setAppointmentWeatherFlag, rescheduleAppointment, getCrewBusyStarts, getCrewContacts, SlotTakenError,
+  setAppointmentWeatherFlag, rescheduleAppointment, getCrewBusyStarts, getCrewContacts, getCrewLanguage, SlotTakenError,
   and, eq, gte, lte,
 } from "@savvy/db";
 import {
   parseWeatherConfig, parseFinanceConfig, parseHomeownerConfig, parseEmailConfig,
   assessWeatherRisk, pickRescheduleSlot, instantAtLocalTimeOnDate, formatShortDate,
-  buildWeatherMoveHomeownerBody, buildWeatherMoveCrewBody, isWithinQuietHours,
+  buildWeatherMoveHomeownerBody, buildWeatherMoveCrewBody, isWithinQuietHours, translateWithFallback,
   toCivilDate, tenantsDueAtHour, type WeatherConfig, type HomeownerConfig,
 } from "@savvy/core";
+import { complete } from "@savvy/ai";
 import { forecast, getEmailSender, type ForecastGateway } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
@@ -143,16 +144,23 @@ async function notifyWeatherMove(
     try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "email", direction: "outbound", to: r.email, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
 
-  const crewBody = buildWeatherMoveCrewBody({ address: r.address ?? "", originalLabel, targetLabel, reason });
+  // Slice 3: render the crew message in the crew's language. Dynamic body →
+  // cheap-gateway translation, fail-soft to flagged English (never silence).
+  // The rendered language is stamped on the communication for comms.crew_language.
+  const crewLang = await getCrewLanguage(tenantId, crewId).catch(() => "en" as const);
+  const crewBodyEn = buildWeatherMoveCrewBody({ address: r.address ?? "", originalLabel, targetLabel, reason });
+  const { text: crewBody } = await translateWithFallback(crewBodyEn, crewLang, (t) =>
+    complete({ capability: "reflex", system: "Translate this message to Spanish for a roofing crew. Output only the translation — no preamble.", prompt: t }).then((x) => x.text),
+  );
   let crewContacts: Awaited<ReturnType<typeof getCrewContacts>>;
   try { crewContacts = await getCrewContacts({ tenantId, crewId }); } catch { return; /* fail-soft: can't reach contacts */ }
   for (const contact of crewContacts) {
     if (contact.phone) {
       try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: contact.phone, from, body: crewBody }); } catch { /* fail-soft */ }
-      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "sms", direction: "outbound", to: contact.phone, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
+      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, crewId, language: crewLang, channel: "sms", direction: "outbound", to: contact.phone, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     } else if (contact.email) {
       try { await getEmailSender({ gmailConnectionId: ctx.gmailConnectionId }).sendEmail({ to: contact.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Weather move: install rescheduled", html: `<p>${crewBody}</p>` }); } catch { /* fail-soft */ }
-      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, channel: "email", direction: "outbound", to: contact.email, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
+      try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: null, crewId, language: crewLang, channel: "email", direction: "outbound", to: contact.email, body: crewBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
     }
   }
 }

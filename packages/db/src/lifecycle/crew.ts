@@ -15,7 +15,7 @@ export async function createCrew(input: { tenantId: string; name: string }): Pro
 
 export async function listCrews(
   tenantId: string,
-): Promise<{ id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: { userId: string; name: string }[] }[]> {
+): Promise<{ id: string; name: string; active: boolean; language: string; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: { userId: string; name: string }[] }[]> {
   return withTenant(tenantId, async (tx) => {
     const crews = await tx
       .select()
@@ -33,6 +33,7 @@ export async function listCrews(
       id: c.id,
       name: c.name,
       active: c.active,
+      language: c.language,
       baseLat: c.baseLat ?? null,
       baseLng: c.baseLng ?? null,
       // Expose only whether a shared PIN is set — never the hash itself.

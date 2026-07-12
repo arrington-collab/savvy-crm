@@ -9,6 +9,9 @@ export const crew = pgTable("crew", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
+  // Slice 3: crew-facing message language ('en'|'es', validated by @savvy/core
+  // CrewLanguage). Self-service flip via replying "ESPAÑOL" to any crew message.
+  language: text("language").notNull().default("en"),
   // Crew's home base (yard) — used as the drive-time origin for install slot
   // recommendations. Null falls back to the tenant office.
   baseLat: doublePrecision("base_lat"),

@@ -13,10 +13,11 @@ import {
   addCrewMemberAction,
   removeCrewMemberAction,
   setCrewPinAction,
+  setCrewLanguageAction,
 } from "@/lib/crew-team-actions";
 
 type CrewMember = { userId: string; name: string };
-type Crew = { id: string; name: string; active: boolean; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: CrewMember[] };
+type Crew = { id: string; name: string; active: boolean; language: string; baseLat: number | null; baseLng: number | null; hasPin: boolean; members: CrewMember[] };
 type CrewUser = { id: string; name: string; hasPin: boolean };
 
 export function CrewsManager(props: {
@@ -162,14 +163,30 @@ export function CrewsManager(props: {
                       {crew.members.length} member{crew.members.length !== 1 ? "s" : ""}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() => handleToggleActive(crew.id, !crew.active)}
-                  >
-                    {crew.active ? "Deactivate" : "Activate"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={pending}
+                      title="Crew message language"
+                      onClick={() =>
+                        run(
+                          () => setCrewLanguageAction({ crewId: crew.id, language: crew.language === "es" ? "en" : "es" }),
+                          crew.language === "es" ? "Switched to English" : "Cambiado a Español",
+                        )
+                      }
+                    >
+                      {crew.language === "es" ? "Español" : "English"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => handleToggleActive(crew.id, !crew.active)}
+                    >
+                      {crew.active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Rename */}

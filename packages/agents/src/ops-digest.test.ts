@@ -2,6 +2,7 @@ import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import {
   adminDb, adminPool, eq, and, inArray,
   tenant, user, taskRegistry, taskHealth, verificationRun, agentRun,
+  customer, property, job, invoice, sageDigest,
 } from "@savvy/db";
 import { sendTenantDigest } from "./ops-digest";
 
@@ -30,6 +31,11 @@ beforeAll(async () => {
     { tenantId: withEx, agent: "comms", taskKey: "lead.ack", status: "ok" },
     { tenantId: withEx, agent: "scheduling", taskKey: "appt.remind", status: "ok" },
   ]);
+  // An overdue invoice → one Sage reply-to-act item in withEx's digest.
+  const [c] = await adminDb.insert(customer).values({ tenantId: withEx, name: "Yates" }).returning();
+  const [p] = await adminDb.insert(property).values({ tenantId: withEx, customerId: c!.id, address: "1 Test St" }).returning();
+  const [j] = await adminDb.insert(job).values({ tenantId: withEx, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "billing" }).returning();
+  await adminDb.insert(invoice).values({ tenantId: withEx, jobId: j!.id, customerId: c!.id, status: "overdue", amountDue: 840000, dueAt: new Date(Date.now() - 86400000) });
 });
 
 // A fake gateway so these tests never hit the network. Returns a clean, factual line.
@@ -37,6 +43,11 @@ const fakeAi = { complete: vi.fn().mockResolvedValue({ text: "Overnight the crew
 
 afterAll(async () => {
   for (const tid of [withEx, noEx]) {
+    await adminDb.delete(sageDigest).where(eq(sageDigest.tenantId, tid));
+    await adminDb.delete(invoice).where(eq(invoice.tenantId, tid));
+    await adminDb.delete(job).where(eq(job.tenantId, tid));
+    await adminDb.delete(property).where(eq(property.tenantId, tid));
+    await adminDb.delete(customer).where(eq(customer.tenantId, tid));
     await adminDb.delete(verificationRun).where(eq(verificationRun.tenantId, tid));
     await adminDb.delete(taskHealth).where(eq(taskHealth.tenantId, tid));
     await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tid));
@@ -76,6 +87,18 @@ describe("sendTenantDigest", () => {
     expect(r.sent).toBe(1); // never throws — digest still ships
     const body: string = sms.sender.sendSms.mock.calls[0]![0].body;
     expect(body).toMatch(/In the last 24h I ran \d+ actions? across \d+ agents?/);
+  });
+
+  it("appends a numbered reply-to-act block and persists the mapping", async () => {
+    const sms = { sender: { sendSms: vi.fn().mockResolvedValue({ sid: "sm-dg4" }) }, from: "+15550000000" };
+    await sendTenantDigest(withEx, { sms, email: { sendEmail: vi.fn() }, aiClient: fakeAi });
+    const body: string = sms.sender.sendSms.mock.calls[0]![0].body;
+    expect(body).toContain("reply 1 to send");
+    expect(body).toContain("Yates");
+    const [owner] = await adminDb.select({ id: user.id }).from(user).where(and(eq(user.tenantId, withEx), eq(user.role, "owner"))).limit(1);
+    const digests = await adminDb.select().from(sageDigest).where(and(eq(sageDigest.tenantId, withEx), eq(sageDigest.userId, owner!.id)));
+    expect(digests.length).toBeGreaterThanOrEqual(1);
+    expect(digests.some((d) => d.supersededAt === null)).toBe(true);
   });
 
   it("sends nothing — and burns no model call — when the tenant has no exceptions", async () => {

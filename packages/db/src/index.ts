@@ -49,6 +49,7 @@ export { saveSketchMeasurement, type SketchScope, type SaveSketchMeasurementResu
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
 export { beginAgentRun, completeAgentRun, recordAgentRun, withAgentRun, listAgentActivity, listAgentActivityForDay, markStaleRunsTimedOut, listRunningRuns, loadAgentCoverageWindow, type AgentRunStatus, type AgentActivityRow, type RunningRunRow } from "./lifecycle/agent-run";
+export { userByPhone, startPhoneVerification, confirmPhoneVerification, saveSageDigest, getActiveSageDigest, recordSageRemoteAction, findResolvedAction, getPendingConfirm, resolvePendingConfirm, loadSageActionables } from "./lifecycle/sage";
 export {
   recordEnrichmentAttempt,
   findPropertiesNeedingGeocode,
@@ -81,6 +82,7 @@ export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-aut
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
 export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, attachOrCreateLeadClaim, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
 export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setCrewPinHash, getCrewLoginCandidates, addCrewMember, removeCrewMember, listCrewIdsForUser, getCrewContacts, type CrewRow } from "./lifecycle/crew";
+export { getCrewLanguage, setCrewLanguage, setCanvassRepLanguage, crewByMemberPhone } from "./lifecycle/crew-language";
 export {
   getTelephonyMode, setTelephonyMode, upsertTwilioConnection, getTelephonyConnection,
   getTwilioSecret, setTelephonyConnectionStatus, requestManagedTelephonySetup,

@@ -546,6 +546,39 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
   ),
+
+  // Slice 1 (Sage-by-text) security invariant: an action taken over SMS/voice
+  // is only ever recorded verified=true; an unverified sender's command is
+  // always logged verified=false with confirmation_state='rejected' and NEVER
+  // executed. Any verified=false row in a non-rejected state means the gate
+  // leaked — a red-path bug. Cross-cutting → intentionally UNBOUND (not in
+  // CHECK_BINDINGS).
+  "sage.remote_actions": invariant(
+    "sage.remote_actions",
+    `select id from sage_remote_action
+       where tenant_id = $1
+         and verified = false
+         and confirmation_state <> 'rejected'`,
+    { toRef: (r) => ({ type: "sage_remote_action", ref: String(r.id) }) },
+  ),
+
+  // Slice 3 (Spanish crew comms): every crew-recipient message must render in
+  // the crew's preferred language. A crew communication in this window whose
+  // language differs from the crew's current preference is a violation.
+  // Window-scoped so a message sent under a prior preference (before a flip)
+  // isn't retroactively flagged. Cross-cutting → UNBOUND.
+  "comms.crew_language": invariant(
+    "comms.crew_language",
+    `select c.id from communication c
+       join crew cr on cr.id = c.crew_id and cr.tenant_id = c.tenant_id
+      where c.tenant_id = $1 and c.created_at >= $2 and c.created_at < $3
+        and c.crew_id is not null
+        and c.language is distinct from cr.language`,
+    {
+      params: (ctx) => [ctx.tenantId, ctx.window.start, ctx.window.end],
+      toRef: (r) => ({ type: "communication", ref: String(r.id) }),
+    },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
