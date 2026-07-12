@@ -112,7 +112,12 @@ jobs:
           # Fresh isolated tenant for this run.
           pnpm --filter @savvy/web exec tsx tests/e2e/create-tenant.ts
           export TEST_TENANT_ID="$(node -e "console.log(require('/tmp/savvy-e2e-tenant.json').id)")"
-          # Playwright's webServer boots Next on :3000 with TEST_MODE + the stub.
+          # Isolated demo tenant (full pipeline) for the demo-tenant board spec. Kept out of
+          # the shared tenant above so its costed jobs + this-month invoices don't pollute
+          # money-console's "GM · MTD est —" assertion. Feeds the second webServer (:3001).
+          pnpm --filter @savvy/web exec tsx tests/e2e/seed-demo-tenant.ts
+          export DEMO_TENANT_ID="$(node -e "console.log(require('/tmp/savvy-e2e-demo-tenant.json').id)")"
+          # Playwright's webServers boot Next on :3000 (shared tenant) + :3001 (demo tenant).
           pnpm --filter @savvy/web exec playwright test
 
       - name: Upload Playwright report on failure

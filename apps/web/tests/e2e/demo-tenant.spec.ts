@@ -1,21 +1,19 @@
 import { test, expect } from "@playwright/test";
-import { readFileSync } from "node:fs";
 
-// The demo tenant is seeded (via `tests/e2e/seed-demo-tenant.ts`, standalone under tsx)
-// BEFORE `playwright test` runs, so the webServer boots `next dev` with TEST_TENANT_ID
-// pointed at the demo tenant — see that script's header comment for why `seedDemoTenant`
-// isn't imported here directly (it isn't barrel-safe for the Next app graph). This spec
-// only reads the id the seed script wrote out.
-const { id: tenantId } = JSON.parse(readFileSync("/tmp/savvy-e2e-demo-tenant.json", "utf8")) as { id: string };
+// Runs ONLY in the `demo` Playwright project (see playwright.config.ts), whose baseURL is
+// the second webServer (:3001). That server boots with TEST_TENANT_ID = the isolated demo
+// tenant seeded by tests/e2e/seed-demo-tenant.ts BEFORE `playwright test` — so getTenantId()
+// resolves the demo tenant and /jobs renders ITS full pipeline. Nothing here reads a tenant
+// id (the server already owns it) and nothing runs at import time, so collection can't throw
+// even when the demo project is absent (no DEMO_TENANT_ID). The full demo pipeline lives in
+// its OWN tenant precisely so its costed jobs + this-month invoices never pollute the shared
+// e2e tenant's money-console "est —" assertion.
 
 // Mirrors the /jobs board's own stage list (apps/web/src/app/(app)/jobs/board.tsx
 // ACTIVE_STAGES) — every non-terminal, non-"lost" pipeline column the board renders.
 const PIPELINE_STAGES = ["lead", "inspected", "estimate", "approved", "production", "closeout", "billing", "complete"];
 
 test("demo tenant renders a card in every pipeline column", async ({ page }) => {
-  // Sanity: the seeded tenant is really the flagged demo tenant driving this run.
-  expect(tenantId).toBeTruthy();
-
   await page.goto("/jobs");
   await expect(page.getByTestId("board")).toBeVisible();
 

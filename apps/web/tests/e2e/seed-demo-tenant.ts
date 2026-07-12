@@ -11,8 +11,12 @@ import { adminPool } from "@savvy/db";
 // Seeds the ONE real singleton demo tenant ("Demo Roofing (Savvy)") — the same tenant
 // `pnpm db:seed:demo` produces — so this e2e proves the actual demo-tenant deliverable,
 // not an isolated double. Idempotent: re-running reuses the same tenant/jobs/leads.
-// Writes its id to a file the Playwright config (TEST_TENANT_ID) + spec read. Must run
-// BEFORE `playwright test` so the webServer boots `next dev` with the demo tenant active.
+// Writes its id to /tmp/savvy-e2e-demo-tenant.json; the run wrapper (ci.yml) exports it
+// as DEMO_TENANT_ID, which the Playwright config feeds to the SECOND webServer (:3001,
+// the `demo` project). Must run BEFORE `playwright test` so that server boots `next dev`
+// with the demo tenant active. Kept OUT of the shared e2e tenant on purpose: the full demo
+// pipeline mints costed jobs + this-month invoices that would break money-console.spec's
+// "GM · MTD est —" assertion if they landed in the shared tenant.
 async function main() {
   const { tenantId, summary } = await seedDemoTenant();
   writeFileSync("/tmp/savvy-e2e-demo-tenant.json", JSON.stringify({ id: tenantId }));

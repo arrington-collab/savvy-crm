@@ -34,6 +34,29 @@ describe("seedStageJobs", () => {
     expect(overdue.length).toBe(1);
   }, 120_000);
 
+  it("lands the inspected + estimate jobs at exactly those stages, and they stay put on re-run", async () => {
+    const { tenantId } = await provisionDemoTenant({ keySuffix: `${SUFFIX}-early` });
+
+    const first = await seedStageJobs(tenantId);
+
+    const stageOf = async (id: string) => {
+      const [r] = await adminDb.select({ stage: job.stage }).from(job).where(eq(job.id, id));
+      return r?.stage;
+    };
+
+    // Both early-funnel jobs derive their stage from real evidence (done inspection ± a
+    // drafted-but-unaccepted estimate) — never a forced stage. Assert they land precisely.
+    expect(await stageOf(first.inspected)).toBe("inspected");
+    expect(await stageOf(first.estimate)).toBe("estimate");
+
+    // Idempotency: a second run reuses the SAME jobs and neither drifts off its stage.
+    const second = await seedStageJobs(tenantId);
+    expect(second.inspected).toBe(first.inspected);
+    expect(second.estimate).toBe(first.estimate);
+    expect(await stageOf(first.inspected)).toBe("inspected");
+    expect(await stageOf(first.estimate)).toBe("estimate");
+  }, 120_000);
+
   it("is idempotent — a second run reuses the same jobs", async () => {
     const { tenantId } = await provisionDemoTenant({ keySuffix: SUFFIX });
     const first = await seedStageJobs(tenantId);
