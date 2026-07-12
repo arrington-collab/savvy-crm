@@ -37,6 +37,12 @@ export const user = pgTable("user", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
+  // Sage-by-text (slice 1): a phone is only allowed to trigger actions once
+  // verified via a one-time code. phoneVerifyCode/ExpiresAt hold the pending
+  // challenge; phoneVerifiedAt is set (and code cleared) on success.
+  phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
+  phoneVerifyCode: text("phone_verify_code"),
+  phoneVerifyExpiresAt: timestamp("phone_verify_expires_at", { withTimezone: true }),
   role: userRoleEnum("role").notNull().default("rep"),
   gcalConnectionId: text("gcal_connection_id"),
   baseLat: doublePrecision("base_lat"),

@@ -519,6 +519,13 @@
       "when": 1783753516410,
       "tag": "0073_large_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1783820454714,
+      "tag": "0074_fresh_blazing_skull",
+      "breakpoints": true
     }
   ]
 }
