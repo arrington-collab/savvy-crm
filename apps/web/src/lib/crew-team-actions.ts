@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { listCrews, createCrew, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember, setCrewPinHash } from "@savvy/db";
+import { listCrews, createCrew, renameCrew, setCrewActive, setCrewLocation, addCrewMember, removeCrewMember, setCrewPinHash, setCrewLanguage } from "@savvy/db";
 import { hashPin } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { isOrgAdmin } from "./authz";
@@ -28,6 +28,13 @@ export async function renameCrewAction(input: { crewId: string; name: string }):
 export async function setCrewActiveAction(input: { crewId: string; active: boolean }): Promise<{ ok: true }> {
   const tenantId = await getTenantId();
   await setCrewActive({ tenantId, crewId: input.crewId, active: input.active });
+  revalidatePath("/settings/crews");
+  return { ok: true as const };
+}
+
+export async function setCrewLanguageAction(input: { crewId: string; language: "en" | "es" }): Promise<{ ok: true }> {
+  const tenantId = await getTenantId();
+  await setCrewLanguage(tenantId, input.crewId, input.language);
   revalidatePath("/settings/crews");
   return { ok: true as const };
 }
