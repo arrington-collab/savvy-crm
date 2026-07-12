@@ -94,6 +94,7 @@ export * from "./canvass";
 export * from "./canvass-dossier";
 export * from "./canvass-points";
 export * from "./canvass-metric";
+export * from "./canvass-challenge";
 export * from "./canvass-streak";
 export * from "./canvass-achievements";
 export * from "./a2p";
