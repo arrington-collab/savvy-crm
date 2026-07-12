@@ -111,6 +111,7 @@ export * from "./document-view";
 export * from "./lead-timeline";
 export * from "./leads-list-nav";
 export * from "./lead-calibration";
+export * from "./heartbeat";
 export * from "./showcase-config";
 export * from "./agent-verbs";
 export * from "./minutes-saved";

@@ -57,4 +57,14 @@ describe("parseActivityQuery", () => {
     const result = parseActivityQuery(fromParams({ status: "bogus" }));
     expect(result.status).toBeUndefined();
   });
+
+  it("parses a valid lead uuid", () => {
+    const q = parseActivityQuery((k) => (k === "lead" ? "00000000-0000-0000-0000-000000000001" : null));
+    expect(q.leadId).toBe("00000000-0000-0000-0000-000000000001");
+  });
+
+  it("drops a non-uuid lead param", () => {
+    const q = parseActivityQuery((k) => (k === "lead" ? "not-a-uuid" : null));
+    expect(q.leadId).toBeUndefined();
+  });
 });

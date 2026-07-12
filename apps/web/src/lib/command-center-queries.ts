@@ -46,6 +46,7 @@ export async function loadActivityPage(opts: {
   agent?: string;
   status?: string;
   jobId?: string;
+  leadId?: string;
 }): Promise<{ rows: FeedRow[]; nextCursor: string | null }> {
   const limit = opts.limit ?? 30;
   const raw = await listAgentActivity(await getTenantId(), { ...opts, limit });
