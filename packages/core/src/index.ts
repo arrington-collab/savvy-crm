@@ -23,6 +23,7 @@ export * from "./velocity";
 export * from "./rep-performance";
 export * from "./change-order";
 export * from "./agent-activity";
+export * from "./showcase-motion";
 export * from "./shift-report";
 export * from "./agent-roster";
 export * from "./activity-query";

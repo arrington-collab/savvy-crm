@@ -12,6 +12,7 @@ import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
+import { EnrichmentLive } from "@/components/leads/EnrichmentLive";
 import { RoofTypeEditor } from "./RoofTypeEditor";
 import { RoofReplacementEditor } from "./RoofReplacementEditor";
 import { LeadNotes } from "./LeadNotes";
@@ -162,6 +163,7 @@ export default async function LeadDetailPage({
       <div className="space-y-4" data-section="roof">
         <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
         <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
+        <EnrichmentLive leadId={id} />
         <LeadEnrichmentCard
           scoreFeatures={detail.scoreFeatures}
           yearBuilt={detail.yearBuilt}
