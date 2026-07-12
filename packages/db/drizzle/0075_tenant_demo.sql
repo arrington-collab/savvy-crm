@@ -1,0 +1,1 @@
+ALTER TABLE "tenant" ADD COLUMN "demo" boolean DEFAULT false NOT NULL;

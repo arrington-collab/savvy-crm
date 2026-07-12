@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, jsonb, index, timestamp, uniqueIndex, doublePrecision, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { userRoleEnum, telephonyModeEnum } from "./enums";
@@ -19,6 +19,8 @@ export const tenant = pgTable("tenant", {
   companycamConnectionId: text("companycam_connection_id"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
   telephonyMode: telephonyModeEnum("telephony_mode").notNull().default("platform"),
+  // Demo tenants: comms are hard-muted (see agents/mock-comms). Never a real customer.
+  demo: boolean("demo").notNull().default(false),
   // Task Registry / Scoreboard: every cron, customer-facing time string, and
   // business-hours rule reads this instead of a hardcoded TZ. Alta = America/Denver.
   timezone: text("timezone").notNull().default("America/Phoenix"),

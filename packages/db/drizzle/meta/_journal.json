@@ -526,6 +526,13 @@
       "when": 1783807829144,
       "tag": "0074_adorable_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1783836815089,
+      "tag": "0075_tenant_demo",
+      "breakpoints": true
     }
   ]
 }
