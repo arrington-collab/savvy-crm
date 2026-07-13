@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { fmtUsd } from "@/lib/format";
 
 type Velocity = { cycleTimeDays: number; perStageAvgDays: Record<string, number> };
+type RaceMetrics = { races: number; repAcked: number; repAckRateBps: number; repAckedCloseRateBps: number | null; novaTextedCloseRateBps: number | null };
 type RepPerformance = {
   reps: { userId: string; name: string; jobsAssigned: number; approved: number; totalValueCents: number; avgDaysToClose: number }[];
   team: { jobsAssigned: number; approved: number; totalValueCents: number };
@@ -12,9 +13,18 @@ type RepPerformance = {
  * Re-homed here from the retired Dashboard: these are pipeline-flow numbers, so
  * they live on Pipeline. testids (velocity-card, rep-performance) are preserved.
  */
-export function PipelineMetrics({ velocity, repPerf }: { velocity: Velocity; repPerf: RepPerformance }) {
+export function PipelineMetrics({ velocity, repPerf, race }: { velocity: Velocity; repPerf: RepPerformance; race?: RaceMetrics }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {race && race.races > 0 && (
+        <Card className="p-4 lg:col-span-2" data-testid="race-metrics">
+          <h2 className="eyebrow mb-2">Estimate opens — the 60-second race</h2>
+          <p className="text-sm" style={{ color: "var(--text-body)" }}>
+            {race.races} hot opens · reps answered within 60s on {(race.repAckRateBps / 100).toFixed(0)}% —
+            closes {race.repAckedCloseRateBps == null ? "—" : `${(race.repAckedCloseRateBps / 100).toFixed(0)}%`} when the rep called vs {race.novaTextedCloseRateBps == null ? "—" : `${(race.novaTextedCloseRateBps / 100).toFixed(0)}%`} when NOVA texted.
+          </p>
+        </Card>
+      )}
       <Card className="p-4" data-testid="velocity-card">
         <h2 className="eyebrow mb-3">Pipeline velocity</h2>
         <div className="mb-2 flex items-baseline gap-2">

@@ -34,6 +34,7 @@ type Events = {
   "measurement/ready": { data: { tenantId: string; measurementId: string; propertyId?: string; jobId?: string; leadId?: string } };
   "estimate/send.requested": { data: { tenantId: string; estimateId: string } };
   "estimate/accepted": { data: { tenantId: string; estimateId: string } };
+  "estimate/page.opened": { data: { tenantId: string; estimateId: string; sessionId: string } };
   "change_order/accepted": { data: { changeOrderId: string; tenantId: string } };
   "lead/contacted": { data: { leadId: string; tenantId: string } };
   "lead/contact-overdue": { data: { leadId: string; tenantId: string } };

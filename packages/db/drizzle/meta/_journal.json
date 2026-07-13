@@ -596,6 +596,13 @@
       "when": 1783962798856,
       "tag": "0084_closed_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1783971301987,
+      "tag": "0085_watery_husk",
+      "breakpoints": true
     }
   ]
 }

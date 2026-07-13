@@ -1,7 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { EstimatePageTier } from "@savvy/core";
 import { AcceptFlow } from "./AcceptFlow";
+
+function sessionId(): string {
+  let s = window.sessionStorage.getItem("est-session");
+  if (!s) {
+    s = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    window.sessionStorage.setItem("est-session", s);
+  }
+  return s;
+}
+
+function track(code: string, kind: string, meta?: Record<string, unknown>) {
+  // First-party only; keepalive so dwell beacons survive tab close.
+  void fetch(`/api/estimate/${code}/telemetry`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, sessionId: sessionId(), meta }),
+    keepalive: true,
+  }).catch(() => {});
+}
 
 const usd = (cents: number) =>
   (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -28,11 +47,25 @@ export function EstimateTiers({
   const [color, setColor] = useState<string | null>(initialColor);
   const [saving, setSaving] = useState(false);
 
+  // Slice 4: page telemetry — open on mount, dwell seconds on hide/close.
+  useEffect(() => {
+    track(code, "open");
+    const startedAt = Date.now();
+    const onHide = () => {
+      if (document.visibilityState === "hidden") {
+        track(code, "dwell", { seconds: Math.round((Date.now() - startedAt) / 1000) });
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [code]);
+
   const active = tiers.find((t) => t.tier === tier) ?? null;
 
   async function pickColor(next: string) {
     if (!tier) return;
     setColor(next);
+    track(code, "color_play", { tier, color: next });
     setSaving(true);
     try {
       await fetch(`/api/estimate/${code}/selection`, {
@@ -52,7 +85,7 @@ export function EstimateTiers({
           <button
             key={t.tier}
             data-testid={`tier-card-${t.tier}`}
-            onClick={() => { if (t.tier !== tier) { setTier(t.tier); setColor(null); } }}
+            onClick={() => { if (t.tier !== tier) { setTier(t.tier); setColor(null); track(code, "tier_view", { tier: t.tier }); } }}
             className={`rounded-xl border p-4 text-left transition ${
               tier === t.tier ? "border-stone-800 ring-1 ring-stone-800" : "border-stone-200"
             }`}
