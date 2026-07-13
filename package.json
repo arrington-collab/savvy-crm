@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "db:up": "docker compose up -d",
     "db:generate": "pnpm --filter @savvy/db db:generate",
     "db:migrate": "pnpm --filter @savvy/db db:migrate",
