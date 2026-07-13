@@ -47,7 +47,10 @@ export function WeekGrid({ appts, anchor, tz, onSelect, onReschedule, onCreate }
     onReschedule(appt.id, applyDragToWeek({ startsAt: appt.startsAt, endsAt: appt.endsAt }, e.delta.y, 560, overDate, tz));
   }
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    // Stable id: dnd-kit's auto id is a module-global counter, so SSR (long-lived
+    // server process) and the client disagree → hydration mismatch → full client
+    // re-render that can swallow pointer events mid-drag.
+    <DndContext id="schedule-week-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="overflow-x-auto" data-testid="week-grid">
         <div className="grid min-w-[700px]" style={{ gridTemplateColumns: "48px repeat(7, 1fr)" }}>
           <div />
