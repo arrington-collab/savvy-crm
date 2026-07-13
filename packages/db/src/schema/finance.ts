@@ -39,6 +39,14 @@ export const estimate = pgTable("estimate", {
   // in slice 3; color stored the moment they tap it).
   selectedTier: text("selected_tier"),
   selectedColor: text("selected_color"),
+  // Slice 3 accept flow: sign + deposit are separate facts; acceptance (the
+  // existing estimate/accepted chain) fires only when BOTH are satisfied.
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  signingUrl: text("signing_url"),
+  depositCheckoutSessionId: text("deposit_checkout_session_id"),
+  depositCheckoutUrl: text("deposit_checkout_url"),
+  depositAmountCents: integer("deposit_amount_cents"),
+  depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),

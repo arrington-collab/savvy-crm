@@ -103,6 +103,14 @@ export async function advanceJobForAcceptedEstimate(
     }
   }
 
+  // Step 2b: backfill the estimate's job pointer (lead-stage estimates are
+  // born with jobId=null; the accept flow's state endpoint needs the link).
+  if (!est.jobId && jobId) {
+    await withTenant(tenantId, (tx) =>
+      tx.update(estimate).set({ jobId }).where(eq(estimate.id, estimateId)),
+    );
+  }
+
   // Step 3: advance the job to approved + stamp value (idempotent).
   await withTenant(tenantId, async (tx) => {
     const [j] = await tx.select().from(job).where(eq(job.id, jobId!));

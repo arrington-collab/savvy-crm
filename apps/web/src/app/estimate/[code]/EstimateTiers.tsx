@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { EstimatePageTier } from "@savvy/core";
+import { AcceptFlow } from "./AcceptFlow";
 
 const usd = (cents: number) =>
   (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -110,14 +111,7 @@ export function EstimateTiers({
         </div>
       )}
 
-      <button
-        data-testid="accept-cta"
-        disabled
-        title="Online acceptance is coming — call or reply to accept today"
-        className="w-full rounded-xl bg-stone-300 py-3 font-semibold text-stone-500"
-      >
-        {expired ? "Ask us to refresh this estimate" : "Accept & schedule — coming right up"}
-      </button>
+      <AcceptFlow code={code} tier={tier} color={color} expired={expired} />
     </section>
   );
 }
