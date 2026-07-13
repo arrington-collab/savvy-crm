@@ -85,6 +85,19 @@ describe("upsertCanvassKnock", () => {
     const [row] = await adminDb.select().from(canvassKnock).where(eq(canvassKnock.clientId, "knock-2"));
     expect(row!.territoryId).toBeNull();
   });
+
+  it("stamps contract_signed_at + lead_id on a same-rep re-upsert (contract signed)", async () => {
+    const leadUuid = "11111111-1111-1111-1111-111111111111";
+    const signedAt = new Date("2026-07-12T18:30:00.000Z");
+    // base(repA) uses clientId "knock-1", already owned by repA from earlier tests
+    const { id } = await withTenant(tId, (tx) =>
+      upsertCanvassKnock(tx, { ...base(repA), outcome: "sale", amount: 9000, contractSignedAt: signedAt, leadId: leadUuid }),
+    );
+    expect(id).toBeTruthy();
+    const [row] = await adminDb.select().from(canvassKnock).where(eq(canvassKnock.clientId, "knock-1"));
+    expect(row!.leadId).toBe(leadUuid);
+    expect(row!.contractSignedAt?.toISOString()).toBe(signedAt.toISOString());
+  });
 });
 
 describe("isCanvassRepActive", () => {

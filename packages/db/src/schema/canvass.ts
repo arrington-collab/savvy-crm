@@ -56,6 +56,8 @@ export const canvassKnock = pgTable("canvass_knock", {
   notes: text("notes"),
   amount: doublePrecision("amount"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  contractSignedAt: timestamp("contract_signed_at", { withTimezone: true }),
+  leadId: uuid("lead_id"), // soft ref to lead(id); no FK to avoid a cross-schema import cycle
   territoryId: uuid("territory_id"),
   gpsFlagged: boolean("gps_flagged").notNull().default(false),
   gpsDistanceM: integer("gps_distance_m"),
@@ -158,5 +160,26 @@ export const canvassSpiff = pgTable("canvass_spiff", {
 }, (t) => [
   index("canvass_spiff_tenant_idx").on(t.tenantId),
   index("canvass_spiff_winner_idx").on(t.winnerRepId),
+  tenantIsolation(),
+]);
+
+// An alert delivered to a rep — e.g. a sale that closed without a signed
+// contract yet (kind 'sale_no_contract'), so the rep/manager can follow up.
+// knockId is set null on delete since the alert should outlive a deleted
+// knock; leadId is a soft ref (no FK) used only for the CRM deep-link.
+export const canvassAlert = pgTable("canvass_alert", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // 'sale_no_contract'
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }), // recipient
+  knockId: uuid("knock_id").references(() => canvassKnock.id, { onDelete: "set null" }),
+  leadId: uuid("lead_id"), // soft ref for the CRM deep-link
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: createdAt(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+}, (t) => [
+  index("canvass_alert_tenant_rep_idx").on(t.tenantId, t.repId, t.readAt),
+  index("canvass_alert_knock_idx").on(t.knockId),
   tenantIsolation(),
 ]);
