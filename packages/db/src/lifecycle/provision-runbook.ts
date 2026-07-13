@@ -6,7 +6,7 @@ import { license, contractTemplate } from "../schema/compliance";
 import { tenantTaskConfig } from "../schema/task-registry";
 import { messageTemplate } from "../schema/comms";
 import { ensureTenantForOrg, ensureUser } from "./provisioning";
-import { ensurePriceBook } from "./price-book";
+import { ensurePriceBook, ensureTierProducts } from "./price-book";
 import { upsertTwilioConnection, type TwilioSecret } from "./telephony";
 import { setA2pRegistration } from "./a2p";
 import { seedTaskRegistry } from "../../seeds/master-task-list";
@@ -205,6 +205,11 @@ export async function provisionTenant(
   // 3. Price book (idempotent — seeds only when empty).
   const pb = await ensurePriceBook(tenantId);
   steps.push({ step: "price_book", action: pb.seeded > 0 ? "created" : "skipped", detail: `${pb.seeded} item(s) seeded` });
+
+  // 3b. Good/Better/Best tier products (unpriced — owner fills costs; the
+  // "price book needs costs" card surfaces until they do).
+  const tp = await ensureTierProducts(tenantId);
+  steps.push({ step: "tier_products", action: tp.seeded > 0 ? "created" : "skipped", detail: `${tp.seeded} tier product(s) seeded` });
 
   // 4. License matrix (skip an existing (state, city, number) row).
   let licAdded = 0;

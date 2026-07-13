@@ -238,6 +238,23 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
   ),
 
+  // Estimate Experience slice 1: no SENT estimate carries an unresolved
+  // margin-floor violation in its tier snapshot. Violations are allowed on
+  // drafts (they card for the owner) — sending one means it slipped the gate.
+  "estimate.margin_floor": invariant(
+    "estimate.margin_floor",
+    `select id
+       from estimate
+      where tenant_id = $1
+        and status in ('sent', 'accepted')
+        and tiers is not null
+        and exists (
+          select 1 from jsonb_array_elements(tiers) t
+           where jsonb_array_length(t->'marginFloorViolations') > 0
+        )`,
+    { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
+  ),
+
   // No post-inspection job sits past SLA (48h in stage) with an unknown roof type.
   // Pairs with #82's roof_type_needed exception vector.
   "exceptions.roof_type": invariant(

@@ -3,7 +3,7 @@ import { estimate } from "../schema/finance";
 import { measurement } from "../schema/ops";
 import { appointment } from "../schema/comms";
 import { lead } from "../schema/crm";
-import { priceBookItem } from "../schema/pricing";
+import { tierProduct } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -13,10 +13,14 @@ import {
   generateEstimateLineItems,
   computeEstimateTotals,
   selectPreferredMeasurement,
+  expandTierEstimates,
   REGISTRY_TASK,
   type EnginePriceBookItem,
+  type TierEngineItem,
+  type TierProductInput,
 } from "@savvy/core";
 import { markJobTaskDoneTx } from "./job-tasks";
+import { getCurrentPriceBookTx } from "./price-book";
 
 type CreateEstimateInput = {
   tenantId: string;
@@ -40,10 +44,10 @@ async function insertEstimateFromMeasurementTx(
   const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
   const cfg = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate);
 
-  const book = (await tx
-    .select()
-    .from(priceBookItem)
-    .where(eq(priceBookItem.active, true))) as unknown as EnginePriceBookItem[];
+  // Always price from ONE book: the current version (or the pre-versioning live
+  // items). A bare active=true select would mix live originals with version clones.
+  const { versionId, items: bookRows } = await getCurrentPriceBookTx(tx);
+  const book = bookRows.filter((i) => i.active) as unknown as EnginePriceBookItem[];
 
   const areas = measurementAreasSchema.parse(m.areas);
   const { lineItems, wastePctUsed, pitchTierApplied } = generateEstimateLineItems({
@@ -53,6 +57,33 @@ async function insertEstimateFromMeasurementTx(
     pitchTiers: cfg.steepPitchTiers,
   });
   const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
+
+  // Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
+  // products surface via needsCosts — never invented. Absent tier products
+  // (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
+  const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
+  const tiersSnapshot =
+    products.length > 0
+      ? expandTierEstimates({
+          areas,
+          priceBook: book as unknown as TierEngineItem[],
+          tierProducts: products.map(
+            (p): TierProductInput => ({
+              tier: p.tier as TierProductInput["tier"],
+              productName: p.productName,
+              manufacturer: p.manufacturer,
+              unitPriceCents: p.unitPriceCents,
+              unitCostCents: p.unitCostCents,
+              warrantyText: p.warrantyText,
+              recommended: p.recommended,
+            }),
+          ),
+          defaultWastePct: cfg.defaultWastePct,
+          pitchTiers: cfg.steepPitchTiers,
+          shingleItemKey: "field-shingles",
+          defaultMarginFloorBps: cfg.marginFloorBps,
+        }).tiers
+      : null;
 
   const [row] = await tx
     .insert(estimate)
@@ -71,6 +102,8 @@ async function insertEstimateFromMeasurementTx(
       wastePctUsed,
       pitchTierApplied,
       measurementSource: m.source ?? null,
+      priceBookVersionId: versionId,
+      tiers: tiersSnapshot,
     })
     .returning();
   return row ?? null;
