@@ -165,15 +165,22 @@ test.describe("required-photo checklist UI", () => {
     // (this spec flaked 2× on exactly that).
     await expect(page.getByTestId("job-detail")).toBeVisible({ timeout: 20_000 });
 
-    // Click the Docs tab to reveal the DocsPanel.
+    // Click the Docs tab to reveal the DocsPanel — as an atomic click+verify
+    // retry: on a loaded CI runner the first click can land BEFORE React
+    // hydration attaches the tab handler (button styles as active, panel never
+    // switches — trace-verified). Retrying the click until the panel content
+    // appears rides out hydration.
     // TabsTrigger renders as a plain <button>, not role="tab", so use getByRole("button").
-    await page.getByRole("button", { name: "Docs" }).click();
+    await expect(async () => {
+      await page.getByRole("button", { name: "Docs" }).click();
+      await expect(page.getByTestId("required-photo-before")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     // ── 2) Both required photos show as missing ───────────────────────────
     const beforeItem = page.getByTestId("required-photo-before");
     const afterItem = page.getByTestId("required-photo-after");
 
-    await expect(beforeItem).toBeVisible({ timeout: 15_000 });
+    await expect(beforeItem).toBeVisible();
     await expect(afterItem).toBeVisible();
 
     // aria-label carries "uploaded" or "missing"; check for "missing" state
@@ -189,7 +196,11 @@ test.describe("required-photo checklist UI", () => {
     await seedPhoto(jobId, "after");
 
     await page.reload();
-    await page.getByRole("button", { name: "Docs" }).click();
+    // Same hydration-race guard as the first Docs open.
+    await expect(async () => {
+      await page.getByRole("button", { name: "Docs" }).click();
+      await expect(page.getByTestId("required-photo-before")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     // ── 4) Both required photos now show as present ───────────────────────
     await expect(page.getByTestId("required-photo-before")).toHaveAttribute(
