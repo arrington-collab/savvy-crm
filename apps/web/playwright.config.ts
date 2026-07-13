@@ -87,6 +87,11 @@ export default defineConfig({
   timeout: 90_000,
   fullyParallel: false,
   workers: 1,
+  // One retry on CI only: loaded runners produce transient infra failures
+  // (ECONNRESET mid-recompile, cold-compile stalls) that rotate across specs.
+  // Retried-but-passed tests report as "flaky" — visibility kept; real
+  // regressions still fail both attempts. Local runs stay strict.
+  retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   // Pin the browser timezone to the e2e tenant's default finance.timezone (America/Phoenix, no DST).
   // The schedule specs derive UTC<->civil-time offsets assuming this tz; do not remove without updating them.
