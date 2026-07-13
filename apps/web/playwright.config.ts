@@ -90,7 +90,7 @@ export default defineConfig({
   reporter: [["list"]],
   // Pin the browser timezone to the e2e tenant's default finance.timezone (America/Phoenix, no DST).
   // The schedule specs derive UTC<->civil-time offsets assuming this tz; do not remove without updating them.
-  use: { timezoneId: "America/Phoenix" },
+  use: { timezoneId: "America/Phoenix", trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects,
   webServer,
 });
