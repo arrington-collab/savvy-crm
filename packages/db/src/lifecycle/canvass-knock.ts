@@ -19,6 +19,8 @@ export interface CanvassKnockUpsert {
   territoryClientId?: string | null;
   gpsFlagged: boolean;
   gpsDistanceM?: number | null;
+  contractSignedAt?: Date | null;
+  leadId?: string | null;
 }
 
 // Upsert a knock on (tenant, clientId). A replay is a no-op-shaped update; an
@@ -49,6 +51,8 @@ export async function upsertCanvassKnock(tx: Tx, k: CanvassKnockUpsert): Promise
     territoryId,
     gpsFlagged: k.gpsFlagged,
     gpsDistanceM: k.gpsDistanceM ?? null,
+    contractSignedAt: k.contractSignedAt ?? null,
+    leadId: k.leadId ?? null,
   };
   const rows = await tx
     .insert(canvassKnock)
