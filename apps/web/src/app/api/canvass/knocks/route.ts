@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS } from "@savvy/core";
-import { withTenant, upsertCanvassKnock, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS, evaluateAchievements } from "@savvy/core";
+import { withTenant, upsertCanvassKnock, isCanvassRepActive, unlockAchievements, listAchievementKeys, tenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { inngest } from "@savvy/agents";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -41,8 +42,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     gpsFlagged = gpsDistanceM > CANVASS_GPS_FLAG_METERS;
   }
 
-  const { id } = await withTenant(sess.tenantId, (tx) =>
-    upsertCanvassKnock(tx, {
+  const result = await withTenant(sess.tenantId, async (tx) => {
+    // reject a deactivated rep whose bearer token hasn't expired yet (distinct
+    // from upsert returning id:null when setWhere blocks a teammate's-knock edit)
+    if (!(await isCanvassRepActive(tx, sess.tenantId, sess.repId))) return { denied: true as const };
+    return upsertCanvassKnock(tx, {
       tenantId: sess.tenantId,
       repId: sess.repId,
       clientId: k.clientId,
@@ -58,10 +62,46 @@ export async function POST(req: Request): Promise<NextResponse> {
       territoryClientId: k.territoryClientId,
       gpsFlagged,
       gpsDistanceM,
-    }),
-  );
+      contractSignedAt: k.contractSignedAt ? new Date(k.contractSignedAt) : null,
+      leadId: k.leadId ?? null,
+    });
+  });
+  if ("denied" in result) return reply({ error: "unauthorized" }, 401);
   if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
-  return reply({ ok: true, id, gpsFlagged, gpsDistanceM }, 201);
+
+  // A fresh sale with no contract yet starts the 30-min watch. Idempotent event
+  // id so edits / appt→sale re-saves don't restart the clock.
+  if (result.id && k.outcome === "sale" && !k.contractSignedAt) {
+    try {
+      await inngest.send({
+        id: `sale:${result.id}`,
+        name: "canvass/sale.logged",
+        data: { tenantId: sess.tenantId, knockId: result.id, repId: sess.repId },
+      });
+    } catch (e) {
+      log.error("canvass/sale.logged emit failed", { route: "/api/canvass/knocks", tenantId: sess.tenantId, msg: String(e) });
+    }
+  }
+
+  // Re-evaluate this rep's badges from their full history; unlock any new ones.
+  let newBadges: string[] = [];
+  try {
+    newBadges = await withTenant(sess.tenantId, async (tx) => {
+      const [tRow] = await tx.select({ timezone: tenant.timezone }).from(tenant).where(eq(tenant.id, sess.tenantId));
+      const tz = tRow?.timezone ?? "UTC";
+      const rows = await tx
+        .select({ outcome: canvassKnock.outcome, amount: canvassKnock.amount, createdAt: canvassKnock.createdAt })
+        .from(canvassKnock)
+        .where(eq(canvassKnock.repId, sess.repId));
+      const earned = evaluateAchievements({ knocks: rows.map((r) => ({ outcome: r.outcome, amount: r.amount, at: r.createdAt })), tz });
+      const already = new Set(await listAchievementKeys(tx, sess.tenantId, sess.repId));
+      const toUnlock = earned.filter((k) => !already.has(k));
+      return unlockAchievements(tx, sess.tenantId, sess.repId, toUnlock);
+    });
+  } catch {
+    newBadges = []; // never fail a knock over gamification
+  }
+  return reply({ ok: true, id: result.id, gpsFlagged, gpsDistanceM, newBadges }, 201);
 }
 
 export async function GET(req: Request): Promise<NextResponse> {
@@ -90,6 +130,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         notes: canvassKnock.notes,
         amount: canvassKnock.amount,
         scheduledAt: canvassKnock.scheduledAt,
+        leadId: canvassKnock.leadId,
         gpsFlagged: canvassKnock.gpsFlagged,
         gpsDistanceM: canvassKnock.gpsDistanceM,
         createdAt: canvassKnock.createdAt,

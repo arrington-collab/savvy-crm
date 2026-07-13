@@ -10,8 +10,11 @@ const limiters = new Map<RateBucket, Ratelimit>();
 
 function getRedis(): Redis | null {
   if (redis) return redis;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Accept both naming schemes: UPSTASH_* (direct Upstash account) and
+  // KV_REST_API_* (what the Vercel Marketplace "Upstash for Redis" integration
+  // injects — same REST protocol, different env names).
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null; // disabled mode
   redis = new Redis({ url, token });
   return redis;

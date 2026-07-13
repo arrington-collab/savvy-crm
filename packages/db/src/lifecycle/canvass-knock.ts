@@ -19,6 +19,8 @@ export interface CanvassKnockUpsert {
   territoryClientId?: string | null;
   gpsFlagged: boolean;
   gpsDistanceM?: number | null;
+  contractSignedAt?: Date | null;
+  leadId?: string | null;
 }
 
 // Upsert a knock on (tenant, clientId). A replay is a no-op-shaped update; an
@@ -49,6 +51,8 @@ export async function upsertCanvassKnock(tx: Tx, k: CanvassKnockUpsert): Promise
     territoryId,
     gpsFlagged: k.gpsFlagged,
     gpsDistanceM: k.gpsDistanceM ?? null,
+    contractSignedAt: k.contractSignedAt ?? null,
+    leadId: k.leadId ?? null,
   };
   const rows = await tx
     .insert(canvassKnock)
@@ -70,4 +74,16 @@ export async function isCanvassManager(tx: Tx, tenantId: string, repId: string):
     .from(canvassRep)
     .where(and(eq(canvassRep.tenantId, tenantId), eq(canvassRep.id, repId)));
   return !!rep && rep.manager && rep.active !== false;
+}
+
+// True when the rep behind a still-valid bearer token is still active. Bearer
+// tokens are stateless (HMAC + 12h expiry), so deactivating a rep otherwise
+// leaves their token usable until it expires — the consequential write/cost
+// routes call this to close that window.
+export async function isCanvassRepActive(tx: Tx, tenantId: string, repId: string): Promise<boolean> {
+  const [rep] = await tx
+    .select({ active: canvassRep.active })
+    .from(canvassRep)
+    .where(and(eq(canvassRep.tenantId, tenantId), eq(canvassRep.id, repId)));
+  return !!rep && rep.active !== false;
 }

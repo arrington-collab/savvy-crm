@@ -44,6 +44,8 @@ type Events = {
   // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).
   "lead-document/received": { data: { tenantId: string; documentId: string; leadId: string; kind: string } };
   "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract; customerEmail?: string | null; customerName?: string | null } };
+  // A knock is logged as a sale. Idempotency id "sale:" + knockId ensures one event per knock.
+  "canvass/sale.logged": { data: { tenantId: string; knockId: string; repId: string } };
 };
 
 export const inngest = new Inngest({

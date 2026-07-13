@@ -5,6 +5,7 @@ import {
   dossierCacheFresh,
   dossierCoordKey,
   escapeIlike,
+  isTileDue,
   normalizeStreetName,
   shapeDossierProperty,
   shapeDossierStorm,
@@ -256,6 +257,7 @@ describe("shapeDossierProperty", () => {
       roofType: "shake",
       yearBuilt: 2007,
       supported: true,
+      tileDue: false,
     });
   });
   it("omits the block when unsupported, null, or empty", () => {
@@ -266,5 +268,43 @@ describe("shapeDossierProperty", () => {
 
   it("omits approximate (block-median) data — never shown as THIS house's age", () => {
     expect(shapeDossierProperty({ yearBuilt: 1985, roofAge: 41, roofType: null, supported: true, approximate: true })).toBeNull();
+  });
+});
+
+describe("isTileDue (tile underlayment window)", () => {
+  const NOW = new Date("2026-07-11T00:00:00Z");
+  const mesa = { lat: 33.42, lng: -111.88 }; // AZ — era heuristic applies
+  const vegas = { lat: 36.15, lng: -115.3 }; // NV — parcel data decides
+  const denver = { lat: 39.71, lng: -105.09 }; // CO — no heuristic
+
+  it("parcel-true tile at 18+ years is due, anywhere", () => {
+    expect(isTileDue({ roofType: "tile", yearBuilt: 1998, ...vegas }, NOW)).toBe(true);
+    expect(isTileDue({ roofType: "Concrete Tile", yearBuilt: 2000, ...denver }, NOW)).toBe(true);
+    expect(isTileDue({ roofType: "Clay Tile", yearBuilt: 1995, ...mesa }, NOW)).toBe(true);
+  });
+
+  it("known non-tile material is never due, even in AZ tile-era years", () => {
+    expect(isTileDue({ roofType: "Composition Shingle", yearBuilt: 1998, ...mesa }, NOW)).toBe(false);
+    expect(isTileDue({ roofType: "Wood Shake", yearBuilt: 1990, ...denver }, NOW)).toBe(false);
+  });
+
+  it("too new = not due, regardless of material (18-yr window)", () => {
+    expect(isTileDue({ roofType: "tile", yearBuilt: 2012, ...vegas }, NOW)).toBe(false); // 14 yrs
+    expect(isTileDue({ roofType: "tile", yearBuilt: 2008, ...vegas }, NOW)).toBe(true); // exactly 18
+  });
+
+  it("AZ era heuristic: unknown material + built 1985+ + 18+ yrs → due; outside AZ → not", () => {
+    expect(isTileDue({ roofType: null, yearBuilt: 1998, ...mesa }, NOW)).toBe(true);
+    expect(isTileDue({ roofType: null, yearBuilt: 1978, ...mesa }, NOW)).toBe(false); // pre-tile-era
+    expect(isTileDue({ roofType: null, yearBuilt: 1998, ...denver }, NOW)).toBe(false); // CO: no heuristic
+    expect(isTileDue({ roofType: null, yearBuilt: 1998, ...vegas }, NOW)).toBe(false); // NV: data decides, null ≠ tile
+    expect(isTileDue({ roofType: null, yearBuilt: null, ...mesa }, NOW)).toBe(false);
+  });
+
+  it("flows through shapeDossierProperty as tileDue", () => {
+    const p = shapeDossierProperty({ yearBuilt: 1998, roofAge: 28, roofType: "tile", supported: true }, vegas, NOW)!;
+    expect(p.tileDue).toBe(true);
+    const q = shapeDossierProperty({ yearBuilt: 2020, roofAge: 6, roofType: "tile", supported: true }, vegas, NOW)!;
+    expect(q.tileDue).toBe(false);
   });
 });

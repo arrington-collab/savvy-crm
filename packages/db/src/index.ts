@@ -6,7 +6,10 @@ export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTas
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks, resolveOpenLeadTasks, ConversionBlockedError } from "./lifecycle/lead-tasks";
 export { addLeadNote, getLeadNotes } from "./lifecycle/lead-note";
 export { createLeadForTenant } from "./lifecycle/lead-intake";
-export { upsertCanvassKnock, isCanvassManager, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
+export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
+export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
+export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";
+export { createManualSpiff, listSpiffs, markSpiffPaid, createSettlementSpiffs, type SpiffRow, type ManualSpiffArgs } from "./lifecycle/canvass-spiff";
 export { recomputeTaskHealth, spotVerifyDoneTasks, computeTaskExceptions, computeTenantRollup, reconcileTaskExceptions, getTenantRollup, getJobLedger, type JobLedgerRow, listOpenTaskExceptions, type OpenTaskException, markTaskExceptionViewed, getTaskDetail, type TaskDetail, recomputeFounderMinutes, listAutomationRoadmap, type RoadmapTask } from "./lifecycle/task-health";
 export { recordStageChange, IncompletePhotosError, IncompleteDocumentsError, StageEvidenceError, BackwardNeedsReasonError } from "./lifecycle/record-stage-change";
 export { advanceJobStageForward } from "./lifecycle/advance-stage";
@@ -102,3 +105,4 @@ export { setClaimEndorsement } from "./lifecycle/endorsement";
 export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";
 export { leadSourceSummary, referredRevenueByPerson } from "./lifecycle/lead-source-analytics";
 export { getCalibrationInputs } from "./lifecycle/lead-calibration";
+export { createSaleNoContractAlerts, listAlerts, markAlertRead, markAllAlertsRead, readKnockForAlert, activeManagerIds, type AlertRow } from "./lifecycle/canvass-alert";

@@ -3,6 +3,7 @@ import { dossierCacheFresh } from "@savvy/core";
 import { withTenant, dossierCache, eq, and } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { reverseGeocode, type Geo } from "@/lib/geocode";
 
 export const runtime = "nodejs";
@@ -26,6 +27,8 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const sess = verifyCanvassToken(bearerToken(req.headers));
   if (!sess) return reply({ error: "unauthorized" }, 401);
+  const { ok } = await checkRateLimit("canvass-read", `${sess.tenantId}:${sess.repId}`);
+  if (!ok) return reply({ error: "rate_limited" }, 429);
 
   const url = new URL(req.url);
   const lat = Number(url.searchParams.get("lat"));

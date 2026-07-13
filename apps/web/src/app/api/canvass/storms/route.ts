@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dossierCacheFresh, DOSSIER_STORM_TTL_DAYS } from "@savvy/core";
+import { dossierCacheFresh, isTileDue, DOSSIER_STORM_TTL_DAYS } from "@savvy/core";
 import {
   httpStormProof,
   slimStormSwaths,
@@ -9,9 +9,10 @@ import {
   type StormSwath,
   type HotCell,
 } from "@savvy/integrations";
-import { withTenant, dossierCache, eq, and } from "@savvy/db";
+import { withTenant, dossierCache, canvassKnock, eq, and, gte, lte, type Tx } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { reverseGeocode } from "@/lib/geocode";
 
 export const runtime = "nodejs";
@@ -45,8 +46,46 @@ const ENRICH_CELL_CAP = 16;
 // completes, at which point we cache for 7 days.
 const ENRICH_BUDGET_MS = 20_000;
 
-type Target = HotCell & { yearBuilt: number | null; gold: boolean };
+type Target = HotCell & { yearBuilt: number | null; gold: boolean; tile: boolean };
 type Payload = { swaths: StormSwath[]; targets: Target[] };
+// wire shape adds per-request fields the cache must not freeze:
+type TargetOut = Target & { knocks: number };
+
+// Fresh-doors dimming: knocks by the whole team in the last 45 days, bucketed
+// per target cell. Computed at REQUEST time and merged into the (possibly
+// cached) payload — a cell your team worked yesterday must dim today, not
+// when the 7-day storm cache expires.
+const KNOCK_WINDOW_DAYS = 45;
+async function knockCounts(tx: Tx, targets: Target[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (!targets.length) return counts;
+  const lats = targets.map((t) => t.lat);
+  const lngs = targets.map((t) => t.lng);
+  const pad = 0.006;
+  const rows = await tx
+    .select({ lat: canvassKnock.lat, lng: canvassKnock.lng })
+    .from(canvassKnock)
+    .where(
+      and(
+        gte(canvassKnock.createdAt, new Date(Date.now() - KNOCK_WINDOW_DAYS * 86_400_000)),
+        gte(canvassKnock.lat, Math.min(...lats) - pad),
+        lte(canvassKnock.lat, Math.max(...lats) + pad),
+        gte(canvassKnock.lng, Math.min(...lngs) - pad),
+        lte(canvassKnock.lng, Math.max(...lngs) + pad),
+      ),
+    )
+    .limit(5000);
+  for (const k of rows) {
+    for (const t of targets) {
+      if (Math.abs(k.lat - t.lat) <= 0.005 && Math.abs(k.lng - t.lng) <= 0.005) {
+        const key = `${t.lat},${t.lng}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+        break;
+      }
+    }
+  }
+  return counts;
+}
 
 async function enrichCells(sp: StormProofGateway, cells: HotCell[]): Promise<{ targets: Target[]; partial: boolean }> {
   const nowYear = new Date().getFullYear();
@@ -55,7 +94,7 @@ async function enrichCells(sp: StormProofGateway, cells: HotCell[]): Promise<{ t
   let partial = false;
   for (let i = 0; i < cells.length; i += 8) {
     if (Date.now() - started > ENRICH_BUDGET_MS) {
-      targets.push(...cells.slice(i).map((c) => ({ ...c, yearBuilt: null, gold: false })));
+      targets.push(...cells.slice(i).map((c) => ({ ...c, yearBuilt: null, gold: false, tile: false })));
       partial = true;
       break;
     }
@@ -65,11 +104,16 @@ async function enrichCells(sp: StormProofGateway, cells: HotCell[]): Promise<{ t
           const geo = await reverseGeocode(c.lat, c.lng);
           const prop = await sp.getProperty({ lat: c.lat, lng: c.lng, address: geo?.address ?? undefined });
           const yearBuilt = prop?.yearBuilt ?? null;
-          // approximate (block-median) data is exactly right here — gold is a
-          // neighborhood flag, not a parcel claim
-          return { ...c, yearBuilt, gold: yearBuilt != null && nowYear - yearBuilt >= GOLD_MIN_ROOF_YEARS };
+          // approximate (block-median) data is exactly right here — gold/tile
+          // are neighborhood flags, not parcel claims
+          return {
+            ...c,
+            yearBuilt,
+            gold: yearBuilt != null && nowYear - yearBuilt >= GOLD_MIN_ROOF_YEARS,
+            tile: isTileDue({ roofType: prop?.roofType, yearBuilt, lat: c.lat, lng: c.lng }),
+          };
         } catch {
-          return { ...c, yearBuilt: null, gold: false };
+          return { ...c, yearBuilt: null, gold: false, tile: false };
         }
       }),
     );
@@ -84,6 +128,8 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const sess = verifyCanvassToken(bearerToken(req.headers));
   if (!sess) return reply({ error: "unauthorized" }, 401);
+  const { ok } = await checkRateLimit("canvass-read", `${sess.tenantId}:${sess.repId}`);
+  if (!ok) return reply({ error: "rate_limited" }, 429);
 
   const url = new URL(req.url);
   const lat = Number(url.searchParams.get("lat"));
@@ -93,12 +139,16 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!process.env.STORMPROOF_API_BASE) return reply({ swaths: [], targets: [] }, 200);
 
   const coordKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
-  const payload = await withTenant(sess.tenantId, async (tx): Promise<Payload> => {
+  const payload = await withTenant(sess.tenantId, async (tx): Promise<{ swaths: StormSwath[]; targets: TargetOut[] }> => {
+    const withKnocks = async (p: Payload) => {
+      const counts = await knockCounts(tx, p.targets);
+      return { swaths: p.swaths, targets: p.targets.map((t) => ({ ...t, knocks: counts.get(`${t.lat},${t.lng}`) ?? 0 })) };
+    };
     const [hit] = await tx
       .select({ payload: dossierCache.payload, fetchedAt: dossierCache.fetchedAt })
       .from(dossierCache)
       .where(and(eq(dossierCache.kind, "stormtargets"), eq(dossierCache.coordKey, coordKey)));
-    if (hit && dossierCacheFresh(hit.fetchedAt, DOSSIER_STORM_TTL_DAYS)) return hit.payload as Payload;
+    if (hit && dossierCacheFresh(hit.fetchedAt, DOSSIER_STORM_TTL_DAYS)) return withKnocks(hit.payload as Payload);
 
     // one 24-mo pull covers both perils; the wind window narrows in slimStormSwaths
     const tracks = await gateway.sp.lookupStormTracks({ lat, lng, months: SWATH_HAIL_MONTHS }).catch(() => []);
@@ -118,7 +168,7 @@ export async function GET(req: Request): Promise<NextResponse> {
           set: { payload: fresh, fetchedAt: new Date() },
         });
     }
-    return fresh;
+    return withKnocks(fresh);
   });
 
   return reply(payload, 200);

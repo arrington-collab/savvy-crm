@@ -203,6 +203,29 @@ export interface DossierProperty {
   roofType: string | null;
   yearBuilt: number | null;
   supported: true;
+  /** Tile roof at/past the underlayment-replacement window (18+ yrs). */
+  tileDue: boolean;
+}
+
+// ── Tile roofs: underlayment replacement window (Brett, 2026-07-11) ──────
+// AZ/NV tile lasts ~18–20 years before the underlayment needs swapping — a
+// strong door independent of hail size. Parcel-true where the assessor has
+// roof material (Clark "tile", Douglas "Concrete/Clay Tile"); in ARIZONA a
+// Brett-approved era heuristic applies when material is unknown: Phoenix-metro
+// subdivisions built 1985+ are overwhelmingly concrete tile.
+export const TILE_UNDERLAYMENT_YEARS = 18;
+export const TILE_ERA_START = 1985;
+const AZ_BOX = { minLat: 31.3, maxLat: 37.0, minLng: -114.9, maxLng: -109.0 };
+
+export function isTileDue(
+  o: { roofType?: string | null; yearBuilt?: number | null; lat: number; lng: number },
+  now = new Date(),
+): boolean {
+  if (o.yearBuilt == null) return false;
+  if (now.getFullYear() - o.yearBuilt < TILE_UNDERLAYMENT_YEARS) return false;
+  if (o.roofType) return /tile/i.test(o.roofType); // known material decides
+  const inAZ = o.lat >= AZ_BOX.minLat && o.lat <= AZ_BOX.maxLat && o.lng >= AZ_BOX.minLng && o.lng <= AZ_BOX.maxLng;
+  return inAZ && o.yearBuilt >= TILE_ERA_START;
 }
 
 // The card describes ONE event, so every field comes from a coherent pool.
@@ -236,11 +259,16 @@ export function shapeDossierStorm(s: StormSummaryLike | null | undefined, now = 
   };
 }
 
-export function shapeDossierProperty(p: PropertyDataLike | null | undefined): DossierProperty | null {
+export function shapeDossierProperty(
+  p: PropertyDataLike | null | undefined,
+  at?: { lat: number; lng: number },
+  now = new Date(),
+): DossierProperty | null {
   if (!p || !p.supported) return null;
   // Block-median data (approximate) is fine for area-level target flags but
   // must not be shown as THIS house's age on the knock card — omit the line.
   if (p.approximate) return null;
   if (p.roofAge == null && p.roofType == null && p.yearBuilt == null) return null;
-  return { roofAgeYears: p.roofAge, roofType: p.roofType, yearBuilt: p.yearBuilt, supported: true };
+  const tileDue = at ? isTileDue({ roofType: p.roofType, yearBuilt: p.yearBuilt, lat: at.lat, lng: at.lng }, now) : false;
+  return { roofAgeYears: p.roofAge, roofType: p.roofType, yearBuilt: p.yearBuilt, supported: true, tileDue };
 }

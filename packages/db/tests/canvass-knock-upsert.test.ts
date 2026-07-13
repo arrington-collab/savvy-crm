@@ -1,7 +1,9 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
-import { adminDb, adminPool, pool, eq, tenant, canvassRep, canvassTerritory, canvassKnock } from "../src/index";
+import { adminDb, adminPool, pool, eq, tenant, canvassRep, canvassTerritory, canvassKnock, canvassAchievement } from "../src/index";
 import { withTenant } from "../src/tenant";
-import { upsertCanvassKnock, isCanvassManager } from "../src/lifecycle/canvass-knock";
+import { upsertCanvassKnock, isCanvassManager, isCanvassRepActive } from "../src/lifecycle/canvass-knock";
+import { evaluateAchievements } from "@savvy/core";
+import { unlockAchievements } from "../src/lifecycle/canvass-achievement";
 
 let tId: string, repA: string, repB: string, mgrId: string, terrId: string;
 
@@ -28,6 +30,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await adminDb.delete(canvassKnock).where(eq(canvassKnock.tenantId, tId));
+  await adminDb.delete(canvassAchievement).where(eq(canvassAchievement.tenantId, tId));
   await adminDb.delete(canvassTerritory).where(eq(canvassTerritory.tenantId, tId));
   await adminDb.delete(canvassRep).where(eq(canvassRep.tenantId, tId));
   await adminDb.delete(tenant).where(eq(tenant.id, tId));
@@ -82,6 +85,33 @@ describe("upsertCanvassKnock", () => {
     const [row] = await adminDb.select().from(canvassKnock).where(eq(canvassKnock.clientId, "knock-2"));
     expect(row!.territoryId).toBeNull();
   });
+
+  it("stamps contract_signed_at + lead_id on a same-rep re-upsert (contract signed)", async () => {
+    const leadUuid = "11111111-1111-1111-1111-111111111111";
+    const signedAt = new Date("2026-07-12T18:30:00.000Z");
+    // base(repA) uses clientId "knock-1", already owned by repA from earlier tests
+    const { id } = await withTenant(tId, (tx) =>
+      upsertCanvassKnock(tx, { ...base(repA), outcome: "sale", amount: 9000, contractSignedAt: signedAt, leadId: leadUuid }),
+    );
+    expect(id).toBeTruthy();
+    const [row] = await adminDb.select().from(canvassKnock).where(eq(canvassKnock.clientId, "knock-1"));
+    expect(row!.leadId).toBe(leadUuid);
+    expect(row!.contractSignedAt?.toISOString()).toBe(signedAt.toISOString());
+  });
+});
+
+describe("isCanvassRepActive", () => {
+  it("is true for an active rep, false once deactivated or unknown", async () => {
+    await withTenant(tId, async (tx) => {
+      expect(await isCanvassRepActive(tx, tId, repB)).toBe(true);
+      expect(await isCanvassRepActive(tx, tId, "00000000-0000-0000-0000-000000000000")).toBe(false);
+    });
+    await adminDb.update(canvassRep).set({ active: false }).where(eq(canvassRep.id, repB));
+    await withTenant(tId, async (tx) => {
+      expect(await isCanvassRepActive(tx, tId, repB)).toBe(false);
+    });
+    await adminDb.update(canvassRep).set({ active: true }).where(eq(canvassRep.id, repB));
+  });
 });
 
 describe("isCanvassManager", () => {
@@ -95,5 +125,16 @@ describe("isCanvassManager", () => {
     await withTenant(tId, async (tx) => {
       expect(await isCanvassManager(tx, tId, mgrId)).toBe(false);
     });
+  });
+});
+
+describe("achievements on knock", () => {
+  it("first_sale unlocks once a sale exists", async () => {
+    await withTenant(tId, (tx) => upsertCanvassKnock(tx, { ...base(repA), clientId: "ach-1", outcome: "sale", amount: 1000 }));
+    const earned = await withTenant(tId, async (tx) => {
+      const earnedKeys = evaluateAchievements({ knocks: [{ outcome: "sale", amount: 1000, at: new Date() }], tz: "America/Phoenix" });
+      return unlockAchievements(tx, tId, repA, earnedKeys);
+    });
+    expect(earned).toContain("first_sale");
   });
 });

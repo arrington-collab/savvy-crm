@@ -56,6 +56,8 @@ export const canvassKnock = pgTable("canvass_knock", {
   notes: text("notes"),
   amount: doublePrecision("amount"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  contractSignedAt: timestamp("contract_signed_at", { withTimezone: true }),
+  leadId: uuid("lead_id"), // soft ref to lead(id); no FK to avoid a cross-schema import cycle
   territoryId: uuid("territory_id"),
   gpsFlagged: boolean("gps_flagged").notNull().default(false),
   gpsDistanceM: integer("gps_distance_m"),
@@ -80,5 +82,104 @@ export const dossierCache = pgTable("dossier_cache", {
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   uniqueIndex("dossier_cache_tenant_kind_coord_uniq").on(t.tenantId, t.kind, t.coordKey),
+  tenantIsolation(),
+]);
+
+// Unlocked achievement badges per rep (Approach A: everything else is derived
+// from canvass_knock; only badge unlocks persist). Idempotent via the unique
+// (tenant, rep, badge_key) index.
+export const canvassAchievement = pgTable("canvass_achievement", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id),
+  badgeKey: text("badge_key").notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  unlockedAt: createdAt(),
+}, (t) => [
+  uniqueIndex("canvass_achievement_uniq").on(t.tenantId, t.repId, t.badgeKey),
+  index("canvass_achievement_tenant_idx").on(t.tenantId),
+  tenantIsolation(),
+]);
+
+// A gamification challenge/contest. Standings are DERIVED from participants'
+// knocks within [windowStart, windowEnd); only the instance + settled winner
+// persist. kind h2h|koth|contest, metric points|doors|contacts|appts|sales|
+// revenue, status pending|active|settled|declined|cancelled.
+export const canvassChallenge = pgTable("canvass_challenge", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  kind: text("kind").notNull(),
+  metric: text("metric").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdByRepId: uuid("created_by_rep_id").notNull().references(() => canvassRep.id),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+  winnerRepId: uuid("winner_rep_id").references(() => canvassRep.id),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  index("canvass_challenge_tenant_idx").on(t.tenantId),
+  index("canvass_challenge_tenant_status_idx").on(t.tenantId, t.status),
+  tenantIsolation(),
+]);
+
+// A participant in a challenge; final_score is stamped at settlement. The unique
+// (challenge, rep) index keeps a rep from joining a challenge twice.
+export const canvassChallengeParticipant = pgTable("canvass_challenge_participant", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  challengeId: uuid("challenge_id").notNull().references(() => canvassChallenge.id),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  finalScore: doublePrecision("final_score"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("canvass_challenge_participant_uniq").on(t.challengeId, t.repId),
+  index("canvass_challenge_participant_tenant_idx").on(t.tenantId),
+  tenantIsolation(),
+]);
+
+// A money ledger entry for spiffs — wagers, contest prizes, or manual bonuses
+// owed to a rep. kind wager|contest_prize|manual, status owed|paid|void.
+// challengeId is set null on delete since the ledger entry should outlive a
+// deleted challenge; the rep FKs cascade since a deleted rep's ledger has no
+// meaning.
+export const canvassSpiff = pgTable("canvass_spiff", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  challengeId: uuid("challenge_id").references(() => canvassChallenge.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  winnerRepId: uuid("winner_rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }),
+  fromRepId: uuid("from_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("owed"),
+  note: text("note"),
+  createdAt: createdAt(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+}, (t) => [
+  index("canvass_spiff_tenant_idx").on(t.tenantId),
+  index("canvass_spiff_winner_idx").on(t.winnerRepId),
+  tenantIsolation(),
+]);
+
+// An alert delivered to a rep — e.g. a sale that closed without a signed
+// contract yet (kind 'sale_no_contract'), so the rep/manager can follow up.
+// knockId is set null on delete since the alert should outlive a deleted
+// knock; leadId is a soft ref (no FK) used only for the CRM deep-link.
+export const canvassAlert = pgTable("canvass_alert", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // 'sale_no_contract'
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }), // recipient
+  knockId: uuid("knock_id").references(() => canvassKnock.id, { onDelete: "set null" }),
+  leadId: uuid("lead_id"), // soft ref for the CRM deep-link
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: createdAt(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+}, (t) => [
+  index("canvass_alert_tenant_rep_idx").on(t.tenantId, t.repId, t.readAt),
+  index("canvass_alert_knock_idx").on(t.knockId),
   tenantIsolation(),
 ]);
