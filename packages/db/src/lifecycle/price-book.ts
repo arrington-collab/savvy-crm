@@ -1,7 +1,7 @@
 import { eq, isNull, desc } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { priceBookItem, priceBookVersion, tierProduct } from "../schema/pricing";
-import { DEFAULT_PRICE_BOOK, DEFAULT_TIER_PRODUCTS } from "@savvy/core";
+import { DEFAULT_PRICE_BOOK, DEFAULT_TIER_PRODUCTS, proposePriceBookDiff } from "@savvy/core";
 
 /** Seeds the built-in catalog for a tenant the first time. Idempotent via onConflictDoNothing. */
 export async function ensurePriceBook(tenantId: string): Promise<{ seeded: number }> {
@@ -173,5 +173,44 @@ export async function applyPriceBookVersion(input: {
     );
 
     return { versionId: ver!.id, versionNo, underFloor };
+  });
+}
+
+/** #136 wiring: derive a proposed cost diff from recent guard-matched
+ *  supplier-invoice lines vs the current book. Latest billed cost per key wins.
+ *  Read-only — the Library UI prefills applyPriceBookVersion with the result. */
+export async function deriveCostDriftDiff(
+  tenantId: string,
+  opts: { defaultMarginFloorBps: number; windowDays?: number },
+): Promise<ReturnType<typeof proposePriceBookDiff>> {
+  const { supplierInvoice } = await import("../schema/supplier-invoice");
+  const { gte } = await import("drizzle-orm");
+  const since = new Date(Date.now() - (opts.windowDays ?? 30) * 86_400_000);
+
+  return withTenant(tenantId, async (tx) => {
+    const invoices = await tx
+      .select({ lines: supplierInvoice.lines, createdAt: supplierInvoice.createdAt })
+      .from(supplierInvoice)
+      .where(gte(supplierInvoice.createdAt, since));
+
+    // Latest billed unit cost per matched key (only guard-matched lines count —
+    // unmatched descriptions are never guessed into the book).
+    const latest = new Map<string, { at: Date; unitCostCents: number; name: string }>();
+    for (const inv of invoices) {
+      for (const line of inv.lines ?? []) {
+        if (!line.matchedItemKey) continue;
+        const prev = latest.get(line.matchedItemKey);
+        if (!prev || inv.createdAt > prev.at) {
+          latest.set(line.matchedItemKey, { at: inv.createdAt, unitCostCents: line.unitBilledCents, name: line.description });
+        }
+      }
+    }
+
+    const { items } = await getCurrentPriceBookTx(tx);
+    return proposePriceBookDiff({
+      parsedLines: [...latest.entries()].map(([key, v]) => ({ key, name: v.name, unitCostCents: v.unitCostCents })),
+      book: items.filter((i) => i.active),
+      defaultMarginFloorBps: opts.defaultMarginFloorBps,
+    });
   });
 }

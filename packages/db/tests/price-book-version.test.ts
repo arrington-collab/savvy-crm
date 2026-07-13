@@ -22,6 +22,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  const { supplierInvoice } = await import("../src/schema/supplier-invoice");
+  await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.tenantId, tenantId));
   await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, tenantId));
   await adminDb.delete(priceBookVersion).where(eq(priceBookVersion.tenantId, tenantId));
   await adminDb.delete(tierProduct).where(eq(tierProduct.tenantId, tenantId));
@@ -146,5 +148,37 @@ describe("price book versioning", () => {
     });
     expect(res.versionNo).toBe(3);
     expect(res.underFloor.map((u) => u.key)).toContain("drip-edge");
+  });
+});
+
+describe("deriveCostDriftDiff (#136 wiring)", () => {
+  it("proposes cost changes from recent guard-matched supplier-invoice lines vs the current book", async () => {
+    const { supplierInvoice } = await import("../src/schema/supplier-invoice");
+    const { deriveCostDriftDiff } = await import("../src/lifecycle/price-book");
+    const { withTenant } = await import("../src/tenant");
+
+    await withTenant(tenantId, async (tx) => {
+      await tx.insert(supplierInvoice).values({
+        tenantId,
+        supplierName: "ABC Supply",
+        totalCents: 100000,
+        status: "parsed",
+        lines: [
+          // drip-edge is at 95¢ in the current book (v3 under-floor apply above);
+          // the invoice reveals it now costs 140¢
+          { description: "Drip edge 10ft", quantity: 30, unitBilledCents: 140, amountBilledCents: 4200, matchedItemKey: "drip-edge" },
+          // unmatched line must be ignored, never guessed
+          { description: "Shop supplies", quantity: 1, unitBilledCents: 900, amountBilledCents: 900 },
+        ],
+      });
+    });
+
+    const diff = await deriveCostDriftDiff(tenantId, { defaultMarginFloorBps: 1500 });
+    const drip = diff.changes.find((c) => c.key === "drip-edge");
+    expect(drip).toBeDefined();
+    expect(drip!.newCostCents).toBe(140);
+    expect(drip!.oldCostCents).toBe(95);
+    // 'Shop supplies' has no matchedItemKey and no name match → not proposed
+    expect(diff.changes.map((c) => c.key)).toEqual(["drip-edge"]);
   });
 });

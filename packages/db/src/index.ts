@@ -45,7 +45,7 @@ export * from "./schema/index";
 // single drizzle-orm instance (avoids duplicate-instance type mismatches where
 // the app's own `eq` doesn't match @savvy/db's columns).
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt, gte, lte, gt, ilike } from "drizzle-orm";
-export { ensurePriceBook, ensureTierProducts, tierProductsNeedingCosts, getCurrentPriceBook, applyPriceBookVersion, MarginFloorConfirmationRequiredError, type PriceBookChange, type UnderFloorEntry } from "./lifecycle/price-book";
+export { ensurePriceBook, ensureTierProducts, tierProductsNeedingCosts, getCurrentPriceBook, getCurrentPriceBookTx, applyPriceBookVersion, deriveCostDriftDiff, MarginFloorConfirmationRequiredError, type PriceBookChange, type UnderFloorEntry } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
 export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { recordLeadDocument, listLeadDocuments, type LeadDocumentRow } from "./lifecycle/lead-documents";

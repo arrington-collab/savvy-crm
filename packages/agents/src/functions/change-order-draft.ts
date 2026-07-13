@@ -1,4 +1,4 @@
-import { withTenant, priceBookItem, recordAgentRun } from "@savvy/db";
+import { withTenant, getCurrentPriceBookTx, recordAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import type { Capability } from "@savvy/ai";
 import { z, DEFAULT_PRICE_BOOK, type EstimateLineItem } from "@savvy/core";
@@ -42,7 +42,8 @@ export async function draftChangeOrderScope(
   const { tenantId, jobId, description } = input;
 
   // Load tenant-specific price book rows; fall back to DEFAULT_PRICE_BOOK if none exist.
-  const rows = await withTenant(tenantId, (tx) => tx.select().from(priceBookItem));
+  // Current book only — a bare select would mix live originals with version clones.
+  const rows = await withTenant(tenantId, async (tx) => (await getCurrentPriceBookTx(tx)).items);
 
   // Normalize both sources to the same shape for the catalog map.
   const catalog = (rows.length ? rows : DEFAULT_PRICE_BOOK).map((c) => ({
