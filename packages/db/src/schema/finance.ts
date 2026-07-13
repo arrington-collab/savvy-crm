@@ -35,6 +35,10 @@ export const estimate = pgTable("estimate", {
   // and the Good/Better/Best snapshot (TierEstimate[] incl. margin-floor flags).
   priceBookVersionId: uuid("price_book_version_id"),
   tiers: jsonb("tiers").$type<unknown[]>(),
+  // Slice 2: the homeowner's picks on the estimate page (tier chosen at accept
+  // in slice 3; color stored the moment they tap it).
+  selectedTier: text("selected_tier"),
+  selectedColor: text("selected_color"),
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),

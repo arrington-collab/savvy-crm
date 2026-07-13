@@ -24,6 +24,8 @@ const estimateSchema = z.object({
   // Estimate Experience slice 1: default margin floor (bps) for tier pricing;
   // per-item overrides live on the price-book item. Violations card, never silent.
   marginFloorBps: z.number().int().min(0).default(2000),
+  // Estimate Experience slice 2: "Price valid through <date>" window on the page.
+  validityDays: z.number().int().min(1).default(30),
 });
 
 export type PitchTier = z.infer<typeof pitchTierSchema>;

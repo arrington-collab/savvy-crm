@@ -207,6 +207,11 @@ export async function setEstimateStatus(input: {
     // A lead-stage estimate has no job yet, so there is no job task to mark done
     // on "sent". The job-task ledger is only relevant once the estimate is attached
     // to a job (post-acceptance / legacy rows).
+    if (row && input.status === "sent") {
+      // Slice 2: every sent estimate gets its tokenized homeowner page link.
+      const { ensureEstimateLink } = await import("./estimate-page");
+      await ensureEstimateLink({ tenantId: input.tenantId, estimateId: input.estimateId });
+    }
     if (row && input.status === "sent" && row.jobId) {
       await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.ESTIMATE_DELIVERY, owner: "SAGE", evidence: { type: "estimate", ref: row.id } });
     }
