@@ -447,6 +447,9 @@ describe("manual spiff + mark paid", () => {
 
 describe("wager spiff on h2h settlement", () => {
   it("loser owes winner the wager when the challenge settles", async () => {
+    // clear knocks so this test's window can't pick up rows from other tests
+    // (all settlement tests use overlapping past() windows on the same reps)
+    await adminDb.delete(canvassKnock).where(eq(canvassKnock.tenantId, tId));
     const { start, end, mid } = past();
     const { id: chId } = await withTenant(tId, (tx) => createChallenge(tx, {
       tenantId: tId, createdByRepId: repA, kind: "h2h", metric: "doors",
@@ -473,6 +476,9 @@ describe("wager spiff on h2h settlement", () => {
 
 describe("contest prize spiff on settlement", () => {
   it("pool goes to the winner, from null", async () => {
+    // clear knocks first — the h2h test above left repA knocks inside this
+    // window, which would tie repC's contest score and null the winner
+    await adminDb.delete(canvassKnock).where(eq(canvassKnock.tenantId, tId));
     const { start, end, mid } = past();
     const { id: chId } = await withTenant(tId, (tx) => createChallenge(tx, {
       tenantId: tId, createdByRepId: repC, kind: "contest", metric: "doors",
@@ -528,6 +534,7 @@ git commit -m "feat(canvass): spiff lifecycle + wager/prize creation on settleme
 - Create: `apps/web/src/app/api/canvass/spiffs/route.ts`
 - Create: `apps/web/src/app/api/canvass/spiff/route.ts`
 - Create: `apps/web/src/app/api/canvass/spiff/[id]/route.ts`
+- Modify: `apps/web/src/app/api/canvass/challenge/route.ts` (add wager/prize → meta passthrough)
 - Modify: `apps/web/src/middleware.ts`
 
 **Interfaces:**
@@ -647,7 +654,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 }
 ```
 
-- [ ] **Step 4: Extend the middleware allowlist**
+- [ ] **Step 4: Wire wager/prize into the Phase 2 challenge-create route**
+
+The Phase 2 `POST /api/canvass/challenge` route (`apps/web/src/app/api/canvass/challenge/route.ts`) does NOT currently read `meta` from the body, so wagers/prize pools never reach `createChallenge`. Add a whitelisted, validated passthrough so Phase 3 amounts flow through:
+
+- Widen the `body` type to include `wagerCents?: number` and `prizePoolCents?: number`.
+- After `participantRepIds` is resolved and before the `createChallenge` call, build a `meta` object:
+  - For `contest`: if `prizePoolCents` is a finite number > 0, set `meta.prizePoolCents = Math.floor(prizePoolCents)`.
+  - For `h2h`/`koth`: if `wagerCents` is a finite number > 0, set `meta.wagerCents = Math.floor(wagerCents)`.
+  - Otherwise `meta` is `{}` (or omit — `createChallenge` defaults it to `{}`).
+- Pass `meta` into the `createChallenge(tx, { …, meta })` call.
+
+```ts
+// body type — add:
+wagerCents?: number; prizePoolCents?: number;
+
+// after participantRepIds is set, before createChallenge:
+const meta: Record<string, number> = {};
+if (kind === "contest" && Number.isFinite(Number(body.prizePoolCents)) && Number(body.prizePoolCents) > 0) {
+  meta.prizePoolCents = Math.floor(Number(body.prizePoolCents));
+} else if (kind !== "contest" && Number.isFinite(Number(body.wagerCents)) && Number(body.wagerCents) > 0) {
+  meta.wagerCents = Math.floor(Number(body.wagerCents));
+}
+const { id } = await createChallenge(tx, {
+  tenantId: sess.tenantId, createdByRepId: sess.repId, kind, metric,
+  windowStart: now, windowEnd, participantRepIds, meta,
+});
+```
+
+This is additive: challenges created without a wager/prize get `meta: {}`, exactly as before.
+
+- [ ] **Step 5: Extend the middleware allowlist**
 
 In `apps/web/src/middleware.ts`, the canvass public-route allowlist ends with a regex like `…|scoreboard|challenge|challenges)$/` plus a separate entry `/^\/api\/canvass\/challenge\/[^/]+$/`. Add `spiffs`, `spiff`, and the `/spiff/:id` pattern:
 - Add `spiffs` and `spiff` to the alternation in the main canvass regex (so it reads `…|challenge|challenges|spiffs|spiff)$/`).
@@ -655,16 +692,16 @@ In `apps/web/src/middleware.ts`, the canvass public-route allowlist ends with a 
 
 > Read the exact current form before editing — match it precisely so no existing route is dropped.
 
-- [ ] **Step 5: Typecheck + lint**
+- [ ] **Step 6: Typecheck + lint**
 
 Run: `cd ~/Sites/savvy-crm && pnpm typecheck 2>&1 | tail -3 && pnpm lint 2>&1 | tail -3`
 Expected: clean (the pre-existing `@savvy/integrations` vapi.ts error, if any, is ignored per spec).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/app/api/canvass/spiffs apps/web/src/app/api/canvass/spiff apps/web/src/middleware.ts
-git commit -m "feat(canvass): spiff endpoints (list/create/mark-paid) + middleware allowlist"
+git add apps/web/src/app/api/canvass/spiffs apps/web/src/app/api/canvass/spiff apps/web/src/app/api/canvass/challenge/route.ts apps/web/src/middleware.ts
+git commit -m "feat(canvass): spiff endpoints + wager/prize passthrough + middleware allowlist"
 ```
 
 ---
@@ -763,16 +800,14 @@ document.getElementById('compNewSpiff')?.addEventListener('click', async () => {
 
 - [ ] **Step 5: Add an optional wager to challenge creation**
 
-In the existing `#compNewChallenge` handler, after the metric is chosen and before the POST, prompt for an optional wager and include it in `meta`:
+In the existing `#compNewChallenge` handler, after the metric is chosen and before the POST, prompt for an optional wager and include `wagerCents` in the POST body (Task 4 added the route-side `wagerCents → meta.wagerCents` passthrough, so the field app just sends a flat `wagerCents` field — NOT a nested `meta`):
 
 ```js
   const wager = Number(prompt('Optional wager in dollars? (blank/0 = none)')) || 0;
-  // …existing POST body, add: meta: wager > 0 ? { wagerCents: Math.round(wager * 100) } : undefined
+  // …existing POST body — add this property:  wagerCents: wager > 0 ? Math.round(wager * 100) : undefined
 ```
 
-Wire `meta` into the challenge POST body (the challenge route already passes `meta` through to `createChallenge`).
-
-> Verify the Phase 2 `POST /api/canvass/challenge` route reads `meta` from the body and forwards it to `createChallenge`. If it does NOT (Phase 2 shipped h2h create without meta), add `meta` passthrough to that route as part of this task and note it in the report — it is required for wagers to reach the DB.
+The existing body already carries `{ kind:'h2h', metric, targetRepId }`; add `wagerCents` alongside them. Do not send a `meta` object from the client — the route builds `meta` server-side.
 
 - [ ] **Step 6: Version bumps**
 
