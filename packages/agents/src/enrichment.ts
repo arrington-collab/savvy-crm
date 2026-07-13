@@ -11,6 +11,7 @@ import {
   findPropertiesNeedingStormproof,
   findLeadIdForProperty,
   recordAgentRun,
+  withAgentRun,
   type PropertyDue,
 } from "@savvy/db";
 import { geocode as defaultGeocode, stormProof as defaultStormProof, type StormProofGateway } from "@savvy/integrations";
@@ -62,18 +63,20 @@ export function makeStormproofEnricher(sp: StormProofGateway = defaultStormProof
       try {
         const [p] = await withTenant(tenantId, (tx) => tx.select().from(property).where(eq(property.id, ref.propertyId)));
         if (!p) return "error";
-        const result = await enrichProperty(
-          { lat: p.lat ?? null, lng: p.lng ?? null, address: p.address, yearBuilt: p.yearBuilt ?? null, roofType: p.roofType ?? null, county: p.county ?? null },
-          sp,
-        );
         const leadId = await findLeadIdForProperty(tenantId, ref.propertyId);
-        await withTenant(tenantId, async (tx) => {
-          await tx.update(property).set({ yearBuilt: result.yearBuilt, roofType: result.roofType, county: result.county }).where(eq(property.id, ref.propertyId));
-          if (leadId) await tx.update(lead).set({ stormEventId: result.stormEventId }).where(eq(lead.id, leadId));
+        const result = await withAgentRun({ tenantId, leadId, agent: "orchestrator", taskKey: "enrich.property" }, async () => {
+          const enriched = await enrichProperty(
+            { lat: p.lat ?? null, lng: p.lng ?? null, address: p.address, yearBuilt: p.yearBuilt ?? null, roofType: p.roofType ?? null, county: p.county ?? null },
+            sp,
+          );
+          await withTenant(tenantId, async (tx) => {
+            await tx.update(property).set({ yearBuilt: enriched.yearBuilt, roofType: enriched.roofType, county: enriched.county }).where(eq(property.id, ref.propertyId));
+            if (leadId) await tx.update(lead).set({ stormEventId: enriched.stormEventId }).where(eq(lead.id, leadId));
+          });
+          return enriched;
         });
         const filled = result.yearBuilt != null;
         await recordEnrichmentAttempt(tenantId, { entityType: "property", entityId: ref.propertyId, enricherKey: "property-stormproof", status: filled ? "filled" : "no_data" });
-        await recordAgentRun({ tenantId, leadId, agent: "orchestrator", taskKey: "enrich.property", status: "ok" });
         return filled ? "filled" : "no_data";
       } catch (e) {
         await recordEnrichmentAttempt(tenantId, { entityType: "property", entityId: ref.propertyId, enricherKey: "property-stormproof", status: "error", detail: e instanceof Error ? e.message : "error" });

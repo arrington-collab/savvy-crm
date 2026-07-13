@@ -29,7 +29,7 @@ import {
 } from "@savvy/db";
 import { getJobCheckins } from "@/lib/crew-queries";
 import Link from "next/link";
-import { parseProductionConfig, computeJobMargin, summarizeJobAutomation, recoverableDepreciationCents } from "@savvy/core";
+import { parseProductionConfig, computeJobMargin, summarizeJobAutomation, recoverableDepreciationCents, heartbeatState, SHOWCASE } from "@savvy/core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
@@ -57,6 +57,9 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 import { SupplierInvoicesPanel } from "./SupplierInvoicesPanel";
 import { ReferralFeeApproval } from "./ReferralFeeApproval";
+import { CardInflight } from "@/components/inflight/CardInflight";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
+import { lastTouchForJobs } from "@/lib/heartbeat-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +86,7 @@ export default async function JobDetailPage({
         valueFinal: job.valueFinal,
         costCents: job.costCents,
         stageEnteredAt: job.stageEnteredAt,
+        createdAt: job.createdAt,
         rescissionHoldUntil: job.rescissionHoldUntil,
         propertyId: job.propertyId,
         companycamProjectId: job.companycamProjectId,
@@ -219,6 +223,9 @@ export default async function JobDetailPage({
   }
 
   const { jobRow, taskRows, commRows, stageEvents, audits, docRows, esignRows, tenantRow, referralPaymentRow } = data;
+
+  const jobTouch = await lastTouchForJobs([id]);
+  const hb = heartbeatState(jobTouch.get(id) ?? null, new Date(jobRow.createdAt), new Date(), SHOWCASE.COLD_DAYS);
 
   // The Job Ledger — registry tasks instantiated for this job + evidence + health.
   const ledger = await getJobLedger(tenantId, id);
@@ -417,6 +424,8 @@ export default async function JobDetailPage({
                 {jobRow.stage}
               </Badge>
               <AgentAvatar persona={resolveAgentForStage(jobRow.stage).persona} size="sm" />
+              <CardInflight kind="job" id={id} />
+              <Heartbeat kind="job" id={id} state={hb} />
             </div>
           </div>
           <div className="text-right">

@@ -1,4 +1,4 @@
-import { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim } from "@savvy/db";
+import { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import {
   measurementReportParseSchema, MEASUREMENT_PARSE_MIN_CONFIDENCE, type MeasurementReportParse,
@@ -34,6 +34,16 @@ export type ParseLeadDocumentDeps = {
   insertMeasurement: (input: { tenantId: string; propertyId: string; areas: Record<string, unknown>; pitch: string | null }) => Promise<string>;
   setStatus: (input: { tenantId: string; documentId: string; status: string; confidence?: number | null }) => Promise<void>;
   attachClaim: (input: { tenantId: string; leadId: string; propertyId: string | null; carrierName: string | null; claimNumber: string | null; acvCents: number | null; rcvCents: number | null; deductibleCents: number | null; lineItems: InsuranceEstimateParse["lines"]; parseConfidence: number }) => Promise<{ claimId: string; created: boolean }>;
+  /**
+   * Wraps the slow parse body with a live agent_run attributed to the lead
+   * (opens `running`, resolves via `resolve` on success). Injected so this
+   * handler stays pure/deps-injected — the real wiring uses `withAgentRun`.
+   */
+  withRun: <T>(
+    meta: { taskKey: string; leadId: string | null },
+    work: () => Promise<T>,
+    resolve: (r: T) => { status: "ok" | "skipped" | "error"; error?: string | null },
+  ) => Promise<T>;
 };
 
 /**
@@ -53,58 +63,70 @@ export async function parseLeadDocumentHandler(
     const doc = await deps.loadDoc(tenantId, documentId);
     if (!doc) return { status: "parse_failed" };
 
-    if (!doc.r2Key) throw new Error("lead document missing storage key");
-    const bytes = await deps.fetchBytes(doc.r2Key);
-
-    if (doc.kind === "measurement_report") {
-      if (!doc.propertyId) throw new Error("measurement document missing property");
-      // measurementReportParseSchema's `.default()` fields give it a wider Input than
-      // Output, which trips inference/assignability through the generic
-      // completeObject<T>(schema: z.ZodType<T>) signature (z.ZodType defaults Input=T).
-      // Pin T explicitly and cast the schema arg through `unknown` — a well-understood
-      // Zod-defaults variance quirk, not a real type-safety gap (the object shape is
-      // identical; only the optional-on-input side differs).
-      const { object: parsed } = await deps.ai.completeObject<MeasurementReportParse>({
-        capability: "reasoning",
-        system: PARSE_SYSTEM,
-        prompt: PARSE_PROMPT,
-        schema: measurementReportParseSchema as unknown as Parameters<typeof deps.ai.completeObject<MeasurementReportParse>>[0]["schema"],
-        file: { bytes, mediaType: "application/pdf" },
-      });
-      if (parsed.confidence < MEASUREMENT_PARSE_MIN_CONFIDENCE) {
-        await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
-        return { status: "unparsed_low_confidence" };
-      }
-      const { confidence, ...areas } = parsed;
-      const measurementId = await deps.insertMeasurement({ tenantId, propertyId: doc.propertyId, areas, pitch: areas.predominantPitch });
-      await deps.setStatus({ tenantId, documentId, status: "parsed", confidence });
-      return { status: "parsed", measurementId, leadId: doc.leadId, propertyId: doc.propertyId };
+    // Unrecognized kinds are a no-op — decide that BEFORE opening a run so we
+    // never flash an in-flight card for a doc we're not going to parse.
+    if (doc.kind !== "measurement_report" && doc.kind !== "insurance_estimate") {
+      return { status: "skipped" };
     }
 
-    if (doc.kind === "insurance_estimate") {
-      if (!doc.leadId) throw new Error("insurance document missing lead");
-      const { object: parsed } = await deps.ai.completeObject<InsuranceEstimateParse>({
-        capability: "reasoning",
-        system: INSURANCE_SYSTEM,
-        prompt: INSURANCE_PROMPT,
-        schema: insuranceEstimateParseSchema as unknown as Parameters<typeof deps.ai.completeObject<InsuranceEstimateParse>>[0]["schema"],
-        file: { bytes, mediaType: "application/pdf" },
-      });
-      if (parsed.confidence < INSURANCE_PARSE_MIN_CONFIDENCE) {
-        await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
-        return { status: "unparsed_low_confidence" };
-      }
-      const { claimId } = await deps.attachClaim({
-        tenantId, leadId: doc.leadId, propertyId: doc.propertyId,
-        carrierName: parsed.carrierName, claimNumber: parsed.claimNumber,
-        acvCents: parsed.acvCents, rcvCents: parsed.rcvCents, deductibleCents: parsed.deductibleCents,
-        lineItems: parsed.lines, parseConfidence: parsed.confidence,
-      });
-      await deps.setStatus({ tenantId, documentId, status: "parsed", confidence: parsed.confidence });
-      return { status: "parsed", claimId, leadId: doc.leadId };
-    }
+    return await deps.withRun(
+      { taskKey: "lead.doc_parse", leadId: doc.leadId },
+      async () => {
+        if (!doc.r2Key) throw new Error("lead document missing storage key");
+        const bytes = await deps.fetchBytes(doc.r2Key);
 
-    return { status: "skipped" };
+        if (doc.kind === "measurement_report") {
+          if (!doc.propertyId) throw new Error("measurement document missing property");
+          // measurementReportParseSchema's `.default()` fields give it a wider Input than
+          // Output, which trips inference/assignability through the generic
+          // completeObject<T>(schema: z.ZodType<T>) signature (z.ZodType defaults Input=T).
+          // Pin T explicitly and cast the schema arg through `unknown` — a well-understood
+          // Zod-defaults variance quirk, not a real type-safety gap (the object shape is
+          // identical; only the optional-on-input side differs).
+          const { object: parsed } = await deps.ai.completeObject<MeasurementReportParse>({
+            capability: "reasoning",
+            system: PARSE_SYSTEM,
+            prompt: PARSE_PROMPT,
+            schema: measurementReportParseSchema as unknown as Parameters<typeof deps.ai.completeObject<MeasurementReportParse>>[0]["schema"],
+            file: { bytes, mediaType: "application/pdf" },
+          });
+          if (parsed.confidence < MEASUREMENT_PARSE_MIN_CONFIDENCE) {
+            await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
+            return { status: "unparsed_low_confidence" as const };
+          }
+          const { confidence, ...areas } = parsed;
+          const measurementId = await deps.insertMeasurement({ tenantId, propertyId: doc.propertyId, areas, pitch: areas.predominantPitch });
+          await deps.setStatus({ tenantId, documentId, status: "parsed", confidence });
+          return { status: "parsed" as const, measurementId, leadId: doc.leadId, propertyId: doc.propertyId };
+        }
+
+        // doc.kind === "insurance_estimate"
+        if (!doc.leadId) throw new Error("insurance document missing lead");
+        const { object: parsed } = await deps.ai.completeObject<InsuranceEstimateParse>({
+          capability: "reasoning",
+          system: INSURANCE_SYSTEM,
+          prompt: INSURANCE_PROMPT,
+          schema: insuranceEstimateParseSchema as unknown as Parameters<typeof deps.ai.completeObject<InsuranceEstimateParse>>[0]["schema"],
+          file: { bytes, mediaType: "application/pdf" },
+        });
+        if (parsed.confidence < INSURANCE_PARSE_MIN_CONFIDENCE) {
+          await deps.setStatus({ tenantId, documentId, status: "unparsed_low_confidence", confidence: parsed.confidence });
+          return { status: "unparsed_low_confidence" as const };
+        }
+        const { claimId } = await deps.attachClaim({
+          tenantId, leadId: doc.leadId, propertyId: doc.propertyId,
+          carrierName: parsed.carrierName, claimNumber: parsed.claimNumber,
+          acvCents: parsed.acvCents, rcvCents: parsed.rcvCents, deductibleCents: parsed.deductibleCents,
+          lineItems: parsed.lines, parseConfidence: parsed.confidence,
+        });
+        await deps.setStatus({ tenantId, documentId, status: "parsed", confidence: parsed.confidence });
+        return { status: "parsed" as const, claimId, leadId: doc.leadId };
+      },
+      (r) =>
+        r.status === "unparsed_low_confidence"
+          ? { status: "skipped" }
+          : { status: "ok" },
+    );
   } catch {
     await deps.setStatus({ tenantId, documentId, status: "parse_failed" }).catch(() => {});
     return { status: "parse_failed" };
@@ -136,6 +158,8 @@ export const parseLeadDocument = inngest.createFunction(
           insertMeasurement: (i) => upsertUploadedMeasurement(i),
           setStatus: (i) => setDocumentParseStatus(i),
           attachClaim: (i) => attachOrCreateLeadClaim(i),
+          withRun: (meta, work, resolve) =>
+            withAgentRun({ tenantId, agent: "orchestrator", taskKey: meta.taskKey, leadId: meta.leadId }, work, { resolve }),
         },
       ),
     );

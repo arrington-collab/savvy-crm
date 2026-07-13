@@ -52,6 +52,8 @@ export default async function CommandCenterPage() {
   const coverage = summarizeAgentCoverage(runWindow, now);
   const skips24 = activity.filter((r) => r.status === "skipped").length;
   const errs = activity.filter((r) => r.status === "error").length;
+  // Real work rate for the orb pulse: runs in the last 60 minutes (never faked).
+  const runsLastHour = runWindow.filter((r) => r.startedAt.getTime() >= now.getTime() - 3_600_000).length;
 
   return (
     <div className="space-y-6">
@@ -127,7 +129,7 @@ export default async function CommandCenterPage() {
         <div className="space-y-6">
           <Card className="p-4">
             <div className="eyebrow mb-1">Orchestrator</div>
-            <SageCore />
+            <SageCore runsLastHour={runsLastHour} />
             <div className="mono mt-2 text-center text-[12px]" style={{ color: "var(--text-muted)" }}>
               {errs} errors · {skips24} skips · {stats.aiRuns} AI runs
             </div>

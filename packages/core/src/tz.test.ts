@@ -1,5 +1,23 @@
 import { test, expect, describe, it } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate } from "./tz";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate, addCalendarDays, startOfLocalDayInTimeZone } from "./tz";
+
+describe("addCalendarDays", () => {
+  it("adds days with month + year wrap and negative steps", () => {
+    expect(addCalendarDays("2026-07-15", 1)).toBe("2026-07-16");
+    expect(addCalendarDays("2026-07-31", 1)).toBe("2026-08-01");
+    expect(addCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addCalendarDays("2026-03-01", -1)).toBe("2026-02-28");
+  });
+});
+
+describe("startOfLocalDayInTimeZone", () => {
+  it("returns the UTC instant of local midnight (Phoenix, UTC-7)", () => {
+    expect(startOfLocalDayInTimeZone("2026-07-15", "America/Phoenix").toISOString()).toBe("2026-07-15T07:00:00.000Z");
+  });
+  it("is DST-correct (New York, summer UTC-4)", () => {
+    expect(startOfLocalDayInTimeZone("2026-07-15", "America/New_York").toISOString()).toBe("2026-07-15T04:00:00.000Z");
+  });
+});
 
 // Phoenix is UTC-7 year-round (no DST); Denver is UTC-6 in July (MDT).
 test("returns the local hour (0-23) for the given IANA zone", () => {

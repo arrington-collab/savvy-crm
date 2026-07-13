@@ -14,6 +14,7 @@ function makeDeps(over: Partial<ParseLeadDocumentDeps> = {}): ParseLeadDocumentD
     insertMeasurement: vi.fn().mockResolvedValue("m1"),
     setStatus: vi.fn().mockResolvedValue(undefined),
     attachClaim: vi.fn().mockResolvedValue({ claimId: "c1", created: true }),
+    withRun: async (_meta, work) => work(),
     ...over,
   };
 }
@@ -72,5 +73,18 @@ describe("parseLeadDocumentHandler", () => {
     expect(res.status).toBe("unparsed_low_confidence");
     expect(deps.attachClaim).not.toHaveBeenCalled();
     expect(deps.setStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "unparsed_low_confidence" }));
+  });
+
+  it("wraps the slow parse in the injected withRun instrumenter, attributed to the lead", async () => {
+    const withRun: ParseLeadDocumentDeps["withRun"] = vi.fn(async (_meta, work) => work());
+    const deps = makeDeps({ withRun });
+    const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
+    expect(res).toEqual({ status: "parsed", measurementId: "m1", leadId: "l1", propertyId: "p1" });
+    expect(withRun).toHaveBeenCalledOnce();
+    expect(withRun).toHaveBeenCalledWith(
+      { taskKey: "lead.doc_parse", leadId: "l1" },
+      expect.any(Function),
+      expect.any(Function),
+    );
   });
 });

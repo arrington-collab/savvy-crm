@@ -43,6 +43,7 @@
   /* accent scale + sage */
   --accent-gold: #d8a85f;
   --accent-bright: #e7c188;
+  --status-running: #7db8e8;
   --accent-deep: #c7a06a;
   --accent-006: rgba(216, 168, 95, 0.06);
   --accent-010: rgba(216, 168, 95, 0.1);
@@ -128,12 +129,18 @@ body {
 @keyframes ck-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes ck-spin { to { transform: rotate(360deg); } }
 @keyframes ck-spinrev { to { transform: rotate(-360deg); } }
+/* orb breath: period comes from --pulse-rate (real runs/hour). glow: a one-shot
+   earn celebration on a coverage cell that just went fail/stale → pass. */
+@keyframes ck-orbpulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.06); opacity: 1; } }
+@keyframes ck-glow { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-ok) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 
 @media (prefers-reduced-motion: no-preference) {
   .anim-pulse { animation: ck-pulse 2.4s ease-in-out infinite; }
   .anim-blink { animation: ck-blink 1s step-end infinite; }
   .anim-spin { animation: ck-spin 14s linear infinite; }
   .anim-spinrev { animation: ck-spinrev 20s linear infinite; }
+  .anim-orbpulse { animation: ck-orbpulse var(--pulse-rate, 6s) ease-in-out infinite; }
+  .anim-glow { animation: ck-glow 1.6s ease-out 2; border-radius: 8px; }
 }
 
 /* ── shared text helpers ──────────────────────────────────────────────────── */

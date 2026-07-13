@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
+import { InflightProvider } from "@/components/inflight/InflightProvider";
 import { needsOnboarding } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
@@ -24,13 +25,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const rollup = await loadTenantRollup().catch(() => null);
   const decisionCount = rollup?.openExceptionCount ?? 0;
   return (
-    <div className="flex min-h-screen">
-      <Sidebar decisionCount={decisionCount} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar authEnabled={authEnabled} />
-        <main className="flex-1 p-6">{children}</main>
+    <InflightProvider>
+      <div className="flex min-h-screen">
+        <Sidebar decisionCount={decisionCount} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar authEnabled={authEnabled} />
+          <main className="flex-1 p-6">{children}</main>
+        </div>
+        <AskSage />
       </div>
-      <AskSage />
-    </div>
+    </InflightProvider>
   );
 }

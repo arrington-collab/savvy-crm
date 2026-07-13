@@ -12,6 +12,7 @@ import { resolveAgent } from "@/lib/agents";
 import { LeadActions } from "@/components/leads/LeadActions";
 import { Breadcrumb } from "@/components/cockpit/Breadcrumb";
 import { LeadEnrichmentCard } from "@/components/LeadEnrichmentCard";
+import { EnrichmentLive } from "@/components/leads/EnrichmentLive";
 import { RoofTypeEditor } from "./RoofTypeEditor";
 import { RoofReplacementEditor } from "./RoofReplacementEditor";
 import { LeadNotes } from "./LeadNotes";
@@ -22,8 +23,11 @@ import { LeadArtifactsSections } from "./LeadArtifacts";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
-import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend } from "@savvy/core";
+import { buildLeadTimelineFeed, parseLeadsListReturn, parseScoringConfig, scoreBandLegend, heartbeatState, SHOWCASE } from "@savvy/core";
 import { ScoreScaleTooltip } from "./ScoreScaleTooltip";
+import { CardInflight } from "@/components/inflight/CardInflight";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
+import { lastTouchForLeads } from "@/lib/heartbeat-queries";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -48,6 +52,9 @@ export default async function LeadDetailPage({
     getScoringSettings(tenantId),
   ]);
   if (!detail) notFound();
+
+  const leadTouch = await lastTouchForLeads([id]);
+  const hb = heartbeatState(leadTouch.get(id) ?? null, new Date(detail.createdAt), new Date(), SHOWCASE.COLD_DAYS);
 
   const bandLegend = scoreBandLegend(parseScoringConfig(scoringSettings));
 
@@ -77,7 +84,13 @@ export default async function LeadDetailPage({
       <PageHeader
         eyebrow="Lead"
         title={detail.customerName ?? "Lead"}
-        right={<StatusBadge status={detail.status} />}
+        right={
+          <div className="flex items-center gap-1.5">
+            <StatusBadge status={detail.status} />
+            <CardInflight kind="lead" id={id} />
+            <Heartbeat kind="lead" id={id} state={hb} />
+          </div>
+        }
       />
 
       {/* 1 — Contact / address + map (+ owner) */}
@@ -150,6 +163,7 @@ export default async function LeadDetailPage({
       <div className="space-y-4" data-section="roof">
         <RoofTypeEditor leadId={detail.id} propertyId={detail.propertyId} current={detail.roofType} secondary={detail.roofTypeSecondary} />
         <RoofReplacementEditor leadId={detail.id} propertyId={detail.propertyId} at={detail.lastRoofReplacementAt} source={detail.lastRoofReplacementSource} />
+        <EnrichmentLive leadId={id} />
         <LeadEnrichmentCard
           scoreFeatures={detail.scoreFeatures}
           yearBuilt={detail.yearBuilt}

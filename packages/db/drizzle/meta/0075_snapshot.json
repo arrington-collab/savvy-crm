@@ -1,6 +1,6 @@
 {
-  "id": "0bd50eab-9b1f-4de9-b00e-a87a5422fc0d",
-  "prevId": "a60b8e70-c601-4280-859e-d3c287705176",
+  "id": "a60b8e70-c601-4280-859e-d3c287705176",
+  "prevId": "0f175386-d14c-4b4f-bd6a-33aaf5d45740",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -82,13 +82,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'platform'"
-        },
-        "demo": {
-          "name": "demo",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "timezone": {
           "name": "timezone",
@@ -5099,6 +5092,72 @@
           "columns": [
             {
               "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_started_idx": {
+          "name": "agent_run_started_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_job_idx": {
+          "name": "agent_run_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_lead_idx": {
+          "name": "agent_run_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_status_idx": {
+          "name": "agent_run_status_idx",
+          "columns": [
+            {
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

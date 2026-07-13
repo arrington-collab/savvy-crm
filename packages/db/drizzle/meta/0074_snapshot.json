@@ -1,6 +1,6 @@
 {
-  "id": "a60b8e70-c601-4280-859e-d3c287705176",
-  "prevId": "0f175386-d14c-4b4f-bd6a-33aaf5d45740",
+  "id": "0f175386-d14c-4b4f-bd6a-33aaf5d45740",
+  "prevId": "c4789932-6aaa-4132-a8c3-033cc1447e4d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5101,6 +5101,72 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "agent_run_started_idx": {
+          "name": "agent_run_started_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_job_idx": {
+          "name": "agent_run_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_lead_idx": {
+          "name": "agent_run_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_run_status_idx": {
+          "name": "agent_run_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8364,12 +8430,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "client_id": {
-          "name": "client_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -8408,28 +8468,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "canvass_territory_client_uniq": {
-          "name": "canvass_territory_client_uniq",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "client_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"canvass_territory\".\"client_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

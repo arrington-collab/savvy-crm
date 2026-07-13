@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { getMoneyKpis, getVerificationProof } from "@/lib/money-queries";
 import { summarizeVerification } from "@savvy/core";
+import { ProofRows } from "@/components/money/ProofRows";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -13,19 +14,6 @@ function usdK(cents: number): string {
   const k = cents / 100000;
   return k >= 1 ? `$${k.toFixed(1)}k` : usd(cents);
 }
-function ago(iso: string): string {
-  const hrs = Math.round((Date.now() - Date.parse(iso)) / 3_600_000);
-  if (hrs < 1) return "just now";
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
-
-const STATUS_STYLE: Record<string, { color: string; glyph: string }> = {
-  pass: { color: "var(--status-ok)", glyph: "✓" },
-  fail: { color: "var(--status-error)", glyph: "✗" },
-  stale: { color: "var(--status-skip)", glyph: "◐" },
-  skip: { color: "var(--text-faint)", glyph: "–" },
-};
 
 const DRILLDOWNS = [
   { href: "/invoices", label: "Invoices" },
@@ -120,23 +108,7 @@ export default async function MoneyPage() {
             Checks populate after the first nightly sweep runs the evidence invariants.
           </p>
         ) : (
-          <div className="mt-3">
-            {proof.map((p) => {
-              const s = STATUS_STYLE[p.status] ?? STATUS_STYLE.skip;
-              return (
-                <div key={p.checkKey} className="flex items-baseline justify-between gap-3 border-b py-2 last:border-b-0" style={{ borderColor: "var(--border-panel)" }} data-testid="proof-row" data-status={p.status}>
-                  <div className="min-w-0">
-                    <span className="text-[13px]">{p.label}</span>
-                    <span className="mono ml-2 text-[10px]" style={{ color: "var(--text-faint)" }}>{p.checkKey}</span>
-                    {p.status === "fail" && p.message ? <div className="mono mt-0.5 text-[11px]" style={{ color: "var(--status-error)" }}>{p.message}</div> : null}
-                  </div>
-                  <span className="mono shrink-0 text-[11px]" style={{ color: s.color }} title={`ran ${ago(p.ranAt)}`}>
-                    {s.glyph} {p.status.toUpperCase()}{p.refCount > 0 ? ` · ${p.refCount}` : ""}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <ProofRows initial={proof} />
         )}
         <p className="mono mt-3 text-[11px]" style={{ color: "var(--text-faint)" }}>
           Checker ≠ doer — agents write the numbers, deterministic SQL + external reconciliation verify them. Failures become exceptions in Today.

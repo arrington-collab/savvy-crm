@@ -1,15 +1,16 @@
 import { withTenant, job, jobStageEvent, jobTask, taskRegistry, tenantTaskConfig, customer, property, invoice, tenant, gatherStageEvidence, eq, and, asc, desc, sql } from "@savvy/db";
-import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, firstUnblockedIncomplete, effectiveMode, isManual, PIPELINE_COLUMNS, type PipelineColumn, type WaitingOnTask, type JobHealth, type JobStage, type JobType } from "@savvy/core";
+import { JOB_STAGE, parseJobsConfig, deriveJobHealth, sumCardValues, weightedPipeline, wowPct, pipelineGrossAsOf, parsePipelineConfig, computeVelocity, jobStageToColumn, deriveWaitingOn, missingEvidenceFor, firstUnblockedIncomplete, effectiveMode, isManual, heartbeatState, SHOWCASE, PIPELINE_COLUMNS, type PipelineColumn, type WaitingOnTask, type JobHealth, type JobStage, type JobType, type HeartbeatState } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getLeads } from "./leads-queries";
 import { resolveAgentForStage, agentLabel, resolveTaskOwner } from "./agents";
+import { lastTouchForJobs, lastTouchForLeads } from "./heartbeat-queries";
 
 export type BoardCard = {
   id: string; stage: string; customerName: string; address: string;
   valueEstimate: number | null; stageEnteredAt: string;
   // Real owning agent = the most recent agent_run on this job (null if none yet).
   agent: string | null; taskKey: string | null;
-  type: string; health: JobHealth;
+  type: string; health: JobHealth; heartbeat: HeartbeatState;
 };
 
 export async function getBoard(): Promise<Record<string, BoardCard[]>> {
@@ -17,7 +18,7 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
   const rows = await withTenant(tenantId, (tx) =>
     tx.select({
       id: job.id, stage: job.stage, valueEstimate: job.valueEstimate,
-      stageEnteredAt: job.stageEnteredAt, type: job.type,
+      stageEnteredAt: job.stageEnteredAt, type: job.type, createdAt: job.createdAt,
       customerName: customer.name, address: property.address,
       agent: sql<string | null>`(select agent from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
       taskKey: sql<string | null>`(select task_key from agent_run where job_id = ${job.id} order by started_at desc limit 1)`,
@@ -34,6 +35,7 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
   );
   const config = parseJobsConfig((t?.settings as { jobs?: unknown } | undefined)?.jobs);
   const now = new Date();
+  const touch = await lastTouchForJobs(rows.map((r) => r.id));
 
   const byStage: Record<string, BoardCard[]> = Object.fromEntries(JOB_STAGE.map((s) => [s, []]));
   for (const r of rows) {
@@ -53,6 +55,7 @@ export async function getBoard(): Promise<Record<string, BoardCard[]>> {
       valueEstimate: r.valueEstimate, stageEnteredAt: (r.stageEnteredAt as Date).toISOString(),
       agent: r.agent ?? null, taskKey: r.taskKey ?? null,
       type: r.type, health,
+      heartbeat: heartbeatState(touch.get(r.id) ?? null, new Date(r.createdAt as unknown as string), now, SHOWCASE.COLD_DAYS),
     });
   }
   return byStage;
@@ -63,7 +66,7 @@ export type PipelineBoardCard = {
   name: string; address: string; valueCents: number | null;
   isClaim: boolean; isStuck: boolean;
   waitingLabel: string; waitingOwner: string; waitingIsHuman: boolean;
-  href: string;
+  href: string; heartbeat: HeartbeatState;
 };
 export type PipelineBoardData = {
   columns: Record<PipelineColumn, PipelineBoardCard[]>;
@@ -111,6 +114,9 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
     ),
     getLeads(),
   ]);
+
+  const now = new Date();
+  const leadTouch = await lastTouchForLeads(leads.map((l) => l.id));
 
   // Group in memory (still phase/taskId-ordered within each group, since the
   // query's global order is preserved under per-jobId filtering) and pick the
@@ -164,7 +170,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
         name: c.customerName, address: c.address, valueCents: c.valueEstimate,
         isClaim: c.type === "insurance", isStuck: c.health.stuck || c.health.late,
         waitingLabel: w.label, waitingOwner: owner, waitingIsHuman: w.isHuman,
-        href: `/jobs/${c.id}`,
+        href: `/jobs/${c.id}`, heartbeat: c.heartbeat,
       });
     }
   }
@@ -178,6 +184,7 @@ export async function getPipelineBoard(): Promise<PipelineBoardData> {
       isClaim: false, isStuck: false,
       waitingLabel: LEAD_WAITING[l.status], waitingOwner: "agents", waitingIsHuman: false,
       href: `/leads/${l.id}`,
+      heartbeat: heartbeatState(leadTouch.get(l.id) ?? null, new Date(l.createdAt), now, SHOWCASE.COLD_DAYS),
     });
   }
 

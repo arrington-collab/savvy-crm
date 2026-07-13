@@ -10,7 +10,10 @@ import { NewCallButton } from "./NewCallButton";
 import { LeadsScrollRestore } from "./LeadsScrollRestore";
 import { ago } from "@/lib/format";
 import { leadStatusPersona } from "@/lib/agents";
-import { LEAD_STATUS, type LeadStatus, buildLeadRowHref } from "@savvy/core";
+import { LEAD_STATUS, type LeadStatus, buildLeadRowHref, heartbeatState, SHOWCASE } from "@savvy/core";
+import { CardInflight } from "@/components/inflight/CardInflight";
+import { Heartbeat } from "@/components/heartbeat/Heartbeat";
+import { lastTouchForLeads } from "@/lib/heartbeat-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,12 @@ export default async function LeadsPage({
   const [counts, leads] = await Promise.all([getLeadFunnelCounts(), getLeads({ status, sort })]);
   const total = LEAD_STATUS.reduce((n, s) => n + (counts[s] ?? 0), 0);
   const statusQs = status ? `&status=${status}` : "";
+  const leadIds = leads.map((l) => l.id);
+  const touch = await lastTouchForLeads(leadIds);
+  const now = new Date();
+  const hbByLead = new Map(
+    leads.map((l) => [l.id, heartbeatState(touch.get(l.id) ?? null, new Date(l.createdAt), now, SHOWCASE.COLD_DAYS)])
+  );
 
   return (
     <div className="space-y-6">
@@ -96,7 +105,11 @@ export default async function LeadsPage({
                 <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>{l.source ?? "—"}</span>
                 <span><StatusBadge status={l.status} /></span>
                 <span className="mono text-xs" style={{ color: "var(--text-muted)" }}>{ago(l.createdAt)}</span>
-                <span><AgentAvatar persona={persona} size="sm" dimmed={dimmed} /></span>
+                <span className="flex items-center gap-1.5">
+                  <AgentAvatar persona={persona} size="sm" dimmed={dimmed} />
+                  <CardInflight kind="lead" id={l.id} />
+                  <Heartbeat kind="lead" id={l.id} state={hbByLead.get(l.id)!} interactive={false} />
+                </span>
               </Link>
             );
           })
