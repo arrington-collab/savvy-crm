@@ -41,7 +41,7 @@ export function MonthGrid({ appts, anchor, tz, onSelect, onReschedule }: {
     onReschedule(appt.id, applyDragToMonth({ startsAt: appt.startsAt, endsAt: appt.endsAt }, overDate, tz));
   }
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id="schedule-month-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
       <div data-testid="month-grid">
         <div className="grid grid-cols-7">
           {DOW.map((d) => <div key={d} className="mono px-2 py-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{d}</div>)}

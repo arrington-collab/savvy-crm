@@ -215,7 +215,7 @@ export function Board({ initialBoard, focusStage }: { initialBoard: Record<strin
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id="jobs-board-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="mb-3 flex items-center gap-3">
         <button
           onClick={() => setOnlyAttention((v) => !v)}
