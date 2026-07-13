@@ -34,6 +34,7 @@ export { chargebackCommissionsForJob } from "./lifecycle/commission-chargeback";
 export { recordReferralPayment, approveReferralPayment, REFERRAL_FEE_APPROVAL_TASK_KEY } from "./lifecycle/referral-payment";
 export { recomputeJobActualCost, saveParsedSupplierInvoice, getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed, getMaterialOrderSnapshot, saveGuardedSupplierInvoice, listUnmatchedSupplierInvoices, listSupplierInvoicesForJob } from "./lifecycle/supplier-invoice";
 export { createCreditRequest, setCreditRequestSent, listOpenSentCreditRequests, markCreditRequestCredited, getCreditRecoverySummary, listDraftedCreditRequests } from "./lifecycle/credit-request";
+export { logBallparkQuote, loadBallparkPairs } from "./lifecycle/ballpark";
 export { markEsignBySubmission } from "./lifecycle/esign";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";

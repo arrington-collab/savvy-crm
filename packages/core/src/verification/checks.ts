@@ -546,6 +546,19 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
   ),
+
+  // Slice 2 (30-second ballpark) trust invariant: a retail ballpark must NEVER
+  // be quoted on an insurance-claim lead (carrier pricing governs). Any
+  // ballpark.quoted audit row for a lead that has a claim is a guardrail
+  // violation that also corrupts the calibration data. Cross-cutting → UNBOUND.
+  "ballpark.calibration": invariant(
+    "ballpark.calibration",
+    `select a.entity_id as id
+       from audit_log a
+       join claim c on c.lead_id = a.entity_id::uuid and c.tenant_id = a.tenant_id
+      where a.tenant_id = $1 and a.action = 'ballpark.quoted' and a.entity_type = 'lead'`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

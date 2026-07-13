@@ -3,6 +3,7 @@ import { listLeadDocuments, getDocumentParseSummaries, getScoringSettings } from
 import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
 import { getTenantId } from "@/lib/tenant";
+import { computeLeadBallpark } from "@/lib/ballpark";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { StatusBadge } from "@/components/cockpit/StatusBadge";
 import { AgentAvatar } from "@/components/cockpit/AgentAvatar";
@@ -73,6 +74,11 @@ export default async function LeadDetailPage({
     documents,
   });
 
+  // Slice 2: a quiet retail ballpark chip for the rep (config-gated, never on
+  // claim leads, null below the confidence floor). Read-only — not logged here.
+  const ballpark = await computeLeadBallpark(tenantId, id);
+  const usd = (c: number) => `$${Math.round(c / 100).toLocaleString("en-US")}`;
+
   return (
     <div className="space-y-6" data-testid="lead-detail">
       <div className="flex items-center justify-between">
@@ -86,6 +92,15 @@ export default async function LeadDetailPage({
         title={detail.customerName ?? "Lead"}
         right={
           <div className="flex items-center gap-1.5">
+            {ballpark && (
+              <span
+                className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
+                title={`Ballpark from ${ballpark.basis} — ${ballpark.confidence} confidence. ${ballpark.line}`}
+                data-testid="ballpark-chip"
+              >
+                ballpark {usd(ballpark.lowCents)}–{usd(ballpark.highCents)} ({ballpark.basis})
+              </span>
+            )}
             <StatusBadge status={detail.status} />
             <CardInflight kind="lead" id={id} />
             <Heartbeat kind="lead" id={id} state={hb} />

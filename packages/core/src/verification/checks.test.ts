@@ -56,3 +56,23 @@ describe("activity.attribution", () => {
     expect(result.refs).toEqual([]);
   });
 });
+
+describe("ballpark.calibration", () => {
+  it("is registered", () => {
+    expect(getCheck("ballpark.calibration")).toBeDefined();
+  });
+
+  it("fails with a lead ref when a ballpark was quoted on a claim lead", async () => {
+    const check = getCheck("ballpark.calibration")!;
+    const result = await check(ctx([{ id: "lead1" }]));
+    expect(result.status).toBe("fail");
+    expect(result.refs).toEqual([{ type: "lead", ref: "lead1" }]);
+  });
+
+  it("passes when no ballpark was quoted on a claim lead", async () => {
+    const check = getCheck("ballpark.calibration")!;
+    const result = await check(ctx([]));
+    expect(result.status).toBe("pass");
+    expect(result.refs).toEqual([]);
+  });
+});
