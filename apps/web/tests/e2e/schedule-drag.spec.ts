@@ -43,12 +43,13 @@ async function seedAppt(opts: {
   dayOffset?: number;
   startHour?: number;
   endHour?: number;
-}): Promise<{ apptId: string; startsAt: Date }> {
+}): Promise<{ apptId: string; startsAt: Date; custName: string }> {
   const { assigneeUserId, dayOffset = 1, startHour = 9, endHour = 10 } = opts;
 
+  const custName = `DragCust-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const [cust] = await adminDb
     .insert(customer)
-    .values({ tenantId, name: `DragCust-${Date.now()}`, phone: "+15555551234" })
+    .values({ tenantId, name: custName, phone: "+15555551234" })
     .returning();
 
   const [prop] = await adminDb
@@ -78,7 +79,7 @@ async function seedAppt(opts: {
     })
     .returning();
 
-  return { apptId: appt!.id, startsAt };
+  return { apptId: appt!.id, startsAt, custName };
 }
 
 // ---------------------------------------------------------------------------
@@ -92,9 +93,20 @@ async function dragToTarget(
   source: import("@playwright/test").Locator,
   target: import("@playwright/test").Locator,
 ) {
+  // page.mouse.* does NOT auto-scroll like locator.click() — a source below the
+  // fold gets a mousedown at off-viewport coordinates that hits nothing and the
+  // drag silently no-ops (bit us in CI where the block rendered at y≈837 in a
+  // 720px viewport). Scroll first, then measure.
+  await source.scrollIntoViewIfNeeded();
   const srcBox = await source.boundingBox();
   const tgtBox = await target.boundingBox();
   if (!srcBox || !tgtBox) throw new Error("Could not get bounding boxes for drag");
+  const vp = page.viewportSize();
+  if (vp && (srcBox.y + srcBox.height / 2 > vp.height || tgtBox.y + tgtBox.height / 2 > vp.height)) {
+    throw new Error(
+      `Drag endpoints off-viewport: src y=${Math.round(srcBox.y)} tgt y=${Math.round(tgtBox.y)} vp=${vp.height}`,
+    );
+  }
 
   const sx = srcBox.x + srcBox.width / 2;
   const sy = srcBox.y + srcBox.height / 2;
@@ -218,7 +230,7 @@ test("dragging onto a busy crew reverts with a toast", async ({ page }) => {
 
 test("drag a week block to another day", async ({ page }) => {
   const userId = await seedCrewUser("WeekDrag");
-  const { startsAt } = await seedAppt({ assigneeUserId: userId, dayOffset: 1 });
+  const { startsAt, custName } = await seedAppt({ assigneeUserId: userId, dayOffset: 1 });
 
   const origDate = toCivilDate(startsAt.toISOString(), TZ);
   // Target: dayOffset 3 from Monday (Wednesday) in the same week.
@@ -233,14 +245,17 @@ test("drag a week block to another day", async ({ page }) => {
   await expect(origCol).toBeVisible();
   await expect(targetCol).toBeVisible();
 
-  const block = origCol.getByTestId("appt-block").first();
+  // Drag OUR seeded block, not .first() — the shared e2e tenant accumulates other
+  // specs' appointments on the same day, and dragging a foreign block can be
+  // rejected server-side (slot rules for its assignee).
+  const block = origCol.getByTestId("appt-block").filter({ hasText: custName });
   await expect(block).toBeVisible();
 
   await dragToTarget(page, block, targetCol);
 
-  // After reschedule + revalidate, a block appears under the target column.
-  // Note: week-drag positional math relies on real pixel heights from the browser;
-  // if the drag registers but on the wrong day, the assertion falls back to
-  // checking ANY block in the target col (state-based, not position-based).
-  await expect(targetCol.getByTestId("appt-block").first()).toBeVisible({ timeout: 10_000 });
+  // After reschedule + revalidate, OUR block appears under the target column
+  // (identity-based: any foreign block in the target col must not pass the test).
+  await expect(targetCol.getByTestId("appt-block").filter({ hasText: custName })).toBeVisible({
+    timeout: 10_000,
+  });
 });
