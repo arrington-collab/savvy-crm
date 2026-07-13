@@ -1,5 +1,6 @@
 import "server-only";
-import { withTenant, ensurePriceBook, getCurrentPriceBookTx } from "@savvy/db";
+import { withTenant, ensurePriceBook, getCurrentPriceBookTx, ensureTierProducts, tierProductsNeedingCosts, deriveCostDriftDiff, tierProduct, priceBookVersion, tenant, desc, eq } from "@savvy/db";
+import { parseEstimateConfig } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
 export async function listPriceBook() {
@@ -13,10 +14,6 @@ export async function listPriceBook() {
 /** Everything the Library price-book page needs beyond the item list. */
 export async function getPriceBookMeta() {
   const tenantId = await getTenantId();
-  const { ensureTierProducts, tierProductsNeedingCosts, deriveCostDriftDiff, tierProduct, priceBookVersion, desc } =
-    await import("@savvy/db");
-  const { parseEstimateConfig } = await import("@savvy/core");
-
   await ensureTierProducts(tenantId); // lazy-seed for tenants pre-dating the seed
 
   const [tiers, versions, needsCosts] = await Promise.all([
@@ -27,11 +24,9 @@ export async function getPriceBookMeta() {
     tierProductsNeedingCosts(tenantId),
   ]);
 
-  const [t] = await withTenant(tenantId, async (tx) => {
-    const { tenant } = await import("@savvy/db");
-    const { eq } = await import("@savvy/db");
-    return tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
-  });
+  const [t] = await withTenant(tenantId, (tx) =>
+    tx.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId)),
+  );
   const floor = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate).marginFloorBps;
   const drift = await deriveCostDriftDiff(tenantId, { defaultMarginFloorBps: floor });
 

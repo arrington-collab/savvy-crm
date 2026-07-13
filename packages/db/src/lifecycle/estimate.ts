@@ -21,6 +21,7 @@ import {
 } from "@savvy/core";
 import { markJobTaskDoneTx } from "./job-tasks";
 import { getCurrentPriceBookTx } from "./price-book";
+import { ensureEstimateLink } from "./estimate-page";
 
 type CreateEstimateInput = {
   tenantId: string;
@@ -209,7 +210,6 @@ export async function setEstimateStatus(input: {
     // to a job (post-acceptance / legacy rows).
     if (row && input.status === "sent") {
       // Slice 2: every sent estimate gets its tokenized homeowner page link.
-      const { ensureEstimateLink } = await import("./estimate-page");
       await ensureEstimateLink({ tenantId: input.tenantId, estimateId: input.estimateId });
     }
     if (row && input.status === "sent" && row.jobId) {

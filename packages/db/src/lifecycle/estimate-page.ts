@@ -2,7 +2,7 @@
 // homeowner's tier/color selection. The page route itself lives in apps/web;
 // this is the DB truth those routes call.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { withTenant } from "../tenant";
 import { adminDb } from "../admin-client";
@@ -10,6 +10,11 @@ import { bookingLink } from "../schema/booking-link";
 import { estimate } from "../schema/finance";
 import { tierProduct } from "../schema/pricing";
 import { randomShortCode, type TierEstimate } from "@savvy/core";
+import { customer, property, lead } from "../schema/crm";
+import { job } from "../schema/jobs";
+import { tenant } from "../schema/tenancy";
+import { license } from "../schema/compliance";
+import { document } from "../schema/ops";
 
 // Deterministic per-estimate token (estimateId + HMAC) so ensureEstimateLink is
 // naturally idempotent (same estimate → same token → one row) and resolution is
@@ -103,12 +108,6 @@ export async function setEstimateSelection(input: {
 
 /** Everything the public estimate page needs, in one tenant-scoped read. */
 export async function getEstimatePageData(tenantId: string, estimateId: string) {
-  const { customer, property } = await import("../schema/crm");
-  const { tenant } = await import("../schema/tenancy");
-  const { license } = await import("../schema/compliance");
-  const { document } = await import("../schema/ops");
-  const { or, and: andOp, eq: eqOp } = await import("drizzle-orm");
-
   return withTenant(tenantId, async (tx) => {
     const [est] = await tx.select().from(estimate).where(eq(estimate.id, estimateId));
     if (!est) return null;
@@ -117,11 +116,9 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
     // The customer hangs off the lead (lead-stage) or the job (post-accept).
     let customerId: string | null = null;
     if (est.leadId) {
-      const { lead } = await import("../schema/crm");
       const [l] = await tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, est.leadId));
       customerId = l?.customerId ?? null;
     } else if (est.jobId) {
-      const { job } = await import("../schema/jobs");
       const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, est.jobId));
       customerId = j?.customerId ?? null;
     }
@@ -141,14 +138,14 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
     // Homeowner-visible photos: QC-passed only. (The dedicated customer-safe
     // flag arrives with Production Pulse — until then QC-passed is the gate.)
     const scope = or(
-      est.leadId ? eqOp(document.leadId, est.leadId) : undefined,
-      est.jobId ? eqOp(document.jobId, est.jobId) : undefined,
+      est.leadId ? eq(document.leadId, est.leadId) : undefined,
+      est.jobId ? eq(document.jobId, est.jobId) : undefined,
     );
     const photos = scope
       ? await tx
           .select({ id: document.id, label: document.label, mime: document.mime, r2Key: document.r2Key })
           .from(document)
-          .where(andOp(eqOp(document.kind, "photo"), eqOp(document.qcStatus, "passed"), scope))
+          .where(and(eq(document.kind, "photo"), eq(document.qcStatus, "passed"), scope))
       : [];
 
     return { estimate: est, companyName: t?.name ?? "", settings: t?.settings, customerName: cust?.name ?? null, property: prop ?? null, licenses, products, photos: photos.filter((p) => p.r2Key) };

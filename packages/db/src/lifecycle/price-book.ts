@@ -1,6 +1,7 @@
-import { eq, isNull, desc } from "drizzle-orm";
+import { eq, isNull, desc, gte } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { priceBookItem, priceBookVersion, tierProduct } from "../schema/pricing";
+import { supplierInvoice } from "../schema/supplier-invoice";
 import { DEFAULT_PRICE_BOOK, DEFAULT_TIER_PRODUCTS, proposePriceBookDiff } from "@savvy/core";
 
 /** Seeds the built-in catalog for a tenant the first time. Idempotent via onConflictDoNothing. */
@@ -183,8 +184,6 @@ export async function deriveCostDriftDiff(
   tenantId: string,
   opts: { defaultMarginFloorBps: number; windowDays?: number },
 ): Promise<ReturnType<typeof proposePriceBookDiff>> {
-  const { supplierInvoice } = await import("../schema/supplier-invoice");
-  const { gte } = await import("drizzle-orm");
   const since = new Date(Date.now() - (opts.windowDays ?? 30) * 86_400_000);
 
   return withTenant(tenantId, async (tx) => {
