@@ -519,6 +519,55 @@
       "when": 1783753516410,
       "tag": "0073_large_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1783806055929,
+      "tag": "0074_rare_kinsey_walden",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1783807829144,
+      "tag": "0075_adorable_champions",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1783836815089,
+      "tag": "0076_tenant_demo",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1783871808634,
+      "tag": "0077_mature_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1783894084821,
+      "tag": "0078_bumpy_naoko",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1783898047429,
+      "tag": "0079_chemical_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1783904375707,
+      "tag": "0080_sleepy_blade",
+      "breakpoints": true
     }
   ]
 }

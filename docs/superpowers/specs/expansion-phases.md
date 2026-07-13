@@ -121,6 +121,51 @@ Suppliers are notorious for not honoring agreed pricing, and landed cost varies 
 | 339 | Rebate tracking: manufacturer/supplier volume rebates accrued as expected receivables with claim-window clocks | VERA | FA | invariant: no rebate claim window expires unclaimed |
 | 340 | Supplier scorecard: delivery reliability, error rate, credit responsiveness — feeds the selector as a tiebreaker | MILO | FA | quarterly artifact |
 
+## Phase 26 — Margin & Market (owner-approved 2026-07-11)
+
+### 26a · Mobilization Blitz (crew-on-the-street economics)
+The week of a build, marginal cost to sell the same street is near zero. Trigger:
+production scheduled.
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 342 | Blitz orchestrator: on production scheduling, build the audience — closest 25–50 homes (tenant config) by geocode, deduped against suppression/do-not-mail | REMY | FA | invariant: every scheduled build spawns a blitz or logged exclusion |
+| 343 | Three postcard waves via PostGrid timed to arrive-by-start / during-build / days-after windows (USPS 1–3d local — windows, not exact days). ~$129/job books as job-attributed marketing spend; auto-approved under a per-job blitz cap (config), card above | REMY | FA | reconciled: pieces == audience × waves; spend within cap |
+| 344 | Canvass tie-in: auto-create the day-before/day-of territory + route around the job in the canvass app, with context ("we're roofing #14 through Friday — mobilization discount this week") | SCOUT | FA | invariant: every blitz has its canvass territory pushed |
+| 345 | Facebook boost card: auto-generated creative (street-level framing; homeowner-consent flag required for any job photo; never a house number) + one-tap manual boost card day-before + day-of. NO ad-API automation (payout-gated out) | REMY | AS | executed per blitz; consent invariant: zero creatives using an unconsented customer's job |
+| 346 | Blitz measurement: `mobilization` source tag on resulting leads; CAC per blitz and rolling ratio vs the 1-roof-per-7-jobs target in the weekly digest | VERA | FA | invariant: every blitz lead carries attribution; quarterly report artifact |
+
+### 26b · Material reconciliation & returns
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 347 | Ordered-vs-used reconciliation: crew EOD leftover-stock photo (Production Pulse EOD flow) → parsed count vs PO; variance beyond threshold flags the job | VERA | FA | invariant: every completed job reconciles materials or logs why not |
+| 348 | Returns discipline: returnable leftovers → pickup/return scheduled, restocking terms from the supplier cost sheet, credit chased to resolution by the price-guard machinery; recovered $ in digest | VERA | FA | invariant: no return sits unresolved > 14d |
+
+### 26c · Win/loss price intelligence
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 349 | Lost-on-price capture: optional fields on the lost flow (competitor bid ~$, competitor name) — 10-second entry, never required | reps/SAGE | FA | % of price-losses with a captured bid tracked (target, not gate) |
+| 350 | Market pricing map: quarterly artifact — our bid vs captured competitor bids by area/product/tier; feeds price-book review alongside the drift watch | VERA | FA | executed quarterly once n≥10 captures |
+
+### 26d · Slow-week fill loop
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 351 | Crew-gap detector: capacity look-ahead (exists) emits a fill signal when a crew hole opens inside N days | SAGE | FA | invariant: every detected gap produces a fill plan or logged pass |
+| 352 | Fill campaigns: aging-estimate this-week incentive (config discount, margin floor respected), repair backlog scheduling, maintenance-visit pull-forward — through existing drip/offer rails + touch governor | NOVA | FA (discount > threshold = AS card) | conversion per fill campaign tracked; idle crew-days in digest |
+
+### 26e · Office role (pre-scale requirement)
+
+| # | Task | Owner | Mode | Evidence binding |
+|---|---|---|---|---|
+| 353 | Roles/permissions audit: document current rep/office/crew/admin access reality; define the office-role tier (what they see, approve, and own) | session | M→AS | audit artifact + proposed matrix for owner approval |
+| 354 | Office Today: scoped exception queue (their cards: scheduling, docs, collections calls, endorsement signatures) with owner-only items excluded; card ownership field on exceptions | SAGE | FA | invariant: owner-tier cards never render for office role |
+
+**Deferred from this round (owner):** Spanish-speaking homeowner experience (revisit
+post-Alta launch).
+
 ---
 
 ## Deferred — visible placeholders in the CRM

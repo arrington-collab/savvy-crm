@@ -43,7 +43,7 @@ export function CrewBoard({ appts, anchor, tz, crew, onSelect, onReassign }: {
     onReassign(appt.id, targetUserId);
   }
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id="schedule-crew-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="overflow-x-auto" data-testid="crew-board">
         <div className="flex gap-3">
           {view.columns.map((col) => <Col key={col.userId ?? "unassigned"} col={col} onSelect={onSelect} />)}

@@ -1,6 +1,7 @@
-import { resolveTelephonyCreds, resolveVoiceCreds, adminPool } from "@savvy/db";
+import { resolveTelephonyCreds, resolveVoiceCreds, adminPool, isDemoTenant } from "@savvy/db";
 import { makeTwilioSms, makeHttpVapi, sms, smsFrom, voice, type SmsSender, type VoiceGateway } from "@savvy/integrations";
 import { shouldThrottleOutbound } from "@savvy/core";
+import { makeMockSms, makeMockVoice } from "./mock-comms";
 
 /** Build the Twilio statusCallback URL from APP_BASE_URL, or undefined when the env is absent. */
 function statusCallbackUrl(): string | undefined {
@@ -38,6 +39,9 @@ export async function getTenantSms(
   tenantId: string,
   deps: TenantSmsDeps = defaultDeps,
 ): Promise<{ sender: SmsSender; from: string }> {
+  if (await isDemoTenant(tenantId)) {
+    return { sender: makeMockSms(tenantId), from: "mock" };
+  }
   const r = await deps.resolve(tenantId);
   if (r.source === "tenant" && r.twilio.accountSid && r.twilio.from) {
     return {
@@ -103,6 +107,9 @@ export async function getTenantVoice(
   tenantId: string,
   deps: TenantVoiceDeps = defaultVoiceDeps,
 ): Promise<VoiceGateway> {
+  if (await isDemoTenant(tenantId)) {
+    return makeMockVoice(tenantId);
+  }
   const r = await deps.resolve(tenantId);
   if (r.source === "tenant" && r.vapi.apiKey && r.vapi.assistantId && r.vapi.phoneNumberId) {
     return makeHttpVapi(r.vapi);

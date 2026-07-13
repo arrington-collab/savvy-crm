@@ -1,5 +1,24 @@
-export type StormEvent = { date: string; eventType: "hail" | "wind"; size?: number; windMph?: number; id?: string };
-export type PropertyData = { yearBuilt: number | null; roofAge: number | null; roofType: string | null; county: string | null; supported: boolean };
+export type StormEvent = {
+  date: string;
+  eventType: "hail" | "wind";
+  size?: number;
+  windMph?: number;
+  id?: string;
+  /** True when the queried point sits INSIDE the storm swath (vs merely nearby).
+      Absent (legacy events-shaped payloads, fakes) is treated as at-point. */
+  atPoint?: boolean;
+};
+export type PropertyData = {
+  yearBuilt: number | null;
+  roofAge: number | null;
+  roofType: string | null;
+  county: string | null;
+  supported: boolean;
+  /** True when year built is a census-block MEDIAN (USACE NSI fallback —
+      Arapahoe CO), not the parcel's own record. Fine for area-level flags,
+      too coarse to present as a specific house's age. */
+  approximate?: boolean;
+};
 export type StormSummary = {
   events: StormEvent[]; eventCount: number;
   maxHailInches: number; maxWindMph: number;
@@ -17,6 +36,8 @@ export type StormCertResult = {
 export interface StormProofGateway {
   getProperty(o: { lat?: number; lng?: number; address?: string }): Promise<PropertyData | null>;
   lookupStorms(o: { lat?: number; lng?: number; address?: string; months?: number }): Promise<StormSummary>;
+  /** Raw verified swath tracks (for the map overlay). Fail-soft to []. */
+  lookupStormTracks(o: { lat?: number; lng?: number; months?: number }): Promise<VerifiedTrack[]>;
   generateCertificate(o: { address?: string; lat?: number; lng?: number; months?: number }): Promise<StormCertResult>;
 }
 
@@ -46,6 +67,7 @@ export const httpStormProof: StormProofGateway = {
         roofType: typeof d.roofType === "string" ? d.roofType : null,
         county: typeof d.county === "string" ? d.county : null,
         supported: Boolean(d.supported),
+        approximate: d.approximate === true ? true : undefined,
       };
     } catch { return null; }
   },
@@ -59,9 +81,27 @@ export const httpStormProof: StormProofGateway = {
       u.searchParams.set("months", String(months));
       const res = await fetch(u, { headers: headers() });
       if (!res.ok) return EMPTY_STORMS;
-      const d = (await res.json()) as { events?: StormEvent[] };
-      return summarize(d.events ?? []);
+      // /api/storms/verified returns IEM+SPC swath TRACKS ({tracks:[{rings,…}]}),
+      // not flat events — reading d.events here meant the storm block was empty
+      // for every address on earth. Parse tracks; keep the events shape as a
+      // fallback for older payloads.
+      const d = (await res.json()) as { tracks?: VerifiedTrack[]; events?: StormEvent[] };
+      const events = d.events ?? parseVerifiedTracks(d.tracks ?? [], lat, lng);
+      return summarize(events);
     } catch { return EMPTY_STORMS; }
+  },
+  async lookupStormTracks({ lat, lng, months = 24 }) {
+    try {
+      if (lat == null || lng == null) return [];
+      const u = new URL(`${BASE()}/api/storms/verified`);
+      u.searchParams.set("lat", String(lat));
+      u.searchParams.set("lng", String(lng));
+      u.searchParams.set("months", String(months));
+      const res = await fetch(u, { headers: headers() });
+      if (!res.ok) return [];
+      const d = (await res.json()) as { tracks?: VerifiedTrack[] };
+      return d.tracks ?? [];
+    } catch { return []; }
   },
   async generateCertificate({ address, lat, lng, months = 24 }) {
     const res = await fetch(`${BASE()}/api/leads/certify`, {
@@ -73,6 +113,122 @@ export const httpStormProof: StormProofGateway = {
     return (await res.json()) as StormCertResult;
   },
 };
+
+// One merged IEM+SPC storm track from /api/storms/verified. Rings are swath
+// polygons as [lat,lng] vertex arrays; size = max hail inches, windMph = max gust.
+export type VerifiedTrack = {
+  rings?: number[][][];
+  center?: { lat: number; lng: number };
+  eventType: "hail" | "wind";
+  size?: number | null;
+  windMph?: number | null;
+  date: string;
+};
+
+// Tracks come back within the API's search radius (up to ~50 mi for hail),
+// which is far too wide to claim "verified hail at this door". Keep a track when
+// the point is INSIDE one of its swath rings (atPoint) or its center is within
+// ~10 mi — the field card words those two cases differently.
+export const STORM_NEARBY_MILES = 10;
+
+export function pointInRing(lat: number, lng: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, xi] = ring[i]!;
+    const [yj, xj] = ring[j]!;
+    if (yi === undefined || xi === undefined || yj === undefined || xj === undefined) continue;
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function milesBetween(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 3958.8;
+  const toRad = (d: number): number => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// ── Map overlay: swaths + target zones ────────────────────────────────────
+// Per Brett (2026-07-11): hail swaths within 24 months, wind within 12 months
+// (a wind date-of-loss older than ~a year is rarely claimable) and only
+// NWS-severe gusts (≥58 mph — where shingle damage gets credible).
+export const SWATH_HAIL_MONTHS = 24;
+export const SWATH_WIND_MONTHS = 12;
+export const SWATH_WIND_MIN_MPH = 58;
+
+export type StormSwath = { kind: "hail" | "wind"; rings: number[][][]; size: number | null; windMph: number | null; date: string };
+
+const monthsAgo = (m: number, now: Date) => now.getTime() - m * 30.44 * 86_400_000;
+// 5-dp vertices (~1 m) are plenty at swath scale and cut the payload ~30%
+const q5 = (rings: number[][][]) => rings.map((r) => r.map(([a, b]) => [Math.round(a! * 1e5) / 1e5, Math.round(b! * 1e5) / 1e5]));
+
+export function slimStormSwaths(tracks: VerifiedTrack[], now = new Date()): StormSwath[] {
+  const out: StormSwath[] = [];
+  for (const t of tracks) {
+    if (!Array.isArray(t.rings) || t.rings.length === 0 || !t.date) continue;
+    const ts = Date.parse(t.date);
+    if (!Number.isFinite(ts)) continue;
+    if (t.eventType === "hail") {
+      if (ts < monthsAgo(SWATH_HAIL_MONTHS, now)) continue;
+    } else if (t.eventType === "wind") {
+      if (ts < monthsAgo(SWATH_WIND_MONTHS, now)) continue;
+      if ((t.windMph ?? 0) < SWATH_WIND_MIN_MPH) continue;
+    } else continue;
+    out.push({ kind: t.eventType, rings: q5(t.rings), size: t.size ?? null, windMph: t.windMph ?? null, date: t.date });
+  }
+  return out;
+}
+
+// Target zones: grid the area (~1.1 km cells within ~16 km of the request
+// point) and count DISTINCT wind/hail events whose swath covers each cell
+// center. Cells with 2+ wind hits are knock targets ("hit twice this season");
+// the route enriches the top ones with assessor year-built for the gold tier.
+export const HOT_CELL_DEG = 0.01;
+export const HOT_GRID_SPAN_DEG = 0.15;
+export const HOT_MIN_WIND_HITS = 2;
+export const HOT_CELL_CAP = 40;
+
+export type HotCell = { lat: number; lng: number; wind: number; hail: number };
+
+export function computeHotCells(swaths: StormSwath[], center: { lat: number; lng: number }): HotCell[] {
+  const wind = swaths.filter((s) => s.kind === "wind");
+  const hail = swaths.filter((s) => s.kind === "hail");
+  if (!wind.length) return [];
+  const cells: HotCell[] = [];
+  const start = (v: number) => Math.round((v - HOT_GRID_SPAN_DEG) / HOT_CELL_DEG) * HOT_CELL_DEG;
+  for (let lat = start(center.lat); lat <= center.lat + HOT_GRID_SPAN_DEG; lat += HOT_CELL_DEG) {
+    for (let lng = start(center.lng); lng <= center.lng + HOT_GRID_SPAN_DEG; lng += HOT_CELL_DEG) {
+      const cLat = Math.round(lat * 1e5) / 1e5;
+      const cLng = Math.round(lng * 1e5) / 1e5;
+      const hits = (list: StormSwath[]) => list.filter((s) => s.rings.some((r) => pointInRing(cLat, cLng, r))).length;
+      const w = hits(wind);
+      if (w < HOT_MIN_WIND_HITS) continue;
+      cells.push({ lat: cLat, lng: cLng, wind: w, hail: hits(hail) });
+    }
+  }
+  return cells.sort((a, b) => b.wind - a.wind || b.hail - a.hail).slice(0, HOT_CELL_CAP);
+}
+
+export function parseVerifiedTracks(tracks: VerifiedTrack[], lat: number, lng: number): StormEvent[] {
+  const events: StormEvent[] = [];
+  for (const t of tracks) {
+    if (!t?.date || (t.eventType !== "hail" && t.eventType !== "wind")) continue;
+    const atPoint = (t.rings ?? []).some((r) => Array.isArray(r) && pointInRing(lat, lng, r));
+    const near = atPoint || (t.center != null && milesBetween(lat, lng, t.center.lat, t.center.lng) <= STORM_NEARBY_MILES);
+    if (!near) continue;
+    events.push({
+      date: t.date,
+      eventType: t.eventType,
+      size: t.size ?? undefined,
+      windMph: t.windMph ?? undefined,
+      atPoint,
+    });
+  }
+  return events;
+}
 
 function summarize(events: StormEvent[]): StormSummary {
   if (events.length === 0) return EMPTY_STORMS;
@@ -101,6 +257,19 @@ export function makeFakeStormProof(): StormProofGateway & { calls: { op: string 
     async lookupStorms() {
       calls.push({ op: "lookupStorms" });
       return summarize([{ date: "2026-05-01", eventType: "hail", size: 1.5, id: "evt_fake_1" }]);
+    },
+    async lookupStormTracks({ lat, lng }) {
+      calls.push({ op: "lookupStormTracks" });
+      if (lat == null || lng == null) return [];
+      const d = 0.01;
+      return [{
+        rings: [[[lat - d, lng - d], [lat + d, lng - d], [lat + d, lng + d], [lat - d, lng + d]]],
+        center: { lat, lng },
+        eventType: "hail" as const,
+        size: 1.5,
+        windMph: null,
+        date: "2026-05-01",
+      }];
     },
     async generateCertificate({ lat, lng }: { address?: string; lat?: number; lng?: number; months?: number }) {
       calls.push({ op: "generateCertificate" });

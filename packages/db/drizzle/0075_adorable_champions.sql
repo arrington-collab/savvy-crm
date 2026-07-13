@@ -1,0 +1,2 @@
+ALTER TABLE "canvass_territory" ADD COLUMN "client_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "canvass_territory_client_uniq" ON "canvass_territory" USING btree ("tenant_id","client_id") WHERE "canvass_territory"."client_id" IS NOT NULL;

@@ -5,9 +5,10 @@ import {
   tenant as tenantTbl,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
-import { stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng, getEmailSender } from "@savvy/integrations";
+import { stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
 import { inngest } from "../client";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
 
@@ -320,7 +321,7 @@ export const leadIntake = inngest.createFunction(
       }
       // Email ack, gated by opt-out.
       if (cust.email && shouldSendChannel("email", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {
-        const sender = getEmailSender({ gmailConnectionId: null });
+        const sender = await getTenantEmail(tenantId, { gmailConnectionId: null });
         const { subject, html } = buildAckEmail(vars);
         try { await sender.sendEmail({ to: cust.email, from: process.env.RESEND_FROM ?? "noreply@savvy.app", subject, html }); } catch { /* dev: no creds */ }
         await withTenant(tenantId, (tx) => tx.insert(communication).values({

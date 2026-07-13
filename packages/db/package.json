@@ -11,6 +11,7 @@
     "db:seed": "tsx src/seed.ts",
     "db:seed:registry": "tsx src/seed-registry.ts",
     "db:provision": "tsx src/scripts/provision-tenant.ts",
+    "db:seed:demo": "tsx src/scripts/seed-demo-tenant.ts",
     "lifecycle:parse": "tsx src/seed-data/parse-lifecycle.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

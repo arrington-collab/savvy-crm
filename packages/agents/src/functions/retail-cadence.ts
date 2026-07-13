@@ -1,7 +1,7 @@
 import { withTenant, invoice, job, customer, tenant, communication, eq } from "@savvy/db";
 import { parseRetailCadenceConfig, buildRetailTouchBody, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
@@ -80,7 +80,10 @@ export const retailCloseoutCadence = inngest.createFunction(
           await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: setup.jobId, customerId: setup.customerId, channel: "sms", direction: "outbound", to: setup.phone, body, aiHandled: false }));
         } else {
           const gmailConnectionId = null;
-          try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: setup.email!, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "How's your new roof?", html: `<p>${body}</p>` }); } catch { /* fail-soft */ }
+          try {
+            const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
+            await emailSender.sendEmail({ to: setup.email!, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "How's your new roof?", html: `<p>${body}</p>` });
+          } catch { /* fail-soft */ }
           await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: setup.jobId, customerId: setup.customerId, channel: "email", direction: "outbound", to: setup.email, body, aiHandled: false }));
         }
         return { sent: touch.channel };

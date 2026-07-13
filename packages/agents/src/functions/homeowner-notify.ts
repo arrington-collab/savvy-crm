@@ -1,7 +1,7 @@
 import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
@@ -41,7 +41,10 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     if (ev.email && !ev.emailOptOut) {
       const claimed = await claimCommunication({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "email", direction: "outbound", to: ev.email, body, dedupeKey: `stage:email:${ev.email}:${ev.eventId}` });
       if (claimed) {
-        try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` }); } catch { /* fail-soft */ }
+        try {
+          const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
+          await emailSender.sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` });
+        } catch { /* fail-soft */ }
       }
     }
     await markStageEventNotified(tenantId, ev.eventId);

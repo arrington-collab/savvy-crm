@@ -1,8 +1,8 @@
 import { buildBreakGlassMessage } from "@savvy/core";
 import { adminDb, recordAgentRun, taskException, taskRegistry, user, and, eq, inArray, isNull } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
+import { getTenantEmail } from "./email";
 
 type SmsDep = { sender: SmsSender; from: string } | null;
 export interface BreakGlassDeps {
@@ -54,7 +54,7 @@ export async function pageBreakGlass(tenantId: string, deps: BreakGlassDeps = {}
     }
   }
   if (owner?.email) {
-    const email = deps.email ?? getEmailSender({ gmailConnectionId: null });
+    const email = deps.email ?? (await getTenantEmail(tenantId, { gmailConnectionId: null }));
     try {
       await email.sendEmail({ to: owner.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: msg.subject, html: `<p>${msg.body}</p>` });
     } catch {

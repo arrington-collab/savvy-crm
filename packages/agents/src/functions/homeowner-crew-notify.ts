@@ -1,7 +1,7 @@
 import { withTenant, eq, appointment, job, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, buildCrewDayTouches, signPayloadToken, requireSecret } from "@savvy/core";
-import { getEmailSender } from "@savvy/integrations";
 import { getTenantSms } from "../telephony";
+import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
@@ -74,7 +74,10 @@ export const homeownerCrewNotify = inngest.createFunction(
           await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body, aiHandled: false }));
         }
         if (ctx.email && !ctx.emailOptOut) {
-          try { await getEmailSender({ gmailConnectionId }).sendEmail({ to: ctx.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "An update on your roofing project", html: `<p>${t.body}</p><p><a href="${link}">Track your project</a></p>` }); } catch { /* fail-soft */ }
+          try {
+            const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
+            await emailSender.sendEmail({ to: ctx.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "An update on your roofing project", html: `<p>${t.body}</p><p><a href="${link}">Track your project</a></p>` });
+          } catch { /* fail-soft */ }
           await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: ctx.email, body, aiHandled: false }));
         }
         return { sent: t.key };
