@@ -1,13 +1,22 @@
 import { resolveEstimateLink, getEstimatePageData } from "@savvy/db";
-import { buildEstimatePageModel, parseEstimateConfig, type TierEstimate, type TierKey } from "@savvy/core";
+import { buildEstimatePageModel, parseEstimateConfig, parseWhyUsConfig, whyUsConfigured, measurementAreasSchema, type TierEstimate, type TierKey } from "@savvy/core";
+import { PresentMode } from "./PresentMode";
+import { QABox } from "./QABox";
 import { EstimateTiers } from "./EstimateTiers";
 
 export const dynamic = "force-dynamic";
 
 // The customer-facing estimate page. Homeowner design family: LIGHT, warm,
 // mobile-first — deliberately not the operator console aesthetic.
-export default async function EstimatePage({ params }: { params: Promise<{ code: string }> }) {
+export default async function EstimatePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<{ present?: string }>;
+}) {
   const { code } = await params;
+  const { present } = await searchParams;
   const link = await resolveEstimateLink(code);
   const data = link ? await getEstimatePageData(link.tenantId, link.estimateId) : null;
 
@@ -41,6 +50,29 @@ export default async function EstimatePage({ params }: { params: Promise<{ code:
     palettes,
     financingEnabled: false, // financing seam dormant (#148) — toggle hidden by design
   });
+
+  const whyUs = parseWhyUsConfig((data.settings as { whyUs?: unknown } | null)?.whyUs);
+
+  // PRESENT MODE: the kitchen-table close — rep-launched, full screen, no chrome.
+  if (present) {
+    const areas = data.measurement ? measurementAreasSchema.partial().parse(data.measurement.areas ?? {}) : {};
+    return (
+      <PresentMode
+        code={code}
+        companyName={model.companyName}
+        customerName={model.customerName}
+        address={model.address}
+        areas={areas}
+        photoIds={data.photos.map((p) => p.id)}
+        upsells={(data.estimate.upsellSuggestions ?? []) as { name: string; reason: string; unitPriceCents: number; quantity: number }[]}
+        tiers={model.tiers}
+        warranties={warranties}
+        initialTier={(data.estimate.selectedTier as TierKey | null) ?? null}
+        initialColor={data.estimate.selectedColor}
+        expired={model.expired}
+      />
+    );
+  }
 
   return (
     <main className="mx-auto max-w-2xl bg-white text-stone-800 min-h-screen" data-testid="estimate-page">
@@ -104,6 +136,30 @@ export default async function EstimatePage({ params }: { params: Promise<{ code:
             </div>
           </section>
         )}
+
+        {/* Why Us — the owner's Library content block */}
+        {whyUsConfigured(whyUs) && (
+          <section className="space-y-3 rounded-xl bg-stone-50 p-5" data-testid="estimate-why-us">
+            <h2 className="text-lg font-semibold">Why {model.companyName}</h2>
+            {whyUs.story && <p className="text-sm text-stone-600">{whyUs.story}</p>}
+            {whyUs.yearsLine && <p className="text-sm font-medium text-stone-700">{whyUs.yearsLine}</p>}
+            {whyUs.workmanshipPromise && (
+              <p className="text-sm text-stone-600 italic">&ldquo;{whyUs.workmanshipPromise}&rdquo;</p>
+            )}
+            {whyUs.timeline.length > 0 && (
+              <ol className="space-y-1 text-sm text-stone-600">
+                {whyUs.timeline.map((t, i) => (
+                  <li key={i}>
+                    {i + 1}. {t}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+
+        {/* Ask a question — grounded in this estimate only */}
+        <QABox code={code} />
 
         {/* Trust strip */}
         <section className="rounded-lg bg-stone-50 p-4 text-sm text-stone-600" data-testid="estimate-trust">
