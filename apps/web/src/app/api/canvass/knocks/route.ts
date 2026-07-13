@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canvassKnockObject, canvassHaversineMeters, CANVASS_GPS_FLAG_METERS, evaluateAchievements } from "@savvy/core";
 import { withTenant, upsertCanvassKnock, isCanvassRepActive, unlockAchievements, listAchievementKeys, tenant, canvassKnock, canvassRep, eq, gt, desc } from "@savvy/db";
+import { inngest } from "@savvy/agents";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -61,10 +62,26 @@ export async function POST(req: Request): Promise<NextResponse> {
       territoryClientId: k.territoryClientId,
       gpsFlagged,
       gpsDistanceM,
+      contractSignedAt: k.contractSignedAt ? new Date(k.contractSignedAt) : null,
+      leadId: k.leadId ?? null,
     });
   });
   if ("denied" in result) return reply({ error: "unauthorized" }, 401);
   if (gpsFlagged) log.warn("canvass gps-flagged knock", { route: "/api/canvass/knocks", tenantId: sess.tenantId, repId: sess.repId, m: gpsDistanceM });
+
+  // A fresh sale with no contract yet starts the 30-min watch. Idempotent event
+  // id so edits / appt→sale re-saves don't restart the clock.
+  if (result.id && k.outcome === "sale" && !k.contractSignedAt) {
+    try {
+      await inngest.send({
+        id: `sale:${result.id}`,
+        name: "canvass/sale.logged",
+        data: { tenantId: sess.tenantId, knockId: result.id, repId: sess.repId },
+      });
+    } catch (e) {
+      log.error("canvass/sale.logged emit failed", { route: "/api/canvass/knocks", tenantId: sess.tenantId, msg: String(e) });
+    }
+  }
 
   // Re-evaluate this rep's badges from their full history; unlock any new ones.
   let newBadges: string[] = [];
@@ -113,6 +130,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         notes: canvassKnock.notes,
         amount: canvassKnock.amount,
         scheduledAt: canvassKnock.scheduledAt,
+        leadId: canvassKnock.leadId,
         gpsFlagged: canvassKnock.gpsFlagged,
         gpsDistanceM: canvassKnock.gpsDistanceM,
         createdAt: canvassKnock.createdAt,

@@ -42,6 +42,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         contactName: canvassKnock.contactName,
         address: canvassKnock.address,
         amount: canvassKnock.amount,
+        leadId: canvassKnock.leadId,
         gpsFlagged: canvassKnock.gpsFlagged,
         createdAt: canvassKnock.createdAt,
       })
@@ -54,7 +55,15 @@ export async function GET(req: Request): Promise<NextResponse> {
   );
   // Individual sales for the date, newest first — powers the report's sales list
   // (each links to its contact card in-app; CRM deep-link is a later slice).
-  const sales: { clientId: string; repName: string; contactName: string | null; address: string | null; amount: number; at: string }[] = [];
+  const sales: {
+    clientId: string;
+    repName: string;
+    contactName: string | null;
+    address: string | null;
+    amount: number;
+    leadId: string | null;
+    at: string;
+  }[] = [];
   for (const k of knocks) {
     const a = by.get(k.repId);
     if (!a) continue;
@@ -70,6 +79,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         contactName: k.contactName,
         address: k.address,
         amount: k.amount ?? 0,
+        leadId: k.leadId,
         at: k.createdAt.toISOString(),
       });
     }
