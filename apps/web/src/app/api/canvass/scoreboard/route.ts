@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { scoreRep, levelFor, currentStreak, dateKeyInTimeZone, DEFAULT_POINT_WEIGHTS } from "@savvy/core";
+import { scoreRep, levelFor, currentStreak, dateKeyInTimeZone, DEFAULT_POINT_WEIGHTS, LEVEL_TIERS } from "@savvy/core";
 import { withTenant, tenant, canvassRep, canvassKnock, eq, gte } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassCors } from "@/lib/canvass-cors";
@@ -77,5 +77,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     return leaders.map((l, i) => ({ ...l, rank: i + 1 }));
   });
 
-  return reply({ period, leaders: result }, 200);
+  // Scoring rules ship with the response so the field app's "How points work"
+  // legend always reflects real scoring (no client-side hardcoded drift).
+  return reply({ period, leaders: result, weights: DEFAULT_POINT_WEIGHTS, tiers: LEVEL_TIERS }, 200);
 }

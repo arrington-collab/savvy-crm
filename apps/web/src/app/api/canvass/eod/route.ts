@@ -37,10 +37,13 @@ export async function GET(req: Request): Promise<NextResponse> {
     tx
       .select({
         repId: canvassKnock.repId,
+        clientId: canvassKnock.clientId,
         outcome: canvassKnock.outcome,
         contactName: canvassKnock.contactName,
+        address: canvassKnock.address,
         amount: canvassKnock.amount,
         gpsFlagged: canvassKnock.gpsFlagged,
+        createdAt: canvassKnock.createdAt,
       })
       .from(canvassKnock)
       .where(sql`(${canvassKnock.createdAt} AT TIME ZONE ${tz})::date = ${date}::date`),
@@ -49,6 +52,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   const by = new Map(
     reps.map((r) => [r.id, { repId: r.id, repName: r.name, doors: 0, contacts: 0, appts: 0, sales: 0, saleAmount: 0, flagged: 0 }]),
   );
+  // Individual sales for the date, newest first — powers the report's sales list
+  // (each links to its contact card in-app; CRM deep-link is a later slice).
+  const sales: { clientId: string; repName: string; contactName: string | null; address: string | null; amount: number; at: string }[] = [];
   for (const k of knocks) {
     const a = by.get(k.repId);
     if (!a) continue;
@@ -58,9 +64,18 @@ export async function GET(req: Request): Promise<NextResponse> {
     if (k.outcome === "sale") {
       a.sales++;
       a.saleAmount += k.amount ?? 0;
+      sales.push({
+        clientId: k.clientId,
+        repName: a.repName,
+        contactName: k.contactName,
+        address: k.address,
+        amount: k.amount ?? 0,
+        at: k.createdAt.toISOString(),
+      });
     }
     if (k.gpsFlagged) a.flagged++;
   }
+  sales.sort((x, y) => (x.at < y.at ? 1 : -1));
   const report = [...by.values()].sort((x, y) => y.doors - x.doors || y.sales - x.sales);
   const totals = report.reduce(
     (t, r) => ({
@@ -73,5 +88,5 @@ export async function GET(req: Request): Promise<NextResponse> {
     }),
     { doors: 0, contacts: 0, appts: 0, sales: 0, saleAmount: 0, flagged: 0 },
   );
-  return NextResponse.json({ date, report, totals }, { status: 200, headers });
+  return NextResponse.json({ date, report, totals, sales }, { status: 200, headers });
 }
