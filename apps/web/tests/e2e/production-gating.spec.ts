@@ -160,7 +160,10 @@ test.describe("required-photo checklist UI", () => {
 
     // ── 1) Navigate to job detail, open Docs tab ─────────────────────────
     await page.goto(`/jobs/${jobId}`);
-    await expect(page.getByTestId("job-detail")).toBeVisible();
+    // Generous timeout: on a loaded CI runner the dev-server cold compile of
+    // /jobs/[id] can exceed the 5s default while the shell shows the splash
+    // (this spec flaked 2× on exactly that).
+    await expect(page.getByTestId("job-detail")).toBeVisible({ timeout: 20_000 });
 
     // Click the Docs tab to reveal the DocsPanel.
     // TabsTrigger renders as a plain <button>, not role="tab", so use getByRole("button").
@@ -170,7 +173,7 @@ test.describe("required-photo checklist UI", () => {
     const beforeItem = page.getByTestId("required-photo-before");
     const afterItem = page.getByTestId("required-photo-after");
 
-    await expect(beforeItem).toBeVisible();
+    await expect(beforeItem).toBeVisible({ timeout: 15_000 });
     await expect(afterItem).toBeVisible();
 
     // aria-label carries "uploaded" or "missing"; check for "missing" state
