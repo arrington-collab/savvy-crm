@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseRetailCadenceConfig, buildRetailTouchBody, DEFAULT_RETAIL_STEPS } from "./retail-cadence";
+import { parseRetailCadenceConfig, buildRetailTouchBody, DEFAULT_RETAIL_STEPS, stepAbsorbedByRelationship } from "./retail-cadence";
 
 describe("parseRetailCadenceConfig", () => {
   it("defaults to the 7/15/30/60/90 cadence, quiet hours, and non-empty copy", () => {
@@ -38,5 +38,14 @@ describe("buildRetailTouchBody", () => {
     expect(body).not.toContain("balance");
     expect(body).toContain(copy.reviewAsk);
     expect(body).toContain("https://rev/y");
+  });
+});
+
+describe("stepAbsorbedByRelationship — Customer for Life absorbs the day-30 touch", () => {
+  it("skips the 30-day SMS step when the job is enrolled in the standing cadence", () => {
+    expect(stepAbsorbedByRelationship({ dayOffset: 30, channel: "sms" }, true)).toBe(true);
+    expect(stepAbsorbedByRelationship({ dayOffset: 30, channel: "sms" }, false)).toBe(false);
+    expect(stepAbsorbedByRelationship({ dayOffset: 7, channel: "sms" }, true)).toBe(false);
+    expect(stepAbsorbedByRelationship({ dayOffset: 60, channel: "email" }, true)).toBe(false);
   });
 });

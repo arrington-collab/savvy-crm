@@ -1,5 +1,5 @@
-import { withTenant, invoice, job, customer, tenant, communication, eq } from "@savvy/db";
-import { parseRetailCadenceConfig, buildRetailTouchBody, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
+import { withTenant, invoice, job, customer, tenant, communication, eq, jobHasActiveEnrollment } from "@savvy/db";
+import { parseRetailCadenceConfig, buildRetailTouchBody, stepAbsorbedByRelationship, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
 import { getTenantSms } from "../telephony";
 import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
@@ -68,6 +68,13 @@ export const retailCloseoutCadence = inngest.createFunction(
 
       const optedOut = touch.channel === "sms" ? setup.smsOptOut || !setup.phone : setup.emailOptOut || !setup.email;
       if (optedOut) continue;
+
+      // Customer for Life: an enrolled job's day-30 touch is the standing
+      // cadence's governed check-in — the drip's 30-day step is absorbed.
+      if (stepAbsorbedByRelationship(touch, true)) {
+        const enrolled = await step.run(`absorbed-${i}`, () => jobHasActiveEnrollment(tenantId, setup.jobId));
+        if (stepAbsorbedByRelationship(touch, enrolled)) continue;
+      }
 
       if (touch.channel === "sms" && live.nextAllowedMs > live.nowMs) {
         await step.sleepUntil(`quiet-${i}`, new Date(live.nextAllowedMs));

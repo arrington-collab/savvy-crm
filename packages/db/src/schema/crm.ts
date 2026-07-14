@@ -10,6 +10,8 @@ export const customer = pgTable("customer", {
   preferredLanguage: text("preferred_language"),
   // Customer for Life: print-channel opt-out (sms/email opt-outs already exist).
   mailOptOut: boolean("mail_opt_out").notNull().default(false),
+  // Customer for Life: no relationship touches while a claim dispute is active.
+  claimDisputeHold: boolean("claim_dispute_hold").notNull().default(false),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),

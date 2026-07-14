@@ -48,6 +48,15 @@ export function parseRetailCadenceConfig(raw: unknown): RetailCadenceConfig {
   return { ...p, steps: p.steps.length ? p.steps : [...DEFAULT_RETAIL_STEPS] };
 }
 
+/**
+ * Customer for Life slice 2: when the job is enrolled in the standing cadence,
+ * the governed 30-day check-in IS the day-30 touch — the retail drip's 30-day
+ * SMS step is absorbed (skipped), never a parallel path.
+ */
+export function stepAbsorbedByRelationship(step: RetailTouch, jobEnrolled: boolean): boolean {
+  return jobEnrolled && step.dayOffset === 30 && step.channel === "sms";
+}
+
 function formatUsd(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
