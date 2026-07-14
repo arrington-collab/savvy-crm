@@ -87,9 +87,28 @@ describe("master task list seed (transform)", () => {
     expect(byId(53).checkKey).toBe("estimate.page"); // Retail pricing proposal — live tokenized page (EE slice 7)
     expect(byId(58).checkKey).toBe("estimate.validity"); // zero acceptances at expired prices (EE slice 7)
     expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
+    // Batch 3 — the bulk evidence pass (Roof Record, Production Pulse, Customer for Life).
+    expect(byId(38).checkKey).toBe("roof_record.no_unsupported_action"); // Damage identification & documentation
+    expect(byId(42).checkKey).toBe("roof_record.baseline_coverage"); // Inspection report generation → published Record sets baseline
+    expect(byId(106).checkKey).toBe("production.delivery_notice"); // Homeowner day-of notification
+    expect(byId(111).checkKey).toBe("production.phase_evidence"); // Progress photo documentation
+    expect(byId(113).checkKey).toBe("production.ho_updates"); // Mid-day progress update to homeowner
+    expect(byId(116).checkKey).toBe("production.eod"); // End-of-day job status update
+    expect(byId(126).checkKey).toBe("production.inspection_gate"); // City/county inspection coordination
+    expect(byId(163).checkKey).toBe("relationship.enrollment"); // Referral program enrollment (retention entry gate)
+    expect(byId(165).checkKey).toBe("repair.credit_checkin"); // Annual roof health check reminder (12/24/33mo credit cadence)
+    expect(byId(166).checkKey).toBe("inspection.linked_reinspection"); // Post-storm check-in (past customers)
+    expect(byId(167).checkKey).toBe("relationship.cadence"); // Holiday/seasonal greetings
+    expect(byId(168).checkKey).toBe("relationship.cadence"); // Customer anniversary recognition (roofiversary)
+    expect(byId(170).checkKey).toBe("relationship.move_play"); // Home sale trigger monitoring
+    expect(byId(189).checkKey).toBe("relationship.warranty_record"); // Workmanship warranty issuance
+    // relationship.governor stays UNBOUND: cross-cutting cap across all programs.
     // Exactly the bound set carries a check_key; everything else is null.
     const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
-    expect(bound).toEqual([3, 6, 18, 19, 24, 28, 32, 44, 49, 52, 53, 56, 58, 76, 133, 139, 141, 150, 151, 213, 214]);
+    expect(bound).toEqual([
+      3, 6, 18, 19, 24, 28, 32, 38, 42, 44, 49, 52, 53, 56, 58, 76, 106, 111, 113, 116,
+      126, 133, 139, 141, 150, 151, 163, 165, 166, 167, 168, 170, 189, 213, 214,
+    ]);
   });
 
   it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {
