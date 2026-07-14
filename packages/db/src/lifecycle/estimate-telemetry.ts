@@ -1,7 +1,7 @@
 // Estimate Experience slice 4: first-party page telemetry. Events are stored
 // on the estimate (evidence + NOVA's race trigger) — never a third party.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, gte, isNotNull } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { estimateEvent } from "../schema/finance";
 import { estimate } from "../schema/finance";
@@ -76,5 +76,41 @@ export async function raceOutcomeRows(
       events: rows.filter((r) => r.estimateId === id),
       accepted: acceptedById.get(id) ?? false,
     }));
+  });
+}
+
+/** Slice 7: the close-rate loop's raw rows — every sent estimate (90 days)
+ *  with its template version, tier, open/accept outcomes, and the video
+ *  personalized-vs-generic marker. */
+export async function closeRateRows(
+  tenantId: string,
+  now = new Date(),
+): Promise<{ templateVersion: string; tier: string | null; opened: boolean; accepted: boolean; videoPersonalized: boolean | null }[]> {
+  return withTenant(tenantId, async (tx) => {
+    const since = new Date(now.getTime() - 90 * 86_400_000);
+    const sent = await tx
+      .select()
+      .from(estimate)
+      .where(and(gte(estimate.sentAt, since), isNotNull(estimate.sentAt)));
+    if (sent.length === 0) return [];
+    const events = await tx
+      .select({ estimateId: estimateEvent.estimateId, kind: estimateEvent.kind, meta: estimateEvent.meta })
+      .from(estimateEvent)
+      .where(inArray(estimateEvent.estimateId, sent.map((e) => e.id)));
+    const byEstimate = new Map<string, { kind: string; meta: Record<string, unknown> }[]>();
+    for (const ev of events) {
+      byEstimate.set(ev.estimateId, [...(byEstimate.get(ev.estimateId) ?? []), ev]);
+    }
+    return sent.map((e) => {
+      const evs = byEstimate.get(e.id) ?? [];
+      const videoSent = evs.find((ev) => ev.kind === "video_sent" && !(ev.meta as { suppressed?: string }).suppressed);
+      return {
+        templateVersion: e.templateVersion ?? "retail-v1",
+        tier: e.selectedTier,
+        opened: evs.some((ev) => ev.kind === "open"),
+        accepted: e.status === "accepted",
+        videoPersonalized: videoSent ? Boolean((videoSent.meta as { personalized?: boolean }).personalized) : null,
+      };
+    });
   });
 }

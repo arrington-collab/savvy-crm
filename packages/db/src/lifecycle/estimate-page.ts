@@ -14,6 +14,7 @@ import { customer, property, lead } from "../schema/crm";
 import { job } from "../schema/jobs";
 import { tenant } from "../schema/tenancy";
 import { license } from "../schema/compliance";
+import { claim } from "../schema/insurance";
 import { document, measurement } from "../schema/ops";
 
 // Deterministic per-estimate token (estimateId + HMAC) so ensureEstimateLink is
@@ -115,9 +116,11 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
     const [t] = await tx.select({ name: tenant.name, settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
     // The customer hangs off the lead (lead-stage) or the job (post-accept).
     let customerId: string | null = null;
+    let leadSource: string | null = null;
     if (est.leadId) {
-      const [l] = await tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, est.leadId));
+      const [l] = await tx.select({ customerId: lead.customerId, source: lead.source }).from(lead).where(eq(lead.id, est.leadId));
       customerId = l?.customerId ?? null;
+      leadSource = l?.source ?? null;
     } else if (est.jobId) {
       const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, est.jobId));
       customerId = j?.customerId ?? null;
@@ -153,6 +156,20 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
           .where(and(eq(document.kind, "photo"), eq(document.qcStatus, "passed"), scope))
       : [];
 
-    return { estimate: est, companyName: t?.name ?? "", settings: t?.settings, customerName: cust?.name ?? null, property: prop ?? null, licenses, products, photos: photos.filter((p) => p.r2Key), measurement: meas ?? null };
+    // Slice 7: the insurance variant aligns to the claim ledger (lead- or
+    // job-scoped, whichever this estimate hangs off).
+    const claimScope = est.leadId
+      ? eq(claim.leadId, est.leadId)
+      : est.jobId
+        ? eq(claim.jobId, est.jobId)
+        : null;
+    const [claimRow] = claimScope
+      ? await tx
+          .select({ carrierName: claim.carrierName, claimNumber: claim.claimNumber, rcvCents: claim.rcvCents, deductibleCents: claim.deductibleCents })
+          .from(claim)
+          .where(claimScope)
+      : [null];
+
+    return { estimate: est, companyName: t?.name ?? "", settings: t?.settings, customerName: cust?.name ?? null, property: prop ?? null, licenses, products, photos: photos.filter((p) => p.r2Key), measurement: meas ?? null, claim: claimRow ?? null, leadSource };
   });
 }

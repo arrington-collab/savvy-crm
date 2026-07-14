@@ -71,7 +71,7 @@ export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifec
 export { isDemoTenant, __clearDemoTenantCache } from "./lifecycle/demo-tenant";
 export { ensureEstimateLink, resolveEstimateLink, setEstimateSelection, estimateLinkToken, getEstimatePageData } from "./lifecycle/estimate-page";
 export { beginEstimateAcceptance, recordEstimateSigned, recordEstimateDeposit, estimateAcceptanceState, installWeekOptions, setRequestedInstallWeek, type BeginAcceptanceResult } from "./lifecycle/estimate-accept";
-export { recordEstimateEvent, listEstimateEvents, raceOutcomeRows, ESTIMATE_EVENT_KINDS, type EstimateEventKind } from "./lifecycle/estimate-telemetry";
+export { recordEstimateEvent, listEstimateEvents, raceOutcomeRows, closeRateRows, ESTIMATE_EVENT_KINDS, type EstimateEventKind } from "./lifecycle/estimate-telemetry";
 export { attachEstimateVideo, videosForEstimate, videoBatchQueue, ownerVideoDeliveryQueue, parseOwnerVideoConfigRow, type VideoBatchEntry, type VideoDeliveryEntry } from "./lifecycle/estimate-video";
 export { ensureEstimateFollowupDrip, ESTIMATE_FOLLOWUP_DRIP_KEY } from "./lifecycle/estimate-followup";
 // NOTE: provision-runbook is intentionally NOT re-exported from this barrel. It

@@ -1,5 +1,6 @@
 import { resolveEstimateLink, getEstimatePageData, videosForEstimate } from "@savvy/db";
-import { buildEstimatePageModel, parseEstimateConfig, parseWhyUsConfig, whyUsConfigured, measurementAreasSchema, type TierEstimate, type TierKey } from "@savvy/core";
+import { buildEstimatePageModel, parseEstimateConfig, parseWhyUsConfig, whyUsConfigured, measurementAreasSchema, estimateTemplateVersion, buildInsurancePanel, INSURANCE_TEMPLATE_VERSION, type TierEstimate, type TierKey } from "@savvy/core";
+import { AcceptFlow } from "./AcceptFlow";
 import { PresentMode } from "./PresentMode";
 import { QABox } from "./QABox";
 import { VideoSlot } from "./VideoSlot";
@@ -54,6 +55,21 @@ export default async function EstimatePage({
 
   const whyUs = parseWhyUsConfig((data.settings as { whyUs?: unknown } | null)?.whyUs);
 
+  // Slice 7: the insurance variant — no tiers, no monthly toggle; scope aligned
+  // to the carrier claim, upgrades as out-of-pocket add-ons.
+  const variant =
+    data.estimate.templateVersion ??
+    estimateTemplateVersion({ source: data.estimate.source, leadSource: data.leadSource });
+  const insurancePanel =
+    variant === INSURANCE_TEMPLATE_VERSION
+      ? buildInsurancePanel({
+          claim: data.claim,
+          state: data.property?.state ?? null,
+          upsells: (data.estimate.upsellSuggestions ?? []) as { name: string; reason: string; unitPriceCents: number; quantity: number }[],
+        })
+      : null;
+  const isInsurance = variant === INSURANCE_TEMPLATE_VERSION;
+
   // Slice 5b: approved takes only — the rep's note above the tiers, the
   // owner's day-after word featured when the SMS link (?v=1) brought them here.
   const videos = await videosForEstimate(link.tenantId, link.estimateId);
@@ -107,15 +123,52 @@ export default async function EstimatePage({
           <VideoSlot code={code} documentId={repTake.documentId} title="From your inspection visit" featured={false} />
         )}
 
-        {/* Tier cards + color selector (client island) */}
-        <EstimateTiers
-          code={code}
-          tiers={model.tiers}
-          initialTier={(data.estimate.selectedTier as TierKey | null) ?? null}
-          initialColor={data.estimate.selectedColor}
-          warranties={warranties}
-          expired={model.expired}
-        />
+        {/* Retail: tier cards + colors. Insurance: claim-aligned scope + add-ons. */}
+        {isInsurance ? (
+          <section className="space-y-4" data-testid="insurance-scope">
+            {insurancePanel && (
+              <div className="space-y-1 rounded-xl border border-stone-200 p-4" data-testid="claim-panel">
+                <p className="font-semibold">{insurancePanel.carrierLine}</p>
+                {insurancePanel.claimLine && <p className="text-sm text-stone-500">{insurancePanel.claimLine}</p>}
+                {insurancePanel.approvedLine && <p className="text-sm text-stone-600">{insurancePanel.approvedLine}</p>}
+                {insurancePanel.deductibleLine && (
+                  <p className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600" data-testid="deductible-line">
+                    {insurancePanel.deductibleLine}
+                  </p>
+                )}
+              </div>
+            )}
+            {insurancePanel && insurancePanel.addOns.length > 0 && (
+              <div className="space-y-2" data-testid="insurance-addons">
+                <h2 className="text-lg font-semibold">Worth adding while we&apos;re up there</h2>
+                <p className="text-sm text-stone-500">Out-of-pocket upgrades — your call, no pressure:</p>
+                <ul className="space-y-2">
+                  {insurancePanel.addOns.map((a) => (
+                    <li key={a.name} className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 p-3">
+                      <span>
+                        <span className="block text-sm font-medium">{a.name}</span>
+                        <span className="block text-xs text-stone-500">{a.reason}</span>
+                      </span>
+                      <span className="whitespace-nowrap text-sm font-semibold">
+                        +{(a.totalCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <AcceptFlow code={code} tier={null} color={null} expired={model.expired} requireSelection={false} />
+          </section>
+        ) : (
+          <EstimateTiers
+            code={code}
+            tiers={model.tiers}
+            initialTier={(data.estimate.selectedTier as TierKey | null) ?? null}
+            initialColor={data.estimate.selectedColor}
+            warranties={warranties}
+            expired={model.expired}
+          />
+        )}
 
         {/* What's included */}
         <section className="space-y-3" data-testid="estimate-included">

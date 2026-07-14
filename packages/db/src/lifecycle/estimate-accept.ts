@@ -48,8 +48,8 @@ export async function beginEstimateAcceptance(
   input: {
     tenantId: string;
     estimateId: string;
-    tier: "good" | "better" | "best";
-    color: string;
+    tier?: "good" | "better" | "best" | null;
+    color?: string | null;
     successUrl: string;
     cancelUrl: string;
     signerEmail?: string | null;
@@ -75,21 +75,30 @@ export async function beginEstimateAcceptance(
     return { ok: false, error: "expired" };
   }
 
-  // Persist the pick (validates tier ∈ snapshot, color ∈ palette).
-  const sel = await setEstimateSelection({
-    tenantId: input.tenantId,
-    estimateId: input.estimateId,
-    tier: input.tier,
-    color: input.color,
-  });
-  if (!sel.ok) return { ok: false, error: "invalid_selection" };
+  // Slice 7: the insurance variant has no tiers/colors — the carrier already
+  // priced the roof. Selection is retail-only; deposits follow the tenant's
+  // insurance config (default none — the deductible rides its own rails).
+  const insurance = est.templateVersion === "insurance-v1" || est.source === "carrier";
+  if (!insurance) {
+    if (!input.tier || !input.color) return { ok: false, error: "invalid_selection" };
+    // Persist the pick (validates tier ∈ snapshot, color ∈ palette).
+    const sel = await setEstimateSelection({
+      tenantId: input.tenantId,
+      estimateId: input.estimateId,
+      tier: input.tier,
+      color: input.color,
+    });
+    if (!sel.ok) return { ok: false, error: "invalid_selection" };
+  }
 
   // The accepted-tier total prices the deposit — not the single-price total.
   const tiers = (est.tiers ?? []) as unknown as TierEstimate[];
-  const tierTotal = tiers.find((x) => x.tier === input.tier)?.subtotalCents ?? est.total ?? 0;
+  const tierTotal = insurance
+    ? est.total ?? 0
+    : tiers.find((x) => x.tier === input.tier)?.subtotalCents ?? est.total ?? 0;
   const deposit = depositRequirement({
     totalCents: tierTotal,
-    depositPercentageBps: financeCfg.depositPercentageBps,
+    depositPercentageBps: insurance ? financeCfg.insuranceDepositPercentageBps : financeCfg.depositPercentageBps,
     stripeConnected: t?.stripeAccountId != null,
   });
 
