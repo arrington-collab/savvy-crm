@@ -183,3 +183,38 @@ export const canvassAlert = pgTable("canvass_alert", {
   index("canvass_alert_knock_idx").on(t.knockId),
   tenantIsolation(),
 ]);
+
+// A homeowner's scan of a rep's digital ID page (public QR/link, no auth) —
+// captures optional self-identification (name/phone) plus an ack timestamp
+// once the homeowner confirms the rep's identity. userAgent is stored for
+// abuse/debugging context, not analytics.
+export const canvassScan = pgTable("canvass_scan", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }),
+  name: text("name"),
+  phone: text("phone"),
+  ack: boolean("ack").notNull().default(false),
+  ackAt: timestamp("ack_at", { withTimezone: true }),
+  userAgent: text("user_agent"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("canvass_scan_tenant_created_idx").on(t.tenantId, t.createdAt),
+  tenantIsolation(),
+]);
+
+// A GPS breadcrumb ping from a rep's field-app session, used to render the
+// live/historical movement trail alongside their knocks. `at` is the
+// device-reported timestamp (may lag createdAt on sync/retry).
+export const canvassPing = pgTable("canvass_ping", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  repId: uuid("rep_id").notNull().references(() => canvassRep.id, { onDelete: "cascade" }),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  at: timestamp("at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  index("canvass_ping_tenant_rep_at_idx").on(t.tenantId, t.repId, t.at),
+  tenantIsolation(),
+]);
