@@ -210,3 +210,87 @@ export async function getRecordPageData(input: {
     };
   });
 }
+
+export type RecordComparisonZone = {
+  zoneKey: string;
+  zoneLabel: string;
+  beforeGrade: string | null;
+  afterGrade: string | null;
+  changed: boolean;
+  beforePhotos: { documentId: string; r2Key: string | null }[];
+  afterPhotos: { documentId: string; r2Key: string | null }[];
+};
+
+export type RecordComparison = {
+  baselineInspectionId: string;
+  baselineAt: Date;
+  zones: RecordComparisonZone[];
+};
+
+/**
+ * Slice 4: the before/after view — a published re-inspection rendered against
+ * its baseline, zone by zone (matched on zone_key), side-by-side photos and
+ * the grade delta. This is also the claim-evidence artifact carriers see.
+ */
+export async function getRecordComparison(input: {
+  tenantId: string;
+  inspectionId: string;
+}): Promise<RecordComparison | null> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [insp] = await tx.select({
+      id: inspection.id, status: inspection.status,
+      baselineInspectionId: inspection.baselineInspectionId, publishedAt: inspection.publishedAt,
+    }).from(inspection).where(eq(inspection.id, input.inspectionId));
+    if (!insp || insp.status !== "published" || !insp.baselineInspectionId) return null;
+
+    const [baseline] = await tx.select({ id: inspection.id, publishedAt: inspection.publishedAt })
+      .from(inspection)
+      .where(and(eq(inspection.id, insp.baselineInspectionId), eq(inspection.status, "published")));
+    if (!baseline?.publishedAt) return null;
+
+    async function zonesOf(inspectionId: string) {
+      const zones = await tx.select({
+        id: inspectionZone.id, zoneKey: inspectionZone.zoneKey,
+        zoneLabel: inspectionZone.zoneLabel, grade: inspectionZone.grade,
+      }).from(inspectionZone)
+        .where(eq(inspectionZone.inspectionId, inspectionId))
+        .orderBy(asc(inspectionZone.sortOrder), asc(inspectionZone.createdAt));
+      const media = zones.length
+        ? await tx.select({
+            zoneId: inspectionMedia.inspectionZoneId,
+            documentId: inspectionMedia.documentId,
+            r2Key: document.r2Key,
+            qcStatus: document.qcStatus,
+          }).from(inspectionMedia)
+            .innerJoin(document, eq(inspectionMedia.documentId, document.id))
+            .where(inArray(inspectionMedia.inspectionZoneId, zones.map((z) => z.id)))
+        : [];
+      return zones.map((z) => ({
+        ...z,
+        photos: media.filter((m) => m.zoneId === z.id && m.qcStatus === "passed")
+          .map((m) => ({ documentId: m.documentId, r2Key: m.r2Key })),
+      }));
+    }
+
+    const [beforeZones, afterZones] = [await zonesOf(baseline.id), await zonesOf(insp.id)];
+    const keys = [...new Set([...beforeZones.map((z) => z.zoneKey), ...afterZones.map((z) => z.zoneKey)])];
+
+    return {
+      baselineInspectionId: baseline.id,
+      baselineAt: baseline.publishedAt,
+      zones: keys.map((key) => {
+        const before = beforeZones.find((z) => z.zoneKey === key);
+        const after = afterZones.find((z) => z.zoneKey === key);
+        return {
+          zoneKey: key,
+          zoneLabel: after?.zoneLabel ?? before?.zoneLabel ?? key,
+          beforeGrade: before?.grade ?? null,
+          afterGrade: after?.grade ?? null,
+          changed: (before?.grade ?? null) !== (after?.grade ?? null),
+          beforePhotos: before?.photos ?? [],
+          afterPhotos: after?.photos ?? [],
+        };
+      }),
+    };
+  });
+}

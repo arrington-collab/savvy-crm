@@ -40,7 +40,9 @@ export { ensureInspectionChecklists } from "./lifecycle/inspection-checklist";
 export { addInspectionFinding, confirmInspectionFinding, dismissInspectionFinding, setInspectionZoneGrade, listUnsupportedActionZones, suggestFindingFromChecklistMedia } from "./lifecycle/inspection-findings";
 export { approveInspection, publishInspection, setInspectionNarrative, setZoneSummaries } from "./lifecycle/inspection-approval";
 export { applyFriendRule, issueRepairCredit, applyRepairCreditToEstimate, creditCheckinsDue, recordCreditCheckin, expireLapsedCredits, type CreditCheckinDue } from "./lifecycle/repair-credit";
-export { ensureRecordLink, resolveRecordLink, recordLinkToken, getRecordPageData, type RecordPageData, type RecordPageZone } from "./lifecycle/record-page";
+export { ensureRecordLink, resolveRecordLink, recordLinkToken, getRecordPageData, getRecordComparison, type RecordPageData, type RecordPageZone, type RecordComparison } from "./lifecycle/record-page";
+export { getBaselinedProperties, baselineCoverageGaps, type BaselinedProperty } from "./lifecycle/inspection-baseline";
+export { proposeStormReinspectBatch, approveStormReinspectBatch, dismissStormReinspectBatch, markStormBatchSent, listOpenStormBatches, unlinkedReinspections, stormSwathSignature, type StormSwathInput } from "./lifecycle/storm-reinspect";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers

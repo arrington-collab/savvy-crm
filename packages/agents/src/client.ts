@@ -47,6 +47,9 @@ type Events = {
   "inspection/media.ingested": { data: { tenantId: string; inspectionId: string; leadId: string | null; zoneKey: string; documentId: string } };
   // The inspector climbed down: capture done, Record + estimate finalize.
   "inspection/completed": { data: { tenantId: string; inspectionId: string; leadId: string | null } };
+  // Owner approved a storm re-inspection batch → NOVA sends the service-framed
+  // outreach to the affected baselined roofs.
+  "storm/reinspect.approved": { data: { tenantId: string; batchId: string } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
   // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).

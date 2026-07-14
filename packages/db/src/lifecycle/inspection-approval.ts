@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { inspection, inspectionZone, inspectionFinding } from "../schema/index";
+import { setPropertyBaselineTx } from "./inspection-baseline";
 
 /**
  * The inspector approval gate (Roof Record slice 2): pending_approval →
@@ -58,8 +59,13 @@ export async function publishInspection(input: {
     const [updated] = await tx.update(inspection)
       .set({ status: "published", publishedAt })
       .where(and(eq(inspection.id, input.inspectionId), eq(inspection.status, "approved")))
-      .returning({ id: inspection.id });
+      .returning({ id: inspection.id, propertyId: inspection.propertyId, kind: inspection.kind });
     if (!updated) return { error: "not_approved" as const };
+    // A property's FIRST published initial Record becomes its baseline —
+    // "if a storm ever hits, this baseline protects your claim."
+    if (updated.kind === "initial") {
+      await setPropertyBaselineTx(tx, { propertyId: updated.propertyId, inspectionId: updated.id, publishedAt });
+    }
     return { publishedAt };
   });
 }
