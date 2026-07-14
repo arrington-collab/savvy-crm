@@ -52,7 +52,7 @@ fbq('init','${info.metaPixelId.replace(/[^0-9]/g, "")}');fbq('track','PageView')
           {info.insurancePolicy ? (<div className="flex justify-between"><dt className="text-gray-500">Policy #</dt><dd className="font-semibold">{info.insurancePolicy}</dd></div>) : null}
           {info.insurancePhone ? (<div className="flex justify-between"><dt className="text-gray-500">Verify coverage</dt><dd className="font-semibold">{info.insurancePhone}</dd></div>) : null}
         </dl>
-        {info.coiUrl ? (<a href={info.coiUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block text-sm font-semibold text-blue-600 underline">View certificate of insurance</a>) : null}
+        {info.coiUrl?.startsWith("https://") ? (<a href={info.coiUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block text-sm font-semibold text-blue-600 underline">View certificate of insurance</a>) : null}
         <p className="mt-4 text-xs text-gray-500">This page confirms the person at your door works with {row.companyName}, is licensed where required, and that the company carries active liability insurance for work on your property.</p>
       </div>
       <ScanForm repId={repId} company={row.companyName} repName={row.name} hasPixel={!!info.metaPixelId} />
