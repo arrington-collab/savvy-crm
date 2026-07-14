@@ -1,6 +1,6 @@
 import { materialDeliveryFlag } from "./material-order";
 
-export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile" | "stage_evidence";
+export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile" | "stage_evidence" | "production_pace_lag" | "production_silence" | "production_crew_late" | "production_blocker" | "production_eod_missing" | "inspection_gate";
 export type ExceptionSeverity = "high" | "medium";
 
 export type ExceptionItem = {
@@ -28,6 +28,14 @@ export type PhotoQualityInput = { documentId: string; jobId: string; label: stri
 export type SupplierInvoiceUnmatchedInput = { id: string; supplierName: string | null; createdAt: Date };
 export type CreditToReviewInput = { id: string; jobId: string | null; supplierName: string | null; claimedCents: number; createdAt: Date };
 export type CreditToReconcileInput = { id: string; supplierName: string | null; amountCents: number; createdAt: Date };
+// Production Pulse slice 3 — the exception-only office. The office hears these
+// and NOTHING else about production.
+export type PaceLagInput = { jobId: string; customerName: string | null; label: string; elapsedHours: number; expectedHours: number; crewContext: string | null };
+export type CrewSilenceInput = { jobId: string; customerName: string | null; hoursQuiet: number };
+export type CrewLateInput = { jobId: string; customerName: string | null; startsAt: Date };
+export type ProductionBlockerInput = { blockerId: string; jobId: string; customerName: string | null; kind: string; note: string | null; hasChangeOrder: boolean; createdAt: Date };
+export type EodMissingInput = { jobId: string; customerName: string | null; dayKey: string };
+export type InspectionGateInput = { jobId: string; customerName: string | null; phaseKey: string; requiredInspectionKey: string };
 
 export type ExceptionQueueInput = {
   atRiskJobs: AtRiskJobInput[];
@@ -39,6 +47,12 @@ export type ExceptionQueueInput = {
   weatherAtRisks: WeatherAtRiskInput[];
   roofTypeNeeded?: RoofTypeNeededInput[];
   stageEvidenceGaps?: StageEvidenceGapInput[];
+  paceLags?: PaceLagInput[];
+  crewSilences?: CrewSilenceInput[];
+  crewLates?: CrewLateInput[];
+  productionBlockers?: ProductionBlockerInput[];
+  eodMissing?: EodMissingInput[];
+  inspectionGates?: InspectionGateInput[];
   marginOutliers?: MarginOutlierInput[];
   photoIncomplete?: PhotoIncompleteInput[];
   photoUnmatched?: PhotoUnmatchedInput[];
@@ -64,6 +78,67 @@ function dollars(cents: number | null): string {
 /** Normalize the four exception vectors into one severity-sorted worklist. Pure. */
 export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue {
   const items: ExceptionItem[] = [];
+
+  for (const p of input.paceLags ?? []) {
+    items.push({
+      kind: "production_pace_lag",
+      severity: "medium",
+      title: p.customerName ?? "—",
+      detail: `${p.label} at ${p.elapsedHours.toFixed(1)}h vs ${p.expectedHours}h expected${p.crewContext ? ` — crew notes: ${p.crewContext}` : ""}`,
+      href: `/jobs/${p.jobId}`,
+      occurredAt: null,
+    });
+  }
+  for (const c of input.crewSilences ?? []) {
+    items.push({
+      kind: "production_silence",
+      severity: "high",
+      title: c.customerName ?? "—",
+      detail: `Crew checked in but no photos or memos for ${Math.floor(c.hoursQuiet)}h`,
+      href: `/jobs/${c.jobId}`,
+      occurredAt: null,
+    });
+  }
+  for (const c of input.crewLates ?? []) {
+    items.push({
+      kind: "production_crew_late",
+      severity: "high",
+      title: c.customerName ?? "—",
+      detail: "No crew check-in past the start window",
+      href: `/jobs/${c.jobId}`,
+      occurredAt: c.startsAt,
+    });
+  }
+  for (const b of input.productionBlockers ?? []) {
+    items.push({
+      kind: "production_blocker",
+      severity: "high",
+      title: b.customerName ?? "—",
+      detail: `${b.kind.replace(/_/g, " ")}${b.note ? `: ${b.note}` : ""}${b.hasChangeOrder ? " — change-order stub drafted" : ""}`,
+      href: `/jobs/${b.jobId}`,
+      occurredAt: b.createdAt,
+    });
+  }
+  for (const e of input.eodMissing ?? []) {
+    items.push({
+      kind: "production_eod_missing",
+      severity: "medium",
+      title: e.customerName ?? "—",
+      detail: `No end-of-day report for ${e.dayKey} — the crew day is still open`,
+      href: `/jobs/${e.jobId}`,
+      occurredAt: null,
+    });
+  }
+  for (const g of input.inspectionGates ?? []) {
+    items.push({
+      kind: "inspection_gate",
+      severity: "high",
+      title: g.customerName ?? "—",
+      detail: `${g.phaseKey.replace(/_/g, " ")} is waiting on the ${g.requiredInspectionKey.replace(/_/g, " ")} city inspection`,
+      href: `/jobs/${g.jobId}`,
+      occurredAt: null,
+    });
+  }
 
   for (const j of input.atRiskJobs) {
     items.push({
