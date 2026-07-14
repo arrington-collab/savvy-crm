@@ -69,6 +69,7 @@ export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { resolvePhotoJob, resolveTenantByIngestKey, recordSiteSnapPhoto, listUnmatchedPhotos, matchPhotoToJob, getPhotoForQc, getJobPhotoHashes, setPhotoQc, listFlaggedPhotos, listFlaggedPhotosForJob, keepFlaggedPhoto } from "./lifecycle/photos";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
 export { isDemoTenant, __clearDemoTenantCache } from "./lifecycle/demo-tenant";
+export { ensureEstimateLink, resolveEstimateLink, setEstimateSelection, estimateLinkToken, getEstimatePageData } from "./lifecycle/estimate-page";
 // NOTE: provision-runbook is intentionally NOT re-exported from this barrel. It
 // imports the registry SEED (master-task-list.ts, which uses `.js`-extension
 // imports that Turbopack can't resolve), and this index is transitively pulled

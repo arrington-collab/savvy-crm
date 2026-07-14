@@ -19,6 +19,7 @@ export * from "./estimate";
 export * from "./price-book";
 export * from "./tier-pricing";
 export * from "./price-book-diff";
+export * from "./estimate-page";
 export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";

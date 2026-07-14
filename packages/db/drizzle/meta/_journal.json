@@ -575,6 +575,13 @@
       "when": 1783921784407,
       "tag": "0081_cheerful_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1783954638662,
+      "tag": "0082_overconfident_smiling_tiger",
+      "breakpoints": true
     }
   ]
 }
