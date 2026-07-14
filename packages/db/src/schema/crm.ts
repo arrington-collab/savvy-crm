@@ -12,6 +12,9 @@ export const customer = pgTable("customer", {
   mailOptOut: boolean("mail_opt_out").notNull().default(false),
   // Customer for Life: no relationship touches while a claim dispute is active.
   claimDisputeHold: boolean("claim_dispute_hold").notNull().default(false),
+  // Customer for Life slice 3: set only by a CONFIRMED move_event (threshold or human).
+  movedAt: timestamp("moved_at", { withTimezone: true }),
+  newAddress: text("new_address"),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),

@@ -44,7 +44,9 @@ export const relationshipEnrollment = pgTable("relationship_enrollment", {
   suppressedReason: text("suppressed_reason"),
   createdAt: createdAt(),
 }, (t) => [
-  uniqueIndex("relationship_enrollment_job_idx").on(t.tenantId, t.jobId),
+  // Slice 3: (tenant, job, customer) — a warranty transfer enrolls the NEW
+  // owner against the same job while the original enrollment is preserved.
+  uniqueIndex("relationship_enrollment_job_idx").on(t.tenantId, t.jobId, t.customerId),
   index("relationship_enrollment_tenant_customer_idx").on(t.tenantId, t.customerId),
   tenantIsolation(),
 ]);

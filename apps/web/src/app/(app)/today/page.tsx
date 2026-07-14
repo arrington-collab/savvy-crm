@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { VideoBatchCard } from "./VideoBatchCard";
 import { StormBatchCard } from "./StormBatchCard";
+import { MoveVerificationCard } from "./MoveVerificationCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
 import { LockedTile } from "@/components/cockpit/LockedTile";
 import { getExceptionQueue } from "@/lib/exception-queries";
@@ -89,6 +90,7 @@ export default async function TodayPage() {
       {/* PORTFOLIO STRIP */}
       <VideoBatchCard />
       <StormBatchCard />
+      <MoveVerificationCard />
 
       <section data-testid="portfolio-strip">
         <div className="eyebrow mb-2">Portfolio · Holding Co</div>

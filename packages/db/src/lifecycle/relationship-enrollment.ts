@@ -18,7 +18,7 @@ const CHECKIN_GRACE_MS = 15 * DAY; // >45d after completion → too late to "che
 const EXTEND_HORIZON_MS = 400 * DAY;
 const SILENCE_WINDOW_MS = 548 * DAY; // 18 months
 
-export const CADENCE_TEXT_PROGRAMS = ["checkin_30d", "roofiversary"] as const;
+export const CADENCE_TEXT_PROGRAMS = ["checkin_30d", "roofiversary", "move_play"] as const;
 const PRINT_CHANNELS = ["postcard", "letter"] as const;
 
 async function cadenceConfig(tenantId: string): Promise<RelationshipCadenceConfig> {
