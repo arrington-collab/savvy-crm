@@ -1,5 +1,6 @@
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { selectJobCost, type SnapshotLine, type SupplierInvoiceLine } from "@savvy/core";
+import { getCurrentPriceBookTx } from "./price-book";
 import { withTenant } from "../tenant";
 import { document, job, materialOrder, supplierInvoice, priceBookItem } from "../schema/index";
 
@@ -76,7 +77,8 @@ export async function getMaterialOrderSnapshot(tenantId: string, jobId: string):
       .select({ lineItems: materialOrder.lineItems })
       .from(materialOrder)
       .where(and(eq(materialOrder.jobId, jobId), inArray(materialOrder.status, ["ordered", "delivered"])));
-    const book = await tx.select({ key: priceBookItem.key, unitCostCents: priceBookItem.unitCostCents }).from(priceBookItem);
+    // Current book only — a bare select would mix live originals with version clones.
+    const book = (await getCurrentPriceBookTx(tx)).items;
     const bookByKey = new Map(book.map((b) => [b.key, b.unitCostCents]));
     const out: SnapshotLine[] = [];
     for (const o of orders) {

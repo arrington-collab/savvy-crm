@@ -30,6 +30,11 @@ export const estimate = pgTable("estimate", {
   // Slice 6d: the measurement source (ordered|uploaded_report|sketch) this estimate was
   // priced from — a pricing-inputs citation stamped at draft (estimate.lead_stage evidence).
   measurementSource: text("measurement_source"),
+  // Estimate Experience slice 1: which price-book version priced this estimate
+  // (the 30-day price lock — the live book can move on, this estimate doesn't),
+  // and the Good/Better/Best snapshot (TierEstimate[] incl. margin-floor flags).
+  priceBookVersionId: uuid("price_book_version_id"),
+  tiers: jsonb("tiers").$type<unknown[]>(),
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),

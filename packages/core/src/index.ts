@@ -17,6 +17,8 @@ export * from "./roof";
 export * from "./estimate-engine";
 export * from "./estimate";
 export * from "./price-book";
+export * from "./tier-pricing";
+export * from "./price-book-diff";
 export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";

@@ -94,6 +94,7 @@ export { photoQc, runPhotoQc } from "./functions/photo-qc";
 export { parseSupplierInvoice, parseSupplierInvoiceHandler } from "./functions/supplier-invoice-parse";
 export { priceGuardSupplierInvoice, priceGuardHandler } from "./functions/supplier-invoice-guard";
 export { getTenantSms } from "./telephony";
+export { parsePriceSheet, type PriceSheetParseResult } from "./price-sheet-parse";
 export { canvassContractSigned, storeCanvassContract, emailSignedCopy } from "./functions/canvass-contract";
 export { parseLeadDocument, parseLeadDocumentHandler } from "./functions/parse-lead-document";
 export { challengeSettleHourly } from "./functions/challenge-settle";
