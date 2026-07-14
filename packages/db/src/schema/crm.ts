@@ -42,6 +42,11 @@ export const property = pgTable("property", {
   lastRoofReplacementSource: text("last_roof_replacement_source"),
   stories: integer("stories"),
   notes: text("notes"),
+  // Roof Record baseline: set on the property's FIRST published Record. Plain
+  // uuid (no .references()) — inspection.ts imports property, so a column-level
+  // FK here would be a circular import; the lifecycle write is the integrity gate.
+  baselineInspectionId: uuid("baseline_inspection_id"),
+  baselineAt: timestamp("baseline_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [index("property_tenant_idx").on(t.tenantId), tenantIsolation()]);
 

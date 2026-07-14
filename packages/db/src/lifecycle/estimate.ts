@@ -2,6 +2,7 @@ import { withTenant } from "../tenant";
 import { estimate } from "../schema/finance";
 import { measurement } from "../schema/ops";
 import { appointment } from "../schema/comms";
+import { inspection } from "../schema/inspection";
 import { lead } from "../schema/crm";
 import { priceBookItem } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
@@ -29,11 +30,12 @@ type CreateEstimateInput = {
   propertyId?: string;
 };
 
-/** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
-async function insertEstimateFromMeasurementTx(
+/** Price the measurement with the tenant's config + active book (shared by
+ *  first draft and the roof-record live refresh). Returns null if measurement missing. */
+async function priceMeasurementTx(
   tx: Parameters<Parameters<typeof withTenant>[1]>[0],
-  input: CreateEstimateInput,
-): Promise<typeof estimate.$inferSelect | null> {
+  input: { tenantId: string; measurementId: string },
+) {
   const [m] = await tx.select().from(measurement).where(eq(measurement.id, input.measurementId));
   if (!m) return null;
 
@@ -53,6 +55,17 @@ async function insertEstimateFromMeasurementTx(
     pitchTiers: cfg.steepPitchTiers,
   });
   const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
+  return { m, lineItems, wastePctUsed, pitchTierApplied, totals };
+}
+
+/** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
+async function insertEstimateFromMeasurementTx(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  input: CreateEstimateInput,
+): Promise<typeof estimate.$inferSelect | null> {
+  const priced = await priceMeasurementTx(tx, input);
+  if (!priced) return null;
+  const { m, lineItems, wastePctUsed, pitchTierApplied, totals } = priced;
 
   const [row] = await tx
     .insert(estimate)
@@ -129,6 +142,71 @@ export async function draftLeadEstimateIfReady(input: {
     });
     if (!row) return { skipped: "no_measurement" as const };
     return { estimateId: row.id, measurementId: m.id };
+  });
+}
+
+/**
+ * Roof Record slice 1: the estimate PRE-DRAFT builds live during the inspection.
+ * While the lead has an in_progress roof-record inspection, condition-input
+ * changes may create the pre-draft early (before the appointment is done) or
+ * re-price the existing draft in place. The final draft locks on completion per
+ * the existing rules: refresh refuses once the estimate leaves draft status, and
+ * without a live inspection this function does nothing.
+ */
+export async function refreshLeadEstimateDraft(input: {
+  tenantId: string;
+  leadId: string;
+}): Promise<{ estimateId: string; action: "created" | "refreshed" } | { skipped: string }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [l] = await tx.select().from(lead).where(eq(lead.id, input.leadId));
+    if (!l || !l.propertyId) return { skipped: "no_lead" as const };
+
+    const [insp] = await tx
+      .select({ id: inspection.id })
+      .from(inspection)
+      .where(and(eq(inspection.leadId, input.leadId), eq(inspection.status, "in_progress")))
+      .limit(1);
+    if (!insp) return { skipped: "no_active_inspection" as const };
+
+    const measRows = await tx
+      .select({ id: measurement.id, source: measurement.source, createdAt: measurement.createdAt })
+      .from(measurement)
+      .where(eq(measurement.propertyId, l.propertyId));
+    const m = selectPreferredMeasurement(measRows);
+    if (!m) return { skipped: "no_measurement" as const };
+
+    const [existing] = await tx
+      .select({ id: estimate.id, status: estimate.status })
+      .from(estimate)
+      .where(eq(estimate.leadId, input.leadId))
+      .limit(1);
+
+    if (!existing) {
+      const row = await insertEstimateFromMeasurementTx(tx, {
+        tenantId: input.tenantId,
+        measurementId: m.id,
+        leadId: input.leadId,
+        propertyId: l.propertyId,
+      });
+      if (!row) return { skipped: "no_measurement" as const };
+      return { estimateId: row.id, action: "created" as const };
+    }
+    if (existing.status !== "draft") return { skipped: "estimate_locked" as const };
+
+    const priced = await priceMeasurementTx(tx, { tenantId: input.tenantId, measurementId: m.id });
+    if (!priced) return { skipped: "no_measurement" as const };
+    await tx.update(estimate).set({
+      lineItems: priced.lineItems,
+      subtotal: priced.totals.subtotalCents,
+      tax: priced.totals.taxCents,
+      total: priced.totals.totalCents,
+      measurementId: m.id,
+      wastePctUsed: priced.wastePctUsed,
+      pitchTierApplied: priced.pitchTierApplied,
+      measurementSource: priced.m.source ?? null,
+      source: priced.m.provider === "diy" ? "diy" : "roofr",
+    }).where(eq(estimate.id, existing.id));
+    return { estimateId: existing.id, action: "refreshed" as const };
   });
 }
 

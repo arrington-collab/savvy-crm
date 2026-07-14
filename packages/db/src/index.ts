@@ -35,6 +35,7 @@ export { recordReferralPayment, approveReferralPayment, REFERRAL_FEE_APPROVAL_TA
 export { recomputeJobActualCost, saveParsedSupplierInvoice, getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed, getMaterialOrderSnapshot, saveGuardedSupplierInvoice, listUnmatchedSupplierInvoices, listSupplierInvoicesForJob } from "./lifecycle/supplier-invoice";
 export { createCreditRequest, setCreditRequestSent, listOpenSentCreditRequests, markCreditRequestCredited, getCreditRecoverySummary, listDraftedCreditRequests } from "./lifecycle/credit-request";
 export { markEsignBySubmission } from "./lifecycle/esign";
+export { startInspectionForLead, ingestInspectionMedia, completeInspection, getInspectionProgress, getInspectionScope, type InspectionProgress } from "./lifecycle/inspection";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
@@ -46,7 +47,7 @@ export * from "./schema/index";
 // the app's own `eq` doesn't match @savvy/db's columns).
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt, gte, lte, gt, ilike } from "drizzle-orm";
 export { ensurePriceBook } from "./lifecycle/price-book";
-export { createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
+export { createEstimateFromMeasurement, draftLeadEstimateIfReady, refreshLeadEstimateDraft, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
 export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { recordLeadDocument, listLeadDocuments, type LeadDocumentRow } from "./lifecycle/lead-documents";
 export { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, getDocumentParseSummaries, getDocumentForView } from "./lifecycle/lead-documents";

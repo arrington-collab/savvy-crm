@@ -21,3 +21,4 @@ export * from "./credit-request";
 export * from "./canvass";
 export * from "./supplier-allowlist";
 export * from "./compliance";
+export * from "./inspection";

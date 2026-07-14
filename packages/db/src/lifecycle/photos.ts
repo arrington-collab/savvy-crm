@@ -35,10 +35,12 @@ export async function resolveTenantByIngestKey(key: string): Promise<{ tenantId:
   return row ? { tenantId: row.id } : null;
 }
 
-/** Idempotent insert of a SiteSnap photo document. Repeat (tenant, sitesnapPhotoId) → no-op. */
+/** Idempotent insert of a SiteSnap photo document. Repeat (tenant, sitesnapPhotoId) → no-op.
+ *  leadId scopes roof-record inspection media to the lead (jobId stays for job-stage photos). */
 export async function recordSiteSnapPhoto(input: {
   tenantId: string; jobId: string | null; category: string;
   r2Key: string; captureAddress: string; sitesnapPhotoId: string;
+  leadId?: string | null;
 }): Promise<{ created: boolean; documentId: string }> {
   return withTenant(input.tenantId, async (tx) => {
     // Fast path: return the existing row if this photo was already ingested.
@@ -49,7 +51,7 @@ export async function recordSiteSnapPhoto(input: {
     // Atomic insert: a concurrent duplicate loses the race to the partial-unique
     // index and inserts nothing (onConflictDoNothing) rather than throwing 23505.
     const inserted = await tx.insert(document).values({
-      tenantId: input.tenantId, jobId: input.jobId, kind: "photo", source: "sitesnap",
+      tenantId: input.tenantId, jobId: input.jobId, leadId: input.leadId ?? null, kind: "photo", source: "sitesnap",
       label: input.category, r2Key: input.r2Key, captureAddress: input.captureAddress,
       sitesnapPhotoId: input.sitesnapPhotoId, qcStatus: "pending",
     }).onConflictDoNothing().returning({ id: document.id });

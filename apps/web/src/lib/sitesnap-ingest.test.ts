@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { adminDb, tenant, customer, property, job, withTenant, document, eq } from "@savvy/db";
+import { adminDb, tenant, customer, property, job, lead, withTenant, document, eq, and, inspectionZone, inspectionMedia, startInspectionForLead } from "@savvy/db";
 import { makeFakeStorage } from "@savvy/integrations";
 import { ingestSiteSnapPhoto } from "./sitesnap-ingest";
 
@@ -8,7 +8,8 @@ async function seed(key: string) {
   const [c] = await adminDb.insert(customer).values({ tenantId: t!.id, name: "C" }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId: t!.id, customerId: c!.id, address: "123 Main Street" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
-  return { tenantId: t!.id, jobId: j!.id };
+  const [l] = await adminDb.insert(lead).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, source: "web" }).returning();
+  return { tenantId: t!.id, jobId: j!.id, leadId: l!.id };
 }
 
 const fetchBytes = async () => ({ bytes: new Uint8Array([1, 2, 3]), mime: "image/jpeg" });
@@ -52,5 +53,75 @@ describe("ingestSiteSnapPhoto", () => {
     expect(r.status).toBe(200);
     const rows = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "e3")));
     expect(rows[0]!.jobId).toBeNull();
+  });
+});
+
+describe("ingestSiteSnapPhoto — zone-first roof-record media", () => {
+  it("lands zone-tagged media on its inspection zone and lead-scopes the document", async () => {
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId, leadId } = await seed(key);
+    const started = await startInspectionForLead({ tenantId, leadId });
+    const inspectionId = (started as { inspectionId: string }).inspectionId;
+    const emitInspectionMedia = vi.fn(async () => {});
+
+    const r = await ingestSiteSnapPhoto({
+      address: "123 Main Street", category: "roof", imageUrl: "u", externalPhotoId: "z1",
+      inspectionId, zoneKey: "north_slope", zoneLabel: "North slope", zoneKind: "facet",
+      capturedAtMs: Date.now(), gps: { lat: 33.45, lng: -112.07 },
+    }, key, { storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitInspectionMedia });
+
+    expect(r.status).toBe(200);
+    expect((r.body as { inspectionLinked?: boolean }).inspectionLinked).toBe(true);
+
+    const [doc] = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "z1")));
+    expect(doc!.leadId).toBe(leadId); // lead-scoped so QC + the lead photo rail see it
+
+    const zones = await withTenant(tenantId, (tx) => tx.select().from(inspectionZone).where(eq(inspectionZone.inspectionId, inspectionId)));
+    expect(zones).toHaveLength(1);
+    expect(zones[0]!.zoneKey).toBe("north_slope");
+
+    const media = await withTenant(tenantId, (tx) => tx.select().from(inspectionMedia).where(
+      and(eq(inspectionMedia.inspectionId, inspectionId), eq(inspectionMedia.documentId, doc!.id))));
+    expect(media).toHaveLength(1);
+    expect(emitInspectionMedia).toHaveBeenCalledWith({ tenantId, inspectionId, leadId, zoneKey: "north_slope", documentId: doc!.id });
+  });
+
+  it("replaying the same media event keeps one document and one zone link, and does not re-emit", async () => {
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId, leadId } = await seed(key);
+    const started = await startInspectionForLead({ tenantId, leadId });
+    const inspectionId = (started as { inspectionId: string }).inspectionId;
+    const emit = vi.fn(async () => {});
+    const emitInspectionMedia = vi.fn(async () => {});
+    const body = {
+      address: "123 Main Street", category: "roof", imageUrl: "u", externalPhotoId: "z2",
+      inspectionId, zoneKey: "gutters", zoneLabel: "Gutters", zoneKind: "gutters",
+    };
+
+    await ingestSiteSnapPhoto(body, key, { storage: makeFakeStorage(), fetchBytes, emit, emitInspectionMedia });
+    const replay = await ingestSiteSnapPhoto(body, key, { storage: makeFakeStorage(), fetchBytes, emit, emitInspectionMedia });
+    expect(replay.status).toBe(200);
+
+    const docs = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "z2")));
+    expect(docs).toHaveLength(1);
+    const media = await withTenant(tenantId, (tx) => tx.select().from(inspectionMedia).where(
+      and(eq(inspectionMedia.inspectionId, inspectionId), eq(inspectionMedia.documentId, docs[0]!.id))));
+    expect(media).toHaveLength(1);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emitInspectionMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the photo but reports inspectionLinked:false for an unknown inspection id", async () => {
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId } = await seed(key);
+    const r = await ingestSiteSnapPhoto({
+      address: "123 Main Street", category: "roof", imageUrl: "u", externalPhotoId: "z3",
+      inspectionId: crypto.randomUUID(), zoneKey: "ridge", zoneLabel: "Ridge",
+    }, key, { storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitInspectionMedia: vi.fn(async () => {}) });
+
+    expect(r.status).toBe(200); // a bad id is not retryable — never bounce the photo
+    expect((r.body as { inspectionLinked?: boolean }).inspectionLinked).toBe(false);
+    const docs = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "z3")));
+    expect(docs).toHaveLength(1);
   });
 });
