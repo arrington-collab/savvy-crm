@@ -51,6 +51,8 @@ export const CHECK_BINDINGS: Record<number, string> = {
   24: "drip.appended_guard", // Follow-up sequence (multi-touch)
   28: "lead.won_on_convert", // Lead status pipeline tracking — a job-referenced lead is won/lost, never stuck
   32: "lead.speed_to_contact", // Speed-to-lead monitoring & alerts
+  38: "roof_record.no_unsupported_action", // Damage identification & documentation — ACTION grades carry photo-backed confirmed findings
+  42: "roof_record.baseline_coverage", // Inspection report generation — a published initial Record sets the property baseline
   44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
   49: "lead.doc_parse", // Measurement report review & import — typed lead doc parsed-or-carded < 1h (slice 6d)
   52: "estimate.lead_stage", // Xactimate estimate creation — lead estimate cites its measurement source (slice 6d)
@@ -58,11 +60,23 @@ export const CHECK_BINDINGS: Record<number, string> = {
   56: "estimate.margin_floor", // Estimate delivery — no sent estimate carries an unresolved margin-floor violation (EE slice 1)
   58: "estimate.validity", // Price matching / negotiation tracking — zero acceptances at expired prices (EE slice 7)
   76: "claim.endorsement_no_idle", // Mortgage company endorsement tracking — 5-business-day no-idle (cell 16)
+  106: "production.delivery_notice", // Homeowner day-of notification — 3-day + eve-before delivery notices (PP slice 2)
+  111: "production.phase_evidence", // Progress photo documentation — DONE phases carry evidence photos (PP slice 1)
+  113: "production.ho_updates", // Mid-day progress update to homeowner — every visible DONE phase updated or logged (PP slice 2)
+  116: "production.eod", // End-of-day job status update — crew days file their EOD report (PP slice 2)
+  126: "production.inspection_gate", // City/county inspection coordination — gated phases never run unpassed (PP slice 3)
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation
   141: "finance.stripe_match", // Payment processing — credit card (Stripe collected == payments ledger, cell 8)
   150: "finance.qb_reconcile", // QuickBooks sync — invoices & payments (Savvy AR == QBO AR, cell 8)
   151: "finance.commissions", // Sales commission calculation
+  163: "relationship.enrollment", // Referral program enrollment — every completed job enrolls in the retention program (CFL slice 2)
+  165: "repair.credit_checkin", // Annual roof health check reminder — 12/24/33mo credit cadence ran before expiry (RR slice 2)
+  166: "inspection.linked_reinspection", // Post-storm check-in (past customers) — reinspections link their baseline (RR slice 4)
+  167: "relationship.cadence", // Holiday/seasonal greetings — no enrolled customer >18mo silent (CFL slice 2)
+  168: "relationship.cadence", // Customer anniversary recognition — roofiversary rides the same cadence proof (CFL slice 2)
+  170: "relationship.move_play", // Home sale trigger monitoring — every confirmed move produced both plays (CFL slice 3)
+  189: "relationship.warranty_record", // Workmanship warranty issuance — transfers always link the Roof Record (CFL slice 3)
   213: "comms.deliverability", // SMS deliverability monitoring (cell 6)
   214: "onboarding.no_lockout", // Onboarding completion monitoring — no-lockout guard (2026-07-06 P0)
 };

@@ -598,6 +598,204 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
   ),
+
+  // ── Batch 3: the bulk evidence pass (2026-07-14) — shipped program queries
+  // (Roof Record, Production Pulse, Customer for Life) re-expressed as sweep
+  // invariants. Each mirrors its lifecycle twin in packages/db/src/lifecycle
+  // (named in the comment) — keep them in step.
+
+  // listUnsupportedActionZones (inspection-findings.ts): the anti-scare
+  // invariant — a zone graded ACTION must carry a photo-backed confirmed finding.
+  "roof_record.no_unsupported_action": invariant(
+    "roof_record.no_unsupported_action",
+    `select z.id from inspection_zone z
+       where z.tenant_id = $1 and z.grade = 'action'
+         and not exists (
+           select 1 from inspection_finding f
+           where f.inspection_zone_id = z.id
+             and f.confirmed_at is not null
+             and jsonb_array_length(f.photo_ids) > 0
+         )`,
+    { toRef: (r) => ({ type: "inspection_zone", ref: String(r.id) }) },
+  ),
+
+  // baselineCoverageGaps (inspection-baseline.ts): every published INITIAL
+  // Record sets its property's permanent baseline — a null one is a missed hook.
+  "roof_record.baseline_coverage": invariant(
+    "roof_record.baseline_coverage",
+    `select i.id from inspection i
+       join property p on p.id = i.property_id
+      where i.tenant_id = $1 and i.status = 'published' and i.kind = 'initial'
+        and p.baseline_inspection_id is null`,
+    { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
+  ),
+
+  // unlinkedReinspections (storm-reinspect.ts): a post-storm inspection is only
+  // useful against its baseline — an unlinked one can't prove what changed.
+  "inspection.linked_reinspection": invariant(
+    "inspection.linked_reinspection",
+    `select i.id from inspection i
+      where i.tenant_id = $1 and i.kind = 'post_storm' and i.baseline_inspection_id is null`,
+    { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
+  ),
+
+  // Repair-credit cadence (repair-credit-sweep): no credit expires without the
+  // 12/24/33mo check-in cadence having run at least once (opt-outs still log).
+  "repair.credit_checkin": invariant(
+    "repair.credit_checkin",
+    `select rc.id from repair_credit rc
+      where rc.tenant_id = $1 and rc.status = 'expired'
+        and jsonb_array_length(rc.checkin_log) = 0`,
+    { toRef: (r) => ({ type: "repair_credit", ref: String(r.id) }) },
+  ),
+
+  // phaseEvidenceGaps (production-detectors.ts): a phase is DONE because photos
+  // prove it — a done phase with no evidence is a bypassed transition.
+  "production.phase_evidence": invariant(
+    "production.phase_evidence",
+    `select ph.id from production_phase ph
+      where ph.tenant_id = $1 and ph.status in ('done','verified')
+        and jsonb_array_length(ph.evidence_photo_ids) = 0`,
+    { toRef: (r) => ({ type: "production_phase", ref: String(r.id) }) },
+  ),
+
+  // hoUpdateGaps (production-updates.ts): every customer-visible DONE phase
+  // produced a homeowner update or a logged suppression.
+  "production.ho_updates": invariant(
+    "production.ho_updates",
+    `select ph.id from production_phase ph
+      where ph.tenant_id = $1 and ph.status in ('done','verified') and ph.customer_visible
+        and not exists (
+          select 1 from production_update u
+          where u.job_id = ph.job_id and u.kind = 'phase_complete' and u.phase_key = ph.phase_key
+        )`,
+    { toRef: (r) => ({ type: "production_phase", ref: String(r.id) }) },
+  ),
+
+  // deliveryNoticeGaps (production-updates.ts): by the time materials arrive,
+  // both delivery notices (3-day + eve-before) exist — sent or logged-suppressed.
+  "production.delivery_notice": invariant(
+    "production.delivery_notice",
+    `select mo.id from material_order mo
+      where mo.tenant_id = $1 and mo.status in ('ordered','delivered')
+        and mo.needed_by_at is not null and mo.needed_by_at <= now()
+        and mo.job_id is not null
+        and (
+          not exists (select 1 from production_update u where u.job_id = mo.job_id and u.kind = 'delivery_3day')
+          or not exists (select 1 from production_update u where u.job_id = mo.job_id and u.kind = 'delivery_eve')
+        )`,
+    { toRef: (r) => ({ type: "material_order", ref: String(r.id) }) },
+  ),
+
+  // eodGaps (crew-eod.ts): a crew day older than the 18h grace must have filed
+  // its EOD report. Day keys are tenant-local; the ±1-day candidate set absorbs
+  // timezone offsets the same way the lifecycle's generous window does.
+  "production.eod": invariant(
+    "production.eod",
+    `select distinct cc.id from crew_checkin cc
+      where cc.tenant_id = $1
+        and cc.checked_in_at >= now() - interval '7 days'
+        and cc.checked_in_at < now() - interval '18 hours'
+        and not exists (
+          select 1 from crew_eod_report r
+          where r.job_id = cc.job_id
+            and r.day_key in (
+              to_char(cc.checked_in_at - interval '12 hours', 'YYYY-MM-DD'),
+              to_char(cc.checked_in_at, 'YYYY-MM-DD'),
+              to_char(cc.checked_in_at + interval '12 hours', 'YYYY-MM-DD')
+            )
+        )`,
+    { toRef: (r) => ({ type: "crew_checkin", ref: String(r.id) }) },
+  ),
+
+  // inspectionGateViolations (production-detectors.ts): no municipally-gated
+  // phase runs without its PASSED inspection record.
+  "production.inspection_gate": invariant(
+    "production.inspection_gate",
+    `select ph.id from production_phase ph
+      where ph.tenant_id = $1 and ph.status in ('in_progress','done','verified')
+        and ph.required_inspection_key is not null
+        and not exists (
+          select 1 from municipal_inspection mi
+          where mi.job_id = ph.job_id
+            and mi.inspection_key = ph.required_inspection_key
+            and mi.status = 'passed'
+        )`,
+    { toRef: (r) => ({ type: "production_phase", ref: String(r.id) }) },
+  ),
+
+  // governorCapViolations (relationship-touch.ts): zero customers exceed the
+  // rolling-year touch cap — any hit means a send path bypassed the calendar.
+  // CROSS-CUTTING (all relationship programs) — registered but deliberately
+  // UNBOUND in CHECK_BINDINGS, same rationale as comms.no_double_send.
+  "relationship.governor": invariant(
+    "relationship.governor",
+    `select rt.customer_id as id from relationship_touch rt
+       join tenant t on t.id = rt.tenant_id
+      where rt.tenant_id = $1 and rt.sent_at is not null
+        and rt.sent_at >= now() - interval '365 days'
+      group by rt.customer_id, t.settings
+      having count(*) > coalesce((t.settings #>> '{relationship,touchCapPerYear}')::int, 5)`,
+    { toRef: (r) => ({ type: "customer", ref: String(r.id) }) },
+  ),
+
+  // enrollmentGaps (relationship-enrollment.ts): every completed job enrolls its
+  // customer in the standing cadence (demo tenants are exempt — hard-muted).
+  "relationship.enrollment": invariant(
+    "relationship.enrollment",
+    `select j.id from job j
+       join tenant t on t.id = j.tenant_id
+      where j.tenant_id = $1 and j.stage = 'complete' and not t.demo
+        and not exists (select 1 from relationship_enrollment re where re.job_id = j.id)`,
+    { toRef: (r) => ({ type: "job", ref: String(r.id) }) },
+  ),
+
+  // cadenceSilenceViolations (relationship-enrollment.ts): no enrolled customer
+  // goes >18 months with zero sent touches. Fully-opted-out customers are
+  // unreachable by choice and dispute-held ones deliberately quiet — not failures.
+  "relationship.cadence": invariant(
+    "relationship.cadence",
+    `select distinct re.customer_id as id from relationship_enrollment re
+       join customer c on c.id = re.customer_id
+      where re.tenant_id = $1 and re.suppressed_reason is null
+        and re.enrolled_at <= now() - interval '548 days'
+        and not c.claim_dispute_hold
+        and not (c.sms_opt_out and c.email_opt_out and c.mail_opt_out)
+        and not exists (
+          select 1 from relationship_touch rt
+          where rt.customer_id = re.customer_id
+            and rt.sent_at >= now() - interval '548 days'
+        )`,
+    { toRef: (r) => ({ type: "customer", ref: String(r.id) }) },
+  ),
+
+  // movePlayGaps (move-play.ts): every CONFIRMED move produced both plays —
+  // the Play A touch (any state; a governor refusal is logged suppression) and
+  // the Play B warranty-transfer offer.
+  "relationship.move_play": invariant(
+    "relationship.move_play",
+    `select me.id from move_event me
+      where me.tenant_id = $1 and me.status = 'confirmed'
+        and (
+          not exists (
+            select 1 from relationship_touch rt
+            where rt.customer_id = me.customer_id and rt.source_ref = me.id::text || ':play_a'
+          )
+          or not exists (select 1 from warranty_transfer wt where wt.move_event_id = me.id)
+        )`,
+    { toRef: (r) => ({ type: "move_event", ref: String(r.id) }) },
+  ),
+
+  // transfersMissingRecord (move-play.ts): a warranty transfer on a baselined
+  // property always carries the Roof Record link.
+  "relationship.warranty_record": invariant(
+    "relationship.warranty_record",
+    `select wt.id from warranty_transfer wt
+       join property p on p.id = wt.property_id
+      where wt.tenant_id = $1 and p.baseline_inspection_id is not null
+        and wt.baseline_inspection_id is distinct from p.baseline_inspection_id`,
+    { toRef: (r) => ({ type: "warranty_transfer", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

@@ -88,3 +88,21 @@ describe("relationship.governor evidence", () => {
     expect(violations).toEqual([{ customerId, sentInWindow: 6 }]);
   });
 });
+
+describe("displacement precision (smoke-test regression, 2026-07-14)", () => {
+  it("displacing at the cap suppresses exactly ONE touch, not every touch of that program", async () => {
+    const { tenantId, customerId } = await seedCustomer();
+    for (let i = 0; i < 5; i++) {
+      await scheduleRelationshipTouch({ tenantId, customerId, program: "roofiversary", channel: "text", scheduledFor: inDays(i + 1) });
+    }
+    const storm = await scheduleRelationshipTouch({ tenantId, customerId, program: "storm_check", channel: "text", scheduledFor: inDays(1) });
+    expect("touchId" in storm).toBe(true);
+
+    const displaced = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.customerId, customerId), eq(relationshipTouch.suppressedReason, "displaced")));
+    expect(displaced).toHaveLength(1);
+    const active = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.customerId, customerId), eq(relationshipTouch.program, "roofiversary")));
+    expect(active.filter((t) => t.suppressedReason === null)).toHaveLength(4);
+  });
+});
