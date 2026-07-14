@@ -82,15 +82,17 @@ export async function setInspectionNarrative(input: {
   userId?: string | null;
 }): Promise<SetNarrativeResult> {
   return withTenant(input.tenantId, async (tx) => {
-    const [insp] = await tx.select({ editedBy: inspection.narrativeEditedByUserId }).from(inspection)
+    // The edit LOCK is the timestamp, not the identity — an inspector edit
+    // without a resolved user id still locks AI drafts out.
+    const [insp] = await tx.select({ editedAt: inspection.narrativeEditedAt }).from(inspection)
       .where(eq(inspection.id, input.inspectionId));
     if (!insp) return { error: "inspection_not_found" as const };
 
     if (input.source === "ai") {
-      if (insp.editedBy) return { skipped: "inspector_edited" as const };
+      if (insp.editedAt) return { skipped: "inspector_edited" as const };
       await tx.update(inspection)
         .set({ narrative: input.narrative, narrativeDraftedAt: new Date() })
-        .where(and(eq(inspection.id, input.inspectionId), isNull(inspection.narrativeEditedByUserId)));
+        .where(and(eq(inspection.id, input.inspectionId), isNull(inspection.narrativeEditedAt)));
       return { saved: true as const };
     }
 

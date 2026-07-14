@@ -39,6 +39,7 @@ import { crewCheckedInToProduction, materialDeliveredToProduction, productionPho
 import { homeownerNotify } from "./functions/homeowner-notify";
 import { photoQc } from "./functions/photo-qc";
 import { inspectionLiveBuild, inspectionFinalize } from "./functions/inspection-live-build";
+import { inspectionNarrativeOnComplete } from "./functions/inspection-narrative";
 import { parseSupplierInvoice } from "./functions/supplier-invoice-parse";
 import { priceGuardSupplierInvoice } from "./functions/supplier-invoice-guard";
 import { canvassContractSigned } from "./functions/canvass-contract";
@@ -97,6 +98,7 @@ export { insuranceDepreciationDetect } from "./functions/depreciation-detect";
 export { homeownerNotify } from "./functions/homeowner-notify";
 export { photoQc, runPhotoQc } from "./functions/photo-qc";
 export { inspectionLiveBuild, inspectionFinalize, inspectionMediaHandler } from "./functions/inspection-live-build";
+export { inspectionNarrativeOnComplete, draftInspectionNarrative, NARRATIVE_RUBRIC_V1, NARRATIVE_RUBRIC_KEY } from "./functions/inspection-narrative";
 export { parseSupplierInvoice, parseSupplierInvoiceHandler } from "./functions/supplier-invoice-parse";
 export { priceGuardSupplierInvoice, priceGuardHandler } from "./functions/supplier-invoice-guard";
 export { getTenantSms } from "./telephony";
@@ -112,4 +114,4 @@ export { ownerVideoDelivery, deliverOwnerVideos } from "./functions/owner-video-
 export { canvassSaleContractWatch } from "./functions/canvass-sale-watch";
 import type { InngestFunction } from "inngest";
 // Explicit annotation: the inferred tuple type exceeds tsc's serialization limit (TS7056).
-export const functions: InngestFunction.Any[] = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, runReaper, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument, stormAlertDaily, challengeSettleHourly, canvassSaleContractWatch, estimateOpenRace, estimateExpirySweep, estimateVideoProcess, ownerVideoDelivery, inspectionLiveBuild, inspectionFinalize];
+export const functions: InngestFunction.Any[] = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, runReaper, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument, stormAlertDaily, challengeSettleHourly, canvassSaleContractWatch, estimateOpenRace, estimateExpirySweep, estimateVideoProcess, ownerVideoDelivery, inspectionLiveBuild, inspectionFinalize, inspectionNarrativeOnComplete];
