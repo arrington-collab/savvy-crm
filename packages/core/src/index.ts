@@ -136,3 +136,4 @@ export * from "./showcase-config";
 export * from "./agent-verbs";
 export * from "./minutes-saved";
 export * from "./roof-age";
+export * from "./geo";
