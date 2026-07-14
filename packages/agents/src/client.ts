@@ -35,6 +35,7 @@ type Events = {
   "estimate/send.requested": { data: { tenantId: string; estimateId: string } };
   "estimate/accepted": { data: { tenantId: string; estimateId: string } };
   "estimate/page.opened": { data: { tenantId: string; estimateId: string; sessionId: string } };
+  "estimate/video.recorded": { data: { tenantId: string; estimateId: string; estimateVideoId: string } };
   "change_order/accepted": { data: { changeOrderId: string; tenantId: string } };
   "lead/contacted": { data: { leadId: string; tenantId: string } };
   "lead/contact-overdue": { data: { leadId: string; tenantId: string } };

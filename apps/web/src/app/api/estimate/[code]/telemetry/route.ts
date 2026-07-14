@@ -5,7 +5,7 @@ import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
 
-const CLIENT_KINDS: EstimateEventKind[] = ["open", "dwell", "tier_view", "color_play"];
+const CLIENT_KINDS: EstimateEventKind[] = ["open", "dwell", "tier_view", "color_play", "video_watch"];
 
 // Public, token-gated, first-party telemetry beacon. An `open` that qualifies
 // as a hot signal (first open / return visit) starts the 60-second rep race.
