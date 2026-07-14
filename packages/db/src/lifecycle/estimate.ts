@@ -61,7 +61,41 @@ async function priceMeasurementTx(
     pitchTiers: cfg.steepPitchTiers,
   });
   const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
-  return { m, lineItems, wastePctUsed, pitchTierApplied, totals };
+  return { m, areas, cfg, book, versionId, lineItems, wastePctUsed, pitchTierApplied, totals };
+}
+
+type PricedMeasurement = NonNullable<Awaited<ReturnType<typeof priceMeasurementTx>>>;
+
+/** Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
+ *  products surface via needsCosts — never invented. Absent tier products
+ *  (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
+ *  Shared by fresh drafts AND the roof-record live refresh so a refreshed draft
+ *  always matches what a fresh draft would produce. */
+async function buildTiersSnapshotTx(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  priced: PricedMeasurement,
+) {
+  const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
+  if (products.length === 0) return null;
+  return expandTierEstimates({
+    areas: priced.areas,
+    priceBook: priced.book as unknown as TierEngineItem[],
+    tierProducts: products.map(
+      (p): TierProductInput => ({
+        tier: p.tier as TierProductInput["tier"],
+        productName: p.productName,
+        manufacturer: p.manufacturer,
+        unitPriceCents: p.unitPriceCents,
+        unitCostCents: p.unitCostCents,
+        warrantyText: p.warrantyText,
+        recommended: p.recommended,
+      }),
+    ),
+    defaultWastePct: priced.cfg.defaultWastePct,
+    pitchTiers: priced.cfg.steepPitchTiers,
+    shingleItemKey: "field-shingles",
+    defaultMarginFloorBps: priced.cfg.marginFloorBps,
+  }).tiers;
 }
 
 /** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
@@ -71,34 +105,8 @@ async function insertEstimateFromMeasurementTx(
 ): Promise<typeof estimate.$inferSelect | null> {
   const priced = await priceMeasurementTx(tx, input);
   if (!priced) return null;
-  const { m, lineItems, wastePctUsed, pitchTierApplied, totals } = priced;
-
-  // Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
-  // products surface via needsCosts — never invented. Absent tier products
-  // (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
-  const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
-  const tiersSnapshot =
-    products.length > 0
-      ? expandTierEstimates({
-          areas,
-          priceBook: book as unknown as TierEngineItem[],
-          tierProducts: products.map(
-            (p): TierProductInput => ({
-              tier: p.tier as TierProductInput["tier"],
-              productName: p.productName,
-              manufacturer: p.manufacturer,
-              unitPriceCents: p.unitPriceCents,
-              unitCostCents: p.unitCostCents,
-              warrantyText: p.warrantyText,
-              recommended: p.recommended,
-            }),
-          ),
-          defaultWastePct: cfg.defaultWastePct,
-          pitchTiers: cfg.steepPitchTiers,
-          shingleItemKey: "field-shingles",
-          defaultMarginFloorBps: cfg.marginFloorBps,
-        }).tiers
-      : null;
+  const { m, versionId, lineItems, wastePctUsed, pitchTierApplied, totals } = priced;
+  const tiersSnapshot = await buildTiersSnapshotTx(tx, priced);
 
   const [row] = await tx
     .insert(estimate)
@@ -233,6 +241,9 @@ export async function refreshLeadEstimateDraft(input: {
 
     const priced = await priceMeasurementTx(tx, { tenantId: input.tenantId, measurementId: m.id });
     if (!priced) return { skipped: "no_measurement" as const };
+    // Re-stamp the book version + tier snapshot too: the 30-day price lock
+    // applies at SEND — a still-draft estimate always reflects the current book.
+    const tiersSnapshot = await buildTiersSnapshotTx(tx, priced);
     await tx.update(estimate).set({
       lineItems: priced.lineItems,
       subtotal: priced.totals.subtotalCents,
@@ -243,6 +254,8 @@ export async function refreshLeadEstimateDraft(input: {
       pitchTierApplied: priced.pitchTierApplied,
       measurementSource: priced.m.source ?? null,
       source: priced.m.provider === "diy" ? "diy" : "roofr",
+      priceBookVersionId: priced.versionId,
+      tiers: tiersSnapshot,
     }).where(eq(estimate.id, existing.id));
     return { estimateId: existing.id, action: "refreshed" as const };
   });

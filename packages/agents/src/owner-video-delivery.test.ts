@@ -37,7 +37,10 @@ beforeAll(async () => {
   // configure the generic tenant video
   const { adminDb, tenant, sql } = await import("@savvy/db");
   await adminDb.update(tenant).set({
-    settings: sql`coalesce(${tenant.settings}, '{}'::jsonb) || '{"ownerVideo": {"genericDocumentId": "generic-vid-doc"}}'::jsonb`,
+    // quietHours start==end = empty window: this test runs at ANY wall-clock hour
+    // (it was failing 21:00–08:00 UTC — quiet hours correctly suppressed the send).
+    // Quiet-hours behavior itself is covered by the quiet-hours unit tests.
+    settings: sql`coalesce(${tenant.settings}, '{}'::jsonb) || '{"ownerVideo": {"genericDocumentId": "generic-vid-doc"}, "homeowner": {"quietHours": {"startHour": 0, "endHour": 0}}}'::jsonb`,
   }).where(eq(tenant.id, tenantId));
 });
 
