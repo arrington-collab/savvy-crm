@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { stripeGateway } from "@savvy/integrations";
-import { recordStripePayment } from "@savvy/db";
+import { stripeGateway, makeFakeStripe } from "@savvy/integrations";
+import { recordStripePayment, recordEstimateDeposit } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { log } from "@/lib/log";
 
@@ -9,9 +9,13 @@ export const runtime = "nodejs";
 export async function POST(req: Request): Promise<NextResponse> {
   const raw = await req.text(); // raw body required for signature verification
   const sig = req.headers.get("stripe-signature") ?? "";
+  // Mirror the DocuSeal pattern: no Stripe key (dev/e2e) → fake gateway that
+  // parses the raw JSON without signature verification. Production always
+  // verifies (key + webhook secret are required env there).
+  const gw = process.env.STRIPE_SECRET_KEY ? stripeGateway : makeFakeStripe();
   let evt;
   try {
-    evt = stripeGateway.constructWebhookEvent(raw, sig);
+    evt = gw.constructWebhookEvent(raw, sig);
   } catch {
     return new NextResponse("bad signature", { status: 400 });
   }
@@ -23,7 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const session = evt.data.object as {
     id?: string; payment_intent?: string; amount_total?: number;
     payment_status?: string;
-    metadata?: { invoiceId?: string; tenantId?: string };
+    metadata?: { invoiceId?: string; tenantId?: string; kind?: string; estimateId?: string };
   };
 
   // Method + settlement gating:
@@ -43,6 +47,27 @@ export async function POST(req: Request): Promise<NextResponse> {
   const tenantId = session.metadata?.tenantId;
   const stripePaymentId = session.payment_intent ?? session.id;
   if (!invoiceId || !tenantId || !stripePaymentId) return NextResponse.json({ received: true });
+
+  // Estimate Experience slice 3: acceptance deposits are estimate-scoped (no
+  // invoice exists yet — the job hasn't been created). Settling the deposit
+  // completes the sign+pay gate; when both halves are in, fire the UNCHANGED
+  // estimate/accepted chain.
+  if (session.metadata?.kind === "estimate_deposit" && session.metadata.estimateId) {
+    const estimateId = session.metadata.estimateId;
+    try {
+      const dep = await recordEstimateDeposit({ tenantId, estimateId, stripePaymentId });
+      if (!dep.alreadyRecorded && dep.nowReady) {
+        try {
+          await inngest.send({ name: "estimate/accepted", data: { tenantId, estimateId } });
+        } catch (e) {
+          log.error("estimate/accepted emit failed", { route: "/api/stripe/webhook", tenantId, msg: String(e) });
+        }
+      }
+    } catch (e) {
+      log.error("estimate deposit reconcile failed", { route: "/api/stripe/webhook", tenantId, msg: String(e) });
+    }
+    return NextResponse.json({ received: true });
+  }
 
   try {
     const r = await recordStripePayment({

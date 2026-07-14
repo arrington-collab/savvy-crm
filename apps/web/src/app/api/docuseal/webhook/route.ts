@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, estimate, markEsignBySubmission, markChangeOrderBySubmission, eq } from "@savvy/db";
+import { adminDb, estimate, markEsignBySubmission, markChangeOrderBySubmission, eq , recordEstimateSigned } from "@savvy/db";
 import { httpDocuseal } from "@savvy/integrations";
 import { inngest } from "@savvy/agents";
 import { log } from "@/lib/log";
@@ -38,9 +38,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     // Replay/forgery defense-in-depth: ignore already-accepted estimates.
     if (est.status === "accepted") return NextResponse.json({ ok: true });
     try {
-      await inngest.send({ name: "estimate/accepted", data: { tenantId: est.tenantId, estimateId: est.id } });
+      // Slice 3 gate: signing alone no longer accepts — the deposit (when one
+      // is required) must settle first. Whichever webhook completes the pair
+      // fires the UNCHANGED estimate/accepted chain.
+      const { nowReady } = await recordEstimateSigned(est.tenantId, est.id);
+      if (nowReady) {
+        await inngest.send({ name: "estimate/accepted", data: { tenantId: est.tenantId, estimateId: est.id } });
+      }
     } catch (e) {
-      log.error("estimate/accepted emit failed", { route: "/api/docuseal/webhook", tenantId: est.tenantId, msg: String(e) });
+      log.error("estimate signed handling failed", { route: "/api/docuseal/webhook", tenantId: est.tenantId, msg: String(e) });
     }
     return NextResponse.json({ ok: true });
   }

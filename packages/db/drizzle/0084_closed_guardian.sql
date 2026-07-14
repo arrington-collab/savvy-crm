@@ -1,0 +1,1 @@
+ALTER TABLE "estimate" ADD COLUMN "deposit_checkout_url" text;
