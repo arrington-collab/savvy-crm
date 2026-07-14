@@ -8,6 +8,7 @@
 import {
   adminDb, withTenant, eq, customer, tenant as tenantTbl, messageTemplate, and,
   creditCheckinsDue, recordCreditCheckin, expireLapsedCredits, isDemoTenant,
+  scheduleRelationshipTouch, markTouchSent,
 } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate } from "@savvy/core";
 import { inngest } from "../client";
@@ -39,6 +40,18 @@ export async function sweepTenantRepairCredits(
   const due = await creditCheckinsDue(tenantId, now);
   let touched = 0;
   for (const d of due) {
+    // Customer for Life governor: check-ins schedule THROUGH the relationship
+    // calendar (idempotent per credit+kind). A refusal still closes the cadence
+    // step — the governor's ledger row carries the why.
+    const admitted = await scheduleRelationshipTouch({
+      tenantId, customerId: d.customerId, program: "credit_checkin", channel: "text",
+      scheduledFor: now, sourceRef: `${d.creditId}:${d.kind}`, now,
+    });
+    if (!("touchId" in admitted)) {
+      await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind, commId: null });
+      continue;
+    }
+    const touchId = admitted.touchId;
     const cust = await withTenant(tenantId, async (tx) => {
       const [c] = await tx.select({ name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut })
         .from(customer).where(eq(customer.id, d.customerId));
@@ -59,6 +72,7 @@ export async function sweepTenantRepairCredits(
 
     const { sender, from } = await deps.getTenantSms(tenantId);
     await sender.sendSms({ to: cust.phone, from, body });
+    await markTouchSent({ tenantId, touchId });
     await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind });
     touched += 1;
   }

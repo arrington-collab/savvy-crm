@@ -23,3 +23,4 @@ export * from "./supplier-allowlist";
 export * from "./compliance";
 export * from "./inspection";
 export * from "./production-pulse";
+export * from "./relationship";

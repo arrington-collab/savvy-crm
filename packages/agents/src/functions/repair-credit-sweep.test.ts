@@ -47,6 +47,14 @@ describe("sweepTenantRepairCredits", () => {
 
     const [row] = await adminDb.select().from(repairCredit).where(eq(repairCredit.id, creditId));
     expect((row!.checkinLog as { kind: string }[]).map((l) => l.kind)).toEqual(["12mo"]);
+
+    // Customer for Life: the send rode the relationship calendar (governor).
+    const { relationshipTouch } = await import("@savvy/db");
+    const touches = await adminDb.select().from(relationshipTouch)
+      .where(eq(relationshipTouch.sourceRef, `${creditId}:12mo`));
+    expect(touches).toHaveLength(1);
+    expect(touches[0]!.program).toBe("credit_checkin");
+    expect(touches[0]!.sentAt).toBeInstanceOf(Date);
   });
 
   it("an opted-out customer still logs the check-in as suppressed (cadence ran)", async () => {
@@ -58,6 +66,15 @@ describe("sweepTenantRepairCredits", () => {
     expect(deps.sent).toHaveLength(0);
     const [row] = await adminDb.select().from(repairCredit).where(eq(repairCredit.id, creditId));
     expect((row!.checkinLog as { kind: string }[]).map((l) => l.kind)).toEqual(["12mo"]);
+
+    // Customer for Life: the opt-out was honored AT the governor — the calendar
+    // row is a logged suppression, and nothing was sent.
+    const { relationshipTouch } = await import("@savvy/db");
+    const touches = await adminDb.select().from(relationshipTouch)
+      .where(eq(relationshipTouch.sourceRef, `${creditId}:12mo`));
+    expect(touches).toHaveLength(1);
+    expect(touches[0]!.suppressedReason).toBe("opt_out");
+    expect(touches[0]!.sentAt).toBeNull();
   });
 
   it("quiet hours suppress touches but the expiry sweep still runs", async () => {
