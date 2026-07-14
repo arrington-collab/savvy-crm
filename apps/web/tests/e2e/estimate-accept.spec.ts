@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
   adminDb,
+  appointment,
   customer,
   property,
   lead,
@@ -31,6 +32,19 @@ async function seedSentEstimate(stamp: string): Promise<{ code: string; estimate
   const leadId = await withTenant(tenantId, async (tx) => {
     const [l] = await tx.insert(lead).values({ tenantId, customerId: custId, propertyId: propId, source: "referral", status: "qualified" }).returning();
     return l!.id;
+  });
+  // The approved-stage gate demands inspection EVIDENCE (a done inspection
+  // appointment), not just lead status — without this, acceptance is refused
+  // with StageEvidenceError. A 'done' appointment is exempt from the
+  // no-overlap EXCLUDE constraints (scheduled-only), so a fixed past slot is
+  // collision-safe on the shared e2e tenant.
+  await withTenant(tenantId, async (tx) => {
+    const startsAt = new Date(Date.now() - 24 * 3600_000);
+    await tx.insert(appointment).values({
+      tenantId, leadId, propertyId: propId, customerId: custId,
+      type: "inspection", status: "done",
+      startsAt, endsAt: new Date(startsAt.getTime() + 2 * 3600_000),
+    });
   });
   const measurementId = await withTenant(tenantId, async (tx) => {
     const [m] = await tx.insert(measurement).values({
