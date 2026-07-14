@@ -95,16 +95,24 @@ export async function scheduleRelationshipTouch(input: {
 
     let displaced: string | undefined;
     if (verdict.displace) {
-      const [row] = await tx.update(relationshipTouch)
-        .set({ suppressedReason: "displaced" })
+      // Exactly ONE row: the verdict displaces a single touch, so resolve the
+      // id first — a program-wide UPDATE would suppress every scheduled touch
+      // of that program (smoke-test regression, 2026-07-14).
+      const [victim] = await tx.select({ id: relationshipTouch.id }).from(relationshipTouch)
         .where(and(
           eq(relationshipTouch.customerId, input.customerId),
           eq(relationshipTouch.program, verdict.displace.program),
+          eq(relationshipTouch.scheduledFor, verdict.displace.scheduledFor),
           isNull(relationshipTouch.sentAt),
           isNull(relationshipTouch.suppressedReason),
-        ))
-        .returning({ program: relationshipTouch.program });
-      displaced = row?.program;
+        )).limit(1);
+      if (victim) {
+        const [row] = await tx.update(relationshipTouch)
+          .set({ suppressedReason: "displaced" })
+          .where(eq(relationshipTouch.id, victim.id))
+          .returning({ program: relationshipTouch.program });
+        displaced = row?.program;
+      }
     }
 
     const [created] = await tx.insert(relationshipTouch).values({
