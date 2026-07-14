@@ -106,3 +106,5 @@ export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";
 export { leadSourceSummary, referredRevenueByPerson } from "./lifecycle/lead-source-analytics";
 export { getCalibrationInputs } from "./lifecycle/lead-calibration";
 export { createSaleNoContractAlerts, listAlerts, markAlertRead, markAllAlertsRead, readKnockForAlert, activeManagerIds, type AlertRow } from "./lifecycle/canvass-alert";
+export { createScan, listScans, type CreateScanArgs, type ScanRow } from "./lifecycle/canvass-scan";
+export { insertPings, listPingsForDay, type PingPoint } from "./lifecycle/canvass-ping";
