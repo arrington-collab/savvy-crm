@@ -1,5 +1,6 @@
 import {
   withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
+  createMoveLeadOnReply,
 } from "@savvy/db";
 import { isStopKeyword, isCancelKeyword } from "@savvy/core";
 import { inngest } from "@savvy/agents";
@@ -64,6 +65,15 @@ export async function handleInboundSms(
     for (const leadId of leadIds) {
       try { await inngest.send({ name: "lead/contacted", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
     }
+
+    // Customer for Life Play A: a reply to the recent move-play text converts —
+    // one lead at the customer's new address (deduped per move event).
+    try {
+      const move = await createMoveLeadOnReply(tenantId, c.id);
+      if (move.leadId) {
+        await inngest.send({ name: "lead/created", data: { leadId: move.leadId, tenantId } });
+      }
+    } catch (e) { console.error("move-play lead creation failed", e); }
   }
 
   return { matched: true, stopped: reason };

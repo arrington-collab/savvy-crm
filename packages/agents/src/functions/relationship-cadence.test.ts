@@ -90,3 +90,26 @@ describe("sweepTenantRelationshipCadence", () => {
     expect(deps.sent.filter((s) => s.body.toLowerCase().includes("holiday"))).toHaveLength(0);
   });
 });
+
+describe("move_play sends (slice 3)", () => {
+  it("a due play-A touch goes out with the Roof-Record framing and stamps sent", async () => {
+    const { tenantId, customerId } = await seedCompletedJob({ completedDaysAgo: 400 });
+    const { scheduleRelationshipTouch } = await import("@savvy/db");
+    const r = await scheduleRelationshipTouch({
+      tenantId, customerId, program: "move_play", channel: "text",
+      scheduledFor: new Date(Date.now() - DAY), sourceRef: "move-1:play_a",
+    });
+    expect("touchId" in r).toBe(true);
+
+    const deps = fakeSmsDeps();
+    const res = await sweepTenantRelationshipCadence(tenantId, deps as never);
+    expect(res.sent).toBeGreaterThanOrEqual(1);
+    const playA = deps.sent.find((s) => s.body.includes("Roof Record"));
+    expect(playA).toBeTruthy();
+    expect(playA!.body).toContain("Wanda");
+
+    const [touch] = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.customerId, customerId), eq(relationshipTouch.program, "move_play")));
+    expect(touch!.sentAt).toBeInstanceOf(Date);
+  });
+});

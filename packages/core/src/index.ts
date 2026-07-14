@@ -141,3 +141,4 @@ export * from "./production-phase";
 export * from "./delivery-touches";
 export * from "./touch-governor";
 export * from "./relationship-cadence";
+export * from "./move-play";

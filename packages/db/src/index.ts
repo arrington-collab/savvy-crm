@@ -129,3 +129,9 @@ export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";
 export { leadSourceSummary, referredRevenueByPerson } from "./lifecycle/lead-source-analytics";
 export { getCalibrationInputs } from "./lifecycle/lead-calibration";
 export { createSaleNoContractAlerts, listAlerts, markAlertRead, markAllAlertsRead, readKnockForAlert, activeManagerIds, type AlertRow } from "./lifecycle/canvass-alert";
+export {
+  recordMoveSignal, confirmMove, dismissMove, pendingMoveVerifications,
+  registerWarrantyTransfer, getWarrantyTransferOffer, createMoveLeadOnReply,
+  movePlayGaps, transfersMissingRecord,
+  type MoveSignalResult, type RegisterTransferResult,
+} from "./lifecycle/move-play";
