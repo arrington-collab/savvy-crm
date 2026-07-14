@@ -10,9 +10,9 @@ import { log } from "@/lib/log";
 export const runtime = "nodejs";
 export const maxDuration = 60; // cert generation hits IEM/SPC + renders a PDF upstream
 
-// POST — mint a StormProof verification certificate for a door, fired by the
-//   field app when a knock becomes an APPOINTMENT or SALE (never from browse
-//   paths — generateCertificate has cost/side effects). Idempotent per
+// POST — mint a StormProof verification certificate for a door: automatically
+//   when a knock becomes an APPOINTMENT or SALE, and on demand from the field
+//   app's 📄 map button (a mid-pitch persuasion tool). Idempotent per
 //   (tenant, ~11 m coord key): repeat appointments at the same door reuse the
 //   existing cert instead of minting again. The response returns the verify
 //   URL + storm facts; the PDF stays with StormProof (reps share the URL).
