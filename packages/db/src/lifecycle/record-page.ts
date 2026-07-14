@@ -15,7 +15,8 @@ import { document } from "../schema/ops";
 import { tenant } from "../schema/tenancy";
 import { user } from "../schema/tenancy";
 import { license } from "../schema/compliance";
-import { randomShortCode, roofAgeRange, type RoofAgeRange } from "@savvy/core";
+import { randomShortCode, roofAgeRange, roofSketchSchema, selectPreferredMeasurement, type RoofAgeRange, type RoofSketch } from "@savvy/core";
+import { measurement } from "../schema/ops";
 
 function recordSig(tenantId: string, inspectionId: string): string {
   const secret = process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret";
@@ -86,12 +87,16 @@ export type RecordPageData = {
   healthy: boolean;
   zones: RecordPageZone[];
   freeRepairs: RecordPageZone["findings"];
-  suggestions: (RecordPageZone["findings"] & { zoneLabel?: string })[] | RecordPageZone["findings"];
+  suggestions: RecordPageZone["findings"];
   replacementDiscussion: boolean;
   ageRange: RoofAgeRange | null;
   companyName: string;
   licenses: { state: string; licenseNumber: string }[];
   estimateId: string | null;
+  // The hero: facet polygons from the property's measurement geometry (zone
+  // pins color by grade where zone_key matches a facet id). Null → aerial/chip
+  // fallback rendering.
+  sketch: RoofSketch | null;
 };
 
 /**
@@ -165,6 +170,16 @@ export async function getRecordPageData(input: {
           .where(eq(license.state, prop.state))
       : [];
 
+    const measRows = await tx.select({ id: measurement.id, source: measurement.source, createdAt: measurement.createdAt })
+      .from(measurement).where(eq(measurement.propertyId, insp.propertyId));
+    const preferred = selectPreferredMeasurement(measRows);
+    let sketch: RoofSketch | null = null;
+    if (preferred) {
+      const [m] = await tx.select({ areas: measurement.areas }).from(measurement).where(eq(measurement.id, preferred.id));
+      const parsed = roofSketchSchema.safeParse((m?.areas as { sketch?: unknown } | null)?.sketch);
+      sketch = parsed.success ? parsed.data : null;
+    }
+
     // The estimate link (never tier pricing — the Record is not the estimate).
     const est = insp.leadId
       ? (await tx.select({ id: estimate.id }).from(estimate)
@@ -191,6 +206,7 @@ export async function getRecordPageData(input: {
       companyName: t?.name ?? "",
       licenses,
       estimateId: est?.id ?? null,
+      sketch,
     };
   });
 }
