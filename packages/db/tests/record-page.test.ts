@@ -123,3 +123,49 @@ describe("getRecordPageData — renders ONLY a published Record", () => {
     expect(page!.publishedAt).toBeInstanceOf(Date);
   });
 });
+
+describe("getRecordComparison — the claim-evidence artifact", () => {
+  it("matches zones by zone_key: before/after grades + photos, with the grade delta", async () => {
+    const { getRecordComparison } = await import("../src/lifecycle/record-page.js");
+    const { completeInspection: complete, approveInspection: approve, publishInspection: publish, setInspectionZoneGrade: setGrade, addInspectionFinding: addFinding, startInspectionForLead: start } = await import("../src/index.js");
+    const ctx = await seedRecord();
+
+    // Baseline: north slope GOOD.
+    const base = await ctx.landZone("north_slope", "North slope", "facet");
+    await setGrade({ tenantId: ctx.tenantId, inspectionZoneId: base.zoneId, grade: "good", userId: ctx.userId });
+    await complete({ tenantId: ctx.tenantId, inspectionId: ctx.inspectionId });
+    await approve({ tenantId: ctx.tenantId, inspectionId: ctx.inspectionId, userId: ctx.userId });
+    await publish({ tenantId: ctx.tenantId, inspectionId: ctx.inspectionId });
+
+    // Post-storm re-inspection: same zone, now ACTION with evidence.
+    const started2 = await start({ tenantId: ctx.tenantId, leadId: ctx.leadId, kind: "post_storm" });
+    if ("error" in started2) throw new Error("restart failed");
+    const [d2] = await adminDb.insert(document).values({
+      tenantId: ctx.tenantId, leadId: ctx.leadId, kind: "photo", source: "sitesnap",
+      sitesnapPhotoId: `ss-${crypto.randomUUID()}`, qcStatus: "passed", r2Key: `k/${crypto.randomUUID()}`,
+    }).returning();
+    const media2 = await ingestInspectionMedia({ tenantId: ctx.tenantId, inspectionId: started2.inspectionId, zoneKey: "north_slope", zoneLabel: "North slope", zoneKind: "facet", documentId: d2!.id });
+    if ("error" in media2) throw new Error("media failed");
+    await addFinding({
+      tenantId: ctx.tenantId, inspectionZoneId: media2.inspectionZoneId,
+      whatItIs: "Fresh hail bruising across the field", photoIds: [d2!.id], createdBy: "inspector",
+    });
+    await setGrade({ tenantId: ctx.tenantId, inspectionZoneId: media2.inspectionZoneId, grade: "action", userId: ctx.userId });
+    await complete({ tenantId: ctx.tenantId, inspectionId: started2.inspectionId });
+    await approve({ tenantId: ctx.tenantId, inspectionId: started2.inspectionId, userId: ctx.userId });
+    await publish({ tenantId: ctx.tenantId, inspectionId: started2.inspectionId });
+
+    const cmp = await getRecordComparison({ tenantId: ctx.tenantId, inspectionId: started2.inspectionId });
+    expect(cmp).not.toBeNull();
+    expect(cmp!.baselineAt).toBeInstanceOf(Date);
+    const north = cmp!.zones.find((z) => z.zoneKey === "north_slope")!;
+    expect(north.beforeGrade).toBe("good");
+    expect(north.afterGrade).toBe("action");
+    expect(north.changed).toBe(true);
+    expect(north.beforePhotos.length).toBeGreaterThanOrEqual(1);
+    expect(north.afterPhotos.length).toBeGreaterThanOrEqual(1);
+
+    // An initial Record (no baseline link) has no comparison.
+    expect(await getRecordComparison({ tenantId: ctx.tenantId, inspectionId: ctx.inspectionId })).toBeNull();
+  });
+});

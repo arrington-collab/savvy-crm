@@ -1,4 +1,4 @@
-import { resolveRecordLink, getRecordPageData } from "@savvy/db";
+import { resolveRecordLink, getRecordPageData, getRecordComparison } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 
 export const runtime = "nodejs";
@@ -16,7 +16,13 @@ export async function GET(
   if (!link) return new Response("Not found", { status: 404 });
 
   const data = await getRecordPageData({ tenantId: link.tenantId, inspectionId: link.inspectionId });
-  const photo = data?.zones.flatMap((z) => z.photos).find((p) => p.documentId === documentId);
+  let photo = data?.zones.flatMap((z) => z.photos).find((p) => p.documentId === documentId);
+  if (!photo?.r2Key) {
+    // Baseline photos in the before/after view belong to the BASELINE
+    // inspection — allow exactly the comparison's photo set, nothing wider.
+    const cmp = await getRecordComparison({ tenantId: link.tenantId, inspectionId: link.inspectionId });
+    photo = cmp?.zones.flatMap((z) => [...z.beforePhotos, ...z.afterPhotos]).find((p) => p.documentId === documentId);
+  }
   if (!photo?.r2Key) return new Response("Not found", { status: 404 });
 
   let signed: string;

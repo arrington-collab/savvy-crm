@@ -1,4 +1,4 @@
-import { resolveRecordLink, getRecordPageData, ensureEstimateLink } from "@savvy/db";
+import { resolveRecordLink, getRecordPageData, getRecordComparison, ensureEstimateLink } from "@savvy/db";
 import { RecordHero } from "./RecordHero";
 import { ZoneExplorer } from "./ZoneExplorer";
 
@@ -35,6 +35,7 @@ export default async function RecordPage({ params }: { params: Promise<{ code: s
   const estimateLink = data.estimateId
     ? await ensureEstimateLink({ tenantId: link.tenantId, estimateId: data.estimateId })
     : null;
+  const comparison = await getRecordComparison({ tenantId: link.tenantId, inspectionId: link.inspectionId });
   const publishedYear = data.publishedAt.getFullYear();
   const publishedMonth = data.publishedAt.toLocaleDateString(undefined, { month: "long", year: "numeric", day: "numeric" });
 
@@ -125,6 +126,47 @@ export default async function RecordPage({ params }: { params: Promise<{ code: s
                 No urgency from our side — when you want to talk it through, we&apos;ll walk you through the numbers honestly.
               </p>
             ) : null}
+          </section>
+        ) : null}
+
+        {/* before/after vs the baseline — the claim-evidence view (slice 4) */}
+        {comparison ? (
+          <section className="mt-10" data-testid="baseline-comparison">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
+              Compared with your {comparison.baselineAt.toLocaleDateString(undefined, { month: "long", year: "numeric" })} baseline
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {comparison.zones.map((z) => (
+                <li key={z.zoneKey} className="rounded-2xl bg-white p-4 ring-1 ring-stone-200" data-testid={`compare-${z.zoneKey}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-stone-800">{z.zoneLabel}</p>
+                    <p className="text-xs">
+                      <span className="text-stone-400">{z.beforeGrade ?? "—"}</span>
+                      <span aria-hidden className="mx-1.5 text-stone-300">→</span>
+                      <span className={z.changed ? "font-semibold text-rose-600" : "text-stone-500"}>{z.afterGrade ?? "—"}</span>
+                    </p>
+                  </div>
+                  {(z.beforePhotos.length > 0 || z.afterPhotos.length > 0) ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">Baseline</p>
+                        {z.beforePhotos.slice(0, 1).map((ph) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={ph.documentId} src={`/api/record/${code}/photo/${ph.documentId}`} alt={`${z.zoneLabel} baseline`} loading="lazy" className="aspect-video w-full rounded-lg object-cover ring-1 ring-stone-200" />
+                        ))}
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">Now</p>
+                        {z.afterPhotos.slice(0, 1).map((ph) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={ph.documentId} src={`/api/record/${code}/photo/${ph.documentId}`} alt={`${z.zoneLabel} now`} loading="lazy" className="aspect-video w-full rounded-lg object-cover ring-1 ring-stone-200" />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 
