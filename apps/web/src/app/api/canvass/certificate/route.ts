@@ -22,7 +22,7 @@ export function OPTIONS(req: Request): NextResponse {
 
 const gateway: { sp: StormProofGateway } = { sp: httpStormProof }; // injectable seam
 
-type CertPayload = { certId: string | null; verifyUrl: string | null; verified: boolean; storm: unknown };
+type CertPayload = { certId: string | null; verifyUrl: string | null; pdfUrl: string | null; verified: boolean; storm: unknown };
 
 export async function POST(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "POST, OPTIONS");
@@ -49,7 +49,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return reply({ error: "lat and lng are required numbers" }, 400);
   const address = typeof json.address === "string" && json.address.trim() ? json.address.trim().slice(0, 300) : undefined;
 
-  if (!process.env.STORMPROOF_API_BASE) return reply({ certId: null, verifyUrl: null, verified: false, storm: null }, 200);
+  if (!process.env.STORMPROOF_API_BASE) return reply({ certId: null, verifyUrl: null, pdfUrl: null, verified: false, storm: null }, 200);
 
   const coordKey = dossierCoordKey(lat, lng);
   const cert = await withTenant(sess.tenantId, async (tx): Promise<CertPayload | null> => {
@@ -62,7 +62,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     let fresh: CertPayload | null = null;
     try {
       const r = await gateway.sp.generateCertificate({ lat, lng, address, months: 24 });
-      fresh = { certId: r.certId ?? null, verifyUrl: r.verifyUrl ?? null, verified: r.verified, storm: r.storm ?? null };
+      fresh = { certId: r.certId ?? null, verifyUrl: r.verifyUrl ?? null, pdfUrl: r.pdfUrl ?? null, verified: r.verified, storm: r.storm ?? null };
     } catch (e) {
       log.warn("canvass cert generation failed", { route: "/api/canvass/certificate", tenantId: sess.tenantId, err: String(e) });
       return null;
