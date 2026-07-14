@@ -139,7 +139,7 @@ export { setClaimEndorsement } from "./lifecycle/endorsement";
 export { convertCanvassContractToJob } from "./lifecycle/canvass-conversion";
 export { leadSourceSummary, referredRevenueByPerson } from "./lifecycle/lead-source-analytics";
 export { getCalibrationInputs } from "./lifecycle/lead-calibration";
-export { createSaleNoContractAlerts, listAlerts, markAlertRead, markAllAlertsRead, readKnockForAlert, activeManagerIds, type AlertRow } from "./lifecycle/canvass-alert";
+export { createSaleNoContractAlerts, createPinLockoutAlert, listAlerts, markAlertRead, markAllAlertsRead, readKnockForAlert, activeManagerIds, type AlertRow } from "./lifecycle/canvass-alert";
 export {
   recordMoveSignal, confirmMove, dismissMove, pendingMoveVerifications,
   registerWarrantyTransfer, getWarrantyTransferOffer, createMoveLeadOnReply,

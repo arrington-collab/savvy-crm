@@ -52,6 +52,58 @@ export async function checkRateLimit(bucket: RateBucket, id: string): Promise<{ 
   }
 }
 
+// --- Tripwire counters (login PIN lockout) ---------------------------------
+// A durable failure counter + lock, backed by the same Upstash instance as the
+// rate limiter. FAIL-OPEN like checkRateLimit: if Redis is unconfigured/errors,
+// the tripwire simply doesn't arm (the per-name rate limit still applies).
+
+/** Increment a TTL'd counter; returns the new count (0 when Redis is off). */
+export async function bumpFailure(key: string, ttlSeconds: number): Promise<number> {
+  try {
+    const r = getRedis();
+    if (!r) return 0;
+    const k = `savvy-tw:${key}`;
+    const n = await r.incr(k);
+    if (n === 1) await r.expire(k, ttlSeconds);
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+/** True while a lock key is set. */
+export async function isLocked(key: string): Promise<boolean> {
+  try {
+    const r = getRedis();
+    if (!r) return false;
+    return (await r.get(`savvy-tw:${key}`)) != null;
+  } catch {
+    return false;
+  }
+}
+
+/** Set a lock for ttlSeconds. */
+export async function setLock(key: string, ttlSeconds: number): Promise<void> {
+  try {
+    const r = getRedis();
+    if (!r) return;
+    await r.set(`savvy-tw:${key}`, "1", { ex: ttlSeconds });
+  } catch {
+    /* fail-open */
+  }
+}
+
+/** Clear tripwire keys (on a successful login). */
+export async function clearTripwire(...keys: string[]): Promise<void> {
+  try {
+    const r = getRedis();
+    if (!r || keys.length === 0) return;
+    await r.del(...keys.map((k) => `savvy-tw:${k}`));
+  } catch {
+    /* fail-open */
+  }
+}
+
 /** First hop of x-forwarded-for, or "unknown". Vercel sets this header. */
 export function clientIp(headers: Headers): string {
   const xff = headers.get("x-forwarded-for");
