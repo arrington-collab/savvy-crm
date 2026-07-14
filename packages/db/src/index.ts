@@ -46,6 +46,7 @@ export { proposeStormReinspectBatch, approveStormReinspectBatch, dismissStormRei
 export { ensureProductionPhaseTemplates, instantiateProductionPhases, ingestProductionMedia, reopenPhaseForQcFailure, listTriageMedia, getPhaseProgressForJob } from "./lifecycle/production-phase";
 export { setPhotoCustomerSafe, doubleGatedPhotosForPhase, recordProductionUpdate, countUpdatesSentToday, hoUpdateGaps, deliveryNoticeGaps, statusGalleryForJob } from "./lifecycle/production-updates";
 export { submitCrewEodReport, eodGaps } from "./lifecycle/crew-eod";
+export { paceLagPhases, silentCrewDays, lateCrewAppointments, reportProductionBlocker, listOpenBlockers, resolveProductionBlocker, attachBlockerChangeOrder, recordMunicipalInspection, inspectionGateViolations, phaseEvidenceGaps, waitingInspectionGates } from "./lifecycle/production-detectors";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers

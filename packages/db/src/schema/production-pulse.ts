@@ -35,6 +35,9 @@ export const productionPhase = pgTable("production_phase", {
   customerVisible: boolean("customer_visible").notNull().default(true),
   // Template default, overridable per job (pace-lag detection reads this).
   expectedDurationHours: doublePrecision("expected_duration_hours").notNull().default(2),
+  // Slice 3 municipal gate: this phase cannot START until a PASSED
+  // municipal_inspection record with this key exists for the job.
+  requiredInspectionKey: text("required_inspection_key"),
   templateVersionRef: text("template_version_ref"),
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -109,5 +112,43 @@ export const crewEodReport = pgTable("crew_eod_report", {
 }, (t) => [
   uniqueIndex("crew_eod_job_day_uniq").on(t.jobId, t.dayKey),
   index("crew_eod_tenant_day_idx").on(t.tenantId, t.dayKey),
+  tenantIsolation(),
+]);
+
+// Slice 3: crew-flagged blockers — the ONLY way routine field reality reaches
+// the office is as one of these cards (material short, weather call, homeowner
+// issue, hidden damage). hidden_damage auto-drafts a change-order stub.
+export const productionBlocker = pgTable("production_blocker", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  phaseKey: text("phase_key"),
+  kind: text("kind").notNull(), // material_short|weather|homeowner_issue|hidden_damage|other
+  note: text("note"),
+  photoIds: jsonb("photo_ids").$type<string[]>().default([]).notNull(),
+  reportedByName: text("reported_by_name"),
+  status: text("status").notNull().default("open"), // open|resolved
+  changeOrderId: uuid("change_order_id"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  index("production_blocker_tenant_status_idx").on(t.tenantId, t.status),
+  tenantIsolation(),
+]);
+
+// Municipal inspection records: jurisdiction-gated phases (e.g. dry-in
+// inspection before install in some CO cities) cannot START until a passed
+// record exists. Scheduling/result capture is a card-driven office task.
+export const municipalInspection = pgTable("municipal_inspection", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  inspectionKey: text("inspection_key").notNull(), // e.g. 'dry_in'
+  status: text("status").notNull().default("pending"), // pending|passed|failed
+  recordedAt: timestamp("recorded_at", { withTimezone: true }),
+  note: text("note"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("municipal_inspection_job_key_uniq").on(t.jobId, t.inspectionKey),
   tenantIsolation(),
 ]);

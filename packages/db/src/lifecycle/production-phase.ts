@@ -5,7 +5,7 @@
 
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
-import { job, document, productionPhase, productionPhaseTemplate, productionMedia } from "../schema/index";
+import { job, document, productionPhase, productionPhaseTemplate, productionMedia, municipalInspection } from "../schema/index";
 import { DEFAULT_PHASE_TEMPLATES, evaluatePhaseEvidence, phaseProgress, type PhaseTemplateItem, type PhaseProgress } from "@savvy/core";
 
 /** Seeds the v1 phase-template library. Idempotent: existing rows (any version) win. */
@@ -74,6 +74,7 @@ export async function instantiateProductionPhases(input: {
 export type IngestProductionMediaResult =
   | { phaseId: string; phaseStatus: string; justCompleted: boolean }
   | { triaged: true; documentId: string }
+  | { gated: true; requiredInspectionKey: string; documentId: string }
   | { error: "job_not_found" };
 
 /**
@@ -115,6 +116,19 @@ export async function ingestProductionMedia(input: {
     const isNew = inserted.length > 0;
 
     if (!phase) return { triaged: true as const, documentId: input.documentId };
+
+    // Municipal gate (slice 3): a jurisdiction-gated phase cannot START until
+    // its PASSED inspection record exists — the photo is kept (media row above)
+    // but the phase never leaves pending, and the office gets the gate card.
+    if (phase.status === "pending" && phase.requiredInspectionKey) {
+      const [passed] = await tx.select({ id: municipalInspection.id }).from(municipalInspection)
+        .where(and(
+          eq(municipalInspection.jobId, input.jobId),
+          eq(municipalInspection.inspectionKey, phase.requiredInspectionKey),
+          eq(municipalInspection.status, "passed"),
+        ));
+      if (!passed) return { gated: true as const, requiredInspectionKey: phase.requiredInspectionKey, documentId: input.documentId };
+    }
 
     // First evidence flips pending → in_progress (startedAt stamps once).
     if (phase.status === "pending") {

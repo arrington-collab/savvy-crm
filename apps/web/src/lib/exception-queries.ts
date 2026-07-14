@@ -1,6 +1,7 @@
 import "server-only";
 import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, STAGE_EVIDENCE_LABEL, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput, type StageEvidenceGapInput } from "@savvy/core";
+import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, STAGE_EVIDENCE_LABEL, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput, type StageEvidenceGapInput , type PaceLagInput, type CrewSilenceInput, type CrewLateInput, type ProductionBlockerInput, type EodMissingInput, type InspectionGateInput } from "@savvy/core";
+import { paceLagPhases, silentCrewDays, lateCrewAppointments, listOpenBlockers, eodGaps, waitingInspectionGates, crewEodReport } from "@savvy/db";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -240,6 +241,29 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
     // mislabel pending-recovery claims as memos-to-reconcile. Re-introduce in a 13c/14 follow-on.
     const creditsToReconcile: CreditToReconcileInput[] = [];
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile, stageEvidenceGaps });
+    // Production Pulse slice 3: the exception-only office — these six inputs are
+    // the ONLY production signals a human ever sees.
+    const sweepNow = new Date();
+    const dayKey = sweepNow.toISOString().slice(0, 10);
+    const nameOf = new Map(jobRows.map((j) => [j.id, j.customerName] as const));
+    const [lagRows, silenceRows, lateRows, blockerRows, eodRows, gateRows] = await Promise.all([
+      paceLagPhases(tenantId, sweepNow), silentCrewDays(tenantId, sweepNow), lateCrewAppointments(tenantId, sweepNow),
+      listOpenBlockers(tenantId), eodGaps(tenantId, dayKey), waitingInspectionGates(tenantId),
+    ]);
+    // Pace-lag cards carry the crew's own latest EOD context when it exists.
+    const eodByJob = new Map<string, string>();
+    for (const l of lagRows) {
+      const [r] = await tx.select({ whatGotDone: crewEodReport.whatGotDone }).from(crewEodReport)
+        .where(eq(crewEodReport.jobId, l.jobId)).orderBy(sql`${crewEodReport.createdAt} desc`).limit(1);
+      if (r) eodByJob.set(l.jobId, r.whatGotDone);
+    }
+    const paceLags: PaceLagInput[] = lagRows.map((l) => ({ jobId: l.jobId, customerName: nameOf.get(l.jobId) ?? null, label: l.label, elapsedHours: l.elapsedHours, expectedHours: l.expectedHours, crewContext: eodByJob.get(l.jobId) ?? null }));
+    const crewSilences: CrewSilenceInput[] = silenceRows.map((c) => ({ jobId: c.jobId, customerName: nameOf.get(c.jobId) ?? null, hoursQuiet: c.hoursQuiet }));
+    const crewLates: CrewLateInput[] = lateRows.map((c) => ({ jobId: c.jobId, customerName: nameOf.get(c.jobId) ?? null, startsAt: c.startsAt }));
+    const productionBlockers: ProductionBlockerInput[] = blockerRows.map((b) => ({ blockerId: b.id, jobId: b.jobId, customerName: nameOf.get(b.jobId) ?? null, kind: b.kind, note: b.note, hasChangeOrder: Boolean(b.changeOrderId), createdAt: b.createdAt }));
+    const eodMissing: EodMissingInput[] = eodRows.map((e) => ({ jobId: e.jobId, customerName: nameOf.get(e.jobId) ?? null, dayKey }));
+    const inspectionGates: InspectionGateInput[] = gateRows.map((g) => ({ jobId: g.jobId, customerName: nameOf.get(g.jobId) ?? null, phaseKey: g.phaseKey, requiredInspectionKey: g.requiredInspectionKey }));
+
+    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile, stageEvidenceGaps, paceLags, crewSilences, crewLates, productionBlockers, eodMissing, inspectionGates });
   });
 }
