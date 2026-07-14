@@ -14,7 +14,7 @@ import { customer, property, lead } from "../schema/crm";
 import { job } from "../schema/jobs";
 import { tenant } from "../schema/tenancy";
 import { license } from "../schema/compliance";
-import { document } from "../schema/ops";
+import { document, measurement } from "../schema/ops";
 
 // Deterministic per-estimate token (estimateId + HMAC) so ensureEstimateLink is
 // naturally idempotent (same estimate → same token → one row) and resolution is
@@ -135,6 +135,11 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
       .catch(() => []);
     const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
 
+    // Present mode's "your roof" slide: the measurement behind the numbers.
+    const [meas] = est.measurementId
+      ? await tx.select({ areas: measurement.areas, provider: measurement.provider }).from(measurement).where(eq(measurement.id, est.measurementId))
+      : [null];
+
     // Homeowner-visible photos: QC-passed only. (The dedicated customer-safe
     // flag arrives with Production Pulse — until then QC-passed is the gate.)
     const scope = or(
@@ -148,6 +153,6 @@ export async function getEstimatePageData(tenantId: string, estimateId: string) 
           .where(and(eq(document.kind, "photo"), eq(document.qcStatus, "passed"), scope))
       : [];
 
-    return { estimate: est, companyName: t?.name ?? "", settings: t?.settings, customerName: cust?.name ?? null, property: prop ?? null, licenses, products, photos: photos.filter((p) => p.r2Key) };
+    return { estimate: est, companyName: t?.name ?? "", settings: t?.settings, customerName: cust?.name ?? null, property: prop ?? null, licenses, products, photos: photos.filter((p) => p.r2Key), measurement: meas ?? null };
   });
 }

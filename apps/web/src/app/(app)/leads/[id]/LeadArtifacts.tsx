@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { launchPresentMode } from "@/lib/present-actions";
 import type { LeadArtifacts } from "@savvy/db";
 
 function money(cents: number | null): string {
@@ -83,11 +85,19 @@ export function LeadArtifactsSections({
       <Card className="p-4" data-section="estimate">
         <div className="eyebrow mb-3">Estimate</div>
         {e ? (
-          <dl className="grid grid-cols-3 gap-3 text-sm">
-            <Field label="Status" value={e.approvalRequiredAt ? "Awaiting approval" : e.status} />
-            <Field label="Total" value={money(e.total)} />
-            <Field label="Waste" value={e.wastePctUsed != null ? `${Math.round(e.wastePctUsed / 100)}%` : "—"} />
-          </dl>
+          <>
+            <dl className="grid grid-cols-3 gap-3 text-sm">
+              <Field label="Status" value={e.approvalRequiredAt ? "Awaiting approval" : e.status} />
+              <Field label="Total" value={money(e.total)} />
+              <Field label="Waste" value={e.wastePctUsed != null ? `${Math.round(e.wastePctUsed / 100)}%` : "—"} />
+            </dl>
+            {/* Slice 5: the kitchen-table close — full-screen walkthrough on the tablet. */}
+            <form action={launchPresentMode.bind(null, e.id)} className="mt-3">
+              <Button size="sm" type="submit" data-testid="present-launch">
+                Present at the table →
+              </Button>
+            </form>
+          </>
         ) : (
           <p className="text-sm" style={{ color: "var(--text-faint)" }}>
             No estimate yet — drafts automatically once the inspection is complete and a measurement has landed.

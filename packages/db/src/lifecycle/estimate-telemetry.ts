@@ -16,6 +16,8 @@ export const ESTIMATE_EVENT_KINDS = [
   "race_nova_text",
   "race_skipped",
   "expiry_notice",
+  "question",
+  "question_escalated",
 ] as const;
 export type EstimateEventKind = (typeof ESTIMATE_EVENT_KINDS)[number];
 

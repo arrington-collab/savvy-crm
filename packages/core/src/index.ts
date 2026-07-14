@@ -22,6 +22,7 @@ export * from "./price-book-diff";
 export * from "./estimate-page";
 export * from "./acceptance-gate";
 export * from "./estimate-race";
+export * from "./why-us";
 export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";
