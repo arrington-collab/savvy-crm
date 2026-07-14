@@ -58,6 +58,7 @@ import { FlaggedPhotosPanel } from "./FlaggedPhotosPanel";
 import { SupplierInvoicesPanel } from "./SupplierInvoicesPanel";
 import { ReferralFeeApproval } from "./ReferralFeeApproval";
 import { CardInflight } from "@/components/inflight/CardInflight";
+import { PhaseProgressCard } from "@/components/production/PhaseProgressCard";
 import { Heartbeat } from "@/components/heartbeat/Heartbeat";
 import { lastTouchForJobs } from "@/lib/heartbeat-queries";
 
@@ -472,6 +473,9 @@ export default async function JobDetailPage({
           </p>
         ) : null}
       </Card>
+
+      {/* Production Pulse: live phase progress — evidence advances this, not buttons */}
+      <PhaseProgressCard jobId={id} />
 
       <AutomationModule summary={automationSummary} />
 
