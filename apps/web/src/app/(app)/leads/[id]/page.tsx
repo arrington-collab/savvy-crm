@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { listLeadDocuments, getDocumentParseSummaries, getScoringSettings } from "@savvy/db";
+import { listLeadDocuments, getDocumentParseSummaries, getScoringSettings, getActiveInspectionForLead } from "@savvy/db";
 import { getLeadDetail, getLeadArtifactsForLead } from "@/lib/leads-queries";
 import { listUsers } from "@/lib/scheduling-queries";
 import { getTenantId } from "@/lib/tenant";
@@ -20,6 +20,7 @@ import { StormCertSection } from "@/components/leads/StormCertSection";
 import { PropertyMap } from "@/components/PropertyMap";
 import { LogContactButton } from "@/components/leads/LogContactButton";
 import { LeadArtifactsSections } from "./LeadArtifacts";
+import { InspectionLiveCard } from "./InspectionLiveCard";
 import { MessageBody } from "./MessageBody";
 import { LeadDocsCard } from "./LeadDocsCard";
 import { TimelineDocItem } from "./TimelineDocItem";
@@ -44,12 +45,13 @@ export default async function LeadDetailPage({
   const { from } = await searchParams;
   const backHref = parseLeadsListReturn(from);
   const tenantId = await getTenantId();
-  const [detail, users, artifacts, documents, scoringSettings] = await Promise.all([
+  const [detail, users, artifacts, documents, scoringSettings, inspectionProgress] = await Promise.all([
     getLeadDetail(id),
     listUsers(),
     getLeadArtifactsForLead(id),
     listLeadDocuments({ tenantId, leadId: id }),
     getScoringSettings(tenantId),
+    getActiveInspectionForLead({ tenantId, leadId: id }),
   ]);
   if (!detail) notFound();
 
@@ -181,6 +183,9 @@ export default async function LeadDetailPage({
           />
         </Card>
       </div>
+
+      {/* Roof Record — live zone-first inspection (assembles as zones land) */}
+      {detail.propertyId ? <InspectionLiveCard leadId={detail.id} initial={inspectionProgress} /> : null}
 
       {/* 4 & 5 — Measurement + Estimate (each carries its own data-section) */}
       <LeadArtifactsSections artifacts={artifacts} leadId={detail.id} hasProperty={Boolean(detail.propertyId)} />

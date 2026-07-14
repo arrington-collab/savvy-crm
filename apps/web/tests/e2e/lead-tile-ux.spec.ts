@@ -20,10 +20,13 @@ async function seedLead(name: string, status: "new" | "contacted", score: number
 
 // Slice 4: the lead tile is reorganized to field-working order. Sections carry a
 // stable data-section attribute so the order is a contract, not incidental markup.
+// Roof Record slice 1 adds "inspection" between roof and measurement — the field
+// order is inspect → measure → estimate (the live card assembles during capture).
 const EXPECTED_SECTION_ORDER = [
   "contact",
   "score",
   "roof",
+  "inspection",
   "measurement",
   "estimate",
   "documents",

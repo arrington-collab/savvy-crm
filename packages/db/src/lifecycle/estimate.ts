@@ -2,10 +2,11 @@ import { withTenant } from "../tenant";
 import { estimate } from "../schema/finance";
 import { measurement } from "../schema/ops";
 import { appointment } from "../schema/comms";
+import { inspection } from "../schema/inspection";
 import { lead } from "../schema/crm";
 import { tierProduct } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   parseEstimateConfig,
   estimateRequiresApproval,
@@ -35,11 +36,12 @@ type CreateEstimateInput = {
   propertyId?: string;
 };
 
-/** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
-async function insertEstimateFromMeasurementTx(
+/** Price the measurement with the tenant's config + active book (shared by
+ *  first draft and the roof-record live refresh). Returns null if measurement missing. */
+async function priceMeasurementTx(
   tx: Parameters<Parameters<typeof withTenant>[1]>[0],
-  input: CreateEstimateInput,
-): Promise<typeof estimate.$inferSelect | null> {
+  input: { tenantId: string; measurementId: string },
+) {
   const [m] = await tx.select().from(measurement).where(eq(measurement.id, input.measurementId));
   if (!m) return null;
 
@@ -59,33 +61,52 @@ async function insertEstimateFromMeasurementTx(
     pitchTiers: cfg.steepPitchTiers,
   });
   const totals = computeEstimateTotals(lineItems, cfg.taxRateBps);
+  return { m, areas, cfg, book, versionId, lineItems, wastePctUsed, pitchTierApplied, totals };
+}
 
-  // Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
-  // products surface via needsCosts — never invented. Absent tier products
-  // (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
+type PricedMeasurement = NonNullable<Awaited<ReturnType<typeof priceMeasurementTx>>>;
+
+/** Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
+ *  products surface via needsCosts — never invented. Absent tier products
+ *  (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
+ *  Shared by fresh drafts AND the roof-record live refresh so a refreshed draft
+ *  always matches what a fresh draft would produce. */
+async function buildTiersSnapshotTx(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  priced: PricedMeasurement,
+) {
   const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
-  const tiersSnapshot =
-    products.length > 0
-      ? expandTierEstimates({
-          areas,
-          priceBook: book as unknown as TierEngineItem[],
-          tierProducts: products.map(
-            (p): TierProductInput => ({
-              tier: p.tier as TierProductInput["tier"],
-              productName: p.productName,
-              manufacturer: p.manufacturer,
-              unitPriceCents: p.unitPriceCents,
-              unitCostCents: p.unitCostCents,
-              warrantyText: p.warrantyText,
-              recommended: p.recommended,
-            }),
-          ),
-          defaultWastePct: cfg.defaultWastePct,
-          pitchTiers: cfg.steepPitchTiers,
-          shingleItemKey: "field-shingles",
-          defaultMarginFloorBps: cfg.marginFloorBps,
-        }).tiers
-      : null;
+  if (products.length === 0) return null;
+  return expandTierEstimates({
+    areas: priced.areas,
+    priceBook: priced.book as unknown as TierEngineItem[],
+    tierProducts: products.map(
+      (p): TierProductInput => ({
+        tier: p.tier as TierProductInput["tier"],
+        productName: p.productName,
+        manufacturer: p.manufacturer,
+        unitPriceCents: p.unitPriceCents,
+        unitCostCents: p.unitCostCents,
+        warrantyText: p.warrantyText,
+        recommended: p.recommended,
+      }),
+    ),
+    defaultWastePct: priced.cfg.defaultWastePct,
+    pitchTiers: priced.cfg.steepPitchTiers,
+    shingleItemKey: "field-shingles",
+    defaultMarginFloorBps: priced.cfg.marginFloorBps,
+  }).tiers;
+}
+
+/** Core insert (runs inside a caller-supplied tx). Returns null if measurement missing. */
+async function insertEstimateFromMeasurementTx(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  input: CreateEstimateInput,
+): Promise<typeof estimate.$inferSelect | null> {
+  const priced = await priceMeasurementTx(tx, input);
+  if (!priced) return null;
+  const { m, versionId, lineItems, wastePctUsed, pitchTierApplied, totals } = priced;
+  const tiersSnapshot = await buildTiersSnapshotTx(tx, priced);
 
   const [row] = await tx
     .insert(estimate)
@@ -164,6 +185,79 @@ export async function draftLeadEstimateIfReady(input: {
     });
     if (!row) return { skipped: "no_measurement" as const };
     return { estimateId: row.id, measurementId: m.id };
+  });
+}
+
+/**
+ * Roof Record slice 1: the estimate PRE-DRAFT builds live during the inspection.
+ * While the lead has an in_progress roof-record inspection, condition-input
+ * changes may create the pre-draft early (before the appointment is done) or
+ * re-price the existing draft in place. The final draft locks on completion per
+ * the existing rules: refresh refuses once the estimate leaves draft status, and
+ * without a live inspection this function does nothing.
+ */
+export async function refreshLeadEstimateDraft(input: {
+  tenantId: string;
+  leadId: string;
+}): Promise<{ estimateId: string; action: "created" | "refreshed" } | { skipped: string }> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [l] = await tx.select().from(lead).where(eq(lead.id, input.leadId));
+    if (!l || !l.propertyId) return { skipped: "no_lead" as const };
+
+    // Live window matches media acceptance: capture + the approval pass (the
+    // final re-price after the inspector climbs down). Approved/published
+    // Records never re-price, and the estimate-status lock below still rules.
+    const [insp] = await tx
+      .select({ id: inspection.id })
+      .from(inspection)
+      .where(and(eq(inspection.leadId, input.leadId), inArray(inspection.status, ["in_progress", "pending_approval"])))
+      .limit(1);
+    if (!insp) return { skipped: "no_active_inspection" as const };
+
+    const measRows = await tx
+      .select({ id: measurement.id, source: measurement.source, createdAt: measurement.createdAt })
+      .from(measurement)
+      .where(eq(measurement.propertyId, l.propertyId));
+    const m = selectPreferredMeasurement(measRows);
+    if (!m) return { skipped: "no_measurement" as const };
+
+    const [existing] = await tx
+      .select({ id: estimate.id, status: estimate.status })
+      .from(estimate)
+      .where(eq(estimate.leadId, input.leadId))
+      .limit(1);
+
+    if (!existing) {
+      const row = await insertEstimateFromMeasurementTx(tx, {
+        tenantId: input.tenantId,
+        measurementId: m.id,
+        leadId: input.leadId,
+        propertyId: l.propertyId,
+      });
+      if (!row) return { skipped: "no_measurement" as const };
+      return { estimateId: row.id, action: "created" as const };
+    }
+    if (existing.status !== "draft") return { skipped: "estimate_locked" as const };
+
+    const priced = await priceMeasurementTx(tx, { tenantId: input.tenantId, measurementId: m.id });
+    if (!priced) return { skipped: "no_measurement" as const };
+    // Re-stamp the book version + tier snapshot too: the 30-day price lock
+    // applies at SEND — a still-draft estimate always reflects the current book.
+    const tiersSnapshot = await buildTiersSnapshotTx(tx, priced);
+    await tx.update(estimate).set({
+      lineItems: priced.lineItems,
+      subtotal: priced.totals.subtotalCents,
+      tax: priced.totals.taxCents,
+      total: priced.totals.totalCents,
+      measurementId: m.id,
+      wastePctUsed: priced.wastePctUsed,
+      pitchTierApplied: priced.pitchTierApplied,
+      measurementSource: priced.m.source ?? null,
+      source: priced.m.provider === "diy" ? "diy" : "roofr",
+      priceBookVersionId: priced.versionId,
+      tiers: tiersSnapshot,
+    }).where(eq(estimate.id, existing.id));
+    return { estimateId: existing.id, action: "refreshed" as const };
   });
 }
 
