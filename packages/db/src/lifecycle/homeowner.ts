@@ -4,6 +4,8 @@ import { withTenant } from "../tenant";
 import type { JobStage } from "@savvy/core";
 
 export type HomeownerStatus = {
+  tenantId: string;
+  jobId: string;
   companyName: string;
   customerName: string | null;
   address: string | null;
@@ -28,6 +30,8 @@ export async function getHomeownerStatus(tenantId: string, jobId: string): Promi
       .where(and(eq(appointment.tenantId, tenantId), eq(appointment.jobId, jobId), eq(appointment.status, "scheduled"), gte(appointment.startsAt, new Date())))
       .orderBy(asc(appointment.startsAt)).limit(1);
     return {
+      tenantId,
+      jobId,
       companyName: t?.name ?? "Your contractor",
       customerName: j.customerName,
       address: j.address,

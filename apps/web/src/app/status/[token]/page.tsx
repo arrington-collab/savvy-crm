@@ -1,5 +1,6 @@
 import { getHomeownerStatusByToken } from "@/lib/homeowner-actions";
 import { buildHomeownerJourney, homeownerStageCopy } from "@savvy/core";
+import { getPhaseProgressForJob } from "@savvy/db";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,10 @@ export default async function StatusPage({ params }: { params: Promise<{ token: 
   }
   const copy = homeownerStageCopy(res.currentStage);
   const journey = buildHomeownerJourney(res.currentStage);
+  // Production Pulse: the live phase timeline (customer-visible phases only).
+  const phaseProgress = res.currentStage === "production" && res.jobId
+    ? await getPhaseProgressForJob({ tenantId: res.tenantId, jobId: res.jobId }).catch(() => null)
+    : null;
   return (
     <main className="mx-auto max-w-md p-6" data-testid="status-page">
       <p className="text-sm text-muted-foreground">{res.companyName}</p>
@@ -30,6 +35,19 @@ export default async function StatusPage({ params }: { params: Promise<{ token: 
         </div>
       )}
 
+      {phaseProgress ? (
+        <section className="mb-6" data-testid="status-phases">
+          <h2 className="text-sm font-medium text-stone-500">Today on your roof</h2>
+          <ol className="mt-2 space-y-1.5">
+            {phaseProgress.phases.filter((p) => p.customerVisible).map((p) => (
+              <li key={p.key} className="flex items-center gap-2 text-sm" data-testid={`status-phase-${p.key}`}>
+                <span aria-hidden>{p.status === "done" || p.status === "verified" ? "✅" : p.status === "in_progress" ? "🔨" : "⚪"}</span>
+                <span className={p.status === "in_progress" ? "font-medium" : ""}>{p.label}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
       <ol className="space-y-2" data-testid="status-journey">
         {journey.map((m) => (
           <li key={m.key} data-testid={`milestone-${m.key}`} data-status={m.status} className="flex items-center gap-2">

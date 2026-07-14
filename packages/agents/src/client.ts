@@ -50,6 +50,10 @@ type Events = {
   // Owner approved a storm re-inspection batch → NOVA sends the service-framed
   // outreach to the affected baselined roofs.
   "storm/reinspect.approved": { data: { tenantId: string; batchId: string } };
+  // Production Pulse: a phase-tagged photo landed (fires once per NEW photo).
+  // justCompleted=true on the event that finished a phase — slice 2's homeowner
+  // update consumes it.
+  "production/media.ingested": { data: { tenantId: string; jobId: string; phaseKey: string; documentId: string; phaseStatus: string; justCompleted: boolean } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
   // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).

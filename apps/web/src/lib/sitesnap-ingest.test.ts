@@ -126,3 +126,54 @@ describe("ingestSiteSnapPhoto — zone-first roof-record media", () => {
     expect(docs).toHaveLength(1);
   });
 });
+
+describe("ingestSiteSnapPhoto — production phase-first capture", () => {
+  async function seedProductionJob(key: string) {
+    const { ensureProductionPhaseTemplates, instantiateProductionPhases } = await import("@savvy/db");
+    const [t] = await adminDb.insert(tenant).values({ name: "PP", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`, settings: { sitesnap: { ingestKey: key } } as never }).returning();
+    const [c] = await adminDb.insert(customer).values({ tenantId: t!.id, name: "C" }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId: t!.id, customerId: c!.id, address: "77 Pulse Ave" }).returning();
+    const [j] = await adminDb.insert(job).values({ tenantId: t!.id, customerId: c!.id, propertyId: p!.id, type: "repair", stage: "production" }).returning();
+    await ensureProductionPhaseTemplates(t!.id);
+    await instantiateProductionPhases({ tenantId: t!.id, jobId: j!.id });
+    return { tenantId: t!.id, jobId: j!.id };
+  }
+
+  it("phase-tagged media lands on its phase and emits the production event once", async () => {
+    const { productionPhase, productionMedia } = await import("@savvy/db");
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId, jobId } = await seedProductionJob(key);
+    const emitProductionMedia = vi.fn(async () => {});
+
+    const r = await ingestSiteSnapPhoto({
+      address: "77 Pulse Ave", category: "production", imageUrl: "u", externalPhotoId: "pp1",
+      phaseKey: "repair_work", shot: "before", crewMemberName: "Luis",
+    }, key, { storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitProductionMedia });
+
+    expect(r.status).toBe(200);
+    expect((r.body as { phaseLinked?: boolean }).phaseLinked).toBe(true);
+
+    const [phase] = await withTenant(tenantId, (tx) => tx.select().from(productionPhase)
+      .where(and(eq(productionPhase.jobId, jobId), eq(productionPhase.phaseKey, "repair_work"))));
+    expect(phase!.status).toBe("in_progress");
+    const media = await withTenant(tenantId, (tx) => tx.select().from(productionMedia).where(eq(productionMedia.jobId, jobId)));
+    expect(media).toHaveLength(1);
+    expect(media[0]!.shot).toBe("before");
+    expect(emitProductionMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("unknown phase context still stores the photo and reports phaseLinked:false (triage)", async () => {
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId } = await seedProductionJob(key);
+    const { listTriageMedia } = await import("@savvy/db");
+
+    const r = await ingestSiteSnapPhoto({
+      address: "77 Pulse Ave", category: "production", imageUrl: "u", externalPhotoId: "pp2",
+      phaseKey: "definitely_not_a_phase",
+    }, key, { storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitProductionMedia: vi.fn(async () => {}) });
+
+    expect(r.status).toBe(200);
+    expect((r.body as { phaseLinked?: boolean }).phaseLinked).toBe(false);
+    expect(await listTriageMedia(tenantId)).toHaveLength(1);
+  });
+});
