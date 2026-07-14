@@ -1,4 +1,4 @@
-import { resolveTenantByIngestKey, resolvePhotoJob, recordSiteSnapPhoto, getInspectionScope, ingestInspectionMedia } from "@savvy/db";
+import { resolveTenantByIngestKey, resolvePhotoJob, recordSiteSnapPhoto, getInspectionScope, ingestInspectionMedia, ingestProductionMedia } from "@savvy/db";
 import type { StorageGateway } from "@savvy/integrations";
 
 export type IngestBody = {
@@ -14,12 +14,19 @@ export type IngestBody = {
   capturedAtMs?: number;
   gps?: { lat: number; lng: number };
   note?: string;
+  // Production Pulse phase-first capture (BloomCam production mode): the crew
+  // selects the job + phase; every photo carries the phase context. Unknown
+  // phase keys are HELD for triage server-side — never bounced, never dropped.
+  phaseKey?: string;
+  shot?: string;
+  crewMemberName?: string;
 };
 export type IngestDeps = {
   storage: StorageGateway;
   fetchBytes: (url: string) => Promise<{ bytes: Uint8Array; mime: string }>;
   emit: (jobId: string | null, documentId: string, tenantId: string) => Promise<void>;
   emitInspectionMedia?: (info: { tenantId: string; inspectionId: string; leadId: string | null; zoneKey: string; documentId: string }) => Promise<void>;
+  emitProductionMedia?: (info: { tenantId: string; jobId: string; phaseKey: string; documentId: string; phaseStatus: string; justCompleted: boolean }) => Promise<void>;
 };
 
 export async function ingestSiteSnapPhoto(body: IngestBody, key: string, deps: IngestDeps): Promise<{ status: number; body: unknown }> {
@@ -76,6 +83,37 @@ export async function ingestSiteSnapPhoto(body: IngestBody, key: string, deps: I
       } catch { /* noop */ }
     }
   }
+  // Production phase-first capture: a matched job + a phase key runs the phase
+  // engine. Unknown keys triage (phaseLinked:false) — the photo is kept either way.
+  let phaseLinked: boolean | undefined;
+  if (body.phaseKey && match?.jobId) {
+    const linked = await ingestProductionMedia({
+      tenantId: t.tenantId,
+      jobId: match.jobId,
+      phaseKey: body.phaseKey,
+      documentId: rec.documentId,
+      shot: body.shot ?? null,
+      crewMemberName: body.crewMemberName ?? null,
+      capturedAt: body.capturedAtMs ? new Date(body.capturedAtMs) : null,
+    });
+    phaseLinked = "phaseId" in linked;
+    if (rec.created && phaseLinked && deps.emitProductionMedia && "phaseId" in linked) {
+      try {
+        await deps.emitProductionMedia({
+          tenantId: t.tenantId, jobId: match.jobId, phaseKey: body.phaseKey,
+          documentId: rec.documentId, phaseStatus: linked.phaseStatus, justCompleted: linked.justCompleted,
+        });
+      } catch { /* noop */ }
+    }
+  }
+
   const base = { ok: true, matched: match != null, documentId: rec.documentId };
-  return { status: 200, body: wantsInspection ? { ...base, inspectionLinked } : base };
+  return {
+    status: 200,
+    body: {
+      ...base,
+      ...(wantsInspection ? { inspectionLinked } : {}),
+      ...(body.phaseKey ? { phaseLinked: phaseLinked ?? false } : {}),
+    },
+  };
 }
