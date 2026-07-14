@@ -1,7 +1,8 @@
-import { pgTable, uuid, text, index, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, index, uniqueIndex, timestamp } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { customer } from "./crm";
+import { job } from "./jobs";
 
 // Customer for Life slice 1: the relationship calendar. EVERY post-completion
 // program (roofiversary, holiday cards, storm checks, credit check-ins, move
@@ -25,5 +26,25 @@ export const relationshipTouch = pgTable("relationship_touch", {
 }, (t) => [
   index("relationship_touch_tenant_customer_idx").on(t.tenantId, t.customerId, t.scheduledFor),
   index("relationship_touch_tenant_program_idx").on(t.tenantId, t.program),
+  tenantIsolation(),
+]);
+
+// Customer for Life slice 2: the standing cadence's enrollment ledger. Every
+// completed job (demo tenants excluded) enrolls its customer exactly once — or
+// carries a suppressed_reason saying why not. The relationship.enrollment and
+// relationship.cadence evidence queries read this table.
+export const relationshipEnrollment = pgTable("relationship_enrollment", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  customerId: uuid("customer_id").notNull().references(() => customer.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  // Anchor for the cadence's date math = when the job reached stage complete.
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull(),
+  enrolledAt: timestamp("enrolled_at", { withTimezone: true }).defaultNow().notNull(),
+  suppressedReason: text("suppressed_reason"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("relationship_enrollment_job_idx").on(t.tenantId, t.jobId),
+  index("relationship_enrollment_tenant_customer_idx").on(t.tenantId, t.customerId),
   tenantIsolation(),
 ]);

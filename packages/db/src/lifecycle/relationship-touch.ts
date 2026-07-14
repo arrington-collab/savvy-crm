@@ -18,7 +18,7 @@ function capFor(settings: unknown): number {
 
 export type ScheduleTouchResult =
   | { touchId: string; existing?: boolean; displaced?: string }
-  | { scheduled: false; reason: "opt_out" | "cap_exceeded" | "customer_not_found" };
+  | { scheduled: false; reason: "opt_out" | "cap_exceeded" | "claim_dispute" | "customer_not_found" };
 
 export async function scheduleRelationshipTouch(input: {
   tenantId: string;
@@ -34,8 +34,19 @@ export async function scheduleRelationshipTouch(input: {
   return withTenant(input.tenantId, async (tx) => {
     const [cust] = await tx.select({
       smsOptOut: customer.smsOptOut, emailOptOut: customer.emailOptOut, mailOptOut: customer.mailOptOut,
+      claimDisputeHold: customer.claimDisputeHold,
     }).from(customer).where(eq(customer.id, input.customerId));
     if (!cust) return { scheduled: false as const, reason: "customer_not_found" as const };
+
+    // No touches during an active claim dispute — the refusal is a ledger row.
+    if (cust.claimDisputeHold) {
+      await tx.insert(relationshipTouch).values({
+        tenantId: input.tenantId, customerId: input.customerId, program: input.program,
+        channel: input.channel, scheduledFor: input.scheduledFor,
+        suppressedReason: "claim_dispute", sourceRef: input.sourceRef ?? null,
+      });
+      return { scheduled: false as const, reason: "claim_dispute" as const };
+    }
 
     // Idempotency: a program+sourceRef pair schedules exactly once.
     if (input.sourceRef) {

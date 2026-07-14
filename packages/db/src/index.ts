@@ -48,6 +48,11 @@ export { setPhotoCustomerSafe, doubleGatedPhotosForPhase, recordProductionUpdate
 export { submitCrewEodReport, eodGaps } from "./lifecycle/crew-eod";
 export { paceLagPhases, silentCrewDays, lateCrewAppointments, reportProductionBlocker, listOpenBlockers, resolveProductionBlocker, attachBlockerChangeOrder, recordMunicipalInspection, inspectionGateViolations, phaseEvidenceGaps, waitingInspectionGates } from "./lifecycle/production-detectors";
 export { scheduleRelationshipTouch, markTouchSent, markTouchSuppressed, listDueTouches, governorCapViolations } from "./lifecycle/relationship-touch";
+export {
+  enrollCompletedJobs, extendStandingCadence, holdDuePrintTouches,
+  dueCadenceTextTouches, enrollmentGaps, cadenceSilenceViolations,
+  jobHasActiveEnrollment, CADENCE_TEXT_PROGRAMS, type DueCadenceTouch,
+} from "./lifecycle/relationship-enrollment";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
