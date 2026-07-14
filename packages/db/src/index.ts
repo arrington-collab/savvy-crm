@@ -44,6 +44,7 @@ export { ensureRecordLink, resolveRecordLink, recordLinkToken, getRecordPageData
 export { getBaselinedProperties, baselineCoverageGaps, type BaselinedProperty } from "./lifecycle/inspection-baseline";
 export { proposeStormReinspectBatch, approveStormReinspectBatch, dismissStormReinspectBatch, markStormBatchSent, listOpenStormBatches, unlinkedReinspections, stormSwathSignature, type StormSwathInput } from "./lifecycle/storm-reinspect";
 export { ensureProductionPhaseTemplates, instantiateProductionPhases, ingestProductionMedia, reopenPhaseForQcFailure, listTriageMedia, getPhaseProgressForJob } from "./lifecycle/production-phase";
+export { setPhotoCustomerSafe, doubleGatedPhotosForPhase, recordProductionUpdate, countUpdatesSentToday, hoUpdateGaps, deliveryNoticeGaps } from "./lifecycle/production-updates";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers

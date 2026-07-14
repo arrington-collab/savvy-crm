@@ -68,3 +68,46 @@ export const productionMedia = pgTable("production_media", {
   index("production_media_tenant_phase_idx").on(t.tenantId, t.productionPhaseId),
   tenantIsolation(),
 ]);
+
+// Slice 2: the homeowner-update ledger. EVERY send (or logged suppression)
+// lands here — production.ho_updates / production.delivery_notice evidence
+// read this table, and the max-N/day throttle counts it.
+export const productionUpdate = pgTable("production_update", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  // phase_complete|delivery_3day|delivery_eve|eod_wrap
+  kind: text("kind").notNull(),
+  phaseKey: text("phase_key"),
+  body: text("body"),
+  photoIds: jsonb("photo_ids").$type<string[]>().default([]).notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  suppressedReason: text("suppressed_reason"), // quiet_hours|throttle|no_phone|opt_out|no_safe_photos|demo_mute
+  createdAt: createdAt(),
+}, (t) => [
+  index("production_update_tenant_job_idx").on(t.tenantId, t.jobId, t.kind),
+  index("production_update_tenant_sent_idx").on(t.tenantId, t.sentAt),
+  tenantIsolation(),
+]);
+
+// Crew end-of-day report: REQUIRED to close the crew day (a missing report by
+// cutoff is an office exception — slice 3's detector). Sources the homeowner
+// evening wrap ("here's where we left it; tomorrow: ridge caps and cleanup").
+export const crewEodReport = pgTable("crew_eod_report", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  jobId: uuid("job_id").notNull().references(() => job.id),
+  crewId: uuid("crew_id").references(() => crew.id),
+  // The calendar day this report closes (tenant-local, yyyy-mm-dd) — one per job-day.
+  dayKey: text("day_key").notNull(),
+  whatGotDone: text("what_got_done").notNull(),
+  blockers: jsonb("blockers").$type<unknown[]>().default([]).notNull(),
+  tomorrowPlan: text("tomorrow_plan"),
+  source: text("source").notNull().default("form"), // form|voice
+  reportedByName: text("reported_by_name"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("crew_eod_job_day_uniq").on(t.jobId, t.dayKey),
+  index("crew_eod_tenant_day_idx").on(t.tenantId, t.dayKey),
+  tenantIsolation(),
+]);

@@ -7,6 +7,8 @@ import { tenant, user } from "./tenancy";
 export const crew = pgTable("crew", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  // Crew-facing strings (BloomCam production mode) render per crew language.
+  language: text("language").notNull().default("en"),
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
   // Crew's home base (yard) — used as the drive-time origin for install slot
