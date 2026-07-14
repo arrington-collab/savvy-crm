@@ -139,3 +139,4 @@ export * from "./roof-age";
 export * from "./geo";
 export * from "./production-phase";
 export * from "./delivery-touches";
+export * from "./touch-governor";

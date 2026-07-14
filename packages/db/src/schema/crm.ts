@@ -8,6 +8,8 @@ export const customer = pgTable("customer", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   // Homeowner updates render in the customer's language when set ('en'|'es').
   preferredLanguage: text("preferred_language"),
+  // Customer for Life: print-channel opt-out (sms/email opt-outs already exist).
+  mailOptOut: boolean("mail_opt_out").notNull().default(false),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),

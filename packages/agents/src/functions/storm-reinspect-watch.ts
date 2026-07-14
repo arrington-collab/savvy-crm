@@ -10,6 +10,7 @@ import {
   adminDb, withTenant, eq, and, customer, tenant as tenantTbl, messageTemplate,
   getBaselinedProperties, proposeStormReinspectBatch, markStormBatchSent,
   stormReinspectBatch, isDemoTenant,
+  scheduleRelationshipTouch, markTouchSent,
 } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate } from "@savvy/core";
 import { stormProof, slimStormSwaths } from "@savvy/integrations";
@@ -94,6 +95,14 @@ export async function sendStormReinspectOutreach(
   let sent = 0;
   for (const p of props) {
     if (!p.customerId) continue;
+    // Governor: storm checks are the highest-priority program — they admit even
+    // at the cap (displacing a lower touch, logged) but STILL ride the calendar.
+    const admitted = await scheduleRelationshipTouch({
+      tenantId: input.tenantId, customerId: p.customerId, program: "storm_check", channel: "text",
+      scheduledFor: now, sourceRef: `${input.batchId}:${p.customerId}`, now,
+    });
+    if (!("touchId" in admitted)) continue; // opt-out — instantly honored
+    const touchId = admitted.touchId;
     const cust = await withTenant(input.tenantId, async (tx) => {
       const [c] = await tx.select({ name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut })
         .from(customer).where(eq(customer.id, p.customerId!));
@@ -109,6 +118,7 @@ export async function sendStormReinspectOutreach(
     });
     const { sender, from } = await deps.getTenantSms(input.tenantId);
     await sender.sendSms({ to: cust.phone, from, body });
+    await markTouchSent({ tenantId: input.tenantId, touchId });
     sent += 1;
   }
   await markStormBatchSent({ tenantId: input.tenantId, batchId: input.batchId });
