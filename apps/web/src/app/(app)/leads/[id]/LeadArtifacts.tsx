@@ -92,11 +92,18 @@ export function LeadArtifactsSections({
               <Field label="Waste" value={e.wastePctUsed != null ? `${Math.round(e.wastePctUsed / 100)}%` : "—"} />
             </dl>
             {/* Slice 5: the kitchen-table close — full-screen walkthrough on the tablet. */}
-            <form action={launchPresentMode.bind(null, e.id)} className="mt-3">
-              <Button size="sm" type="submit" data-testid="present-launch">
-                Present at the table →
-              </Button>
-            </form>
+            <div className="mt-3 flex gap-2">
+              <form action={launchPresentMode.bind(null, e.id)}>
+                <Button size="sm" type="submit" data-testid="present-launch">
+                  Present at the table →
+                </Button>
+              </form>
+              <a href={`/videos/record/${e.id}`} data-testid="rep-video-launch"
+                className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
+                style={{ borderColor: "var(--border-panel)", color: "var(--text-body)" }}>
+                🎬 Video note
+              </a>
+            </div>
           </>
         ) : (
           <p className="text-sm" style={{ color: "var(--text-faint)" }}>

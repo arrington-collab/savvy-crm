@@ -181,3 +181,23 @@ export const estimateEvent = pgTable("estimate_event", {
   index("estimate_event_kind_time_idx").on(t.tenantId, t.kind, t.createdAt),
   tenantIsolation(),
 ]);
+
+// Estimate Experience slice 5b: the video layer. Rep post-inspection takes and
+// the owner's day-after personalized takes both live here — the media itself
+// is a document (kind='video', R2), this row is the estimate linkage + state.
+export const estimateVideo = pgTable("estimate_video", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  estimateId: uuid("estimate_id").notNull().references(() => estimate.id),
+  role: text("role").notNull(), // rep | owner
+  documentId: uuid("document_id").notNull(),
+  // recorded → processed (the AI post-processing seam) → delivered
+  status: text("status").notNull().default("recorded"),
+  // the recorder's approve tap — nothing unapproved ever renders or sends
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  capturedByUserId: uuid("captured_by_user_id"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("estimate_video_estimate_idx").on(t.tenantId, t.estimateId, t.role),
+  tenantIsolation(),
+]);

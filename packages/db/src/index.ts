@@ -72,6 +72,7 @@ export { isDemoTenant, __clearDemoTenantCache } from "./lifecycle/demo-tenant";
 export { ensureEstimateLink, resolveEstimateLink, setEstimateSelection, estimateLinkToken, getEstimatePageData } from "./lifecycle/estimate-page";
 export { beginEstimateAcceptance, recordEstimateSigned, recordEstimateDeposit, estimateAcceptanceState, installWeekOptions, setRequestedInstallWeek, type BeginAcceptanceResult } from "./lifecycle/estimate-accept";
 export { recordEstimateEvent, listEstimateEvents, raceOutcomeRows, ESTIMATE_EVENT_KINDS, type EstimateEventKind } from "./lifecycle/estimate-telemetry";
+export { attachEstimateVideo, videosForEstimate, videoBatchQueue, ownerVideoDeliveryQueue, parseOwnerVideoConfigRow, type VideoBatchEntry, type VideoDeliveryEntry } from "./lifecycle/estimate-video";
 // NOTE: provision-runbook is intentionally NOT re-exported from this barrel. It
 // imports the registry SEED (master-task-list.ts, which uses `.js`-extension
 // imports that Turbopack can't resolve), and this index is transitively pulled

@@ -1,7 +1,8 @@
-import { resolveEstimateLink, getEstimatePageData } from "@savvy/db";
+import { resolveEstimateLink, getEstimatePageData, videosForEstimate } from "@savvy/db";
 import { buildEstimatePageModel, parseEstimateConfig, parseWhyUsConfig, whyUsConfigured, measurementAreasSchema, type TierEstimate, type TierKey } from "@savvy/core";
 import { PresentMode } from "./PresentMode";
 import { QABox } from "./QABox";
+import { VideoSlot } from "./VideoSlot";
 import { EstimateTiers } from "./EstimateTiers";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,10 @@ export default async function EstimatePage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ present?: string }>;
+  searchParams: Promise<{ present?: string; v?: string }>;
 }) {
   const { code } = await params;
-  const { present } = await searchParams;
+  const { present, v } = await searchParams;
   const link = await resolveEstimateLink(code);
   const data = link ? await getEstimatePageData(link.tenantId, link.estimateId) : null;
 
@@ -52,6 +53,13 @@ export default async function EstimatePage({
   });
 
   const whyUs = parseWhyUsConfig((data.settings as { whyUs?: unknown } | null)?.whyUs);
+
+  // Slice 5b: approved takes only — the rep's note above the tiers, the
+  // owner's day-after word featured when the SMS link (?v=1) brought them here.
+  const videos = await videosForEstimate(link.tenantId, link.estimateId);
+  const repTake = videos.find((x) => x.role === "rep" && x.approvedAt);
+  const ownerTake = videos.find((x) => x.role === "owner" && x.approvedAt);
+  const featuredVideo = v && ownerTake ? ownerTake : null;
 
   // PRESENT MODE: the kitchen-table close — rep-launched, full screen, no chrome.
   if (present) {
@@ -90,6 +98,13 @@ export default async function EstimatePage({
             This estimate has expired — prices may have changed. Reply to our message or call us and
             we&apos;ll refresh it at current pricing.
           </div>
+        )}
+
+        {featuredVideo && (
+          <VideoSlot code={code} documentId={featuredVideo.documentId} title="A quick word from our owner" featured />
+        )}
+        {repTake && !featuredVideo && (
+          <VideoSlot code={code} documentId={repTake.documentId} title="From your inspection visit" featured={false} />
         )}
 
         {/* Tier cards + color selector (client island) */}

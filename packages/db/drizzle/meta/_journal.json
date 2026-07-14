@@ -603,6 +603,13 @@
       "when": 1783971301987,
       "tag": "0085_watery_husk",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1783983272487,
+      "tag": "0086_elite_mephisto",
+      "breakpoints": true
     }
   ]
 }
