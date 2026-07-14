@@ -38,6 +38,7 @@ export { markEsignBySubmission } from "./lifecycle/esign";
 export { startInspectionForLead, startInspectionByAddress, ingestInspectionMedia, completeInspection, getInspectionProgress, getInspectionScope, getActiveInspectionForLead, type InspectionProgress } from "./lifecycle/inspection";
 export { ensureInspectionChecklists } from "./lifecycle/inspection-checklist";
 export { addInspectionFinding, confirmInspectionFinding, dismissInspectionFinding, setInspectionZoneGrade, listUnsupportedActionZones, suggestFindingFromChecklistMedia } from "./lifecycle/inspection-findings";
+export { approveInspection, publishInspection, setInspectionNarrative, setZoneSummaries } from "./lifecycle/inspection-approval";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers
