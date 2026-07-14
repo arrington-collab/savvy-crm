@@ -102,7 +102,7 @@ export async function sendPhaseCompleteUpdate(
 
   // The photos travel via the status page story (the link is the gallery).
   const token = signPayloadToken({ tenantId: input.tenantId, jobId: input.jobId }, process.env.UNSUBSCRIBE_SECRET ?? "dev-unsubscribe-secret");
-  const { code } = await createStatusLink({ tenantId: input.tenantId, token });
+  const code = await createStatusLink({ tenantId: input.tenantId, token });
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const body = `${draft} ${base}/b/${code}`;
 

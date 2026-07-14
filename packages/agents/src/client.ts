@@ -54,6 +54,8 @@ type Events = {
   // justCompleted=true on the event that finished a phase — slice 2's homeowner
   // update consumes it.
   "production/media.ingested": { data: { tenantId: string; jobId: string; phaseKey: string; documentId: string; phaseStatus: string; justCompleted: boolean } };
+  // The crew filed the EOD report (closes the crew day) → the homeowner wrap.
+  "production/eod.reported": { data: { tenantId: string; jobId: string; dayKey: string } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
   // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).

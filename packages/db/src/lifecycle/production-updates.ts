@@ -134,3 +134,33 @@ export async function deliveryNoticeGaps(tenantId: string): Promise<{ jobId: str
     return out;
   });
 }
+
+/** The status-page story: double-gated photos grouped by tenant-local day —
+ *  multi-day jobs read as a day-by-day narrative, never a flat dump. */
+export async function statusGalleryForJob(input: {
+  tenantId: string;
+  jobId: string;
+}): Promise<{ day: string; photos: { documentId: string; r2Key: string | null; phaseKey: string | null }[] }[]> {
+  return withTenant(input.tenantId, async (tx) => {
+    const rows = await tx.select({
+      documentId: productionMedia.documentId,
+      r2Key: document.r2Key,
+      phaseKey: productionMedia.phaseKeyRaw,
+      createdAt: productionMedia.createdAt,
+    }).from(productionMedia)
+      .innerJoin(document, eq(productionMedia.documentId, document.id))
+      .where(and(
+        eq(productionMedia.jobId, input.jobId),
+        eq(document.qcStatus, "passed"),
+        sql`${document.sharedWith} @> '["homeowner"]'::jsonb`,
+      ))
+      .orderBy(productionMedia.createdAt);
+    const byDay = new Map<string, { documentId: string; r2Key: string | null; phaseKey: string | null }[]>();
+    for (const r of rows) {
+      const day = r.createdAt.toISOString().slice(0, 10);
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day)!.push({ documentId: r.documentId, r2Key: r.r2Key, phaseKey: r.phaseKey });
+    }
+    return [...byDay.entries()].map(([day, photos]) => ({ day, photos }));
+  });
+}
