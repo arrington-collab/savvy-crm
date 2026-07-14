@@ -163,3 +163,21 @@ export const changeOrder = pgTable("change_order", {
   uniqueIndex("change_order_submission_uniq").on(t.tenantId, t.docusealSubmissionId),
   tenantIsolation(),
 ]);
+
+// Estimate Experience slice 4: first-party page telemetry + the 60-second rep
+// race. Events are the evidence AND the trigger — no third-party analytics.
+export const estimateEvent = pgTable("estimate_event", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  estimateId: uuid("estimate_id").notNull().references(() => estimate.id),
+  // open | dwell | tier_view | color_play | race_rep_notified | race_rep_ack |
+  // race_nova_text | race_skipped | expiry_notice
+  kind: text("kind").notNull(),
+  sessionId: text("session_id"),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  index("estimate_event_estimate_idx").on(t.tenantId, t.estimateId, t.kind),
+  index("estimate_event_kind_time_idx").on(t.tenantId, t.kind, t.createdAt),
+  tenantIsolation(),
+]);
