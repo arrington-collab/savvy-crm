@@ -153,3 +153,5 @@ export { scoreTenantTurf, emitTurfCampaigns, type ScoredNeighborhood } from "./l
 export { spotterPrecisionReport } from "./lifecycle/spotter-precision";
 export { runMaintenanceOfferSweep, maintenanceChurnStats, type MaintenanceSweepResult, type MaintenanceChurnStats } from "./lifecycle/maintenance-offers";
 export { runMaintenanceVisitSweep, sendDueVisitReports, getVisitReport, type VisitSweepResult, type ReportSendResult, type VisitReportData } from "./lifecycle/maintenance-visits";
+export { createScan, listScans, type CreateScanArgs, type ScanRow } from "./lifecycle/canvass-scan";
+export { insertPings, listPingsForDay, type PingPoint } from "./lifecycle/canvass-ping";
