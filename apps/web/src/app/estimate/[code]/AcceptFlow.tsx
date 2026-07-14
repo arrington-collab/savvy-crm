@@ -30,11 +30,14 @@ export function AcceptFlow({
   tier,
   color,
   expired,
+  requireSelection = true,
 }: {
   code: string;
   tier: string | null;
   color: string | null;
   expired: boolean;
+  /** Retail requires a tier+color pick; the insurance variant accepts the claim-aligned scope as-is. */
+  requireSelection?: boolean;
 }) {
   const [started, setStarted] = useState(false);
   const [signingUrl, setSigningUrl] = useState<string | null>(null);
@@ -128,15 +131,15 @@ export function AcceptFlow({
       <div className="space-y-2">
         <button
           data-testid="accept-cta"
-          disabled={!tier || !color || pending}
+          disabled={(requireSelection && (!tier || !color)) || pending}
           onClick={() => void begin()}
           className={`w-full rounded-xl py-3 font-semibold ${
-            tier && color ? "bg-stone-900 text-white" : "bg-stone-200 text-stone-400"
+            !requireSelection || (tier && color) ? "bg-stone-900 text-white" : "bg-stone-200 text-stone-400"
           }`}
         >
           {pending ? "One sec…" : "Accept & schedule"}
         </button>
-        {(!tier || !color) && (
+        {requireSelection && (!tier || !color) && (
           <p className="text-center text-xs text-stone-400">Pick an option and a color above to continue.</p>
         )}
         {error && <p className="text-center text-sm text-amber-700">Something hiccuped — try again.</p>}

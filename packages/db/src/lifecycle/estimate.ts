@@ -14,6 +14,7 @@ import {
   computeEstimateTotals,
   selectPreferredMeasurement,
   expandTierEstimates,
+  estimateTemplateVersion,
   REGISTRY_TASK,
   type EnginePriceBookItem,
   type TierEngineItem,
@@ -211,6 +212,17 @@ export async function setEstimateStatus(input: {
     if (row && input.status === "sent") {
       // Slice 2: every sent estimate gets its tokenized homeowner page link.
       await ensureEstimateLink({ tenantId: input.tenantId, estimateId: input.estimateId });
+      // Slice 7: stamp which page template renders this estimate — the
+      // close-rate report splits on it.
+      if (!row.templateVersion) {
+        const [l] = row.leadId
+          ? await tx.select({ source: lead.source }).from(lead).where(eq(lead.id, row.leadId))
+          : [null];
+        await tx
+          .update(estimate)
+          .set({ templateVersion: estimateTemplateVersion({ source: row.source, leadSource: l?.source ?? null }) })
+          .where(eq(estimate.id, input.estimateId));
+      }
     }
     if (row && input.status === "sent" && row.jobId) {
       await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.ESTIMATE_DELIVERY, owner: "SAGE", evidence: { type: "estimate", ref: row.id } });

@@ -54,7 +54,9 @@ export const CHECK_BINDINGS: Record<number, string> = {
   44: "compliance.contract_template", // Contract / authorization signing — SB38 template-version invariant (cell 17b)
   49: "lead.doc_parse", // Measurement report review & import — typed lead doc parsed-or-carded < 1h (slice 6d)
   52: "estimate.lead_stage", // Xactimate estimate creation — lead estimate cites its measurement source (slice 6d)
+  53: "estimate.page", // Retail pricing proposal generation — every sent estimate has a live tokenized page (EE slice 7)
   56: "estimate.margin_floor", // Estimate delivery — no sent estimate carries an unresolved margin-floor violation (EE slice 1)
+  58: "estimate.validity", // Price matching / negotiation tracking — zero acceptances at expired prices (EE slice 7)
   76: "claim.endorsement_no_idle", // Mortgage company endorsement tracking — 5-business-day no-idle (cell 16)
   133: "finance.price_guard", // Job cost reconciliation (supplier-invoice price guard)
   139: "finance.invoice_math", // Invoice generation

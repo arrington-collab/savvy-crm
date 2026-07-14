@@ -25,6 +25,8 @@ export * from "./estimate-race";
 export * from "./why-us";
 export * from "./video-batch";
 export * from "./drip-gates";
+export * from "./close-rate";
+export * from "./insurance-page";
 export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";

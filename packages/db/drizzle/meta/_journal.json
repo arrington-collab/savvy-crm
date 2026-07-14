@@ -610,6 +610,13 @@
       "when": 1783983272487,
       "tag": "0086_elite_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1783989806615,
+      "tag": "0087_yellow_manta",
+      "breakpoints": true
     }
   ]
 }

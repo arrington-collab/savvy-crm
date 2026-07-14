@@ -21,7 +21,7 @@ export async function POST(
   } catch {
     return Response.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
-  if (!body.tier || !body.color) return Response.json({ ok: false, error: "missing_fields" }, { status: 400 });
+  // tier/color are retail-only; the insurance variant accepts the claim-aligned scope as-is.
 
   const origin = new URL(req.url).origin;
   const pageUrl = `${origin}/estimate/${code}`;
@@ -29,8 +29,8 @@ export async function POST(
     {
       tenantId: link.tenantId,
       estimateId: link.estimateId,
-      tier: body.tier as "good" | "better" | "best",
-      color: body.color,
+      tier: (body.tier ?? null) as "good" | "better" | "best" | null,
+      color: body.color ?? null,
       successUrl: `${pageUrl}?deposit=ok`,
       cancelUrl: `${pageUrl}?deposit=cancelled`,
       signerEmail: body.email ?? null,

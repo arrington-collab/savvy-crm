@@ -41,6 +41,9 @@ export const estimate = pgTable("estimate", {
   selectedColor: text("selected_color"),
   // Slice 3 accept flow: sign + deposit are separate facts; acceptance (the
   // existing estimate/accepted chain) fires only when BOTH are satisfied.
+  // Slice 7: which page template rendered this estimate (retail-v1 /
+  // insurance-v1) — stamped at send; the close-rate report splits on it.
+  templateVersion: text("template_version"),
   signedAt: timestamp("signed_at", { withTimezone: true }),
   signingUrl: text("signing_url"),
   depositCheckoutSessionId: text("deposit_checkout_session_id"),

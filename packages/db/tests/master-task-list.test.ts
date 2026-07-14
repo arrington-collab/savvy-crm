@@ -84,10 +84,12 @@ describe("master task list seed (transform)", () => {
     expect(byId(6).checkKey).toBe("canvass.contract_to_job"); // Door-to-door canvassing (contract → job)
     expect(byId(3).checkKey).toBe("lead.source_taxonomy"); // Referral tracking & source attribution
     expect(byId(56).checkKey).toBe("estimate.margin_floor"); // Estimate delivery — margin-floor invariant (EE slice 1)
+    expect(byId(53).checkKey).toBe("estimate.page"); // Retail pricing proposal — live tokenized page (EE slice 7)
+    expect(byId(58).checkKey).toBe("estimate.validity"); // zero acceptances at expired prices (EE slice 7)
     expect(byId(1).checkKey).toBeNull(); // unbound task keeps null
     // Exactly the bound set carries a check_key; everything else is null.
     const bound = rows.filter((r) => r.checkKey !== null).map((r) => r.id).sort((a, b) => a - b);
-    expect(bound).toEqual([3, 6, 18, 19, 24, 28, 32, 44, 49, 52, 56, 76, 133, 139, 141, 150, 151, 213, 214]);
+    expect(bound).toEqual([3, 6, 18, 19, 24, 28, 32, 44, 49, 52, 53, 56, 58, 76, 133, 139, 141, 150, 151, 213, 214]);
   });
 
   it("every bound check_key resolves to a real evidence check (no orphan bindings)", () => {
