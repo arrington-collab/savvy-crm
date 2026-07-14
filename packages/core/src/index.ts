@@ -138,3 +138,4 @@ export * from "./minutes-saved";
 export * from "./roof-age";
 export * from "./geo";
 export * from "./production-phase";
+export * from "./delivery-touches";

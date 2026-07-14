@@ -1,6 +1,6 @@
 import { getHomeownerStatusByToken } from "@/lib/homeowner-actions";
 import { buildHomeownerJourney, homeownerStageCopy } from "@savvy/core";
-import { getPhaseProgressForJob } from "@savvy/db";
+import { getPhaseProgressForJob, statusGalleryForJob } from "@savvy/db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,9 @@ export default async function StatusPage({ params }: { params: Promise<{ token: 
   const phaseProgress = res.currentStage === "production" && res.jobId
     ? await getPhaseProgressForJob({ tenantId: res.tenantId, jobId: res.jobId }).catch(() => null)
     : null;
+  const gallery = res.jobId
+    ? await statusGalleryForJob({ tenantId: res.tenantId, jobId: res.jobId }).catch(() => [])
+    : [];
   return (
     <main className="mx-auto max-w-md p-6" data-testid="status-page">
       <p className="text-sm text-muted-foreground">{res.companyName}</p>
@@ -46,6 +49,22 @@ export default async function StatusPage({ params }: { params: Promise<{ token: 
               </li>
             ))}
           </ol>
+        </section>
+      ) : null}
+      {gallery.length > 0 ? (
+        <section className="mb-6" data-testid="status-gallery">
+          <h2 className="text-sm font-medium text-stone-500">The story so far</h2>
+          {gallery.map((day) => (
+            <div key={day.day} className="mt-3">
+              <p className="text-xs text-stone-400">{day.day}</p>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                {day.photos.map((ph) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={ph.documentId} src={`/api/status-photo/${token}/${ph.documentId}`} alt="Progress photo" loading="lazy" className="aspect-square w-full rounded-lg object-cover" data-testid={`gallery-photo-${ph.documentId}`} />
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
       ) : null}
       <ol className="space-y-2" data-testid="status-journey">

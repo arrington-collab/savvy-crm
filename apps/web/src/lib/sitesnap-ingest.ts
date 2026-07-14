@@ -1,4 +1,4 @@
-import { resolveTenantByIngestKey, resolvePhotoJob, recordSiteSnapPhoto, getInspectionScope, ingestInspectionMedia, ingestProductionMedia } from "@savvy/db";
+import { resolveTenantByIngestKey, resolvePhotoJob, recordSiteSnapPhoto, getInspectionScope, ingestInspectionMedia, ingestProductionMedia, setPhotoCustomerSafe } from "@savvy/db";
 import type { StorageGateway } from "@savvy/integrations";
 
 export type IngestBody = {
@@ -20,6 +20,9 @@ export type IngestBody = {
   phaseKey?: string;
   shot?: string;
   crewMemberName?: string;
+  // Crew intent: this shot is fit for the homeowner. Gate 1 of the double gate
+  // (QC-passed is gate 2) — a photo reaches the homeowner only past BOTH.
+  customerSafe?: boolean;
 };
 export type IngestDeps = {
   storage: StorageGateway;
@@ -83,6 +86,10 @@ export async function ingestSiteSnapPhoto(body: IngestBody, key: string, deps: I
       } catch { /* noop */ }
     }
   }
+  if (body.customerSafe && rec.created) {
+    await setPhotoCustomerSafe({ tenantId: t.tenantId, documentId: rec.documentId, safe: true });
+  }
+
   // Production phase-first capture: a matched job + a phase key runs the phase
   // engine. Unknown keys triage (phaseLinked:false) — the photo is kept either way.
   let phaseLinked: boolean | undefined;

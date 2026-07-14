@@ -6,6 +6,8 @@ import { leadStatusEnum, stormCertStatusEnum } from "./enums";
 export const customer = pgTable("customer", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  // Homeowner updates render in the customer's language when set ('en'|'es').
+  preferredLanguage: text("preferred_language"),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
