@@ -1,4 +1,4 @@
-import { refreshLeadEstimateDraft, suggestFindingFromChecklistMedia, withAgentRun } from "@savvy/db";
+import { refreshLeadEstimateDraft, suggestFindingFromChecklistMedia, applyRepairCreditToEstimate, withAgentRun } from "@savvy/db";
 import { inngest } from "../client";
 
 const LIVE_BUILD_TASK_KEY = "roof_record.live_build";
@@ -20,7 +20,16 @@ export async function inspectionMediaHandler(input: {
   const leadId = input.leadId;
   return withAgentRun(
     { tenantId: input.tenantId, agent: "claims", taskKey: LIVE_BUILD_TASK_KEY, leadId, jobId: null },
-    () => refreshLeadEstimateDraft({ tenantId: input.tenantId, leadId }),
+    async () => {
+      const res = await refreshLeadEstimateDraft({ tenantId: input.tenantId, leadId });
+      // Re-prices regenerate line items, so the active repair credit re-applies
+      // after every refresh (repair.credit_applied: no replacement estimate
+      // omits an active credit). Idempotent — the line key guards stacking.
+      if ("estimateId" in res) {
+        await applyRepairCreditToEstimate({ tenantId: input.tenantId, estimateId: res.estimateId });
+      }
+      return res;
+    },
     { resolve: (r) => ("estimateId" in r ? { status: "ok" } : { status: "skipped" }) },
   );
 }

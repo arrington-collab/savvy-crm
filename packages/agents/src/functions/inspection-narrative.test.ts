@@ -44,7 +44,7 @@ describe("draftInspectionNarrative", () => {
     const res = await draftInspectionNarrative({ tenantId, inspectionId }, ai as never);
     expect("narrative" in res).toBe(true);
     expect(ai.completeObject).toHaveBeenCalledOnce();
-    const call = ai.completeObject.mock.calls[0]![0] as { capability: string; system: string };
+    const call = (ai.completeObject.mock.calls as unknown as [{ capability: string; system: string }][])[0]![0];
     expect(call.capability).toBe("workhorse");
     expect(call.system).toContain(NARRATIVE_RUBRIC_V1.slice(0, 40)); // rubric rides the system prompt
 
