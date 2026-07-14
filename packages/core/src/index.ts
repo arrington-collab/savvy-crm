@@ -137,3 +137,4 @@ export * from "./agent-verbs";
 export * from "./minutes-saved";
 export * from "./roof-age";
 export * from "./geo";
+export * from "./production-phase";

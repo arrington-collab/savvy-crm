@@ -85,6 +85,9 @@ export const crewCheckin = pgTable("crew_checkin", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   jobId: uuid("job_id").notNull().references(() => job.id),
+  // Production Pulse: which CREW checked in (the day belongs to a crew, not
+  // just one member) — silence/late-crew detection keys on this.
+  crewId: uuid("crew_id"),
   crewUserId: uuid("crew_user_id").notNull().references(() => user.id),
   checkedInAt: timestamp("checked_in_at", { withTimezone: true }).defaultNow().notNull(),
   checkInLat: doublePrecision("check_in_lat"),
