@@ -1,4 +1,4 @@
-import { refreshLeadEstimateDraft, withAgentRun } from "@savvy/db";
+import { refreshLeadEstimateDraft, suggestFindingFromChecklistMedia, withAgentRun } from "@savvy/db";
 import { inngest } from "../client";
 
 const LIVE_BUILD_TASK_KEY = "roof_record.live_build";
@@ -31,8 +31,13 @@ export const inspectionLiveBuild = inngest.createFunction(
   { id: "inspection-live-build", concurrency: { limit: 1, key: "event.data.inspectionId" }, retries: 2 },
   { event: "inspection/media.ingested" },
   async ({ event, step }) => {
-    const { tenantId, inspectionId, leadId } = event.data;
-    return step.run("refresh-pre-draft", () => inspectionMediaHandler({ tenantId, inspectionId, leadId }));
+    const { tenantId, inspectionId, leadId, documentId } = event.data;
+    // Checklist results auto-suggest findings (slice 2): idempotent per
+    // (zone, item) — replays append evidence, never duplicate suggestions.
+    const suggestion = await step.run("suggest-finding", () =>
+      suggestFindingFromChecklistMedia({ tenantId, inspectionId, documentId }));
+    const refresh = await step.run("refresh-pre-draft", () => inspectionMediaHandler({ tenantId, inspectionId, leadId }));
+    return { suggestion, refresh };
   },
 );
 

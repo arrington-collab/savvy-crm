@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
-import { inspectionZone, inspectionFinding } from "../schema/index";
+import { inspectionZone, inspectionFinding, inspectionMedia, inspectionChecklist } from "../schema/index";
 
 /**
  * Roof Record slice 2 — the honesty machinery.
@@ -118,6 +118,81 @@ export async function setInspectionZoneGrade(input: {
       .set({ grade: input.grade, gradeSetByUserId: input.userId })
       .where(eq(inspectionZone.id, input.inspectionZoneId));
     return { grade: input.grade };
+  });
+}
+
+type ChecklistItemRow = {
+  key: string;
+  prompt: string;
+  input: string;
+  maps_to_finding: { what_it_is: string; if_ignored: string; timeframe: string; severity: string } | null;
+  friend_rule_eligible?: boolean;
+};
+
+export type SuggestFindingResult =
+  | { findingId: string; appended: boolean }
+  | { skipped: "media_not_found" | "no_checklist_item" | "no_finding_template" };
+
+/**
+ * Checklist results auto-suggest findings: media captured FOR a checklist item
+ * whose maps_to_finding template exists becomes an UNCONFIRMED ai_suggested
+ * finding on the media's zone. One suggestion per (zone, item) — later photos
+ * of the same item append to the existing finding's evidence, confirmed or not.
+ * The inspector confirms/edits/dismisses on site; nothing publishes unconfirmed.
+ */
+export async function suggestFindingFromChecklistMedia(input: {
+  tenantId: string;
+  inspectionId: string;
+  documentId: string;
+}): Promise<SuggestFindingResult> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [media] = await tx.select({
+      zoneId: inspectionMedia.inspectionZoneId,
+      checklistItemKey: inspectionMedia.checklistItemKey,
+    }).from(inspectionMedia)
+      .where(and(eq(inspectionMedia.inspectionId, input.inspectionId), eq(inspectionMedia.documentId, input.documentId)));
+    if (!media) return { skipped: "media_not_found" as const };
+    if (!media.checklistItemKey) return { skipped: "no_checklist_item" as const };
+
+    // Resolve the item's template from the ACTIVE checklist library (items are
+    // jsonb; scan in JS — checklists are small config documents).
+    const checklists = await tx.select({ items: inspectionChecklist.items }).from(inspectionChecklist)
+      .where(eq(inspectionChecklist.active, true));
+    const item = checklists
+      .flatMap((c) => (c.items as ChecklistItemRow[]))
+      .find((i) => i.key === media.checklistItemKey);
+    if (!item?.maps_to_finding) return { skipped: "no_finding_template" as const };
+
+    // One suggestion per (zone, item): append evidence to the existing finding.
+    const [existing] = await tx.select({ id: inspectionFinding.id, photoIds: inspectionFinding.photoIds })
+      .from(inspectionFinding)
+      .where(and(
+        eq(inspectionFinding.inspectionZoneId, media.zoneId),
+        eq(inspectionFinding.checklistItemKey, media.checklistItemKey),
+      ));
+    if (existing) {
+      if (!existing.photoIds.includes(input.documentId)) {
+        await tx.update(inspectionFinding)
+          .set({ photoIds: [...existing.photoIds, input.documentId] })
+          .where(eq(inspectionFinding.id, existing.id));
+      }
+      return { findingId: existing.id, appended: true };
+    }
+
+    const t = item.maps_to_finding;
+    const [row] = await tx.insert(inspectionFinding).values({
+      tenantId: input.tenantId,
+      inspectionZoneId: media.zoneId,
+      checklistItemKey: media.checklistItemKey,
+      whatItIs: t.what_it_is,
+      ifIgnored: t.if_ignored,
+      timeframe: t.timeframe,
+      severitySuggested: t.severity,
+      photoIds: [input.documentId],
+      createdBy: "ai_suggested",
+      confirmedAt: null,
+    }).returning({ id: inspectionFinding.id });
+    return { findingId: row!.id, appended: false };
   });
 }
 
