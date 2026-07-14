@@ -21,6 +21,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     emit: async (jobId, documentId, tenantId) => {
       await inngest.send({ name: "photo/ingested", data: { tenantId, documentId, jobId } });
     },
+    emitInspectionMedia: async (info) => {
+      await inngest.send({ name: "inspection/media.ingested", data: info });
+    },
   });
   if (res.status >= 500) log.error("sitesnap ingest failed", { route: "/api/sitesnap/photos", status: res.status });
   return NextResponse.json(res.body, { status: res.status });

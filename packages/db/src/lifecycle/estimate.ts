@@ -6,7 +6,7 @@ import { inspection } from "../schema/inspection";
 import { lead } from "../schema/crm";
 import { priceBookItem } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   parseEstimateConfig,
   estimateRequiresApproval,
@@ -161,10 +161,13 @@ export async function refreshLeadEstimateDraft(input: {
     const [l] = await tx.select().from(lead).where(eq(lead.id, input.leadId));
     if (!l || !l.propertyId) return { skipped: "no_lead" as const };
 
+    // Live window matches media acceptance: capture + the approval pass (the
+    // final re-price after the inspector climbs down). Approved/published
+    // Records never re-price, and the estimate-status lock below still rules.
     const [insp] = await tx
       .select({ id: inspection.id })
       .from(inspection)
-      .where(and(eq(inspection.leadId, input.leadId), eq(inspection.status, "in_progress")))
+      .where(and(eq(inspection.leadId, input.leadId), inArray(inspection.status, ["in_progress", "pending_approval"])))
       .limit(1);
     if (!insp) return { skipped: "no_active_inspection" as const };
 

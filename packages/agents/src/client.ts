@@ -39,6 +39,12 @@ type Events = {
   "lead/contact-overdue": { data: { leadId: string; tenantId: string } };
   "lead/disqualified": { data: { leadId: string; tenantId: string } };
   "photo/ingested": { data: { tenantId: string; documentId: string; jobId: string | null } };
+  // Roof Record: zone-tagged media landed on an inspection zone (fires once per
+  // NEW photo — replays are deduped at the pipe). Drives the live pre-draft
+  // refresh + the progressive lead-tile card.
+  "inspection/media.ingested": { data: { tenantId: string; inspectionId: string; leadId: string | null; zoneKey: string; documentId: string } };
+  // The inspector climbed down: capture done, Record + estimate finalize.
+  "inspection/completed": { data: { tenantId: string; inspectionId: string; leadId: string | null } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
   // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).

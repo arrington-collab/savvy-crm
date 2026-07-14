@@ -1,6 +1,7 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
-import { lead, inspection, inspectionZone, inspectionMedia } from "../schema/index";
+import { lead, property, inspection, inspectionZone, inspectionMedia } from "../schema/index";
+import { normalizeAddressForMatch } from "@savvy/core";
 
 // Media is accepted while capture is live and during the approval window (late
 // BloomCam outbox retries land after the inspector climbs down); it is refused
@@ -42,6 +43,34 @@ export async function startInspectionForLead(input: {
   });
 }
 
+const OPEN_LEAD_STATUSES = ["new", "contacted", "qualified", "booked"] as const;
+
+/**
+ * BloomCam's start-capture event carries an address, not a lead id. Resolve the
+ * newest OPEN lead at that address (same normalization as the photo pipe) and
+ * start — or resume — its inspection. The webhook response returns the
+ * inspection id BloomCam then stamps on every media event.
+ */
+export async function startInspectionByAddress(input: {
+  tenantId: string;
+  address: string;
+  inspectorUserId?: string | null;
+}): Promise<StartInspectionResult | { error: "no_lead_match" }> {
+  const norm = normalizeAddressForMatch(input.address);
+  const leadId = await withTenant(input.tenantId, async (tx) => {
+    const props = await tx.select({ id: property.id, address: property.address }).from(property);
+    const match = props.find((p) => normalizeAddressForMatch(p.address) === norm);
+    if (!match) return null;
+    const [openLead] = await tx.select({ id: lead.id }).from(lead)
+      .where(and(eq(lead.propertyId, match.id), inArray(lead.status, [...OPEN_LEAD_STATUSES])))
+      .orderBy(desc(lead.createdAt))
+      .limit(1);
+    return openLead?.id ?? null;
+  });
+  if (!leadId) return { error: "no_lead_match" as const };
+  return startInspectionForLead({ tenantId: input.tenantId, leadId, inspectorUserId: input.inspectorUserId });
+}
+
 /** Scope lookup for the ingestion pipe: media documents inherit the
  *  inspection's lead so QC + the lead photo rail see them. */
 export async function getInspectionScope(input: {
@@ -76,6 +105,7 @@ export async function ingestInspectionMedia(input: {
   checklistVersionRef?: string | null;
   capturedAt?: Date | null;
   gps?: { lat: number; lng: number } | null;
+  note?: string | null;
 }): Promise<IngestMediaResult> {
   return withTenant(input.tenantId, async (tx) => {
     const [insp] = await tx.select({ id: inspection.id, status: inspection.status }).from(inspection)
@@ -116,7 +146,20 @@ export async function ingestInspectionMedia(input: {
       gpsLng: input.gps ? String(input.gps.lng) : null,
     }).onConflictDoNothing().returning({ id: inspectionMedia.id });
 
-    return { inspectionZoneId: zone!.id, documentId: input.documentId, created: insertedMedia.length > 0 };
+    const created = insertedMedia.length > 0;
+
+    // Capture note → the zone's inspector notes. Gated on the media insert
+    // winning, so an outbox replay can never append the same note twice.
+    // (AI voice-memo parse is slice 2; source stays 'capture' here.)
+    if (created && input.note?.trim()) {
+      await tx.update(inspectionZone).set({
+        inspectorNotes: sql`${inspectionZone.inspectorNotes} || ${JSON.stringify([
+          { text: input.note.trim(), at: new Date().toISOString(), source: "capture" },
+        ])}::jsonb`,
+      }).where(eq(inspectionZone.id, zone!.id));
+    }
+
+    return { inspectionZoneId: zone!.id, documentId: input.documentId, created };
   });
 }
 
@@ -136,6 +179,23 @@ export async function completeInspection(input: {
     if (!updated) return { error: "not_in_progress" as const };
     return { completedAt };
   });
+}
+
+/** The lead page card: the lead's inspection while it's inside the capture/
+ *  approval window (in_progress or pending_approval). Null once approved. */
+export async function getActiveInspectionForLead(input: {
+  tenantId: string;
+  leadId: string;
+}): Promise<InspectionProgress | null> {
+  const inspectionId = await withTenant(input.tenantId, async (tx) => {
+    const [row] = await tx.select({ id: inspection.id }).from(inspection)
+      .where(and(eq(inspection.leadId, input.leadId), inArray(inspection.status, [...MEDIA_OPEN_STATUSES])))
+      .orderBy(desc(inspection.startedAt))
+      .limit(1);
+    return row?.id ?? null;
+  });
+  if (!inspectionId) return null;
+  return getInspectionProgress({ tenantId: input.tenantId, inspectionId });
 }
 
 export type InspectionProgress = {

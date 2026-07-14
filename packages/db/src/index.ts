@@ -35,7 +35,8 @@ export { recordReferralPayment, approveReferralPayment, REFERRAL_FEE_APPROVAL_TA
 export { recomputeJobActualCost, saveParsedSupplierInvoice, getDocumentR2Key, matchSupplierInvoiceJob, markSupplierInvoiceParseFailed, getMaterialOrderSnapshot, saveGuardedSupplierInvoice, listUnmatchedSupplierInvoices, listSupplierInvoicesForJob } from "./lifecycle/supplier-invoice";
 export { createCreditRequest, setCreditRequestSent, listOpenSentCreditRequests, markCreditRequestCredited, getCreditRecoverySummary, listDraftedCreditRequests } from "./lifecycle/credit-request";
 export { markEsignBySubmission } from "./lifecycle/esign";
-export { startInspectionForLead, ingestInspectionMedia, completeInspection, getInspectionProgress, getInspectionScope, type InspectionProgress } from "./lifecycle/inspection";
+export { startInspectionForLead, startInspectionByAddress, ingestInspectionMedia, completeInspection, getInspectionProgress, getInspectionScope, getActiveInspectionForLead, type InspectionProgress } from "./lifecycle/inspection";
+export { ensureInspectionChecklists } from "./lifecycle/inspection-checklist";
 export { createChangeOrder, sendChangeOrder, markChangeOrderBySubmission, approveChangeOrder } from "./lifecycle/change-order";
 export * as tables from "./schema/index";
 // Named table/enum exports on the package root so cross-package consumers

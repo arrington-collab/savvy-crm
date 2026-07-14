@@ -67,7 +67,7 @@ describe("ingestSiteSnapPhoto — zone-first roof-record media", () => {
     const r = await ingestSiteSnapPhoto({
       address: "123 Main Street", category: "roof", imageUrl: "u", externalPhotoId: "z1",
       inspectionId, zoneKey: "north_slope", zoneLabel: "North slope", zoneKind: "facet",
-      capturedAtMs: Date.now(), gps: { lat: 33.45, lng: -112.07 },
+      capturedAtMs: Date.now(), gps: { lat: 33.45, lng: -112.07 }, note: "granule loss at eave",
     }, key, { storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitInspectionMedia });
 
     expect(r.status).toBe(200);
@@ -79,6 +79,7 @@ describe("ingestSiteSnapPhoto — zone-first roof-record media", () => {
     const zones = await withTenant(tenantId, (tx) => tx.select().from(inspectionZone).where(eq(inspectionZone.inspectionId, inspectionId)));
     expect(zones).toHaveLength(1);
     expect(zones[0]!.zoneKey).toBe("north_slope");
+    expect((zones[0]!.inspectorNotes as { text: string }[])[0]!.text).toBe("granule loss at eave");
 
     const media = await withTenant(tenantId, (tx) => tx.select().from(inspectionMedia).where(
       and(eq(inspectionMedia.inspectionId, inspectionId), eq(inspectionMedia.documentId, doc!.id))));

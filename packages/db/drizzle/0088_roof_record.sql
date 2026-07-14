@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS "inspection_zone" (
 	"grade" text,
 	"grade_set_by_user_id" uuid,
 	"checklist_version_ref" text,
+	"inspector_notes" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

@@ -1,5 +1,5 @@
 {
-  "id": "7b0f598e-8834-4e54-9b8c-805b32812b07",
+  "id": "457779bb-4ed1-425b-aa73-cd460f52ab76",
   "prevId": "043ad128-98d9-4b95-8ecf-5a27040b62ce",
   "version": "7",
   "dialect": "postgresql",
@@ -10597,6 +10597,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "inspector_notes": {
+          "name": "inspector_notes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",

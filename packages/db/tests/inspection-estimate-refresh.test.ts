@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { refreshLeadEstimateDraft } from "../src/lifecycle/estimate.js";
-import { startInspectionForLead } from "../src/lifecycle/inspection.js";
+import { startInspectionForLead, completeInspection } from "../src/lifecycle/inspection.js";
 import { ensurePriceBook } from "../src/lifecycle/price-book.js";
 import { withTenant } from "../src/tenant.js";
 import { adminDb, measurement, estimate, eq } from "../src/index.js";
@@ -78,6 +78,20 @@ describe("refreshLeadEstimateDraft", () => {
 
     const res = await refreshLeadEstimateDraft({ tenantId, leadId });
     expect(res).toEqual({ skipped: "no_measurement" });
+  });
+
+  it("still re-prices during pending_approval (the final pass after the inspector climbs down)", async () => {
+    const { tenantId } = await makeTenant();
+    const { leadId, propertyId } = await makeLeadWithProperty(tenantId);
+    await ensurePriceBook(tenantId);
+    await landMeasurement(tenantId, propertyId, 20);
+    const started = await startInspectionForLead({ tenantId, leadId });
+    await refreshLeadEstimateDraft({ tenantId, leadId });
+
+    await completeInspection({ tenantId, inspectionId: (started as { inspectionId: string }).inspectionId });
+    await landMeasurement(tenantId, propertyId, 40); // late-landing final measurement
+    const res = await refreshLeadEstimateDraft({ tenantId, leadId });
+    expect("estimateId" in res && res.action === "refreshed").toBe(true);
   });
 
   it("never touches an estimate that has left draft (the lock)", async () => {

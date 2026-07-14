@@ -13,6 +13,7 @@ export type IngestBody = {
   checklistItemKey?: string;
   capturedAtMs?: number;
   gps?: { lat: number; lng: number };
+  note?: string;
 };
 export type IngestDeps = {
   storage: StorageGateway;
@@ -58,6 +59,7 @@ export async function ingestSiteSnapPhoto(body: IngestBody, key: string, deps: I
       checklistItemKey: body.checklistItemKey ?? null,
       capturedAt: body.capturedAtMs ? new Date(body.capturedAtMs) : null,
       gps: body.gps ?? null,
+      note: body.note ?? null,
     });
     inspectionLinked = !("error" in link);
   }

@@ -50,6 +50,10 @@ export const inspectionZone = pgTable("inspection_zone", {
   gradeSetByUserId: uuid("grade_set_by_user_id").references(() => user.id),
   // Audit trail: which checklist version drove this zone's capture.
   checklistVersionRef: text("checklist_version_ref"),
+  // Inspector notes per zone: [{ text, at, source: 'capture'|'voice'|'manual' }].
+  // Slice 1 lands capture notes from the pipe; AI voice-memo parse is deferred
+  // to slice 2 (no memo-parse pipeline exists on main yet — spec assumed one).
+  inspectorNotes: jsonb("inspector_notes").$type<unknown[]>().default([]).notNull(),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("inspection_zone_key_uniq").on(t.inspectionId, t.zoneKey),
