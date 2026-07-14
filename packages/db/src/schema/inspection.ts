@@ -155,3 +155,28 @@ export const inspectionMedia = pgTable("inspection_media", {
   index("inspection_media_tenant_zone_idx").on(t.tenantId, t.inspectionZoneId),
   tenantIsolation(),
 ]);
+
+// Slice 4 storm hook: ONE card per verified storm event over baselined roofs.
+// The owner approves the batch; NOVA sends the service-framed re-inspection
+// outreach; bookings create kind=post_storm inspections linked to the baseline.
+export const stormReinspectBatch = pgTable("storm_reinspect_batch", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  // swathSignature(kind|date|magnitude) — the same event never cards twice.
+  signature: text("signature").notNull(),
+  kind: text("kind").notNull(), // hail|wind
+  eventDate: text("event_date").notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  // Affected baselined properties at propose time: [{ propertyId, customerId, address, baselineAt }]
+  properties: jsonb("properties").$type<unknown[]>().default([]).notNull(),
+  status: text("status").notNull().default("proposed"), // proposed|approved|dismissed|sent
+  proposedAt: timestamp("proposed_at", { withTimezone: true }).defaultNow().notNull(),
+  approvedByUserId: uuid("approved_by_user_id").references(() => user.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("storm_reinspect_signature_uniq").on(t.tenantId, t.signature),
+  index("storm_reinspect_tenant_status_idx").on(t.tenantId, t.status),
+  tenantIsolation(),
+]);

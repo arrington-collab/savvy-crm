@@ -32,12 +32,23 @@ export async function startInspectionForLead(input: {
       .where(and(eq(inspection.leadId, input.leadId), eq(inspection.status, "in_progress")));
     if (existing) return { created: false, inspectionId: existing.id };
 
+    const kind = input.kind ?? "initial";
+    // Non-initial inspections compare against the property's baseline — the
+    // before/after view is the claim-evidence artifact (slice 4).
+    let baselineInspectionId: string | null = null;
+    if (kind !== "initial") {
+      const [prop] = await tx.select({ baselineInspectionId: property.baselineInspectionId })
+        .from(property).where(eq(property.id, l.propertyId));
+      baselineInspectionId = prop?.baselineInspectionId ?? null;
+    }
+
     const [created] = await tx.insert(inspection).values({
       tenantId: input.tenantId,
       leadId: input.leadId,
       propertyId: l.propertyId,
       inspectorUserId: input.inspectorUserId ?? null,
-      kind: input.kind ?? "initial",
+      kind,
+      baselineInspectionId,
     }).returning({ id: inspection.id });
     return { created: true, inspectionId: created!.id };
   });
