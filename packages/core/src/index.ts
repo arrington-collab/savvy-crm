@@ -24,6 +24,7 @@ export * from "./acceptance-gate";
 export * from "./estimate-race";
 export * from "./why-us";
 export * from "./video-batch";
+export * from "./drip-gates";
 export * from "./billing-bands";
 export * from "./billing";
 export * from "./velocity";

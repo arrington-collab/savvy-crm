@@ -20,6 +20,7 @@ export const ESTIMATE_EVENT_KINDS = [
   "question_escalated",
   "video_sent",
   "video_watch",
+  "followup_sent",
 ] as const;
 export type EstimateEventKind = (typeof ESTIMATE_EVENT_KINDS)[number];
 
