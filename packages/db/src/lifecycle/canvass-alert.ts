@@ -58,6 +58,19 @@ export async function createSaleNoContractAlerts(
   return { created: recipients.length };
 }
 
+// Security tripwire: too many wrong PINs for one rep name → alert every active
+// manager so a guessing attempt surfaces as a 🔔 instead of silence.
+export async function createPinLockoutAlert(tx: Tx, tenantId: string, repName: string): Promise<{ created: number }> {
+  const managers = await activeManagerIds(tx, tenantId);
+  if (managers.length === 0) return { created: 0 };
+  const title = "Security: repeated PIN failures";
+  const body = `Someone entered the wrong PIN for "${repName}" too many times. That login is locked for 15 minutes.`;
+  await tx.insert(canvassAlert).values(
+    managers.map((repId) => ({ tenantId, kind: "pin_lockout" as const, repId, knockId: null, leadId: null, title, body })),
+  );
+  return { created: managers.length };
+}
+
 // A rep's alerts, newest first (+ unread count).
 export async function listAlerts(tx: Tx, tenantId: string, repId: string): Promise<{ alerts: AlertRow[]; unread: number }> {
   const rows = await tx.select().from(canvassAlert).where(eq(canvassAlert.repId, repId)).orderBy(desc(canvassAlert.createdAt));
