@@ -1,4 +1,4 @@
-import { refreshLeadEstimateDraft, withAgentRun } from "@savvy/db";
+import { refreshLeadEstimateDraft, suggestFindingFromChecklistMedia, applyRepairCreditToEstimate, withAgentRun } from "@savvy/db";
 import { inngest } from "../client";
 
 const LIVE_BUILD_TASK_KEY = "roof_record.live_build";
@@ -20,7 +20,16 @@ export async function inspectionMediaHandler(input: {
   const leadId = input.leadId;
   return withAgentRun(
     { tenantId: input.tenantId, agent: "claims", taskKey: LIVE_BUILD_TASK_KEY, leadId, jobId: null },
-    () => refreshLeadEstimateDraft({ tenantId: input.tenantId, leadId }),
+    async () => {
+      const res = await refreshLeadEstimateDraft({ tenantId: input.tenantId, leadId });
+      // Re-prices regenerate line items, so the active repair credit re-applies
+      // after every refresh (repair.credit_applied: no replacement estimate
+      // omits an active credit). Idempotent — the line key guards stacking.
+      if ("estimateId" in res) {
+        await applyRepairCreditToEstimate({ tenantId: input.tenantId, estimateId: res.estimateId });
+      }
+      return res;
+    },
     { resolve: (r) => ("estimateId" in r ? { status: "ok" } : { status: "skipped" }) },
   );
 }
@@ -31,8 +40,13 @@ export const inspectionLiveBuild = inngest.createFunction(
   { id: "inspection-live-build", concurrency: { limit: 1, key: "event.data.inspectionId" }, retries: 2 },
   { event: "inspection/media.ingested" },
   async ({ event, step }) => {
-    const { tenantId, inspectionId, leadId } = event.data;
-    return step.run("refresh-pre-draft", () => inspectionMediaHandler({ tenantId, inspectionId, leadId }));
+    const { tenantId, inspectionId, leadId, documentId } = event.data;
+    // Checklist results auto-suggest findings (slice 2): idempotent per
+    // (zone, item) — replays append evidence, never duplicate suggestions.
+    const suggestion = await step.run("suggest-finding", () =>
+      suggestFindingFromChecklistMedia({ tenantId, inspectionId, documentId }));
+    const refresh = await step.run("refresh-pre-draft", () => inspectionMediaHandler({ tenantId, inspectionId, leadId }));
+    return { suggestion, refresh };
   },
 );
 

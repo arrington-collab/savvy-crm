@@ -1,4 +1,4 @@
-import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, getCurrentPriceBookTx, gateAgentAutomation, withAgentRun } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, applyRepairCreditToEstimate, appointment, estimate, measurement, getCurrentPriceBookTx, gateAgentAutomation, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -120,6 +120,9 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
       tenantId: string,
       res: { estimateId: string; measurementId: string },
     ) => {
+      // Roof Record: an active repair credit lands on the fresh draft as a
+      // visible line (repair.credit_applied — no replacement estimate omits it).
+      await step.run("apply-repair-credit", () => applyRepairCreditToEstimate({ tenantId, estimateId: res.estimateId }));
       const upsells = await step.run("upsell", () => attachUpsells(tenantId, res.estimateId, res.measurementId));
       const delivery = await step.run("delivery", () => resolveEstimateDelivery({ tenantId, estimateId: res.estimateId }));
       if (delivery.action === "send") {

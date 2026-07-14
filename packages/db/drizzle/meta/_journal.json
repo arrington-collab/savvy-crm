@@ -624,6 +624,13 @@
       "when": 1784002506233,
       "tag": "0088_roof_record",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1784003579276,
+      "tag": "0089_roof_record_narrative",
+      "breakpoints": true
     }
   ]
 }

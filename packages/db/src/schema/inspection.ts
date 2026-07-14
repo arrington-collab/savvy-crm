@@ -27,7 +27,15 @@ export const inspection = pgTable("inspection", {
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedByUserId: uuid("approved_by_user_id").references(() => user.id),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  // AI-drafted whole-roof narrative (slice 2): cheap-model, rubric-constrained.
+  // NOTHING renders to the homeowner before the inspector approves; narrative
+  // edits are the inspector's and tracked via the edited stamps.
+  narrative: text("narrative"),
+  narrativeDraftedAt: timestamp("narrative_drafted_at", { withTimezone: true }),
+  narrativeEditedByUserId: uuid("narrative_edited_by_user_id").references(() => user.id),
+  narrativeEditedAt: timestamp("narrative_edited_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   index("inspection_tenant_lead_idx").on(t.tenantId, t.leadId),
@@ -54,6 +62,9 @@ export const inspectionZone = pgTable("inspection_zone", {
   // Slice 1 lands capture notes from the pipe; AI voice-memo parse is deferred
   // to slice 2 (no memo-parse pipeline exists on main yet — spec assumed one).
   inspectorNotes: jsonb("inspector_notes").$type<unknown[]>().default([]).notNull(),
+  // AI-drafted 2–3 sentence zone summary (slice 2) — approved with the Record;
+  // plain English per the rubric, no fear language.
+  summary: text("summary"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("inspection_zone_key_uniq").on(t.inspectionId, t.zoneKey),
