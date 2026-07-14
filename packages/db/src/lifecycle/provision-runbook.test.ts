@@ -5,7 +5,7 @@ import { tenant, user } from "../schema/tenancy";
 import { license, contractTemplate } from "../schema/compliance";
 import { tenantTaskConfig } from "../schema/task-registry";
 import { integrationConnection } from "../schema/integrations";
-import { priceBookItem } from "../schema/pricing";
+import { priceBookItem, priceBookVersion, tierProduct } from "../schema/pricing";
 import { provisionTenant, DORMANT_SEAMS, type TenantProvisionConfig } from "./provision-runbook";
 
 // Required for seal/open when the Twilio wiring step encrypts the auth token.
@@ -32,6 +32,8 @@ async function cleanup(clerkOrgId: string) {
   if (!t) return;
   await adminDb.delete(tenantTaskConfig).where(eq(tenantTaskConfig.tenantId, t.id));
   await adminDb.delete(priceBookItem).where(eq(priceBookItem.tenantId, t.id));
+  await adminDb.delete(priceBookVersion).where(eq(priceBookVersion.tenantId, t.id));
+  await adminDb.delete(tierProduct).where(eq(tierProduct.tenantId, t.id));
   await adminDb.delete(integrationConnection).where(eq(integrationConnection.tenantId, t.id));
   await adminDb.delete(contractTemplate).where(eq(contractTemplate.tenantId, t.id));
   await adminDb.delete(license).where(eq(license.tenantId, t.id));

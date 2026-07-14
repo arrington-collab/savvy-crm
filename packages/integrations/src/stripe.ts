@@ -8,6 +8,7 @@ export interface StripeGateway {
     connectedAccountId: string; amountCents: number; currency?: string;
     invoiceId: string; tenantId: string; description: string;
     successUrl: string; cancelUrl: string; customerEmail?: string;
+    metadata?: Record<string, string>;
   }): Promise<{ id: string; url: string; paymentIntentId: string | null }>;
   constructWebhookEvent(rawBody: string, signature: string): StripeEventLite;
   // Cell 8 reconciliation: total funds collected (succeeded charges) in cents on
@@ -32,8 +33,8 @@ export const stripeGateway: StripeGateway = {
         quantity: 1,
         price_data: { currency: o.currency ?? "usd", unit_amount: o.amountCents, product_data: { name: o.description } },
       }],
-      metadata: { invoiceId: o.invoiceId, tenantId: o.tenantId },
-      payment_intent_data: { metadata: { invoiceId: o.invoiceId, tenantId: o.tenantId } },
+      metadata: { invoiceId: o.invoiceId, tenantId: o.tenantId, ...o.metadata },
+      payment_intent_data: { metadata: { invoiceId: o.invoiceId, tenantId: o.tenantId, ...o.metadata } },
       success_url: o.successUrl, cancel_url: o.cancelUrl,
       ...(o.customerEmail ? { customer_email: o.customerEmail } : {}),
     }, { stripeAccount: o.connectedAccountId });

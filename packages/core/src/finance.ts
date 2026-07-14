@@ -44,6 +44,13 @@ const priceGuardSchema = z.object({
 
 const financeSchema = z.object({
   netDays: z.number().int().positive().default(14),
+  // Estimate Experience slice 3: deposit collected at acceptance, % of the
+  // accepted tier total. 0 = waived (tenant-config "unless config says otherwise").
+  depositPercentageBps: z.number().int().min(0).max(10_000).default(5000),
+  // Slice 7: insurance jobs collect differently (the carrier pays the roof;
+  // the deductible is collected on its own rails). Default 0 = no acceptance
+  // deposit on the insurance variant; tenant-configurable.
+  insuranceDepositPercentageBps: z.number().int().min(0).max(10_000).default(0),
   invoiceNumberPrefix: z.string().default("INV-"),
   timezone: z.string()
     .refine((s) => { try { Intl.DateTimeFormat(undefined, { timeZone: s }); return true; } catch { return false; } }, "invalid IANA timezone")

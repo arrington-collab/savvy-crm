@@ -1,15 +1,15 @@
-import { renderTemplate, type DripStep, parseEmailConfig, REGISTRY_TASK } from "@savvy/core";
+import { renderTemplate, dripGateOpen, parseEstimateConfig, type DripStep, parseEmailConfig, REGISTRY_TASK } from "@savvy/core";
 import * as ai from "@savvy/ai";
 import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate, tenant as tenantTbl,
-  markLeadTaskDoneTx,
+  markLeadTaskDoneTx, estimate, desc, ensureEstimateLink, adminDb, recordEstimateEvent,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getTenantSms, isOutboundThrottled } from "../telephony";
 import { getTenantEmail } from "../email";
 import { inngest } from "../client";
 
-export type DripContext = { name: string; firstName: string };
+export type DripContext = { name: string; firstName: string } & Record<string, string>;
 
 export type DraftedMessage = { body: string; aiHandled: boolean; model?: string };
 
@@ -30,8 +30,9 @@ export async function draftMessage(
     });
     return { body: text, aiHandled: true, model };
   }
-  const vars: Record<string, string> = { name: ctx.name, firstName: ctx.firstName };
-  return { body: renderTemplate(templateBody ?? "", vars), aiHandled: false };
+  // All ctx entries are template vars — estimate touches add {{estimateLink}},
+  // {{validUntil}}, etc. beyond the base name/firstName pair.
+  return { body: renderTemplate(templateBody ?? "", { ...ctx }), aiHandled: false };
 }
 
 export type SendDeps = {
@@ -92,7 +93,50 @@ export async function sendDripStep(
     return { sent: false };
   }
 
-  const ctx = { name: c.name, firstName: firstNameOf(c.name) };
+  // Slice 6: gated steps — sequence slots for machinery that isn't live yet
+  // (financing, the color render). Closed gate = suppressed + advance; the
+  // slot activates itself the day the feature ships.
+  const gateEnv = {
+    financingLive: process.env.FINANCING_LIVE === "1", // swap to tenant config when the vendor adapter wires (#148)
+    features: new Set((process.env.FEATURE_FLAGS ?? "").split(",").map((f) => f.trim()).filter(Boolean)),
+  };
+  if (!dripGateOpen(step.gate, gateEnv)) {
+    await withTenant(tenantId, async (tx) => {
+      await tx.insert(communication).values({
+        tenantId, customerId, jobId: jobId ?? null, channel: step.channel, direction: "outbound",
+        to: to ?? null, body: `[suppressed: gate ${step.gate}]`, aiHandled: false,
+      });
+      await tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId));
+    });
+    return { sent: false };
+  }
+
+  // Slice 6: estimate context — the follow-up sequence's touches carry the
+  // live page link and the real validity date, resolved at send time.
+  let estimateVars: Record<string, string> = {};
+  let followupEstimateId: string | null = null;
+  if (leadId) {
+    try {
+      const [est] = await withTenant(tenantId, (tx) =>
+        tx.select().from(estimate).where(eq(estimate.leadId, leadId)).orderBy(desc(estimate.createdAt)).limit(1),
+      );
+      if (est?.sentAt) {
+        const [t2] = await adminDb.select({ settings: tenantTbl.settings }).from(tenantTbl).where(eq(tenantTbl.id, tenantId));
+        const validityDays = parseEstimateConfig((t2?.settings as { estimate?: unknown } | null)?.estimate).validityDays;
+        const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+        const { code } = await ensureEstimateLink({ tenantId, estimateId: est.id });
+        followupEstimateId = est.id;
+        estimateVars = {
+          estimateLink: `${base}/estimate/${code}`,
+          validUntil: new Date(est.sentAt.getTime() + validityDays * 86_400_000).toLocaleDateString("en-US", { month: "long", day: "numeric" }),
+        };
+      }
+    } catch {
+      /* fail-soft: touches still render, {{estimateLink}} empties w/ a console warn */
+    }
+  }
+
+  const ctx = { name: c.name, firstName: firstNameOf(c.name), ...estimateVars };
   const drafted = await draftMessage({ step, templateBody, ctx }, deps.ai ?? ai);
 
   let providerId = "mock";
@@ -134,6 +178,21 @@ export async function sendDripStep(
       });
     }
   });
+
+  // Slice 6: stamp the touch on the estimate — sends + opens feed slice 7's
+  // close-rate report.
+  if (followupEstimateId) {
+    try {
+      await recordEstimateEvent({
+        tenantId,
+        estimateId: followupEstimateId,
+        kind: "followup_sent",
+        meta: { stepNum: step.stepNum, templateKey: step.templateKey ?? null },
+      });
+    } catch {
+      /* telemetry is best-effort */
+    }
+  }
 
   return { sent: true };
 }

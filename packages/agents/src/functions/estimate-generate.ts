@@ -1,4 +1,4 @@
-import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, priceBookItem, gateAgentAutomation, withAgentRun } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, appointment, estimate, measurement, getCurrentPriceBookTx, gateAgentAutomation, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -45,8 +45,9 @@ export async function generateUpsells(
     const [m] = await withTenant(tenantId, (tx) =>
       tx.select().from(measurement).where(eq(measurement.id, measurementId)),
     );
-    const upgrades = await withTenant(tenantId, (tx) =>
-      tx.select().from(priceBookItem).where(eq(priceBookItem.category, "upgrade")),
+    // Current book only — a bare select would mix live originals with version clones.
+    const upgrades = await withTenant(tenantId, async (tx) =>
+      (await getCurrentPriceBookTx(tx)).items.filter((i) => i.category === "upgrade" && i.active),
     );
 
     const { object } = await aiClient.completeObject({

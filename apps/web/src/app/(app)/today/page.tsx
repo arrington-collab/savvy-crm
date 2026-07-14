@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { VideoBatchCard } from "./VideoBatchCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
 import { LockedTile } from "@/components/cockpit/LockedTile";
 import { getExceptionQueue } from "@/lib/exception-queries";
@@ -85,6 +86,8 @@ export default async function TodayPage() {
     <div className="space-y-7" data-testid="today-page">
       {showChecklist && <OnboardingChecklist steps={onboarding.steps} />}
       {/* PORTFOLIO STRIP */}
+      <VideoBatchCard />
+
       <section data-testid="portfolio-strip">
         <div className="eyebrow mb-2">Portfolio · Holding Co</div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

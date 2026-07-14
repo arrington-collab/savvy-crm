@@ -21,6 +21,11 @@ const estimateSchema = z.object({
   // Slice 1: estimates whose total exceeds this are parked for human approval
   // instead of auto-sent. null (default) = no gating — auto-send everything.
   approvalThresholdCents: z.number().int().min(0).nullable().default(null),
+  // Estimate Experience slice 1: default margin floor (bps) for tier pricing;
+  // per-item overrides live on the price-book item. Violations card, never silent.
+  marginFloorBps: z.number().int().min(0).default(2000),
+  // Estimate Experience slice 2: "Price valid through <date>" window on the page.
+  validityDays: z.number().int().min(1).default(30),
 });
 
 export type PitchTier = z.infer<typeof pitchTierSchema>;

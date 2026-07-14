@@ -1,4 +1,6 @@
 import { withTenant, job, jobStageEvent, user, eq } from "@savvy/db";
+import { raceOutcomeRows } from "@savvy/db";
+import { raceMetrics } from "@savvy/core";
 import { computeVelocity, summarizeRepPerformance } from "@savvy/core";
 import { getTenantId } from "./tenant";
 
@@ -46,4 +48,11 @@ export async function getRepPerformance() {
           : null,
     })),
   );
+}
+
+/** Estimate Experience slice 4: the 60-second rep race, settled with data. */
+export async function getRaceMetrics() {
+  const tenantId = await getTenantId();
+  const rows = await raceOutcomeRows(tenantId);
+  return raceMetrics(rows.map((r) => ({ events: r.events, accepted: r.accepted })));
 }

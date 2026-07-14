@@ -1,4 +1,4 @@
-import { withTenant, eq, sql, estimate, job, lead, customer, property, contractTemplate, recordStageChange, convertLeadToJob, ConversionBlockedError } from "@savvy/db";
+import { withTenant, eq, sql, estimate, job, lead, customer, property, contractTemplate, recordStageChange, convertLeadToJob, ConversionBlockedError, ensureEstimateFollowupDrip, ESTIMATE_FOLLOWUP_DRIP_KEY } from "@savvy/db";
 import { httpDocuseal, makeFakeDocuseal, type DocusealGateway } from "@savvy/integrations";
 import { resolveOrThrowContractTemplate } from "@savvy/core";
 import { inngest } from "../client";
@@ -61,8 +61,37 @@ export async function createEstimateSubmission(
       .update(estimate)
       .set({ status: "sent", sentAt: sql`now()`, docusealSubmissionId: submissionId, contractTemplateId })
       .where(eq(estimate.id, estimateId));
-    return { submissionId };
+    return { submissionId, customerId, leadId: est.leadId, jobId: est.jobId };
+  }).then(async (res) => {
+    if ("skipped" in res) return res;
+    // Slice 6: sending IS the enrollment moment for the value-adding follow-up
+    // sequence (drip/stop on acceptance unwinds it). Fail-soft: a missed
+    // enrollment never blocks the send.
+    if (res.customerId) {
+      try {
+        await ensureEstimateFollowupDrip(tenantId);
+        await emitEvent({
+          name: "drip/enroll",
+          data: {
+            tenantId,
+            dripKey: ESTIMATE_FOLLOWUP_DRIP_KEY,
+            customerId: res.customerId,
+            ...(res.leadId ? { leadId: res.leadId } : {}),
+            ...(res.jobId ? { jobId: res.jobId } : {}),
+          },
+        });
+      } catch {
+        /* enrollment is best-effort */
+      }
+    }
+    return { submissionId: res.submissionId };
   });
+}
+
+// Injectable for tests; defaults to the real Inngest client.
+let emitEvent: (e: Parameters<typeof inngest.send>[0]) => Promise<unknown> = (e) => inngest.send(e);
+export function __setDripEmitter(fn: typeof emitEvent): void {
+  emitEvent = fn;
 }
 
 /**
@@ -103,6 +132,14 @@ export async function advanceJobForAcceptedEstimate(
     }
   }
 
+  // Step 2b: backfill the estimate's job pointer (lead-stage estimates are
+  // born with jobId=null; the accept flow's state endpoint needs the link).
+  if (!est.jobId && jobId) {
+    await withTenant(tenantId, (tx) =>
+      tx.update(estimate).set({ jobId }).where(eq(estimate.id, estimateId)),
+    );
+  }
+
   // Step 3: advance the job to approved + stamp value (idempotent).
   await withTenant(tenantId, async (tx) => {
     const [j] = await tx.select().from(job).where(eq(job.id, jobId!));
@@ -124,6 +161,25 @@ export const sendEstimateForSignature = inngest.createFunction(
 export const estimateAcceptedAdvanceJob = inngest.createFunction(
   { id: "estimate-accepted-advance-job", concurrency: { limit: 5 } },
   { event: "estimate/accepted" },
-  async ({ event, step }) =>
-    step.run("advance", () => advanceJobForAcceptedEstimate(event.data.tenantId, event.data.estimateId)),
+  async ({ event, step }) => {
+    const res = await step.run("advance", () =>
+      advanceJobForAcceptedEstimate(event.data.tenantId, event.data.estimateId),
+    );
+    // Slice 6: acceptance unwinds the follow-up sequence (cancelOn customerId).
+    if ("jobId" in res) {
+      const customerId = await step.run("resolve-customer", async () => {
+        const [j] = await withTenant(event.data.tenantId, (tx) =>
+          tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, res.jobId)),
+        );
+        return j?.customerId ?? null;
+      });
+      if (customerId) {
+        await step.sendEvent("stop-followups", {
+          name: "drip/stop",
+          data: { tenantId: event.data.tenantId, customerId, reason: "converted" },
+        });
+      }
+    }
+    return res;
+  },
 );

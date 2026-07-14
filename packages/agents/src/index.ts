@@ -43,6 +43,10 @@ import { parseSupplierInvoice } from "./functions/supplier-invoice-parse";
 import { priceGuardSupplierInvoice } from "./functions/supplier-invoice-guard";
 import { canvassContractSigned } from "./functions/canvass-contract";
 import { parseLeadDocument } from "./functions/parse-lead-document";
+import { estimateOpenRace } from "./estimate-race";
+import { estimateExpirySweep } from "./functions/estimate-expiry";
+import { estimateVideoProcess } from "./functions/estimate-video-process";
+import { ownerVideoDelivery } from "./functions/owner-video-delivery";
 import { challengeSettleHourly } from "./functions/challenge-settle";
 import { canvassSaleContractWatch } from "./functions/canvass-sale-watch";
 
@@ -96,8 +100,14 @@ export { inspectionLiveBuild, inspectionFinalize, inspectionMediaHandler } from 
 export { parseSupplierInvoice, parseSupplierInvoiceHandler } from "./functions/supplier-invoice-parse";
 export { priceGuardSupplierInvoice, priceGuardHandler } from "./functions/supplier-invoice-guard";
 export { getTenantSms } from "./telephony";
+export { parsePriceSheet, type PriceSheetParseResult } from "./price-sheet-parse";
 export { canvassContractSigned, storeCanvassContract, emailSignedCopy } from "./functions/canvass-contract";
 export { parseLeadDocument, parseLeadDocumentHandler } from "./functions/parse-lead-document";
 export { challengeSettleHourly } from "./functions/challenge-settle";
+export { estimateOpenRace, raceNotify, raceResolve } from "./estimate-race";
+export { answerEstimateQuestion } from "./estimate-qa";
+export { estimateExpirySweep } from "./functions/estimate-expiry";
+export { estimateVideoProcess } from "./functions/estimate-video-process";
+export { ownerVideoDelivery, deliverOwnerVideos } from "./functions/owner-video-delivery";
 export { canvassSaleContractWatch } from "./functions/canvass-sale-watch";
-export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, runReaper, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument, stormAlertDaily, challengeSettleHourly, canvassSaleContractWatch, inspectionLiveBuild, inspectionFinalize];
+export const functions = [voiceFallback, examplePing, leadIntake, jobStageChanged, dripRun, appointmentCalendarSync, appointmentReminders, dunningRun, commissionOnPaid, referralFeeOnPaid, qboPushInvoice, qboPushPayment, esignFinalize, roofrOrderMeasurement, autoOrderMeasurementOnInspection, generateEstimateOnMeasurement, sendEstimateForSignature, estimateAcceptedAdvanceJob, createMaterialOrderOnAccepted, meterUsageMonthly, coldArchiveDocuments, runReaper, enrichmentSweep, taskHealthSweep, opsDigest, emailAppendSweep, changeOrderAccepted, stormCertOnLead, stormCertOnLeadFailure, leadRescore, leadCalibrationMonthly, leadSpeedToLead, leadCadence, invoiceSentToBilling, invoicePaidToComplete, crewCheckedInToProduction, materialDeliveredToProduction, productionPhotosToCloseout, homeownerCrewNotify, homeownerDeliveryNotify, retailCloseoutCadence, insuranceDepreciationDetect, weatherReschedule, homeownerNotify, photoQc, parseSupplierInvoice, priceGuardSupplierInvoice, canvassContractSigned, parseLeadDocument, stormAlertDaily, challengeSettleHourly, canvassSaleContractWatch, estimateOpenRace, estimateExpirySweep, estimateVideoProcess, ownerVideoDelivery, inspectionLiveBuild, inspectionFinalize];

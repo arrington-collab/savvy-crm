@@ -30,6 +30,26 @@ export const estimate = pgTable("estimate", {
   // Slice 6d: the measurement source (ordered|uploaded_report|sketch) this estimate was
   // priced from — a pricing-inputs citation stamped at draft (estimate.lead_stage evidence).
   measurementSource: text("measurement_source"),
+  // Estimate Experience slice 1: which price-book version priced this estimate
+  // (the 30-day price lock — the live book can move on, this estimate doesn't),
+  // and the Good/Better/Best snapshot (TierEstimate[] incl. margin-floor flags).
+  priceBookVersionId: uuid("price_book_version_id"),
+  tiers: jsonb("tiers").$type<unknown[]>(),
+  // Slice 2: the homeowner's picks on the estimate page (tier chosen at accept
+  // in slice 3; color stored the moment they tap it).
+  selectedTier: text("selected_tier"),
+  selectedColor: text("selected_color"),
+  // Slice 3 accept flow: sign + deposit are separate facts; acceptance (the
+  // existing estimate/accepted chain) fires only when BOTH are satisfied.
+  // Slice 7: which page template rendered this estimate (retail-v1 /
+  // insurance-v1) — stamped at send; the close-rate report splits on it.
+  templateVersion: text("template_version"),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  signingUrl: text("signing_url"),
+  depositCheckoutSessionId: text("deposit_checkout_session_id"),
+  depositCheckoutUrl: text("deposit_checkout_url"),
+  depositAmountCents: integer("deposit_amount_cents"),
+  depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
   upsellSuggestions: jsonb("upsell_suggestions").$type<unknown[]>().default([]).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
@@ -144,5 +164,43 @@ export const changeOrder = pgTable("change_order", {
 }, (t) => [
   index("change_order_tenant_job_idx").on(t.tenantId, t.jobId),
   uniqueIndex("change_order_submission_uniq").on(t.tenantId, t.docusealSubmissionId),
+  tenantIsolation(),
+]);
+
+// Estimate Experience slice 4: first-party page telemetry + the 60-second rep
+// race. Events are the evidence AND the trigger — no third-party analytics.
+export const estimateEvent = pgTable("estimate_event", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  estimateId: uuid("estimate_id").notNull().references(() => estimate.id),
+  // open | dwell | tier_view | color_play | race_rep_notified | race_rep_ack |
+  // race_nova_text | race_skipped | expiry_notice
+  kind: text("kind").notNull(),
+  sessionId: text("session_id"),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  index("estimate_event_estimate_idx").on(t.tenantId, t.estimateId, t.kind),
+  index("estimate_event_kind_time_idx").on(t.tenantId, t.kind, t.createdAt),
+  tenantIsolation(),
+]);
+
+// Estimate Experience slice 5b: the video layer. Rep post-inspection takes and
+// the owner's day-after personalized takes both live here — the media itself
+// is a document (kind='video', R2), this row is the estimate linkage + state.
+export const estimateVideo = pgTable("estimate_video", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  estimateId: uuid("estimate_id").notNull().references(() => estimate.id),
+  role: text("role").notNull(), // rep | owner
+  documentId: uuid("document_id").notNull(),
+  // recorded → processed (the AI post-processing seam) → delivered
+  status: text("status").notNull().default("recorded"),
+  // the recorder's approve tap — nothing unapproved ever renders or sends
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  capturedByUserId: uuid("captured_by_user_id"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("estimate_video_estimate_idx").on(t.tenantId, t.estimateId, t.role),
   tenantIsolation(),
 ]);

@@ -1,6 +1,6 @@
 {
-  "id": "457779bb-4ed1-425b-aa73-cd460f52ab76",
-  "prevId": "043ad128-98d9-4b95-8ecf-5a27040b62ce",
+  "id": "bfd769c7-9c99-4ef9-83cd-82ec0e06169b",
+  "prevId": "9a13d2df-5124-4080-a22f-1d34edb51d04",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -945,18 +945,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "baseline_inspection_id": {
-          "name": "baseline_inspection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "baseline_at": {
-          "name": "baseline_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1149,6 +1137,12 @@
         "canvass_rep_name": {
           "name": "canvass_rep_name",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_install_week": {
+          "name": "requested_install_week",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -3303,6 +3297,66 @@
           "primaryKey": false,
           "notNull": false
         },
+        "price_book_version_id": {
+          "name": "price_book_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiers": {
+          "name": "tiers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "selected_tier": {
+          "name": "selected_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "selected_color": {
+          "name": "selected_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signing_url": {
+          "name": "signing_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_checkout_session_id": {
+          "name": "deposit_checkout_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_checkout_url": {
+          "name": "deposit_checkout_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_amount_cents": {
+          "name": "deposit_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_paid_at": {
+          "name": "deposit_paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "upsell_suggestions": {
           "name": "upsell_suggestions",
           "type": "jsonb",
@@ -5386,6 +5440,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "key": {
           "name": "key",
           "type": "text",
@@ -5447,6 +5507,18 @@
           "notNull": true,
           "default": 1
         },
+        "qty_formula": {
+          "name": "qty_formula",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "margin_floor_bps": {
+          "name": "margin_floor_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -5502,6 +5574,29 @@
             }
           ],
           "isUnique": true,
+          "where": "version_id is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "price_book_version_key_uniq": {
+          "name": "price_book_version_key_uniq",
+          "columns": [
+            {
+              "expression": "version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "version_id is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5511,6 +5606,297 @@
         "price_book_item_tenant_id_tenant_id_fk": {
           "name": "price_book_item_tenant_id_tenant_id_fk",
           "tableFrom": "price_book_item",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "price_book_item_version_id_price_book_version_id_fk": {
+          "name": "price_book_item_version_id_price_book_version_id_fk",
+          "tableFrom": "price_book_item",
+          "tableTo": "price_book_version",
+          "columnsFrom": [
+            "version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenant_isolation": {
+          "name": "tenant_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "savvy_app"
+          ],
+          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
+          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.price_book_version": {
+      "name": "price_book_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_no": {
+          "name": "version_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current": {
+          "name": "current",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "price_book_version_tenant_idx": {
+          "name": "price_book_version_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "price_book_version_no_uniq": {
+          "name": "price_book_version_no_uniq",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "price_book_version_tenant_id_tenant_id_fk": {
+          "name": "price_book_version_tenant_id_tenant_id_fk",
+          "tableFrom": "price_book_version",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenant_isolation": {
+          "name": "tenant_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "savvy_app"
+          ],
+          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
+          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tier_product": {
+      "name": "tier_product",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_name": {
+          "name": "product_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manufacturer": {
+          "name": "manufacturer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_cents": {
+          "name": "unit_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_cost_cents": {
+          "name": "unit_cost_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warranty_text": {
+          "name": "warranty_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "warranty_registration": {
+          "name": "warranty_registration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommended": {
+          "name": "recommended",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "color_palette": {
+          "name": "color_palette",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tier_product_tenant_idx": {
+          "name": "tier_product_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tier_product_tenant_tier_uniq": {
+          "name": "tier_product_tenant_tier_uniq",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tier_product_tenant_id_tenant_id_fk": {
+          "name": "tier_product_tenant_id_tenant_id_fk",
+          "tableFrom": "tier_product",
           "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
@@ -9798,1094 +10184,6 @@
           "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.inspection": {
-      "name": "inspection",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lead_id": {
-          "name": "lead_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "job_id": {
-          "name": "job_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "property_id": {
-          "name": "property_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inspector_user_id": {
-          "name": "inspector_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'initial'"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'in_progress'"
-        },
-        "baseline_inspection_id": {
-          "name": "baseline_inspection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "inspection_tenant_lead_idx": {
-          "name": "inspection_tenant_lead_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lead_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inspection_tenant_property_idx": {
-          "name": "inspection_tenant_property_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "property_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inspection_tenant_status_idx": {
-          "name": "inspection_tenant_status_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inspection_tenant_id_tenant_id_fk": {
-          "name": "inspection_tenant_id_tenant_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_lead_id_lead_id_fk": {
-          "name": "inspection_lead_id_lead_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "lead",
-          "columnsFrom": [
-            "lead_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_job_id_job_id_fk": {
-          "name": "inspection_job_id_job_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "job",
-          "columnsFrom": [
-            "job_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_property_id_property_id_fk": {
-          "name": "inspection_property_id_property_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "property",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_inspector_user_id_user_id_fk": {
-          "name": "inspection_inspector_user_id_user_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "user",
-          "columnsFrom": [
-            "inspector_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_baseline_inspection_id_inspection_id_fk": {
-          "name": "inspection_baseline_inspection_id_inspection_id_fk",
-          "tableFrom": "inspection",
-          "tableTo": "inspection",
-          "columnsFrom": [
-            "baseline_inspection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.inspection_checklist": {
-      "name": "inspection_checklist",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "zone_kind": {
-          "name": "zone_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'other'"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "items": {
-          "name": "items",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "inspection_checklist_key_version_uniq": {
-          "name": "inspection_checklist_key_version_uniq",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inspection_checklist_tenant_id_tenant_id_fk": {
-          "name": "inspection_checklist_tenant_id_tenant_id_fk",
-          "tableFrom": "inspection_checklist",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.inspection_finding": {
-      "name": "inspection_finding",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inspection_zone_id": {
-          "name": "inspection_zone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "checklist_item_key": {
-          "name": "checklist_item_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "severity_suggested": {
-          "name": "severity_suggested",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "what_it_is": {
-          "name": "what_it_is",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "if_ignored": {
-          "name": "if_ignored",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "timeframe": {
-          "name": "timeframe",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "photo_ids": {
-          "name": "photo_ids",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "disposition": {
-          "name": "disposition",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'noted'"
-        },
-        "repair_estimate_cents": {
-          "name": "repair_estimate_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'inspector'"
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "inspection_finding_tenant_zone_idx": {
-          "name": "inspection_finding_tenant_zone_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "inspection_zone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inspection_finding_tenant_id_tenant_id_fk": {
-          "name": "inspection_finding_tenant_id_tenant_id_fk",
-          "tableFrom": "inspection_finding",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_finding_inspection_zone_id_inspection_zone_id_fk": {
-          "name": "inspection_finding_inspection_zone_id_inspection_zone_id_fk",
-          "tableFrom": "inspection_finding",
-          "tableTo": "inspection_zone",
-          "columnsFrom": [
-            "inspection_zone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.inspection_media": {
-      "name": "inspection_media",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inspection_id": {
-          "name": "inspection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inspection_zone_id": {
-          "name": "inspection_zone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "checklist_item_key": {
-          "name": "checklist_item_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "gps_lat": {
-          "name": "gps_lat",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "gps_lng": {
-          "name": "gps_lng",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "inspection_media_document_uniq": {
-          "name": "inspection_media_document_uniq",
-          "columns": [
-            {
-              "expression": "inspection_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "document_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inspection_media_tenant_zone_idx": {
-          "name": "inspection_media_tenant_zone_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "inspection_zone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inspection_media_tenant_id_tenant_id_fk": {
-          "name": "inspection_media_tenant_id_tenant_id_fk",
-          "tableFrom": "inspection_media",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_media_inspection_id_inspection_id_fk": {
-          "name": "inspection_media_inspection_id_inspection_id_fk",
-          "tableFrom": "inspection_media",
-          "tableTo": "inspection",
-          "columnsFrom": [
-            "inspection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_media_inspection_zone_id_inspection_zone_id_fk": {
-          "name": "inspection_media_inspection_zone_id_inspection_zone_id_fk",
-          "tableFrom": "inspection_media",
-          "tableTo": "inspection_zone",
-          "columnsFrom": [
-            "inspection_zone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.inspection_zone": {
-      "name": "inspection_zone",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inspection_id": {
-          "name": "inspection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "zone_key": {
-          "name": "zone_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "zone_label": {
-          "name": "zone_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "zone_kind": {
-          "name": "zone_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'other'"
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "grade": {
-          "name": "grade",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "grade_set_by_user_id": {
-          "name": "grade_set_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checklist_version_ref": {
-          "name": "checklist_version_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "inspector_notes": {
-          "name": "inspector_notes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "inspection_zone_key_uniq": {
-          "name": "inspection_zone_key_uniq",
-          "columns": [
-            {
-              "expression": "inspection_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "zone_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inspection_zone_tenant_inspection_idx": {
-          "name": "inspection_zone_tenant_inspection_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "inspection_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "inspection_zone_tenant_id_tenant_id_fk": {
-          "name": "inspection_zone_tenant_id_tenant_id_fk",
-          "tableFrom": "inspection_zone",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_zone_inspection_id_inspection_id_fk": {
-          "name": "inspection_zone_inspection_id_inspection_id_fk",
-          "tableFrom": "inspection_zone",
-          "tableTo": "inspection",
-          "columnsFrom": [
-            "inspection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspection_zone_grade_set_by_user_id_user_id_fk": {
-          "name": "inspection_zone_grade_set_by_user_id_user_id_fk",
-          "tableFrom": "inspection_zone",
-          "tableTo": "user",
-          "columnsFrom": [
-            "grade_set_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "tenant_isolation": {
-          "name": "tenant_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "savvy_app"
-          ],
-          "using": "tenant_id = current_setting('app.tenant_id')::uuid",
-          "withCheck": "tenant_id = current_setting('app.tenant_id')::uuid"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.repair_credit": {
-      "name": "repair_credit",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_inspection_id": {
-          "name": "source_inspection_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_invoice_ref": {
-          "name": "source_invoice_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_cents": {
-          "name": "amount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "applied_estimate_id": {
-          "name": "applied_estimate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checkin_log": {
-          "name": "checkin_log",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "repair_credit_tenant_customer_idx": {
-          "name": "repair_credit_tenant_customer_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "repair_credit_tenant_status_idx": {
-          "name": "repair_credit_tenant_status_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "repair_credit_tenant_id_tenant_id_fk": {
-          "name": "repair_credit_tenant_id_tenant_id_fk",
-          "tableFrom": "repair_credit",
-          "tableTo": "tenant",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "repair_credit_customer_id_customer_id_fk": {
-          "name": "repair_credit_customer_id_customer_id_fk",
-          "tableFrom": "repair_credit",
-          "tableTo": "customer",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "repair_credit_source_inspection_id_inspection_id_fk": {
-          "name": "repair_credit_source_inspection_id_inspection_id_fk",
-          "tableFrom": "repair_credit",
-          "tableTo": "inspection",
-          "columnsFrom": [
-            "source_inspection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "repair_credit_applied_estimate_id_estimate_id_fk": {
-          "name": "repair_credit_applied_estimate_id_estimate_id_fk",
-          "tableFrom": "repair_credit",
-          "tableTo": "estimate",
-          "columnsFrom": [
-            "applied_estimate_id"
           ],
           "columnsTo": [
             "id"

@@ -4,7 +4,7 @@ import { measurement } from "../schema/ops";
 import { appointment } from "../schema/comms";
 import { inspection } from "../schema/inspection";
 import { lead } from "../schema/crm";
-import { priceBookItem } from "../schema/pricing";
+import { tierProduct } from "../schema/pricing";
 import { tenant } from "../schema/tenancy";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -14,10 +14,16 @@ import {
   generateEstimateLineItems,
   computeEstimateTotals,
   selectPreferredMeasurement,
+  expandTierEstimates,
+  estimateTemplateVersion,
   REGISTRY_TASK,
   type EnginePriceBookItem,
+  type TierEngineItem,
+  type TierProductInput,
 } from "@savvy/core";
 import { markJobTaskDoneTx } from "./job-tasks";
+import { getCurrentPriceBookTx } from "./price-book";
+import { ensureEstimateLink } from "./estimate-page";
 
 type CreateEstimateInput = {
   tenantId: string;
@@ -42,10 +48,10 @@ async function priceMeasurementTx(
   const [t] = await tx.select().from(tenant).where(eq(tenant.id, input.tenantId));
   const cfg = parseEstimateConfig((t?.settings as { estimate?: unknown })?.estimate);
 
-  const book = (await tx
-    .select()
-    .from(priceBookItem)
-    .where(eq(priceBookItem.active, true))) as unknown as EnginePriceBookItem[];
+  // Always price from ONE book: the current version (or the pre-versioning live
+  // items). A bare active=true select would mix live originals with version clones.
+  const { versionId, items: bookRows } = await getCurrentPriceBookTx(tx);
+  const book = bookRows.filter((i) => i.active) as unknown as EnginePriceBookItem[];
 
   const areas = measurementAreasSchema.parse(m.areas);
   const { lineItems, wastePctUsed, pitchTierApplied } = generateEstimateLineItems({
@@ -67,6 +73,33 @@ async function insertEstimateFromMeasurementTx(
   if (!priced) return null;
   const { m, lineItems, wastePctUsed, pitchTierApplied, totals } = priced;
 
+  // Good/Better/Best snapshot (Estimate Experience slice 1). Unpriced tier
+  // products surface via needsCosts — never invented. Absent tier products
+  // (tenants pre-dating the seed) → no snapshot, single-price estimate as before.
+  const products = await tx.select().from(tierProduct).where(eq(tierProduct.active, true));
+  const tiersSnapshot =
+    products.length > 0
+      ? expandTierEstimates({
+          areas,
+          priceBook: book as unknown as TierEngineItem[],
+          tierProducts: products.map(
+            (p): TierProductInput => ({
+              tier: p.tier as TierProductInput["tier"],
+              productName: p.productName,
+              manufacturer: p.manufacturer,
+              unitPriceCents: p.unitPriceCents,
+              unitCostCents: p.unitCostCents,
+              warrantyText: p.warrantyText,
+              recommended: p.recommended,
+            }),
+          ),
+          defaultWastePct: cfg.defaultWastePct,
+          pitchTiers: cfg.steepPitchTiers,
+          shingleItemKey: "field-shingles",
+          defaultMarginFloorBps: cfg.marginFloorBps,
+        }).tiers
+      : null;
+
   const [row] = await tx
     .insert(estimate)
     .values({
@@ -84,6 +117,8 @@ async function insertEstimateFromMeasurementTx(
       wastePctUsed,
       pitchTierApplied,
       measurementSource: m.source ?? null,
+      priceBookVersionId: versionId,
+      tiers: tiersSnapshot,
     })
     .returning();
   return row ?? null;
@@ -255,6 +290,21 @@ export async function setEstimateStatus(input: {
     // A lead-stage estimate has no job yet, so there is no job task to mark done
     // on "sent". The job-task ledger is only relevant once the estimate is attached
     // to a job (post-acceptance / legacy rows).
+    if (row && input.status === "sent") {
+      // Slice 2: every sent estimate gets its tokenized homeowner page link.
+      await ensureEstimateLink({ tenantId: input.tenantId, estimateId: input.estimateId });
+      // Slice 7: stamp which page template renders this estimate — the
+      // close-rate report splits on it.
+      if (!row.templateVersion) {
+        const [l] = row.leadId
+          ? await tx.select({ source: lead.source }).from(lead).where(eq(lead.id, row.leadId))
+          : [null];
+        await tx
+          .update(estimate)
+          .set({ templateVersion: estimateTemplateVersion({ source: row.source, leadSource: l?.source ?? null }) })
+          .where(eq(estimate.id, input.estimateId));
+      }
+    }
     if (row && input.status === "sent" && row.jobId) {
       await markJobTaskDoneTx(tx, input.tenantId, { jobId: row.jobId, taskId: REGISTRY_TASK.ESTIMATE_DELIVERY, owner: "SAGE", evidence: { type: "estimate", ref: row.id } });
     }

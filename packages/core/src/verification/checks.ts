@@ -238,6 +238,58 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
     { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
   ),
 
+  // Estimate Experience slice 7: every sent estimate has a live tokenized
+  // homeowner page (the link mints at the send chokepoint — a sent estimate
+  // without one means a path bypassed it). PDF parity joins this check when
+  // the PDF fallback ships.
+  "estimate.page": invariant(
+    "estimate.page",
+    `select e.id
+       from estimate e
+      where e.tenant_id = $1
+        and e.status in ('sent', 'accepted')
+        and not exists (
+          select 1 from booking_link bl
+           where bl.tenant_id = e.tenant_id
+             and bl.kind = 'estimate'
+             and split_part(bl.token, '.', 1) = e.id::text
+        )`,
+    { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
+  ),
+
+  // Estimate Experience slice 7: zero acceptances at expired prices — the
+  // accept flow refuses past validity, so an accepted-after-expiry row means
+  // something bypassed it.
+  "estimate.validity": invariant(
+    "estimate.validity",
+    `select e.id
+       from estimate e
+       join tenant t on t.id = e.tenant_id
+      where e.tenant_id = $1
+        and e.accepted_at is not null
+        and e.sent_at is not null
+        and e.accepted_at > e.sent_at
+          + (coalesce((t.settings->'estimate'->>'validityDays')::int, 30) * interval '1 day')`,
+    { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
+  ),
+
+  // Estimate Experience slice 1: no SENT estimate carries an unresolved
+  // margin-floor violation in its tier snapshot. Violations are allowed on
+  // drafts (they card for the owner) — sending one means it slipped the gate.
+  "estimate.margin_floor": invariant(
+    "estimate.margin_floor",
+    `select id
+       from estimate
+      where tenant_id = $1
+        and status in ('sent', 'accepted')
+        and tiers is not null
+        and exists (
+          select 1 from jsonb_array_elements(tiers) t
+           where jsonb_array_length(t->'marginFloorViolations') > 0
+        )`,
+    { toRef: (r) => ({ type: "estimate", ref: String(r.id) }) },
+  ),
+
   // No post-inspection job sits past SLA (48h in stage) with an unknown roof type.
   // Pairs with #82's roof_type_needed exception vector.
   "exceptions.roof_type": invariant(

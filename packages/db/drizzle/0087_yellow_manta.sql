@@ -1,0 +1,1 @@
+ALTER TABLE "estimate" ADD COLUMN "template_version" text;

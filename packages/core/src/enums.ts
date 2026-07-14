@@ -37,7 +37,14 @@ export type DripStep = {
   templateKey?: string;
   aiPrompt?: string;
   aiCapability?: AiDraftCapability;
+  // Estimate Experience slice 6: a step can be gated on machinery that isn't
+  // live yet — the slot exists in the sequence and activates itself the day
+  // the feature ships (e.g. financing, the color render). Closed gate =
+  // suppressed send, logged, sequence continues.
+  gate?: DripGate;
 };
+
+export type DripGate = "financing_live" | "feature:color_render";
 
 // --- Phase 4 (scheduling) ---
 export const APPOINTMENT_TYPE = ["inspection", "cm", "crew", "adjuster"] as const;

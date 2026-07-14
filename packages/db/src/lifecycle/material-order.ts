@@ -1,3 +1,4 @@
+import { getCurrentPriceBookTx } from "./price-book";
 import { withTenant } from "../tenant";
 import { materialOrder } from "../schema/procurement";
 import { estimate } from "../schema/finance";
@@ -77,7 +78,8 @@ export async function createMaterialOrderFromEstimate(input: {
 
     const lines = materialLinesFromEstimate((est.lineItems ?? []) as EstimateLineItem[]);
     const subtotalCents = materialOrderSubtotalCents(lines);
-    const pb = await tx.select({ key: priceBookItem.key, unitCostCents: priceBookItem.unitCostCents }).from(priceBookItem);
+    // Current book only — a bare select would mix live originals with version clones.
+    const pb = (await getCurrentPriceBookTx(tx)).items;
     const costByKey = Object.fromEntries(pb.map((p) => [p.key, p.unitCostCents]));
     const { lines: costedLines, costSubtotalCents } = attachMaterialCosts(lines, costByKey);
     const installAt = await earliestCrewInstallAt(tx, jobId);

@@ -47,7 +47,7 @@ export * from "./schema/index";
 // single drizzle-orm instance (avoids duplicate-instance type mismatches where
 // the app's own `eq` doesn't match @savvy/db's columns).
 export { eq, and, or, not, sql, count, desc, asc, inArray, isNull, isNotNull, lt, gte, lte, gt, ilike } from "drizzle-orm";
-export { ensurePriceBook } from "./lifecycle/price-book";
+export { ensurePriceBook, ensureTierProducts, tierProductsNeedingCosts, getCurrentPriceBook, getCurrentPriceBookTx, applyPriceBookVersion, deriveCostDriftDiff, MarginFloorConfirmationRequiredError, type PriceBookChange, type UnderFloorEntry } from "./lifecycle/price-book";
 export { createEstimateFromMeasurement, draftLeadEstimateIfReady, refreshLeadEstimateDraft, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
 export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { recordLeadDocument, listLeadDocuments, type LeadDocumentRow } from "./lifecycle/lead-documents";
@@ -71,6 +71,11 @@ export { recordCompanyCamPhoto } from "./lifecycle/companycam";
 export { resolvePhotoJob, resolveTenantByIngestKey, recordSiteSnapPhoto, listUnmatchedPhotos, matchPhotoToJob, getPhotoForQc, getJobPhotoHashes, setPhotoQc, listFlaggedPhotos, listFlaggedPhotosForJob, keepFlaggedPhoto } from "./lifecycle/photos";
 export { ensureTenantForOrg, ensureUser, deactivateUserByClerkId } from "./lifecycle/provisioning";
 export { isDemoTenant, __clearDemoTenantCache } from "./lifecycle/demo-tenant";
+export { ensureEstimateLink, resolveEstimateLink, setEstimateSelection, estimateLinkToken, getEstimatePageData } from "./lifecycle/estimate-page";
+export { beginEstimateAcceptance, recordEstimateSigned, recordEstimateDeposit, estimateAcceptanceState, installWeekOptions, setRequestedInstallWeek, type BeginAcceptanceResult } from "./lifecycle/estimate-accept";
+export { recordEstimateEvent, listEstimateEvents, raceOutcomeRows, closeRateRows, ESTIMATE_EVENT_KINDS, type EstimateEventKind } from "./lifecycle/estimate-telemetry";
+export { attachEstimateVideo, videosForEstimate, videoBatchQueue, ownerVideoDeliveryQueue, parseOwnerVideoConfigRow, type VideoBatchEntry, type VideoDeliveryEntry } from "./lifecycle/estimate-video";
+export { ensureEstimateFollowupDrip, ESTIMATE_FOLLOWUP_DRIP_KEY } from "./lifecycle/estimate-followup";
 // NOTE: provision-runbook is intentionally NOT re-exported from this barrel. It
 // imports the registry SEED (master-task-list.ts, which uses `.js`-extension
 // imports that Turbopack can't resolve), and this index is transitively pulled

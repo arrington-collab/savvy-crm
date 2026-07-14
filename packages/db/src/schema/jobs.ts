@@ -31,6 +31,11 @@ export const job = pgTable("job", {
   rescissionHoldUntil: timestamp("rescission_hold_until", { withTimezone: true }),
   // Denormalized canvass rep name (canvass_rep is not a Clerk user) for commission attribution.
   canvassRepName: text("canvass_rep_name"),
+  // Slice 3: the homeowner's install-week preference from the estimate page.
+  // A SOFT hold — deliberately not an appointment, so it can never satisfy the
+  // production stage's crew-scheduled evidence. The office confirms by
+  // actually scheduling the crew.
+  requestedInstallWeek: timestamp("requested_install_week", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
   index("job_tenant_stage_idx").on(t.tenantId, t.stage),
