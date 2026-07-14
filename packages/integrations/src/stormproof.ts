@@ -29,6 +29,8 @@ export type StormCertResult = {
   certId?: string;
   pdfBase64?: string;
   verifyUrl?: string;
+  /** Full evidentiary-record PDF (public, rate-limited StormProof endpoint). */
+  pdfUrl?: string;
   storm?: { date: string; eventType: "hail" | "wind"; size?: number | null; windMph?: number | null };
   checkedMonths: number;
 };
