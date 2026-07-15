@@ -2,13 +2,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { normalizePhone, formatPhoneDisplay, AD_PLATFORM_VALUES } from "@savvy/core";
+import { normalizePhone, formatPhoneDisplay, AD_PLATFORM_VALUES, isPartnerSource } from "@savvy/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AddressAutocomplete, type ParsedAddress } from "@/components/AddressAutocomplete";
 import { LeadSourceSelect, HUMAN_LEAD_SOURCES } from "@/components/LeadSourceSelect";
+import { PartnerPicker, type PartnerSelection } from "@/components/PartnerPicker";
 import { createLead } from "@/lib/lead-actions";
 
 const ROOF_TYPES = [
@@ -30,17 +31,13 @@ function emptyDetailFor(source: string): SourceDetail {
   switch (source) {
     case "referral":
       return { referrer_name: "", referrer_contact: "", referral_fee_dollars: "" };
-    case "insurance_agent":
-      return { agency: "", agent_name: "" };
     case "ads":
       return { platform: AD_PLATFORM_VALUES[0] };
-    case "realtor":
-      return { name: "", brokerage: "" };
-    case "partner":
-      return { name: "" };
     case "other":
       return { note: "" };
     default:
+      // Partner-class sources carry no free-text detail — the picked/created
+      // partner record is the attribution (Partner Ledger slice 1).
       return {};
   }
 }
@@ -56,23 +53,8 @@ function toSourceDetailPayload(source: string, detail: SourceDetail): Record<str
       referral_fee_cents: Number.isFinite(cents) ? cents : undefined,
     };
   }
-  if (source === "insurance_agent") {
-    return {
-      agency: String(detail.agency ?? ""),
-      agent_name: detail.agent_name ? String(detail.agent_name) : undefined,
-    };
-  }
   if (source === "ads") {
     return { platform: String(detail.platform ?? AD_PLATFORM_VALUES[0]) };
-  }
-  if (source === "realtor") {
-    return {
-      name: String(detail.name ?? ""),
-      brokerage: detail.brokerage ? String(detail.brokerage) : undefined,
-    };
-  }
-  if (source === "partner") {
-    return { name: String(detail.name ?? "") };
   }
   if (source === "other") {
     const payload: Record<string, unknown> = {};
@@ -95,6 +77,7 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
   const [pickerValue, setPickerValue] = useState("referral"); // raw picker selection (enum member or custom label)
   const [source, setSource] = useState("referral"); // resolved enum member sent to createLead
   const [sourceDetail, setSourceDetail] = useState<SourceDetail>(emptyDetailFor("referral"));
+  const [partnerSel, setPartnerSel] = useState<PartnerSelection | null>(null);
   const [roofType, setRoofType] = useState("");
   const [yearBuilt, setYearBuilt] = useState("");
 
@@ -108,6 +91,7 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
   }
   function onSourceChange(v: string) {
     setPickerValue(v);
+    setPartnerSel(null);
     if (HUMAN_SOURCE_VALUES.includes(v)) {
       setSource(v);
       setSourceDetail(emptyDetailFor(v));
@@ -127,11 +111,17 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
       setFormError("Add a phone or email");
       return;
     }
+    if (isPartnerSource(source) && !partnerSel) {
+      setFormError("Pick a partner for this source");
+      return;
+    }
     setFormError("");
     start(async () => {
       const res = await createLead({
         name, phone, email, address, source,
-        sourceDetail: toSourceDetailPayload(source, sourceDetail),
+        sourceDetail: isPartnerSource(source) ? undefined : toSourceDetailPayload(source, sourceDetail),
+        partnerId: partnerSel?.kind === "existing" ? partnerSel.id : undefined,
+        partner: partnerSel?.kind === "new" ? { name: partnerSel.name, org: partnerSel.org } : undefined,
         line1: parts.line1, city: parts.city, state: parts.state, zip: parts.zip,
         county: parts.county, lat: parts.lat, lng: parts.lng,
         roofType: roofType || undefined,
@@ -226,27 +216,16 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
             </div>
           </div>
         )}
-        {source === "insurance_agent" && (
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="src-agency">Agency</Label>
-              <Input
-                id="src-agency"
-                data-testid="src-agency"
-                value={String(sourceDetail.agency ?? "")}
-                onChange={(e) => setDetailField("agency", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="src-agent-name">Agent name (optional)</Label>
-              <Input
-                id="src-agent-name"
-                data-testid="src-agent-name"
-                value={String(sourceDetail.agent_name ?? "")}
-                onChange={(e) => setDetailField("agent_name", e.target.value)}
-              />
-            </div>
+        {isPartnerSource(source) && (
+          <div className="space-y-1.5 rounded-md border p-3">
+            <Label>
+              {source === "realtor" ? "Realtor" : source === "insurance_agent" ? "Insurance agent" : "Partner"}
+            </Label>
+            <PartnerPicker
+              value={partnerSel}
+              onChange={setPartnerSel}
+              orgLabel={source === "insurance_agent" ? "Agency (optional)" : source === "realtor" ? "Brokerage (optional)" : "Company (optional)"}
+            />
           </div>
         )}
         {source === "ads" && (
@@ -265,41 +244,6 @@ export function NewLeadForm({ initialCustomSources }: { initialCustomSources: st
                 </option>
               ))}
             </select>
-          </div>
-        )}
-        {source === "realtor" && (
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="src-realtor-name">Realtor name</Label>
-              <Input
-                id="src-realtor-name"
-                data-testid="src-realtor-name"
-                value={String(sourceDetail.name ?? "")}
-                onChange={(e) => setDetailField("name", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="src-brokerage">Brokerage (optional)</Label>
-              <Input
-                id="src-brokerage"
-                data-testid="src-brokerage"
-                value={String(sourceDetail.brokerage ?? "")}
-                onChange={(e) => setDetailField("brokerage", e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-        {source === "partner" && (
-          <div className="space-y-1.5 rounded-md border p-3">
-            <Label htmlFor="src-partner-name">Partner name</Label>
-            <Input
-              id="src-partner-name"
-              data-testid="src-partner-name"
-              value={String(sourceDetail.name ?? "")}
-              onChange={(e) => setDetailField("name", e.target.value)}
-              required
-            />
           </div>
         )}
         {source === "other" && (

@@ -5,11 +5,13 @@ import { makeQbReconcileCheck, makeStripeMatchCheck } from "./reconcile";
 import { REQUIRED_CLAUSES } from "../contract-compliance";
 import { isEndorsementIdle } from "../endorsement";
 import { LEAD_SOURCE_VALUES } from "../lead-sources";
+import { PARTNER_SOURCE_VALUES } from "../partner";
 
 // Recognized lead.source values, derived from the shared enum const so the
 // evidence check can never drift from the zod schema / migration mapping.
 // Enum members are static, controlled strings — safe to interpolate.
 const leadSourceValuesInList = LEAD_SOURCE_VALUES.map((v) => `'${v}'`).join(",");
+const partnerSourceValuesInList = PARTNER_SOURCE_VALUES.map((v) => `'${v}'`).join(",");
 
 // Slice 5: a scored lead whose property carries a KNOWN roof-replacement date must
 // cite that effective age in its rationale — i.e. score_features.reasons contains a
@@ -795,6 +797,18 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
       where wt.tenant_id = $1 and p.baseline_inspection_id is not null
         and wt.baseline_inspection_id is distinct from p.baseline_inspection_id`,
     { toRef: (r) => ({ type: "warranty_transfer", ref: String(r.id) }) },
+  ),
+
+  // Partner Ledger slice 1 (partner.ts): attribution hygiene or nothing — every
+  // partner-class lead carries a partner_id FK. A bare lead means free text
+  // slipped past intake or a legacy lead the backfill could not attribute.
+  "partner.attribution": invariant(
+    "partner.attribution",
+    `select l.id from lead l
+      where l.tenant_id = $1
+        and l.source in (${partnerSourceValuesInList})
+        and l.partner_id is null`,
+    { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
 };
 

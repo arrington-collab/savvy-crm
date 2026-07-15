@@ -38,7 +38,9 @@ describe("submitCrewEodReport — required to close the crew day", () => {
     }).returning();
     await adminDb.insert(crewCheckin).values({ tenantId, jobId, crewUserId: u!.id, checkedInAt: new Date() });
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Tenant-local day key (matches submitCrewEodReport's dayKeyInTz) — the UTC
+    // date diverges from Phoenix after 5pm local and made this fail at night.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Phoenix", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     let gaps = await eodGaps(tenantId, today);
     expect(gaps).toEqual([{ jobId }]);
 

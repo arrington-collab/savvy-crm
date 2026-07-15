@@ -1,9 +1,11 @@
 import { and, eq, or, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { customer, property, lead } from "../schema/crm";
-import { parseCityFromAddress, normalizeAddress } from "@savvy/core";
+import { partner } from "../schema/partner";
+import { parseCityFromAddress, normalizeAddress, isPartnerSource, partnerClassForSource } from "@savvy/core";
 import type { LeadIntakeInput } from "@savvy/core";
 import { instantiateLeadTasks } from "./lead-tasks";
+import { findOrCreatePartnerTx } from "./partner";
 
 /**
  * DB-side of lead intake: dedupe/create customer + property, insert the lead
@@ -53,8 +55,27 @@ export async function createLeadForTenant(tenantId: string, input: LeadIntakeInp
       propertyId = p!.id;
     }
 
+    // Partner Ledger attribution: partner-class sources resolve to a partner
+    // record — a picked id (verified tenant-visible under RLS) or an inline
+    // create-once payload. Free text alone never reaches this function (schema).
+    let partnerId: string | null = null;
+    if (isPartnerSource(input.source)) {
+      if (input.partnerId) {
+        const [p] = await tx.select({ id: partner.id }).from(partner)
+          .where(and(eq(partner.tenantId, tenantId), eq(partner.id, input.partnerId)));
+        if (!p) throw new Error("Unknown partner for this tenant");
+        partnerId = p.id;
+      } else if (input.partner) {
+        const r = await findOrCreatePartnerTx(tx, tenantId, {
+          ...input.partner,
+          class: input.partner.class ?? partnerClassForSource(input.source),
+        });
+        partnerId = r.id;
+      }
+    }
+
     const [l] = await tx.insert(lead).values({
-      tenantId, customerId: c.id, propertyId, source: input.source, status: "new",
+      tenantId, customerId: c.id, propertyId, source: input.source, status: "new", partnerId,
       sourceDetail: (input as { sourceDetail?: unknown }).sourceDetail ?? null,
     }).returning();
     await instantiateLeadTasks(tx, { tenantId, leadId: l!.id });
