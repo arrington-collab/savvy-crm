@@ -6,6 +6,7 @@ export { instantiateJobTasks, markJobTaskDone, markJobTaskDoneTx, backfillJobTas
 export { instantiateLeadTasks, markLeadTaskDone, markLeadTaskDoneTx, backfillLeadTasks, resolveOpenLeadTasks, ConversionBlockedError } from "./lifecycle/lead-tasks";
 export { addLeadNote, getLeadNotes } from "./lifecycle/lead-note";
 export { createLeadForTenant } from "./lifecycle/lead-intake";
+export { findOrCreatePartner, findOrCreatePartnerTx, searchPartners, backfillPartnerAttribution, listPartnerMergeCandidates, resolveMergeCandidate } from "./lifecycle/partner";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
 export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";

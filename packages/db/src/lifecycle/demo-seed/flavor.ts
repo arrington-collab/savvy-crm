@@ -140,6 +140,9 @@ async function ensureInsuranceJob(tenantId: string, input: DemoLeadInput): Promi
       email: input.email,
       address: input.address,
       source: "insurance_agent",
+      // Partner-class sources carry attribution (partner.attribution invariant);
+      // create-once folds repeat seeds onto the same demo partner.
+      partner: { name: "Dana Whitfield", org: "Summit Mutual Insurance" },
     });
     await withTenant(tenantId, async (tx) => {
       await setLeadOwner(tx, { tenantId, leadId, userId: input.assigneeUserId });

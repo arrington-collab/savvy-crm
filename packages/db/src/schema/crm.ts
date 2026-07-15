@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, integer, doublePrecision, boolean, index, jsonb, timestamp, date } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
+import { partner } from "./partner";
 import { leadStatusEnum, stormCertStatusEnum } from "./enums";
 
 export const customer = pgTable("customer", {
@@ -66,6 +67,9 @@ export const lead = pgTable("lead", {
   propertyId: uuid("property_id").references(() => property.id),
   source: text("source"),
   sourceDetail: jsonb("source_detail"),
+  // Partner Ledger: attribution FK — partner-class sources (realtor/
+  // insurance_agent/partner) must carry this (partner.attribution invariant).
+  partnerId: uuid("partner_id").references(() => partner.id),
   status: leadStatusEnum("status").notNull().default("new"),
   stormCertStatus: stormCertStatusEnum("storm_cert_status").notNull().default("pending"),
   stormCheckedAt: timestamp("storm_checked_at", { withTimezone: true }),

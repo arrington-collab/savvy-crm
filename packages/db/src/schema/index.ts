@@ -25,3 +25,4 @@ export * from "./inspection";
 export * from "./production-pulse";
 export * from "./relationship";
 export * from "./move";
+export * from "./partner";

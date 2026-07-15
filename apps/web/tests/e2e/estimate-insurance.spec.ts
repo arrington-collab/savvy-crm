@@ -14,6 +14,7 @@ import {
   setEstimateStatus,
   createEstimateFromMeasurement,
   attachOrCreateLeadClaim,
+  findOrCreatePartnerTx,
   withTenant,
 } from "@savvy/db";
 
@@ -31,7 +32,8 @@ test.beforeAll(async () => {
   const ids = await withTenant(tenantId, async (tx) => {
     const [c] = await tx.insert(customer).values({ tenantId, name: `Claim-${stamp}`, phone: "+15555559966" }).returning();
     const [p] = await tx.insert(property).values({ tenantId, customerId: c!.id, address: `${stamp} Hail Ct`, city: "Denver", state: "CO" }).returning();
-    const [l] = await tx.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "insurance_agent", status: "qualified" }).returning();
+    const pr = await findOrCreatePartnerTx(tx, tenantId, { name: `Agency-${stamp}`, class: "insurance_agent" });
+    const [l] = await tx.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "insurance_agent", status: "qualified", partnerId: pr.id }).returning();
     const [m] = await tx.insert(measurement).values({
       tenantId, propertyId: p!.id, provider: "roofr",
       areas: { squares: 28, predominantPitch: "6/12", eaveLf: 130, rakeLf: 60, ridgeLf: 42 },

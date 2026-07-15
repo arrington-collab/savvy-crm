@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizePhone } from "./phone";
 import { LEAD_SOURCE_VALUES, leadSourceDetailSchema } from "./lead-sources";
+import { inlinePartnerSchema, isPartnerSource, hasPartnerRef, partnerRefIssue } from "./partner";
 
 // Re-export zod so cross-package consumers (the Next.js app) use THIS package's
 // single zod instance — extending leadIntakeSchema with the app's own zod would
@@ -42,6 +43,10 @@ export const leadIntakeObject = z.object({
   address: z.string().min(3).max(240),
   source: z.enum(LEAD_SOURCE_VALUES),
   sourceDetail: z.unknown().optional(),
+  // Partner attribution (Partner Ledger slice 1): partner-class sources carry
+  // a picked partner id OR an inline create-once payload — never free text.
+  partnerId: z.string().uuid().optional(),
+  partner: inlinePartnerSchema.optional(),
   // optional structured address (Google Places) + optional roof/year
   city: z.string().max(120).optional(),
   state: z.string().max(40).optional(),
@@ -64,10 +69,22 @@ export const contactMethodIssue: { message: string; path: (string | number)[] } 
   path: ["phone"],
 };
 
+// Partner-class sources: the partner record is the attribution truth;
+// source_detail becomes optional legacy color (validated when present).
+// Exported so consumers that .extend() leadIntakeObject re-apply the same rule.
+export const hasValidSourceDetail = (d: { source: string; sourceDetail?: unknown }): boolean => {
+  const detail = d.sourceDetail ?? (d.source === "other" ? {} : null);
+  if (isPartnerSource(d.source) && detail == null) return true;
+  return leadSourceDetailSchema(d.source).safeParse(detail).success;
+};
+
+export const sourceDetailIssue: { message: string; path: (string | number)[] } = {
+  message: "Fill in the required details for this source",
+  path: ["sourceDetail"],
+};
+
 export const leadIntakeSchema = leadIntakeObject
   .refine(hasContactMethod, contactMethodIssue)
-  .refine(
-    (d) => leadSourceDetailSchema(d.source).safeParse(d.sourceDetail ?? (d.source === "other" ? {} : null)).success,
-    { message: "Fill in the required details for this source", path: ["sourceDetail"] },
-  );
+  .refine(hasValidSourceDetail, sourceDetailIssue)
+  .refine(hasPartnerRef, partnerRefIssue);
 export type LeadIntakeInput = z.infer<typeof leadIntakeSchema>;

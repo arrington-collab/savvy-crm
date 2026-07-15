@@ -55,6 +55,7 @@ export * from "./log-format";
 export * from "./onboarding";
 export { parseEmailConfig, type EmailConfig } from "./email-config";
 export * from "./lead-sources";
+export * from "./partner";
 export * from "./referral";
 export * from "./lead-features";
 export * from "./lead-assignment";
