@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { lead, property, inspection, inspectionZone, inspectionMedia } from "../schema/index";
 import { normalizeAddressForMatch } from "@savvy/core";
+import { accrueInspectionStandardCostTx } from "./partner-ledger";
 
 // Media is accepted while capture is live and during the approval window (late
 // BloomCam outbox retries land after the inspector climbs down); it is refused
@@ -188,6 +189,9 @@ export async function completeInspection(input: {
       .where(and(eq(inspection.id, input.inspectionId), eq(inspection.status, "in_progress")))
       .returning({ id: inspection.id });
     if (!updated) return { error: "not_in_progress" as const };
+    // Partner Ledger: a completed inspection on a partner-sourced lead costs
+    // real time — accrue the tenant standard cost (idempotent on source_ref).
+    await accrueInspectionStandardCostTx(tx, input.tenantId, input.inspectionId);
     return { completedAt };
   });
 }

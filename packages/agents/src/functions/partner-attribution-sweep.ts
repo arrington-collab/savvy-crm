@@ -1,4 +1,4 @@
-import { adminDb, tenant, backfillPartnerAttribution } from "@savvy/db";
+import { adminDb, tenant, backfillPartnerAttribution, sweepPartnerLedgerAccruals } from "@savvy/db";
 import { inngest } from "../client";
 
 /**
@@ -19,10 +19,15 @@ export const partnerAttributionSweep = inngest.createFunction(
       return rows.map((r) => r.id);
     });
     let attributed = 0;
+    let accrued = 0;
     for (const id of ids) {
       const r = await step.run(`backfill:${id}`, () => backfillPartnerAttribution(id));
       attributed += r.attributed;
+      // Slice 2: self-healing ledger accrual (idempotent; normally finds nothing
+      // because the inline hooks already accrued at completion time).
+      const a = await step.run(`ledger:${id}`, () => sweepPartnerLedgerAccruals(id));
+      accrued += a.accrued;
     }
-    return { tenants: ids.length, attributed };
+    return { tenants: ids.length, attributed, accrued };
   },
 );
