@@ -16,7 +16,9 @@ test("cert lane: request → book → approve → auto-deliver → paid delivera
   await page.goto("/partners/certs");
   await page.getByTestId("cert-new").click();
   await page.getByTestId("partner-search").fill(`Cert Agent ${stamp}`);
-  await page.getByTestId("partner-matches").getByText(`Cert Agent ${stamp}`).click();
+  // The dropdown also renders the '+ Add "…"' row — target the match's full
+  // accessible name so the locator is unambiguous.
+  await page.getByTestId("partner-matches").getByRole("button", { name: `Cert Agent ${stamp} — Escrow Co` }).click();
   await page.getByTestId("cert-customer-name").fill(`Cert Seller ${stamp}`);
   await page.getByTestId("cert-address").fill(`${stamp} Closing Ct, Mesa AZ`);
   await page.getByTestId("cert-create").click();
