@@ -31,6 +31,10 @@ export default async function LibraryPage() {
       body: "SMS/email templates, drip definitions (2/5/10d), the tone rubric NOVA is audited against, short-link domain config.",
     },
     {
+      href: "/partners", title: "Partners", meta: "per-partner P&L · A/B/C grades",
+      body: "What each referral partner produces vs. costs — trailing 12 months, honestly counted. Grades rank; humans decide. Quick-log expenses from your phone.",
+    },
+    {
       href: "/settings", title: "Tenant Settings", meta: lib.tenantName,
       body: `Timezone ${lib.timezone} — drives crons, customer-facing times, business hours. Telephony numbers, team & crew, CompanyCam / QuickBooks connections.`,
     },

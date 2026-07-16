@@ -16,12 +16,22 @@ export const INSPECTION_STANDARD_METHODOLOGY =
 
 const partnerLedgerConfigSchema = z.object({
   inspectionStandardCostCents: z.number().int().min(0).catch(20000).default(20000),
+  // Slice 3 grade thresholds (Library config, not code): A = net > this AND ≥1
+  // win; C = this many referrals with 0 wins in the trailing 12 months.
+  gradeANetCentsMin: z.number().int().min(0).catch(500000).default(500000),
+  gradeCMinReferrals: z.number().int().min(1).catch(5).default(5),
 });
 export type PartnerLedgerConfig = z.infer<typeof partnerLedgerConfigSchema>;
 
+const PARTNER_LEDGER_DEFAULTS: PartnerLedgerConfig = {
+  inspectionStandardCostCents: 20000,
+  gradeANetCentsMin: 500000,
+  gradeCMinReferrals: 5,
+};
+
 export function parsePartnerLedgerConfig(raw: unknown): PartnerLedgerConfig {
   const r = partnerLedgerConfigSchema.safeParse(raw ?? {});
-  return r.success ? r.data : { inspectionStandardCostCents: 20000 };
+  return r.success ? r.data : PARTNER_LEDGER_DEFAULTS;
 }
 
 /** Owner-digest line for the trailing-week partner expense sum; silent at zero. */

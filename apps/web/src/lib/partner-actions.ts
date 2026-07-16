@@ -1,5 +1,5 @@
 "use server";
-import { searchPartners, listPartnerMergeCandidates, resolveMergeCandidate, findOrCreatePartner, logPartnerExpense } from "@savvy/db";
+import { searchPartners, listPartnerMergeCandidates, resolveMergeCandidate, findOrCreatePartner, logPartnerExpense, resolveCDecision } from "@savvy/db";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
@@ -42,6 +42,23 @@ export async function logPartnerExpenseAction(input: {
     return { ok: true };
   } catch {
     return { error: "could not log expense" };
+  }
+}
+
+/** Human resolution of a C-partner decision card (cards, never cutoffs). */
+export async function resolveCDecisionAction(
+  partnerId: string,
+  resolution: "conversation" | "slack_capacity_only" | "dismissed",
+): Promise<{ ok: true } | { error: string }> {
+  try {
+    const tenantId = await getTenantId();
+    await resolveCDecision(tenantId, { partnerId, resolution });
+    revalidatePath("/today");
+    revalidatePath("/partners");
+    revalidatePath(`/partners/${partnerId}`);
+    return { ok: true };
+  } catch {
+    return { error: "could not resolve" };
   }
 }
 

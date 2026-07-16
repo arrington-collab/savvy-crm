@@ -827,6 +827,19 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
   ),
+
+  // Partner Ledger slice 3 (partner-value.ts): grades are recomputed monthly
+  // per tenant TZ. An active partner ungraded (or stale) past ~35 days means
+  // the recompute cron is not running. Brand-new partners get until the next
+  // monthly pass.
+  "partner.grades_current": invariant(
+    "partner.grades_current",
+    `select p.id from partner p
+      where p.tenant_id = $1 and p.status = 'active'
+        and ( (p.graded_at is null and p.created_at < now() - interval '35 days')
+           or p.graded_at < now() - interval '35 days' )`,
+    { toRef: (r) => ({ type: "partner", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
