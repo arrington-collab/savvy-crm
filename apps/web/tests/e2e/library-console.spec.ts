@@ -10,11 +10,13 @@ import { test, expect } from "@playwright/test";
 test("Library renders the source-of-the-business card grid with the tenant timezone", async ({ page }) => {
   await page.goto("/library");
   await expect(page.getByTestId("library-page")).toBeVisible();
-  // Six cards, each linking to its config page.
-  await expect(page.getByTestId("library-card")).toHaveCount(6);
+  // Seven cards, each linking to its config page (Partners joined in slice 3
+  // of the Partner Ledger).
+  await expect(page.getByTestId("library-card")).toHaveCount(7);
   const grid = page.getByTestId("library-grid");
   await expect(grid).toContainText("Task Registry");
   await expect(grid).toContainText("Price Book");
+  await expect(grid).toContainText("Partners");
   await expect(grid).toContainText("Tenant Settings");
   // Timezone is surfaced (Tenant Settings card) — the spec calls this out explicitly.
   await expect(grid).toContainText("Timezone");
