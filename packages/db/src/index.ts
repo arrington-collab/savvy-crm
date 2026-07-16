@@ -11,6 +11,7 @@ export { accrueLedgerEntryTx, accrueInspectionStandardCostTx, sweepPartnerLedger
 export { partnerValueRows, recomputePartnerGrades, pendingCDecisions, resolveCDecision, hasUngradedPartners, type PartnerValueRow, type CDecision } from "./lifecycle/partner-value";
 export { createCertRequest, bookCertRequest, deliverCertRequest, declineCertRequest, sweepCertRequests, certLinkToken, resolveCertLink, getCertPageData, type CreateCertRequestInput, type CertPageData, type CertPageZone } from "./lifecycle/cert-request";
 export { generateQuarterlyPartnerReports, duePartnerEmailTouches, getPartnerReportPageData, resolvePartnerReportLink, internalQuarterlyRanking, freshQuarterlyReportCount, type PartnerReportPayload, type PartnerReportPage, type QuarterlyRanking, type DuePartnerEmailTouch } from "./lifecycle/partner-report";
+export { buildMobilizationBlitz, pendingBlitzApprovals, approveBlitzCampaign, blitzWeekStats, type BlitzResult, type PendingBlitz, type BlitzWeekStats } from "./lifecycle/mobilization-blitz";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
 export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";

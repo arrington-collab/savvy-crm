@@ -24,7 +24,7 @@ const DEFAULTS = {
     // slice-3 structured sources
     referral: 1.0, insurance_agent: 0.8, realtor: 0.8, partner: 0.75, ads: 0.35,
     // machine sources
-    web: 0.45, inbound_call: 0.6, canvass: 0.7, direct_mail: 0.5,
+    web: 0.45, inbound_call: 0.6, canvass: 0.7, direct_mail: 0.5, mobilization: 0.65,
     // legacy (pre-taxonomy) values
     repeat: 0.95, carrier: 0.8, storm_canvass: 0.7, google: 0.5,
     website: 0.45, door_knock: 0.45, facebook: 0.4, yard_sign: 0.35,
