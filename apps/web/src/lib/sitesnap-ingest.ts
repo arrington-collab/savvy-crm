@@ -32,7 +32,30 @@ export type IngestDeps = {
   emitProductionMedia?: (info: { tenantId: string; jobId: string; phaseKey: string; documentId: string; phaseStatus: string; justCompleted: boolean }) => Promise<void>;
 };
 
-export async function ingestSiteSnapPhoto(body: IngestBody, key: string, deps: IngestDeps): Promise<{ status: number; body: unknown }> {
+// BloomCam's live pushToSavvy() sends the Roof Record fields snake_case
+// ("per spec") while this module reads camelCase — found 2026-07-16 when the
+// mismatch silently degraded zone-first photos to plain job photos. Accept
+// BOTH casings forever: the field app's outbox may replay old payloads.
+function normalizeIngestBody(raw: IngestBody): IngestBody {
+  const r = raw as IngestBody & {
+    inspection_id?: string; zone_key?: string; zone_label?: string; zone_kind?: string;
+    checklist_item_key?: string; captured_at?: number; external_photo_id?: string; image_url?: string;
+  };
+  return {
+    ...raw,
+    imageUrl: raw.imageUrl ?? r.image_url,
+    externalPhotoId: raw.externalPhotoId ?? r.external_photo_id,
+    inspectionId: raw.inspectionId ?? r.inspection_id,
+    zoneKey: raw.zoneKey ?? r.zone_key,
+    zoneLabel: raw.zoneLabel ?? r.zone_label,
+    zoneKind: raw.zoneKind ?? r.zone_kind,
+    checklistItemKey: raw.checklistItemKey ?? r.checklist_item_key,
+    capturedAtMs: raw.capturedAtMs ?? r.captured_at,
+  };
+}
+
+export async function ingestSiteSnapPhoto(rawBody: IngestBody, key: string, deps: IngestDeps): Promise<{ status: number; body: unknown }> {
+  const body = normalizeIngestBody(rawBody);
   const t = await resolveTenantByIngestKey(key);
   if (!t) return { status: 401, body: { error: "unauthorized" } };
 

@@ -87,6 +87,44 @@ describe("ingestSiteSnapPhoto — zone-first roof-record media", () => {
     expect(emitInspectionMedia).toHaveBeenCalledWith({ tenantId, inspectionId, leadId, zoneKey: "north_slope", documentId: doc!.id });
   });
 
+  it("accepts BloomCam's LIVE payload shape — snake_case inspection fields land on the zone", async () => {
+    // Exactly what blck-line-cam cloud.js pushToSavvy() sends: camelCase for
+    // the legacy-required fields, snake_case for the Roof Record fields. The
+    // 2026-07-16 integration review found the snake_case fields were silently
+    // dropped — a zone-first photo degraded to a plain job photo.
+    const key = `k-${crypto.randomUUID()}`;
+    const { tenantId, leadId } = await seed(key);
+    const started = await startInspectionForLead({ tenantId, leadId });
+    const inspectionId = (started as { inspectionId: string }).inspectionId;
+    const emitInspectionMedia = vi.fn(async () => {});
+
+    const bloomCamPayload = {
+      address: "123 Main Street",
+      category: "photo",
+      imageUrl: "https://supabase.example/signed/photo.jpg",
+      externalPhotoId: "bloom-1",
+      inspection_id: inspectionId,
+      zone_key: "north_slope",
+      checklist_item_key: "shingle-condition",
+      captured_at: Date.now(),
+      gps: { lat: 33.45, lng: -112.07 },
+      external_photo_id: "bloom-1",
+      image_url: "https://supabase.example/signed/photo.jpg",
+    } as unknown as Parameters<typeof ingestSiteSnapPhoto>[0];
+
+    const r = await ingestSiteSnapPhoto(bloomCamPayload, key, {
+      storage: makeFakeStorage(), fetchBytes, emit: vi.fn(async () => {}), emitInspectionMedia,
+    });
+    expect(r.status).toBe(200);
+    expect((r.body as { inspectionLinked?: boolean }).inspectionLinked).toBe(true);
+
+    const [doc] = await withTenant(tenantId, (tx) => tx.select().from(document).where(eq(document.sitesnapPhotoId, "bloom-1")));
+    const media = await withTenant(tenantId, (tx) => tx.select().from(inspectionMedia).where(
+      and(eq(inspectionMedia.inspectionId, inspectionId), eq(inspectionMedia.documentId, doc!.id))));
+    expect(media).toHaveLength(1);
+    expect(emitInspectionMedia).toHaveBeenCalledOnce();
+  });
+
   it("replaying the same media event keeps one document and one zone link, and does not re-emit", async () => {
     const key = `k-${crypto.randomUUID()}`;
     const { tenantId, leadId } = await seed(key);
