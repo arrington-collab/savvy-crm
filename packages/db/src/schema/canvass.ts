@@ -31,6 +31,15 @@ export const canvassTerritory = pgTable("canvass_territory", {
   name: text("name").notNull(),
   color: text("color"),
   points: jsonb("points").$type<number[][]>().notNull(),
+  // Phase 26 slice 2: blitz auto-territories. Windowed (day-before through
+  // build-end) and carrying job context for the route ("roofing on <street>
+  // through Friday" — street name, never a house number). campaign_id threads
+  // knock/sale attribution back to the blitz. All null on manual territories.
+  jobId: uuid("job_id"),
+  campaignId: uuid("campaign_id"),
+  activeFrom: timestamp("active_from", { withTimezone: true }),
+  activeUntil: timestamp("active_until", { withTimezone: true }),
+  context: text("context"),
   createdAt: createdAt(),
 }, (t) => [
   index("canvass_territory_tenant_idx").on(t.tenantId),

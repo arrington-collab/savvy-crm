@@ -7,6 +7,7 @@ import { customer, property, lead } from "../schema/crm";
 import { job } from "../schema/jobs";
 import { appointment } from "../schema/comms";
 import { tenant as tenantTbl } from "../schema/tenancy";
+import { createBlitzTieIns } from "./blitz-tie-ins";
 
 export type BlitzResult =
   | { campaignId: string; status: string; audienceCount: number }
@@ -125,6 +126,14 @@ export async function buildMobilizationBlitz(
         }).onConflictDoNothing();
       }
     }
+    // Slice 2 tie-ins ride the same transaction: canvass territory + boost
+    // cards exist for every planned blitz, atomically.
+    await createBlitzTieIns(tx, tenantId, {
+      campaignId: camp.id, jobId: input.jobId, customerId: j.customerId,
+      site: { lat: site.lat, lng: site.lng, address: site.address },
+      buildStart: crew.startsAt, buildEnd: crew.endsAt, radiusMeters: cfg.radiusMeters,
+    });
+
     return { campaignId: camp.id, status, audienceCount: ranked.length };
   });
 }
