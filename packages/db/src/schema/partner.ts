@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 
@@ -17,6 +17,15 @@ export const partner = pgTable("partner", {
   status: text("status").notNull().default("active"), // active|paused|archived
   notes: text("notes"),
   normalizedKey: text("normalized_key").notNull(),
+  // Slice 3 — grades produce CARDS, never cutoffs. Recomputed monthly per
+  // tenant TZ (partner.grades_current evidence); A flips schedulingPriority,
+  // a FRESH C opens a pending decision card a human resolves.
+  grade: text("grade"), // A|B|C, null until first recompute
+  gradedAt: timestamp("graded_at", { withTimezone: true }),
+  schedulingPriority: boolean("scheduling_priority").notNull().default(false),
+  slackCapacityOnly: boolean("slack_capacity_only").notNull().default(false),
+  cCardStatus: text("c_card_status"), // pending|resolved
+  cCardResolution: text("c_card_resolution"), // conversation|slack_capacity_only|dismissed
   createdAt: createdAt(),
 }, (t) => [
   index("partner_tenant_idx").on(t.tenantId),

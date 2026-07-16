@@ -57,6 +57,7 @@ export { parseEmailConfig, type EmailConfig } from "./email-config";
 export * from "./lead-sources";
 export * from "./partner";
 export * from "./partner-ledger";
+export * from "./partner-value";
 export * from "./referral";
 export * from "./lead-features";
 export * from "./lead-assignment";
