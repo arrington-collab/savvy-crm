@@ -873,6 +873,25 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "partner", ref: String(r.id) }) },
   ),
+
+  // Phase 26 slice 1 / PostGrid spec: the never-mail-twice guarantee. The
+  // same address receiving the same campaign KIND from two different
+  // campaigns within 60 days is a violation (a campaign's own waves are the
+  // product, not a duplicate).
+  "mail.suppression": invariant(
+    "mail.suppression",
+    `select mp2.id from mail_piece mp1
+      join mail_campaign c1 on c1.id = mp1.campaign_id
+      join mail_piece mp2
+        on mp2.tenant_id = mp1.tenant_id and mp2.id <> mp1.id
+      join mail_campaign c2
+        on c2.id = mp2.campaign_id and c2.kind = c1.kind and c2.id <> c1.id
+     where mp1.tenant_id = $1
+       and lower(trim(mp2.address_text)) = lower(trim(mp1.address_text))
+       and mp2.created_at > mp1.created_at
+       and mp2.created_at < mp1.created_at + interval '60 days'`,
+    { toRef: (r) => ({ type: "mail_piece", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

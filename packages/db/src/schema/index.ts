@@ -28,3 +28,4 @@ export * from "./move";
 export * from "./partner";
 export * from "./cert";
 export * from "./partner-report";
+export * from "./mail";

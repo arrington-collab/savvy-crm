@@ -715,6 +715,13 @@
       "when": 1784214514769,
       "tag": "0101_partner_quarterly",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1784242526806,
+      "tag": "0102_mail_blitz",
+      "breakpoints": true
     }
   ]
 }

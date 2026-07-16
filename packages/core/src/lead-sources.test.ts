@@ -20,8 +20,8 @@ describe("lead sources", () => {
 
 describe("lead source taxonomy", () => {
   it("has the 6 human + 4 machine members", () => {
-    expect(LEAD_SOURCE_VALUES).toEqual(["referral","insurance_agent","ads","realtor","partner","other","web","inbound_call","canvass","direct_mail"]);
-    expect(MACHINE_LEAD_SOURCES).toEqual(["web","inbound_call","canvass","direct_mail"]);
+    expect(LEAD_SOURCE_VALUES).toEqual(["referral","insurance_agent","ads","realtor","partner","other","web","inbound_call","canvass","direct_mail","mobilization"]);
+    expect(MACHINE_LEAD_SOURCES).toEqual(["web","inbound_call","canvass","direct_mail","mobilization"]);
     expect(AD_PLATFORM_VALUES).toContain("google_lsa");
   });
   it("classifies machine vs human sources", () => {
