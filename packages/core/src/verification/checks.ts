@@ -856,6 +856,23 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         )`,
     { toRef: (r) => ({ type: "cert_request", ref: String(r.id) }) },
   ),
+
+  // Partner Ledger slice 5 (partner-report.ts): every ACTIVE A/B partner that
+  // existed before the current quarter began has a prior-quarter report (the
+  // daily catch-up self-heals mid-quarter regrades, so this is strict). C
+  // partners get decision cards, never report cards — they cannot violate.
+  "partner.quarterly": invariant(
+    "partner.quarterly",
+    `select p.id from partner p
+      where p.tenant_id = $1 and p.status = 'active' and p.grade in ('A','B')
+        and p.created_at < date_trunc('quarter', now())
+        and not exists (
+          select 1 from partner_report r
+           where r.tenant_id = $1 and r.partner_id = p.id
+             and r.quarter_key = to_char(date_trunc('quarter', now()) - interval '3 months', 'YYYY-"Q"Q')
+        )`,
+    { toRef: (r) => ({ type: "partner", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

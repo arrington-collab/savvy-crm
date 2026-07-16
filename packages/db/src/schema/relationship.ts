@@ -3,6 +3,7 @@ import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { customer } from "./crm";
 import { job } from "./jobs";
+import { partner } from "./partner";
 
 // Customer for Life slice 1: the relationship calendar. EVERY post-completion
 // program (roofiversary, holiday cards, storm checks, credit check-ins, move
@@ -11,8 +12,14 @@ import { job } from "./jobs";
 export const relationshipTouch = pgTable("relationship_touch", {
   id: idCol(),
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
-  customerId: uuid("customer_id").notNull().references(() => customer.id),
-  // holiday_card|roofiversary|storm_check|credit_checkin|maintenance_offer|referral|move_play|custom
+  // Partner Ledger slice 5: partner-scoped touches (quarterly reports) share
+  // this ledger — exactly ONE of customer_id/partner_id is set (DB CHECK,
+  // mig 0101). Customer gates (opt-outs, caps, disputes) apply only to
+  // customer touches; partner touches keep sourceRef idempotency, suppression
+  // rows and the sender-requires-touchId contract.
+  customerId: uuid("customer_id").references(() => customer.id),
+  partnerId: uuid("partner_id").references(() => partner.id),
+  // holiday_card|roofiversary|storm_check|credit_checkin|maintenance_offer|referral|move_play|partner_quarterly|custom
   program: text("program").notNull(),
   channel: text("channel").notNull(), // text|postcard|letter|email
   scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
