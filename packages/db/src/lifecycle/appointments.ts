@@ -60,8 +60,10 @@ export type BookInput = {
 
 export async function bookAppointment(input: BookInput): Promise<{ id: string }> {
   const { tenantId } = input;
-  if (!input.jobId && !input.leadId) {
-    throw new Error("bookAppointment: one of jobId or leadId is required");
+  // Cert-lane inspections (Partner Ledger slice 4) are property-scoped: no
+  // lead (certs never enter the funnel) and no job yet.
+  if (!input.jobId && !input.leadId && !input.propertyId) {
+    throw new Error("bookAppointment: one of jobId, leadId or propertyId is required");
   }
   try {
     return await withTenant(tenantId, async (tx) => {

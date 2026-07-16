@@ -9,6 +9,7 @@ export { createLeadForTenant } from "./lifecycle/lead-intake";
 export { findOrCreatePartner, findOrCreatePartnerTx, searchPartners, backfillPartnerAttribution, listPartnerMergeCandidates, resolveMergeCandidate } from "./lifecycle/partner";
 export { accrueLedgerEntryTx, accrueInspectionStandardCostTx, sweepPartnerLedgerAccruals, logPartnerExpense, partnerExpenseWeeklySum } from "./lifecycle/partner-ledger";
 export { partnerValueRows, recomputePartnerGrades, pendingCDecisions, resolveCDecision, hasUngradedPartners, type PartnerValueRow, type CDecision } from "./lifecycle/partner-value";
+export { createCertRequest, bookCertRequest, deliverCertRequest, declineCertRequest, sweepCertRequests, certLinkToken, resolveCertLink, getCertPageData, type CreateCertRequestInput, type CertPageData, type CertPageZone } from "./lifecycle/cert-request";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
 export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";

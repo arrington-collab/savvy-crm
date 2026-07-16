@@ -40,10 +40,16 @@ export default async function PartnersPage() {
           What each partner <b>produces</b> (collected gross margin) vs. what they <b>cost</b> (standard inspection
           cost, fees, free repairs, expenses) — trailing 12 months. Grades rank; you decide.
         </p>
-        <Link href="/partners/expense" className="mono shrink-0 rounded-md px-3 py-1.5 text-[12px] font-semibold"
-              style={{ background: "var(--accent-gold)", color: "#1b1408" }} data-testid="partners-log-expense">
-          Log expense
-        </Link>
+        <span className="flex shrink-0 gap-2">
+          <Link href="/partners/certs" className="mono rounded-md border px-3 py-1.5 text-[12px] font-semibold"
+                style={{ borderColor: "var(--accent-040)", color: "var(--accent-gold)" }} data-testid="partners-certs">
+            Roof certs
+          </Link>
+          <Link href="/partners/expense" className="mono rounded-md px-3 py-1.5 text-[12px] font-semibold"
+                style={{ background: "var(--accent-gold)", color: "#1b1408" }} data-testid="partners-log-expense">
+            Log expense
+          </Link>
+        </span>
       </div>
 
       {rollups.length > 1 && (

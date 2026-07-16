@@ -5,7 +5,7 @@ import { z } from "zod";
 // inspections (documented methodology below) plus trackable actuals (fees,
 // free repairs, expenses). cert_cost is reserved for slice 4's paid-cert lane.
 
-export const PARTNER_LEDGER_KINDS = ["inspection_standard", "free_repair", "referral_fee", "cert_cost", "expense"] as const;
+export const PARTNER_LEDGER_KINDS = ["inspection_standard", "free_repair", "referral_fee", "cert_cost", "cert_sale", "expense"] as const;
 export type PartnerLedgerKind = (typeof PARTNER_LEDGER_KINDS)[number];
 
 export const PARTNER_LEDGER_DIRECTIONS = ["cost", "revenue"] as const;
@@ -20,6 +20,11 @@ const partnerLedgerConfigSchema = z.object({
   // win; C = this many referrals with 0 wins in the trailing 12 months.
   gradeANetCentsMin: z.number().int().min(0).catch(500000).default(500000),
   gradeCMinReferrals: z.number().int().min(1).catch(5).default(5),
+  // Slice 4 paid-cert lane: per-tenant toggle + price ($195 default) + the
+  // nominal generation cost accrued when a cert was produced but not sold.
+  certLaneEnabled: z.boolean().catch(true).default(true),
+  certPriceCents: z.number().int().min(0).catch(19500).default(19500),
+  certGenerationCostCents: z.number().int().min(0).catch(2500).default(2500),
 });
 export type PartnerLedgerConfig = z.infer<typeof partnerLedgerConfigSchema>;
 
@@ -27,6 +32,9 @@ const PARTNER_LEDGER_DEFAULTS: PartnerLedgerConfig = {
   inspectionStandardCostCents: 20000,
   gradeANetCentsMin: 500000,
   gradeCMinReferrals: 5,
+  certLaneEnabled: true,
+  certPriceCents: 19500,
+  certGenerationCostCents: 2500,
 };
 
 export function parsePartnerLedgerConfig(raw: unknown): PartnerLedgerConfig {

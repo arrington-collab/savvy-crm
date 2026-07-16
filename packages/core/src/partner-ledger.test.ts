@@ -25,8 +25,8 @@ describe("parsePartnerLedgerConfig", () => {
 });
 
 describe("partner ledger kinds", () => {
-  it("covers the slice-2 accrual kinds (+ cert_cost reserved for slice 4)", () => {
-    expect(PARTNER_LEDGER_KINDS).toEqual(["inspection_standard", "free_repair", "referral_fee", "cert_cost", "expense"]);
+  it("covers the accrual kinds incl. slice 4's cert lane (cost when unsold, sale when delivered)", () => {
+    expect(PARTNER_LEDGER_KINDS).toEqual(["inspection_standard", "free_repair", "referral_fee", "cert_cost", "cert_sale", "expense"]);
   });
 });
 
