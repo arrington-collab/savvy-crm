@@ -1,7 +1,8 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
-import { tenant, estimate, repairCredit, inspectionFinding, inspectionChecklist, lead } from "../schema/index";
+import { tenant, estimate, repairCredit, inspectionFinding, inspectionChecklist, inspectionZone, inspection, lead } from "../schema/index";
 import { parseEstimateConfig, computeEstimateTotals } from "@savvy/core";
+import { accrueLedgerEntryTx } from "./partner-ledger";
 
 /**
  * Roof Record slice 2 — the generosity machinery.
@@ -50,6 +51,23 @@ export async function applyFriendRule(input: {
 
     await tx.update(inspectionFinding).set({ disposition: "fixed_free_today" })
       .where(eq(inspectionFinding.id, input.findingId));
+
+    // Partner Ledger: generosity on a partner-sourced lead is an honest cost —
+    // accrue the repair's estimated value (idempotent; replays are free).
+    const [src] = await tx.select({ partnerId: lead.partnerId })
+      .from(inspectionFinding)
+      .innerJoin(inspectionZone, eq(inspectionZone.id, inspectionFinding.inspectionZoneId))
+      .innerJoin(inspection, eq(inspection.id, inspectionZone.inspectionId))
+      .innerJoin(lead, eq(lead.id, inspection.leadId))
+      .where(eq(inspectionFinding.id, input.findingId));
+    if (src?.partnerId) {
+      await accrueLedgerEntryTx(tx, input.tenantId, {
+        partnerId: src.partnerId,
+        kind: "free_repair",
+        amountCents: f.repairEstimateCents,
+        sourceRef: `finding:${input.findingId}`,
+      });
+    }
     return { applied: true as const, disposition: "fixed_free_today" as const };
   });
 }

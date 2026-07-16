@@ -687,6 +687,13 @@
       "when": 1784080001595,
       "tag": "0097_partner_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1784082435152,
+      "tag": "0098_partner_ledger_entries",
+      "breakpoints": true
     }
   ]
 }

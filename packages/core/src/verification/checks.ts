@@ -810,6 +810,23 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and l.partner_id is null`,
     { toRef: (r) => ({ type: "lead", ref: String(r.id) }) },
   ),
+
+  // Partner Ledger slice 2 (partner-ledger.ts): costs are counted honestly —
+  // every COMPLETED inspection on a partner-sourced lead carries its standard
+  // cost entry (inline hook at completion; hourly sweep self-heals).
+  "partner.ledger_complete": invariant(
+    "partner.ledger_complete",
+    `select i.id from inspection i
+       join lead l on l.id = i.lead_id
+      where i.tenant_id = $1
+        and i.completed_at is not null
+        and l.partner_id is not null
+        and not exists (
+          select 1 from partner_ledger_entry e
+          where e.tenant_id = $1 and e.source_ref = 'inspection:' || i.id
+        )`,
+    { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
