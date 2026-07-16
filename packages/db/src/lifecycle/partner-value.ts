@@ -28,6 +28,7 @@ export type PartnerValueRow = {
   collectedGmCents: number;
   openPipelineCents: number;
   cost12moCents: number;
+  revenue12moCents: number; // ledger revenue (cert sales) — separate from job GM
   netCents: number;
   medianDaysToConvert: number | null;
 };
@@ -72,6 +73,7 @@ export async function partnerValueRows(tenantId: string, now: Date): Promise<Par
       tx.select({
         partnerId: partnerLedgerEntry.partnerId,
         costCents: sql<number>`sum(case when ${partnerLedgerEntry.direction} = 'cost' then ${partnerLedgerEntry.amountCents} else 0 end)`,
+        revenueCents: sql<number>`sum(case when ${partnerLedgerEntry.direction} = 'revenue' then ${partnerLedgerEntry.amountCents} else 0 end)`,
       }).from(partnerLedgerEntry)
         .where(and(eq(partnerLedgerEntry.tenantId, tenantId), gte(partnerLedgerEntry.occurredAt, windowStart)))
         .groupBy(partnerLedgerEntry.partnerId),
@@ -80,6 +82,7 @@ export async function partnerValueRows(tenantId: string, now: Date): Promise<Par
     const leadPartner = new Map(leads.map((l) => [l.id, l.partnerId!]));
     const leadCreated = new Map(leads.map((l) => [l.id, l.createdAt]));
     const costByPartner = new Map(ledger.map((r) => [r.partnerId, Number(r.costCents)]));
+    const revenueByPartner = new Map(ledger.map((r) => [r.partnerId, Number(r.revenueCents)]));
 
     // Collected revenue per job. NOT a correlated raw-sql subquery on the jobs
     // select: drizzle renders `${job.id}` unqualified there, and inside the
@@ -134,6 +137,7 @@ export async function partnerValueRows(tenantId: string, now: Date): Promise<Par
     const rows = partners.map((p) => {
       const b = acc.get(p.id) ?? { sent: 0, inspectedLeads: new Set<string>(), estimatedLeads: new Set<string>(), wonLeads: new Set<string>(), collectedGmCents: 0, openPipelineCents: 0, convertDays: [] as number[] };
       const cost12moCents = costByPartner.get(p.id) ?? 0;
+      const revenue12moCents = revenueByPartner.get(p.id) ?? 0;
       return {
         partnerId: p.id, name: p.name, org: p.org, class: p.class, grade: p.grade,
         sent: b.sent,
@@ -143,7 +147,8 @@ export async function partnerValueRows(tenantId: string, now: Date): Promise<Par
         collectedGmCents: b.collectedGmCents,
         openPipelineCents: b.openPipelineCents,
         cost12moCents,
-        netCents: b.collectedGmCents - cost12moCents,
+        revenue12moCents,
+        netCents: b.collectedGmCents + revenue12moCents - cost12moCents,
         medianDaysToConvert: medianDays(b.convertDays),
       };
     });

@@ -840,6 +840,22 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
            or p.graded_at < now() - interval '35 days' )`,
     { toRef: (r) => ({ type: "partner", ref: String(r.id) }) },
   ),
+
+  // Partner Ledger slice 4 (cert-request.ts): every cert request reaches
+  // delivered-or-declined within 48 hours — still-open past the window OR a
+  // late close are both violations. The hourly sweep auto-delivers approved
+  // inspections; this check catches the ones nobody moved.
+  "cert.sla": invariant(
+    "cert.sla",
+    `select cr.id from cert_request cr
+      where cr.tenant_id = $1
+        and (
+          (cr.delivered_at is null and cr.declined_at is null
+            and cr.requested_at < now() - interval '48 hours')
+          or coalesce(cr.delivered_at, cr.declined_at) > cr.requested_at + interval '48 hours'
+        )`,
+    { toRef: (r) => ({ type: "cert_request", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
