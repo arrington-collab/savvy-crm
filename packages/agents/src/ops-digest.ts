@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, recordAgentRun, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
 import { getTenantEmail } from "./email";
@@ -38,7 +38,8 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   // Partner Ledger slice 2: the weekly partner-expense sum rides the digest
   // (silent at zero, fail-soft — a ledger hiccup never blocks the digest).
   const partnerExpenseLine = buildPartnerExpenseLine(await partnerExpenseWeeklySum(tenantId, now).catch(() => 0));
-  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine].filter(Boolean).join("\n");
+  const partnerQuarterlyLine = buildPartnerQuarterlyLine(await freshQuarterlyReportCount(tenantId, now).catch(() => 0));
+  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine].filter(Boolean).join("\n");
   const body = `${narrative}\n\n${exceptionBlock}`;
 
   const [owner] = await adminDb

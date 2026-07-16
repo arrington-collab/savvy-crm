@@ -708,6 +708,13 @@
       "when": 1784210332485,
       "tag": "0100_cert_lane",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1784214514769,
+      "tag": "0101_partner_quarterly",
+      "breakpoints": true
     }
   ]
 }

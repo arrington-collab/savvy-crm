@@ -10,6 +10,7 @@ export { findOrCreatePartner, findOrCreatePartnerTx, searchPartners, backfillPar
 export { accrueLedgerEntryTx, accrueInspectionStandardCostTx, sweepPartnerLedgerAccruals, logPartnerExpense, partnerExpenseWeeklySum } from "./lifecycle/partner-ledger";
 export { partnerValueRows, recomputePartnerGrades, pendingCDecisions, resolveCDecision, hasUngradedPartners, type PartnerValueRow, type CDecision } from "./lifecycle/partner-value";
 export { createCertRequest, bookCertRequest, deliverCertRequest, declineCertRequest, sweepCertRequests, certLinkToken, resolveCertLink, getCertPageData, type CreateCertRequestInput, type CertPageData, type CertPageZone } from "./lifecycle/cert-request";
+export { generateQuarterlyPartnerReports, duePartnerEmailTouches, getPartnerReportPageData, resolvePartnerReportLink, internalQuarterlyRanking, freshQuarterlyReportCount, type PartnerReportPayload, type PartnerReportPage, type QuarterlyRanking, type DuePartnerEmailTouch } from "./lifecycle/partner-report";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
 export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";
@@ -51,7 +52,7 @@ export { ensureProductionPhaseTemplates, instantiateProductionPhases, ingestProd
 export { setPhotoCustomerSafe, doubleGatedPhotosForPhase, recordProductionUpdate, countUpdatesSentToday, hoUpdateGaps, deliveryNoticeGaps, statusGalleryForJob } from "./lifecycle/production-updates";
 export { submitCrewEodReport, eodGaps } from "./lifecycle/crew-eod";
 export { paceLagPhases, silentCrewDays, lateCrewAppointments, reportProductionBlocker, listOpenBlockers, resolveProductionBlocker, attachBlockerChangeOrder, recordMunicipalInspection, inspectionGateViolations, phaseEvidenceGaps, waitingInspectionGates } from "./lifecycle/production-detectors";
-export { scheduleRelationshipTouch, markTouchSent, markTouchSuppressed, listDueTouches, governorCapViolations } from "./lifecycle/relationship-touch";
+export { scheduleRelationshipTouch, schedulePartnerTouch, markTouchSent, markTouchSuppressed, listDueTouches, governorCapViolations } from "./lifecycle/relationship-touch";
 export {
   enrollCompletedJobs, extendStandingCadence, holdDuePrintTouches,
   dueCadenceTextTouches, enrollmentGaps, cadenceSilenceViolations,

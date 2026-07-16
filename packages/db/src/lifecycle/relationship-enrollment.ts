@@ -171,7 +171,8 @@ export async function dueCadenceTextTouches(tenantId: string, now: Date = new Da
         eq(customer.smsOptOut, false),
         eq(customer.claimDisputeHold, false),
       )));
-  return rows.filter((r): r is typeof r & { phone: string } => !!r.phone);
+  // The inner join guarantees a customer; the column is nullable only for partner touches.
+  return rows.filter((r): r is typeof r & { phone: string; customerId: string } => !!r.phone && !!r.customerId);
 }
 
 /** Absorption check for the retail close-out drip: an enrolled job's day-30

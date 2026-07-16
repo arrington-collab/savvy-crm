@@ -41,6 +41,10 @@ export default async function PartnersPage() {
           cost, fees, free repairs, expenses) — trailing 12 months. Grades rank; you decide.
         </p>
         <span className="flex shrink-0 gap-2">
+          <Link href="/partners/quarterly" className="mono rounded-md border px-3 py-1.5 text-[12px] font-semibold"
+                style={{ borderColor: "var(--accent-040)", color: "var(--accent-gold)" }} data-testid="partners-quarterly">
+            Quarterly
+          </Link>
           <Link href="/partners/certs" className="mono rounded-md border px-3 py-1.5 text-[12px] font-semibold"
                 style={{ borderColor: "var(--accent-040)", color: "var(--accent-gold)" }} data-testid="partners-certs">
             Roof certs

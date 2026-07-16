@@ -6,7 +6,7 @@
 
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { withTenant } from "../tenant";
-import { tenant, customer, relationshipTouch } from "../schema/index";
+import { tenant, customer, relationshipTouch, partner } from "../schema/index";
 import { governTouchRequest, type ExistingTouch } from "@savvy/core";
 
 const DEFAULT_CAP_PER_YEAR = 5;
@@ -155,10 +155,58 @@ export async function governorCapViolations(tenantId: string, capPerYear = DEFAU
     }).from(relationshipTouch)
       .where(and(
         sql`${relationshipTouch.sentAt} is not null`,
+        sql`${relationshipTouch.customerId} is not null`,
         gte(relationshipTouch.sentAt, sql`now() - interval '365 days'` as unknown as Date),
       ))
       .groupBy(relationshipTouch.customerId)
       .having(sql`count(*) > ${capPerYear}`);
-    return rows;
+    // The `customer_id is not null` predicate guarantees this; the column is
+    // nullable only for partner touches (exempt from the CUSTOMER cap).
+    return rows.filter((r): r is typeof r & { customerId: string } => r.customerId != null);
+  });
+}
+
+export type SchedulePartnerTouchResult =
+  | { touchId: string; existing?: boolean }
+  | { scheduled: false; reason: "partner_not_found" };
+
+/**
+ * Partner Ledger slice 5: partner-scoped touches ride the SAME ledger with the
+ * same contracts (idempotent sourceRef, suppressions as rows, senders require
+ * a touchId) — but none of the customer gates: opt-outs, the rolling-year cap
+ * and claim disputes are customer concepts. Demo-mute and quiet hours are
+ * enforced by the sending sweep, which logs suppression rows.
+ */
+export async function schedulePartnerTouch(input: {
+  tenantId: string;
+  partnerId: string;
+  program: string;
+  channel: string;
+  scheduledFor: Date;
+  templateVersion?: string | null;
+  sourceRef?: string | null;
+}): Promise<SchedulePartnerTouchResult> {
+  return withTenant(input.tenantId, async (tx) => {
+    const [p] = await tx.select({ id: partner.id }).from(partner)
+      .where(and(eq(partner.tenantId, input.tenantId), eq(partner.id, input.partnerId)));
+    if (!p) return { scheduled: false as const, reason: "partner_not_found" as const };
+
+    if (input.sourceRef) {
+      const [existing] = await tx.select({ id: relationshipTouch.id }).from(relationshipTouch)
+        .where(and(
+          eq(relationshipTouch.partnerId, input.partnerId),
+          eq(relationshipTouch.program, input.program),
+          eq(relationshipTouch.sourceRef, input.sourceRef),
+          isNull(relationshipTouch.suppressedReason),
+        ));
+      if (existing) return { touchId: existing.id, existing: true };
+    }
+
+    const [row] = await tx.insert(relationshipTouch).values({
+      tenantId: input.tenantId, partnerId: input.partnerId, customerId: null,
+      program: input.program, channel: input.channel, scheduledFor: input.scheduledFor,
+      templateVersion: input.templateVersion ?? null, sourceRef: input.sourceRef ?? null,
+    }).returning({ id: relationshipTouch.id });
+    return { touchId: row!.id };
   });
 }

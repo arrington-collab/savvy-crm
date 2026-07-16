@@ -48,3 +48,9 @@ export function buildPartnerExpenseLine(sumCents: number): string | null {
   const usd = (sumCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
   return `Partner expenses this week: ${usd}`;
 }
+
+/** Owner-digest line when a fresh quarterly partner artifact exists; silent otherwise. */
+export function buildPartnerQuarterlyLine(freshReports: number): string | null {
+  if (freshReports <= 0) return null;
+  return `Quarterly partner reports out (${freshReports}) — ranking at /partners/quarterly`;
+}
