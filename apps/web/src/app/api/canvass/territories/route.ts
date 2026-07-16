@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canvassTerritoryObject } from "@savvy/core";
-import { withTenant, canvassTerritory, isNotNull } from "@savvy/db";
+import { withTenant, canvassTerritory, isNotNull , listActiveTerritories } from "@savvy/db";
 import { verifyCanvassToken, bearerToken } from "@/lib/canvass-session";
 import { canvassManagerTenantId } from "@/lib/canvass-authz";
 import { canvassCors } from "@/lib/canvass-cors";
@@ -25,11 +25,10 @@ export async function GET(req: Request): Promise<NextResponse> {
   const sess = verifyCanvassToken(bearerToken(req.headers));
   const tenantId = sess?.tenantId;
   if (!tenantId) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
-  const territories = await withTenant(tenantId, (tx) =>
-    tx
-      .select({ id: canvassTerritory.id, clientId: canvassTerritory.id, name: canvassTerritory.name, color: canvassTerritory.color, points: canvassTerritory.points })
-      .from(canvassTerritory),
-  );
+  // Windowed blitz territories (Phase 26 slice 2) hide after build-end;
+  // manual territories have no window and live forever. Context carries the
+  // route note ("Roofing on <street> through Friday").
+  const territories = await listActiveTerritories(tenantId, new Date());
   return NextResponse.json({ territories }, { status: 200, headers });
 }
 

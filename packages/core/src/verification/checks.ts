@@ -892,6 +892,20 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
        and mp2.created_at < mp1.created_at + interval '60 days'`,
     { toRef: (r) => ({ type: "mail_piece", ref: String(r.id) }) },
   ),
+
+  // Phase 26 slice 2: zero creatives referencing an unconsented customer's
+  // job. A boost card carrying a photo while the job's customer has no
+  // marketing consent on file is the violation.
+  "boost.consent": invariant(
+    "boost.consent",
+    `select bc.id from boost_card bc
+      join job j on j.id = bc.job_id
+      join customer c on c.id = j.customer_id
+     where bc.tenant_id = $1
+       and bc.photo_document_id is not null
+       and c.marketing_consent_at is null`,
+    { toRef: (r) => ({ type: "boost_card", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

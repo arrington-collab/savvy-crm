@@ -6,6 +6,7 @@ import { MoveVerificationCard } from "./MoveVerificationCard";
 import { PartnerMergeCard } from "./PartnerMergeCard";
 import { PartnerGradeCard } from "./PartnerGradeCard";
 import { BlitzApprovalCard } from "./BlitzApprovalCard";
+import { BoostCard } from "./BoostCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
 import { LockedTile } from "@/components/cockpit/LockedTile";
 import { getExceptionQueue } from "@/lib/exception-queries";
@@ -97,6 +98,7 @@ export default async function TodayPage() {
       <PartnerMergeCard />
       <PartnerGradeCard />
       <BlitzApprovalCard />
+      <BoostCard />
 
       <section data-testid="portfolio-strip">
         <div className="eyebrow mb-2">Portfolio · Holding Co</div>
