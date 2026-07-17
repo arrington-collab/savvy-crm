@@ -5,9 +5,10 @@ import { z } from "zod";
 // ($29/mo equivalent) seeded as a starting point, shown editable in settings.
 
 const MAINT_COPY = {
-  offer: "Hi {firstName} — keep your roof under warranty-grade care: our annual maintenance membership includes a yearly tune-up visit with photos and a condition report. Want the details?",
-  renewal: "Hi {firstName} — your roof maintenance membership renews soon. Your annual tune-up visit comes with it; want us to get it on the calendar?",
-  winback: "Hi {firstName} — we'd love to have you back on the maintenance plan; your next tune-up visit is one text away. Want to restart?",
+  offer: "Hi {{firstName}} — keep your roof under warranty-grade care: our annual maintenance membership includes a yearly tune-up visit with photos and a condition report. Want the details?",
+  renewal: "Hi {{firstName}} — your roof maintenance membership renews soon. Your annual tune-up visit comes with it; want us to get it on the calendar?",
+  winback: "Hi {{firstName}} — we'd love to have you back on the maintenance plan; your next tune-up visit is one text away. Want to restart?",
+  report: "Hi {{firstName}} — your annual roof tune-up report is ready: {{reportUrl}}. Photos, condition notes, and anything worth watching are all in there.",
 } as const;
 
 const maintenanceConfigSchema = z.object({
@@ -18,10 +19,16 @@ const maintenanceConfigSchema = z.object({
   inspectionNoSaleAfterDays: z.number().int().min(1).catch(30).default(30),
   renewalLeadDays: z.number().int().min(1).catch(45).default(45),
   winbackAfterDays: z.number().int().min(1).catch(30).default(30),
+  // Visit sweep (#307): due after this many months since the last annual visit
+  // (or membership start), batched per day, scheduled this many days out.
+  visitDueMonths: z.number().int().min(1).catch(11).default(11),
+  visitsPerDay: z.number().int().min(1).catch(6).default(6),
+  visitLeadDays: z.number().int().min(1).catch(7).default(7),
   copy: z.object({
     offer: z.string().catch(MAINT_COPY.offer).default(MAINT_COPY.offer),
     renewal: z.string().catch(MAINT_COPY.renewal).default(MAINT_COPY.renewal),
     winback: z.string().catch(MAINT_COPY.winback).default(MAINT_COPY.winback),
+    report: z.string().catch(MAINT_COPY.report).default(MAINT_COPY.report),
   }).catch({ ...MAINT_COPY }).default({ ...MAINT_COPY }),
 });
 export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;

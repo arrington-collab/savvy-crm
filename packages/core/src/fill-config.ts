@@ -6,8 +6,8 @@ import { z } from "zod";
 // plan or a logged pass. All thresholds are Library config, not code.
 
 const FILL_COPY = {
-  discount: "Hi {firstName} — we have a crew in your area this week and can offer special pricing on your estimate if you schedule now. Interested?",
-  repair: "Hi {firstName} — we have an opening this week and can get your roof repair scheduled. Want us to lock in a day?",
+  discount: "Hi {{firstName}} — we have a crew in your area this week and can offer special pricing on your estimate if you schedule now. Interested?",
+  repair: "Hi {{firstName}} — we have an opening this week and can get your roof repair scheduled. Want us to lock in a day?",
 } as const;
 
 const slowWeekFillConfigSchema = z.object({
