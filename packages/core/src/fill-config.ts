@@ -26,3 +26,19 @@ export function parseSlowWeekFillConfig(raw: unknown): SlowWeekFillConfig {
   const r = slowWeekFillConfigSchema.safeParse(raw ?? {});
   return r.success ? r.data : FILL_DEFAULTS;
 }
+
+/** Owner-digest line for the trailing week's fill-loop activity; silent when idle. */
+export function buildFillLine(stats: {
+  gaps: number; playsSent: number; conversions: number;
+  idleCrewDaysRecovered: number; pendingCards: number;
+}): string | null {
+  if (stats.gaps <= 0 && stats.playsSent <= 0) return null;
+  const parts = [
+    `Fill: ${stats.gaps} gap${stats.gaps === 1 ? "" : "s"}`,
+    `${stats.playsSent} play${stats.playsSent === 1 ? "" : "s"}`,
+    `${stats.conversions} converted`,
+    `${stats.idleCrewDaysRecovered} crew-day${stats.idleCrewDaysRecovered === 1 ? "" : "s"} recovered`,
+  ];
+  if (stats.pendingCards > 0) parts.push(`${stats.pendingCards} discount card${stats.pendingCards === 1 ? "" : "s"} pending`);
+  return parts.join(", ");
+}
