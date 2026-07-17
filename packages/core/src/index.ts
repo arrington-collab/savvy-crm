@@ -160,3 +160,4 @@ export * from "./maintenance-config";
 export * from "./maintenance-visit";
 export * from "./strike-list";
 export * from "./roof-material";
+export * from "./spotter-precision";
