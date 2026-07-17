@@ -956,6 +956,41 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
       where vs.tenant_id = $1 and coalesce(vs.methodology_version, '') = ''`,
     { toRef: (r) => ({ type: "valuation_snapshot", ref: String(r.id) }) },
   ),
+
+  // Phase 20 S3 — registered-unbound like the rest of the expansion phases.
+
+  // Every active member is visited within 12 months: a member a year past
+  // their start with no completed maintenance visit AND nothing scheduled is
+  // a violation the sweep should have prevented.
+  "maintenance.visit_cadence": invariant(
+    "maintenance.visit_cadence",
+    `select ms.id from membership ms
+       join tenant t on t.id = ms.tenant_id
+      where ms.tenant_id = $1 and ms.status = 'active' and not t.demo
+        and ms.started_at < now() - interval '12 months'
+        and not exists (
+          select 1 from inspection i
+            join property p on p.id = i.property_id
+          where p.customer_id = ms.customer_id and i.kind = 'maintenance_annual'
+            and i.completed_at >= now() - interval '12 months'
+        )
+        and not exists (
+          select 1 from appointment a
+          where a.customer_id = ms.customer_id and a.type = 'inspection'
+            and a.status = 'scheduled' and a.starts_at > now()
+        )`,
+    { toRef: (r) => ({ type: "membership", ref: String(r.id) }) },
+  ),
+
+  // Every completed maintenance visit produces its report within 48h.
+  "maintenance.visit_report": invariant(
+    "maintenance.visit_report",
+    `select i.id from inspection i
+      where i.tenant_id = $1 and i.kind = 'maintenance_annual'
+        and i.status = 'published' and i.completed_at < now() - interval '48 hours'
+        and i.report_sent_at is null`,
+    { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

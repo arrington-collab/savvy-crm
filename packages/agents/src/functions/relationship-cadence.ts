@@ -7,7 +7,7 @@
 import {
   adminDb, withTenant, eq, and, tenant as tenantTbl, messageTemplate, communication,
   isDemoTenant, enrollCompletedJobs, extendStandingCadence, holdDuePrintTouches,
-  dueCadenceTextTouches, markTouchSent, runMaintenanceOfferSweep,
+  dueCadenceTextTouches, markTouchSent, runMaintenanceOfferSweep, runMaintenanceVisitSweep, sendDueVisitReports,
 } from "@savvy/db";
 import {
   parseFinanceConfig, parseHomeownerConfig, parseRelationshipCadenceConfig, parseMovePlayConfig,
@@ -48,6 +48,11 @@ export async function sweepTenantRelationshipCadence(
   // Phase 20 S2: schedule maintenance offers/renewals/winbacks on the same
   // daily pass — they send below through the identical governor-admitted rail.
   await runMaintenanceOfferSweep(tenantId, now);
+  // Phase 20 S3: due member visits onto the calendar (proximity-batched) and
+  // completed-visit reports out the door — the daily pass keeps the <48h
+  // report invariant with a full day to spare.
+  await runMaintenanceVisitSweep(tenantId, now);
+  await sendDueVisitReports(tenantId, now);
   const { scheduled: extended } = await extendStandingCadence(tenantId, now);
   // Holding print pieces is bookkeeping, not comms — quiet hours don't apply.
   const { held } = await holdDuePrintTouches(tenantId, now);

@@ -26,6 +26,10 @@ export const inspection = pgTable("inspection", {
   baselineInspectionId: uuid("baseline_inspection_id").references((): AnyPgColumn => inspection.id),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  // Phase 20 S3 (#308): tokenized homeowner visit-report page (maintenance
+  // kind) — minted on send; the <48h invariant reads reportSentAt.
+  reportToken: text("report_token"),
+  reportSentAt: timestamp("report_sent_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedByUserId: uuid("approved_by_user_id").references(() => user.id),
   publishedAt: timestamp("published_at", { withTimezone: true }),
