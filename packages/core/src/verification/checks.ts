@@ -991,6 +991,40 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and i.report_sent_at is null`,
     { toRef: (r) => ({ type: "inspection", ref: String(r.id) }) },
   ),
+
+  // Phase 20 S4 (#309) — members are the top Strike List tier: first contact
+  // post-storm. An active member (not opted out) whose roof falls in a verified
+  // swath that the owner APPROVED for outreach must get a storm_check contact
+  // within 24h of approval. A member overdue past that window with no timely
+  // storm_check touch for that batch is a missed Strike — the SLA the send loop
+  // (storm-reinspect-watch) should have met. A 24h grace window means a
+  // freshly-approved batch never flags. Opted-out members are excluded (an
+  // instantly-honored opt-out can't be a contact violation).
+  "maintenance.member_storm_priority": invariant(
+    "maintenance.member_storm_priority",
+    `select distinct ms.id from membership ms
+       join tenant t on t.id = ms.tenant_id
+       join customer c on c.id = ms.customer_id
+       join storm_reinspect_batch b
+         on b.tenant_id = ms.tenant_id
+        and b.status in ('approved','sent')
+        and b.approved_at is not null
+        and b.approved_at < now() - interval '24 hours'
+      where ms.tenant_id = $1 and ms.status = 'active' and not t.demo
+        and c.sms_opt_out = false
+        and exists (
+          select 1 from jsonb_array_elements(b.properties) prop
+          where prop->>'customerId' = ms.customer_id::text
+        )
+        and not exists (
+          select 1 from relationship_touch rt
+          where rt.tenant_id = ms.tenant_id and rt.customer_id = ms.customer_id
+            and rt.program = 'storm_check' and rt.sent_at is not null
+            and rt.source_ref = b.id::text || ':' || ms.customer_id::text
+            and rt.sent_at <= b.approved_at + interval '24 hours'
+        )`,
+    { toRef: (r) => ({ type: "membership", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

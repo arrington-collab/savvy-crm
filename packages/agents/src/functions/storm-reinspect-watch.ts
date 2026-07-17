@@ -9,10 +9,10 @@
 import {
   adminDb, withTenant, eq, and, customer, tenant as tenantTbl, messageTemplate,
   getBaselinedProperties, proposeStormReinspectBatch, markStormBatchSent,
-  stormReinspectBatch, isDemoTenant,
+  stormReinspectBatch, isDemoTenant, activeMemberCustomerIds,
   scheduleRelationshipTouch, markTouchSent,
 } from "@savvy/db";
-import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate } from "@savvy/core";
+import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate, strikeListOrder } from "@savvy/core";
 import { stormProof, slimStormSwaths } from "@savvy/integrations";
 import { clusterKnockCenters } from "../storm-alert";
 import { inngest } from "../client";
@@ -91,9 +91,15 @@ export async function sendStormReinspectOutreach(
     .where(and(eq(messageTemplate.tenantId, input.tenantId), eq(messageTemplate.key, STORM_OUTREACH_TEMPLATE_KEY)));
   const template = tpl?.body?.trim() || DEFAULT_OUTREACH;
 
+  // Phase 20 S4 (#309): members are the top Strike List tier — they hold a
+  // pre-authorized inspection agreement, so a verified swath over their roof is
+  // a booking waiting to happen. Reach them FIRST (invariant: member ∩ swath
+  // contacted < 24h). Wave-2 grows strikeListOrder into full cross-tier ranking.
   const props = batch.properties as { customerId: string | null; baselineAt: string }[];
+  const memberIds = await activeMemberCustomerIds(input.tenantId);
+  const ordered = strikeListOrder(props, memberIds);
   let sent = 0;
-  for (const p of props) {
+  for (const p of ordered) {
     if (!p.customerId) continue;
     // Governor: storm checks are the highest-priority program — they admit even
     // at the cap (displacing a lower touch, logged) but STILL ride the calendar.
