@@ -13,6 +13,7 @@ export { createCertRequest, bookCertRequest, deliverCertRequest, declineCertRequ
 export { generateQuarterlyPartnerReports, duePartnerEmailTouches, getPartnerReportPageData, resolvePartnerReportLink, internalQuarterlyRanking, freshQuarterlyReportCount, type PartnerReportPayload, type PartnerReportPage, type QuarterlyRanking, type DuePartnerEmailTouch } from "./lifecycle/partner-report";
 export { buildMobilizationBlitz, pendingBlitzApprovals, approveBlitzCampaign, blitzWeekStats, type BlitzResult, type PendingBlitz, type BlitzWeekStats } from "./lifecycle/mobilization-blitz";
 export { runFillSweep, fillWeekStats, pendingFillApprovals, approveFillPlay, type FillSweepResult, type FillWeekStats, type PendingFillApproval } from "./lifecycle/slow-week-fill";
+export { gatherValuationInputs, recordValuationSnapshot } from "./lifecycle/valuation";
 export { createBlitzTieIns, listActiveTerritories, blitzCanvassStats, resolveBoostCard, dueBoostCards, setMarketingConsent } from "./lifecycle/blitz-tie-ins";
 export { upsertMaterialLeftover, confirmNoLeftovers, reconcileJobMaterials, dueLeftoverPrompts, resolveMaterialReturn } from "./lifecycle/materials-reconcile";
 export { markLeadLostWithIntel, findOrCreateCompetitor, marketPricingSummary, LOST_REASONS, type LostReason, type MarketPricingArtifact } from "./lifecycle/price-intel";
