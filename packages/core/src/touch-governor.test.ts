@@ -62,6 +62,39 @@ describe("the touch governor — a customer is a relationship, not a mailing lis
   });
 
   it("the priority ladder matches the owner's order", () => {
-    expect([...TOUCH_PRIORITY]).toEqual(["storm_check", "credit_checkin", "move_play", "roofiversary", "holiday_card", "maintenance_offer"]);
+    // CFL's six keep their relative order; Phase 26 S5 slots the fill plays
+    // between move_play and the standing cadence.
+    expect([...TOUCH_PRIORITY]).toEqual([
+      "storm_check", "credit_checkin", "move_play",
+      "fill_discount", "fill_repair",
+      "roofiversary", "holiday_card", "maintenance_offer",
+    ]);
+  });
+});
+
+describe("Phase 26 S5 — fill plays ride the governor as first-class programs", () => {
+  it("ranks fill plays below the safety programs and above the standing cadence", () => {
+    const order = TOUCH_PRIORITY as readonly string[];
+    expect(order.indexOf("fill_discount")).toBeGreaterThan(order.indexOf("move_play"));
+    expect(order.indexOf("fill_repair")).toBeGreaterThan(order.indexOf("fill_discount"));
+    expect(order.indexOf("fill_repair")).toBeLessThan(order.indexOf("roofiversary"));
+  });
+
+  it("a fill play at cap displaces a scheduled lower-priority standing touch", () => {
+    const existing = [
+      touch("roofiversary", 1), touch("holiday_card", 3), touch("credit_checkin", 5), touch("storm_check", 7),
+      touch("maintenance_offer", 0, "scheduled"),
+    ];
+    const verdict = governTouchRequest(req("fill_discount"), existing, { capPerYear: 5, optOuts: {} }, NOW);
+    expect(verdict).toMatchObject({ admit: true, displace: { program: "maintenance_offer" } });
+  });
+
+  it("a fill play at cap with nothing displaceable refuses — it is not safety-critical", () => {
+    const existing = [
+      touch("roofiversary", 1), touch("holiday_card", 3), touch("credit_checkin", 5),
+      touch("storm_check", 7), touch("maintenance_offer", 9),
+    ];
+    const verdict = governTouchRequest(req("fill_discount"), existing, { capPerYear: 5, optOuts: {} }, NOW);
+    expect(verdict.admit).toBe(false);
   });
 });

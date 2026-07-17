@@ -7,6 +7,10 @@ export const TOUCH_PRIORITY = [
   "storm_check",
   "credit_checkin",
   "move_play",
+  // Phase 26 S5 fill plays: revenue-recovering, so above the standing cadence —
+  // but never safety-critical, so they refuse at cap when nothing is displaceable.
+  "fill_discount",
+  "fill_repair",
   "roofiversary",
   "holiday_card",
   "maintenance_offer",
