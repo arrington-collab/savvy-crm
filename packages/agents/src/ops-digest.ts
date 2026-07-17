@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, buildFillLine, buildValuationLine, buildValueLevers, parseValuationConfig, computeCalibration, summarizeAgentCoverage, type ValuationSnapshotResult } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, fillWeekStats, listValuationSnapshots, recordAgentRun, user, eq, and, tenant as tenantForValuation } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, buildFillLine, buildValuationLine, buildValueLevers, parseValuationConfig, buildMaintenanceLine, computeCalibration, summarizeAgentCoverage, type ValuationSnapshotResult } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, fillWeekStats, listValuationSnapshots, maintenanceChurnStats, recordAgentRun, user, eq, and, tenant as tenantForValuation } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
 import { getTenantEmail } from "./email";
@@ -41,6 +41,7 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const partnerQuarterlyLine = buildPartnerQuarterlyLine(await freshQuarterlyReportCount(tenantId, now).catch(() => 0));
   const blitzLine = buildBlitzLine(await blitzWeekStats(tenantId, now).catch(() => ({ blitzes: 0, spendCents: 0, mobilizationLeads: 0, blitzedJobs12mo: 0, mobilizationRoofs12mo: 0 })));
   const fillLine = buildFillLine(await fillWeekStats(tenantId, now).catch(() => ({ gaps: 0, playsSent: 0, conversions: 0, idleCrewDaysRecovered: 0, pendingCards: 0 })));
+  const maintenanceLine = buildMaintenanceLine(await maintenanceChurnStats(tenantId, now).catch(() => ({ activeCount: 0, newThisMonth30d: 0, canceledThisMonth30d: 0, topCancelReason: null, mrrCents: 0 })));
   // Owner's Room S3: the MONTHLY value pulse — rides the digest only on the
   // first day after a fresh snapshot lands (never a daily nag). Fail-soft.
   const valuationLine = await (async () => {
@@ -70,7 +71,7 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
       return null;
     }
   })();
-  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine, fillLine, valuationLine].filter(Boolean).join("\n");
+  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine, fillLine, maintenanceLine, valuationLine].filter(Boolean).join("\n");
   const body = `${narrative}\n\n${exceptionBlock}`;
 
   const [owner] = await adminDb

@@ -13,7 +13,10 @@ export const TOUCH_PRIORITY = [
   "fill_repair",
   "roofiversary",
   "holiday_card",
+  // Phase 20: renewal is retention (above the acquisition offer); winback last.
+  "maintenance_renewal",
   "maintenance_offer",
+  "maintenance_winback",
 ] as const;
 
 export type TouchProgram = (typeof TOUCH_PRIORITY)[number] | "referral" | "custom";

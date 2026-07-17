@@ -48,3 +48,19 @@ describe("fill copy defaults", () => {
     expect(c.copy.repair).toContain("repair");
   });
 });
+
+import { buildMaintenanceLine } from "./maintenance-config";
+
+describe("buildMaintenanceLine (Phase 20 churn watch)", () => {
+  it("is silent with no members and no churn", () => {
+    expect(buildMaintenanceLine({ activeCount: 0, newThisMonth30d: 0, canceledThisMonth30d: 0, topCancelReason: null, mrrCents: 0 })).toBeNull();
+  });
+  it("summarizes members, MRR, adds, cancels and the top reason", () => {
+    const line = buildMaintenanceLine({ activeCount: 12, newThisMonth30d: 3, canceledThisMonth30d: 2, topCancelReason: "moved", mrrCents: 34_800 });
+    expect(line).toContain("12 member");
+    expect(line).toContain("$348");
+    expect(line).toContain("+3");
+    expect(line).toContain("−2");
+    expect(line).toContain("moved");
+  });
+});

@@ -19,7 +19,7 @@ const EXTEND_HORIZON_MS = 400 * DAY;
 const SILENCE_WINDOW_MS = 548 * DAY; // 18 months
 
 // fill_discount/fill_repair (Phase 26 S5): fill plays send on the same rail.
-export const CADENCE_TEXT_PROGRAMS = ["checkin_30d", "roofiversary", "move_play", "fill_discount", "fill_repair"] as const;
+export const CADENCE_TEXT_PROGRAMS = ["checkin_30d", "roofiversary", "move_play", "fill_discount", "fill_repair", "maintenance_offer", "maintenance_renewal", "maintenance_winback"] as const;
 const PRINT_CHANNELS = ["postcard", "letter"] as const;
 
 async function cadenceConfig(tenantId: string): Promise<RelationshipCadenceConfig> {

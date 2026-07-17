@@ -15,6 +15,9 @@ export const membership = pgTable("membership", {
   // draft (no payment rail) | pending (checkout open) | active | past_due | canceled
   status: text("status").notNull().default("pending"),
   annualPriceCents: integer("annual_price_cents").notNull(),
+  // #306 conversion tracking: which offer source produced this membership.
+  // manual | post_job | inspection_no_sale | winback | debris_funnel (Wave 2)
+  source: text("source").notNull().default("manual"),
   checkoutSessionId: text("checkout_session_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   startedAt: timestamp("started_at", { withTimezone: true }),
