@@ -11,6 +11,7 @@ import {
   listOpenSentCreditRequests,
   markCreditRequestCredited,
   listAllowedDomains,
+  reconcileJobMaterials,
 } from "@savvy/db";
 import {
   matchInvoiceLines,
@@ -280,7 +281,7 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         }),
       );
     }
-    return step.run("guard", () =>
+    const guarded = await step.run("guard", () =>
       priceGuardHandler({ tenantId, supplierInvoiceId }, {
         loadInvoice: (t, id) =>
           withTenant(t, async (tx) => {
@@ -346,5 +347,18 @@ export const priceGuardSupplierInvoice = inngest.createFunction(
         raiseDraftCard: async () => {},
       }),
     );
+    // Phase 26 slice 3: guarded actuals refresh the job's material
+    // reconciliation snapshot (fail-soft — reconciliation is derived state).
+    await step.run("reconcile-materials", async () => {
+      const jobId = await withTenant(tenantId, async (tx) => {
+        const [r] = await tx.select({ jobId: supplierInvoice.jobId }).from(supplierInvoice)
+          .where(eq(supplierInvoice.id, supplierInvoiceId));
+        return r?.jobId ?? null;
+      });
+      if (!jobId) return { reconciled: false };
+      await reconcileJobMaterials(tenantId, { jobId }).catch(() => null);
+      return { reconciled: true };
+    });
+    return guarded;
   },
 );

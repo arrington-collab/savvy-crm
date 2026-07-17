@@ -906,6 +906,18 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
        and c.marketing_consent_at is null`,
     { toRef: (r) => ({ type: "boost_card", ref: String(r.id) }) },
   ),
+
+  // Phase 26 slice 3: every material return reaches credited-or-written-off
+  // within the return window (14d default) — leftover stock that just sits is
+  // margin quietly leaking back to the supplier.
+  "materials.returns_resolved": invariant(
+    "materials.returns_resolved",
+    `select mr.id from material_return mr
+      where mr.tenant_id = $1
+        and mr.status = 'pending_pickup'
+        and mr.created_at < now() - interval '14 days'`,
+    { toRef: (r) => ({ type: "material_return", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {

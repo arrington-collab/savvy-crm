@@ -30,3 +30,4 @@ export * from "./cert";
 export * from "./partner-report";
 export * from "./mail";
 export * from "./boost";
+export * from "./materials";
