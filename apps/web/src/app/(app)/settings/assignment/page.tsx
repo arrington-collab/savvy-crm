@@ -1,13 +1,13 @@
 import { getTenantId } from "@/lib/tenant";
 import { getSalesReps, getAssignmentConfig } from "@/lib/assignment-queries";
 import { LeadAssignmentSettings } from "@/components/LeadAssignmentSettings";
-import { isOrgAdmin } from "@/lib/authz";
+import { canManageSettingsNow } from "@/lib/authz";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 
 export const dynamic = "force-dynamic";
 
 export default async function AssignmentSettingsPage() {
-  if (!(await isOrgAdmin())) {
+  if (!(await canManageSettingsNow())) {
     return (
       <div className="space-y-6">
         <PageHeader eyebrow="Settings" title="Lead Assignment" />

@@ -2,7 +2,7 @@
 import { adminDb, tenant, eq } from "@savvy/db";
 import { getNangoConnection } from "@savvy/integrations";
 import { getTenantId } from "./tenant";
-import { isOrgAdmin } from "./authz";
+import { canManageSettingsNow } from "./authz";
 import { revalidatePath } from "next/cache";
 
 // Called by ConnectGmailButton after the Nango frontend SDK returns a
@@ -12,13 +12,13 @@ import { revalidatePath } from "next/cache";
 //
 // SECURITY: Before persisting, we verify with Nango (server-to-server) that the
 // caller-supplied connectionId is actually bound to THIS tenant's organization.
-// We also gate on isOrgAdmin() so only admins can change the tenant-level Gmail account.
+// We also gate on canManageSettingsNow() so only owner/admin can change the tenant-level Gmail account.
 // This prevents cross-tenant connection hijacking (IDOR via the server action).
 export async function saveGmailConnection(
   connectionId: string,
 ): Promise<{ ok: true } | { error: "missing_connection_id" | "forbidden" | "not_verified" }> {
   if (!connectionId) return { error: "missing_connection_id" as const };
-  if (!(await isOrgAdmin())) return { error: "forbidden" as const };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" as const };
 
   const tenantId = await getTenantId();
   const integrationId = process.env.NANGO_GMAIL_INTEGRATION_ID ?? "google-mail";

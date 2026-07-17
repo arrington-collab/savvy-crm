@@ -2,9 +2,12 @@
 import { approveBlitzCampaign, resolveBoostCard } from "@savvy/db";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "./current-user";
+import { canApproveMoneyNow } from "./authz";
 
 export async function approveBlitzAction(campaignId: string): Promise<{ ok: true } | { error: string }> {
   try {
+    // S6 matrix: money approvals are owner/admin only.
+    if (!(await canApproveMoneyNow())) return { error: "not allowed" };
     const { tenantId, userId } = await getCurrentUser();
     // TEST_MODE's sentinel "test-user" is not a UUID — store null (lead-note pattern).
     await approveBlitzCampaign(tenantId, { campaignId, userId: userId === "test-user" ? null : userId });
