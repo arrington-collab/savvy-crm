@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, buildFillLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, fillWeekStats, recordAgentRun, user, eq, and } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
 import { getTenantEmail } from "./email";
@@ -40,7 +40,8 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const partnerExpenseLine = buildPartnerExpenseLine(await partnerExpenseWeeklySum(tenantId, now).catch(() => 0));
   const partnerQuarterlyLine = buildPartnerQuarterlyLine(await freshQuarterlyReportCount(tenantId, now).catch(() => 0));
   const blitzLine = buildBlitzLine(await blitzWeekStats(tenantId, now).catch(() => ({ blitzes: 0, spendCents: 0, mobilizationLeads: 0, blitzedJobs12mo: 0, mobilizationRoofs12mo: 0 })));
-  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine].filter(Boolean).join("\n");
+  const fillLine = buildFillLine(await fillWeekStats(tenantId, now).catch(() => ({ gaps: 0, playsSent: 0, conversions: 0, idleCrewDaysRecovered: 0, pendingCards: 0 })));
+  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine, fillLine].filter(Boolean).join("\n");
   const body = `${narrative}\n\n${exceptionBlock}`;
 
   const [owner] = await adminDb

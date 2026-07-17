@@ -40,3 +40,11 @@ describe("buildFillLine", () => {
     expect(line).toContain("1 discount card");
   });
 });
+
+describe("fill copy defaults", () => {
+  it("ships fallback offer copy in the Library config", () => {
+    const c = parseSlowWeekFillConfig(undefined);
+    expect(c.copy.discount).toContain("this week");
+    expect(c.copy.repair).toContain("repair");
+  });
+});
