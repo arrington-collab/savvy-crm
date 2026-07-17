@@ -1,7 +1,7 @@
 import "server-only";
 import { withTenant, job, invoice, appointment, jobChecklistItem, customer, tenant, materialOrder, property, document, listUnmatchedPhotos, listFlaggedPhotos, listUnmatchedSupplierInvoices, listDraftedCreditRequests, eq, or, and, inArray, sql } from "@savvy/db";
-import { parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, STAGE_EVIDENCE_LABEL, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput, type StageEvidenceGapInput , type PaceLagInput, type CrewSilenceInput, type CrewLateInput, type ProductionBlockerInput, type EodMissingInput, type InspectionGateInput } from "@savvy/core";
-import { paceLagPhases, silentCrewDays, lateCrewAppointments, listOpenBlockers, eodGaps, waitingInspectionGates, crewEodReport } from "@savvy/db";
+import { detectValuationCards, parseJobsConfig, parseProductionConfig, missingRequiredPhotos, computeJobMargin, deriveJobHealth, buildExceptionQueue, STAGE_EVIDENCE_LABEL, type JobStage, type JobType, type ExceptionQueue, type MaterialDeliveryInput, type TaskNeedsApprovalInput, type WeatherAtRiskInput, type RoofTypeNeededInput, type MarginOutlierInput, type PhotoIncompleteInput, type PhotoUnmatchedInput, type PhotoQualityInput, type SupplierInvoiceUnmatchedInput, type CreditToReviewInput, type CreditToReconcileInput, type StageEvidenceGapInput , type PaceLagInput, type CrewSilenceInput, type CrewLateInput, type ProductionBlockerInput, type EodMissingInput, type InspectionGateInput } from "@savvy/core";
+import { paceLagPhases, silentCrewDays, lateCrewAppointments, listOpenBlockers, eodGaps, waitingInspectionGates, crewEodReport, listValuationSnapshots } from "@savvy/db";
 import { getTenantId } from "./tenant";
 
 const OPEN_STAGES: JobStage[] = ["inspected", "estimate", "approved", "production", "closeout", "billing"];
@@ -264,6 +264,25 @@ export async function getExceptionQueue(): Promise<ExceptionQueue> {
     const eodMissing: EodMissingInput[] = eodRows.map((e) => ({ jobId: e.jobId, customerName: nameOf.get(e.jobId) ?? null, dayKey }));
     const inspectionGates: InspectionGateInput[] = gateRows.map((g) => ({ jobId: g.jobId, customerName: nameOf.get(g.jobId) ?? null, phaseKey: g.phaseKey, requiredInspectionKey: g.requiredInspectionKey }));
 
-    return buildExceptionQueue({ atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile, stageEvidenceGaps, paceLags, crewSilences, crewLates, productionBlockers, eodMissing, inspectionGates });
+    // Owner's Room S3: snapshot-to-snapshot threshold cards (owner-tier kinds;
+    // visibleExceptionsFor strips them for office). Fail-soft — a valuation
+    // hiccup never blocks the worklist.
+    const valuationCards = await (async () => {
+      try {
+        const snaps = await listValuationSnapshots(tenantId, 2);
+        if (snaps.length < 2) return [];
+        const shape = (r: (typeof snaps)[number]) => ({
+          periodKey: r.periodKey, status: r.status,
+          valueLowCents: r.valueLowCents, valueLikelyCents: r.valueLikelyCents, valueHighCents: r.valueHighCents,
+          adjustments: (r.adjustments ?? []) as { key: string; deltaLow: number; deltaHigh: number; rationale: string }[],
+          inputQuality: r.inputQuality as never,
+        });
+        return detectValuationCards(shape(snaps[0]!), shape(snaps[1]!));
+      } catch {
+        return [];
+      }
+    })();
+
+    return buildExceptionQueue({ valuationCards, atRiskJobs, overdueInvoices, missedAppointments, overdueTasks, materialDeliveries, taskNeedsApprovals, weatherAtRisks, roofTypeNeeded, marginOutliers, photoIncomplete, photoUnmatched, photoQuality, supplierInvoicesUnmatched, creditsToReview, creditsToReconcile, stageEvidenceGaps, paceLags, crewSilences, crewLates, productionBlockers, eodMissing, inspectionGates });
   });
 }

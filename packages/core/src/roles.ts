@@ -13,6 +13,9 @@ export const OWNER_TIER_KINDS: ReadonlySet<string> = new Set([
   "supplier_invoice_unmatched",
   "supplier_credit_review",
   "supplier_credit_reconcile",
+  // Owner's Room S3: valuation never leaves the owner tier (house rule).
+  "valuation_move",
+  "valuation_input_degraded",
 ]);
 
 export function canApproveMoney(role: string): boolean {
