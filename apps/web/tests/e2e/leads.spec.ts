@@ -58,9 +58,12 @@ test("leads: list, filter, detail, convert, mark lost", async ({ page }) => {
   await page.goto("/leads?status=won");
   await expect(page.locator(`[data-testid="lead-row"][data-lead-id="${newId}"]`)).toBeVisible();
 
-  // Mark the contacted lead lost -> read-only.
+  // Mark the contacted lead lost: the intel capture is optional and never blocks —
+  // confirming with nothing entered still closes the lead -> read-only.
   await page.goto(`/leads/${contactedId}`);
   await page.getByTestId("mark-lost").click();
+  await expect(page.getByTestId("lost-intel")).toBeVisible();
+  await page.getByTestId("confirm-lost").click();
   await expect(page.getByTestId("lead-actions-readonly")).toBeVisible();
   const [lost] = await withTenant(tenantId, (tx) => tx.select().from(lead).where(eq(lead.id, contactedId)));
   expect(lost!.status).toBe("lost");
