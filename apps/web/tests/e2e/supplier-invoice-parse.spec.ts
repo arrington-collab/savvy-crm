@@ -10,7 +10,7 @@ import { test, expect, request } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import {
   adminDb, tenant, customer, property, job, estimate, materialOrder, supplierInvoice, document, withTenant, eq,
-} from "@savvy/db";
+, materialReconciliation, materialReturn, materialLeftover } from "@savvy/db";
 
 async function waitFor<T>(fn: () => Promise<T | undefined>, ms = 30_000): Promise<T> {
   const start = Date.now();
@@ -72,6 +72,10 @@ test("a received supplier invoice is parsed into actuals and updates job.costCen
   await adminDb.delete(document).where(eq(document.tenantId, tenantId));
   await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
   await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
+  // Phase 26 slice 3: the guard fn auto-reconciles materials after parse — clear its rows before job
+  await adminDb.delete(materialReturn).where(eq(materialReturn.tenantId, tenantId));
+  await adminDb.delete(materialLeftover).where(eq(materialLeftover.tenantId, tenantId));
+  await adminDb.delete(materialReconciliation).where(eq(materialReconciliation.tenantId, tenantId));
   await adminDb.delete(job).where(eq(job.tenantId, tenantId));
   await adminDb.delete(property).where(eq(property.tenantId, tenantId));
   await adminDb.delete(customer).where(eq(customer.tenantId, tenantId));

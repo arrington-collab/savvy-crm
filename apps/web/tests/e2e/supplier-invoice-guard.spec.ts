@@ -12,7 +12,7 @@ import { test, expect, request } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
-  adminDb, tenant, customer, property, job, estimate, materialOrder,
+  adminDb, tenant, customer, property, job, estimate, materialOrder, materialReconciliation, materialReturn, materialLeftover,
   priceBookItem, supplierInvoice, creditRequest, agentRun, document,
   verificationRun, taskRegistry, supplierAllowlist, withTenant, eq,
 } from "@savvy/db";
@@ -153,6 +153,10 @@ test("price-guard: guarded invoice creates credit request; credit memo marks it 
     await adminDb.delete(creditRequest).where(eq(creditRequest.tenantId, tenantId));
     await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.tenantId, tenantId));
     await adminDb.delete(document).where(eq(document.tenantId, tenantId));
+    // Phase 26 slice 3: the guard fn auto-reconciles materials — clear its rows before job
+    await adminDb.delete(materialReturn).where(eq(materialReturn.tenantId, tenantId));
+    await adminDb.delete(materialLeftover).where(eq(materialLeftover.tenantId, tenantId));
+    await adminDb.delete(materialReconciliation).where(eq(materialReconciliation.tenantId, tenantId));
     await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
     await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
     await adminDb.delete(job).where(eq(job.tenantId, tenantId));
@@ -241,6 +245,10 @@ test("price-guard: non-matching supplier allow-list drafts credit request instea
     await adminDb.delete(creditRequest).where(eq(creditRequest.tenantId, tenantId));
     await adminDb.delete(supplierInvoice).where(eq(supplierInvoice.tenantId, tenantId));
     await adminDb.delete(document).where(eq(document.tenantId, tenantId));
+    // Phase 26 slice 3: the guard fn auto-reconciles materials — clear its rows before job
+    await adminDb.delete(materialReturn).where(eq(materialReturn.tenantId, tenantId));
+    await adminDb.delete(materialLeftover).where(eq(materialLeftover.tenantId, tenantId));
+    await adminDb.delete(materialReconciliation).where(eq(materialReconciliation.tenantId, tenantId));
     await adminDb.delete(materialOrder).where(eq(materialOrder.tenantId, tenantId));
     await adminDb.delete(estimate).where(eq(estimate.tenantId, tenantId));
     await adminDb.delete(job).where(eq(job.tenantId, tenantId));
