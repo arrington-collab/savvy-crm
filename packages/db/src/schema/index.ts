@@ -35,3 +35,5 @@ export * from "./competitor";
 export * from "./fill";
 export * from "./valuation";
 export * from "./membership";
+
+export * from "./strike-list";

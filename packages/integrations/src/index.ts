@@ -28,3 +28,7 @@ export {
   mapMaricopaRoofCover, normalizeMaricopaParcel,
   type AssessorFeed, type AssessorParcel, type MaricopaRawParcel,
 } from "./assessor-feed";
+export {
+  spotterFeed, makeDormantSpotterFeed, makeFakeSpotterFeed,
+  type SpotterFeed, type SpotterPin,
+} from "./spotter-feed";
