@@ -31,3 +31,4 @@ commit-canvass.sh
 packages/db/provisioning/*.json
 !packages/db/provisioning/*.example.json
 packages/db/provisioning/*.complete.json
+.env*.local
