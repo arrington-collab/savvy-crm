@@ -35,6 +35,9 @@ export const priceBookItem = pgTable("price_book_item", {
   unitCostCents: integer("unit_cost_cents").notNull().default(0),
   sourceFields: jsonb("source_fields").$type<string[]>().default([]).notNull(),
   wasteApplies: boolean("waste_applies").notNull().default(false),
+  // Phase 26 slice 3: returnable SKUs generate return/pickup tasks for leftover stock.
+  returnable: boolean("returnable").notNull().default(false),
+  restockingFeePct: integer("restocking_fee_pct"),
   packSize: integer("pack_size").notNull().default(1),
   // Quantity formula beyond the plain sourceFields sum: sum | ice_water | disposal | fixed.
   qtyFormula: text("qty_formula"),
