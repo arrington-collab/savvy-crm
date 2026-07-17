@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { adminDb, customer, property, job, estimate, appointment, materialOrder, eq } from "@savvy/db";
@@ -10,13 +10,25 @@ const LINE_ITEMS = [
   { key: "labor", name: "Install", category: "labor", unit: "square", quantity: 30, unitPriceCents: 9000, amountCents: 270000 },
 ];
 
-async function waitFor<T>(fn: () => Promise<T | undefined>, ms = 15_000): Promise<T> {
+// Click `btn`, then poll `probe` for the effect in the DB; re-click if nothing
+// landed. Next dev serves the page before hydration attaches onClick handlers,
+// and Fast Refresh rebuilds (lazy route compilation) can remount the tree
+// mid-test — either window leaves the button visible but inert, so a single
+// click can be silently eaten (CI 2026-07-17, run 29554888047 attempt 1: click
+// recorded with ZERO resulting requests, twice). Re-clicking is safe because
+// both material-order mutations are idempotent (unique estimate_id index on
+// generate; status re-stamp on advance).
+async function clickForEffect<T>(btn: Locator, probe: () => Promise<T | undefined>, ms = 60_000): Promise<T> {
   const start = Date.now();
   for (;;) {
-    const v = await fn();
-    if (v) return v;
-    if (Date.now() - start > ms) throw new Error("timed out");
-    await new Promise((r) => setTimeout(r, 300));
+    await btn.click();
+    const windowEnd = Math.min(Date.now() + 5_000, start + ms);
+    while (Date.now() < windowEnd) {
+      const v = await probe();
+      if (v) return v;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    if (Date.now() - start >= ms) throw new Error("timed out: click never produced the expected effect");
   }
 }
 
@@ -32,9 +44,8 @@ test("materials: generate from estimate -> shows material line only -> advance s
 
   await page.goto(`/jobs/${jobId}`);
   await expect(page.getByTestId("job-detail")).toBeVisible();
-  await page.getByTestId("generate-material-order-btn").click();
 
-  const order = await waitFor(async () => {
+  const order = await clickForEffect(page.getByTestId("generate-material-order-btn"), async () => {
     const [row] = await adminDb.select().from(materialOrder).where(eq(materialOrder.jobId, jobId));
     return row ?? undefined;
   });
@@ -46,8 +57,7 @@ test("materials: generate from estimate -> shows material line only -> advance s
   await expect(page.getByTestId("material-order")).toBeVisible();
   await expect(page.getByTestId("material-order-line")).toHaveCount(1);
 
-  await page.getByTestId("advance-material-order-btn").click();
-  await waitFor(async () => {
+  await clickForEffect(page.getByTestId("advance-material-order-btn"), async () => {
     const [row] = await adminDb.select().from(materialOrder).where(eq(materialOrder.id, order.id));
     return row?.status === "ordered" && row.orderedAt ? row : undefined;
   });
