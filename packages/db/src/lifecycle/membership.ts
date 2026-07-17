@@ -120,6 +120,16 @@ export async function maintenanceMrrCents(tenantId: string): Promise<number> {
   return rows.reduce((s, r) => s + monthlyEquivalentCents(r.annualPriceCents), 0);
 }
 
+/** Phase 20 S4 (#309): the top Strike List tier — customer ids with an ACTIVE
+ *  membership. Post-storm outreach orders these first (they hold a
+ *  pre-authorized inspection agreement). Draft/pending/canceled are excluded. */
+export async function activeMemberCustomerIds(tenantId: string): Promise<Set<string>> {
+  const rows = await withTenant(tenantId, (tx) =>
+    tx.select({ customerId: membership.customerId }).from(membership)
+      .where(and(eq(membership.tenantId, tenantId), eq(membership.status, "active"))));
+  return new Set(rows.map((r) => r.customerId));
+}
+
 /** Has this tenant ever touched the product? (valuation honesty: unused ⇒ 'missing') */
 export async function membershipProgramUsed(tenantId: string): Promise<boolean> {
   const rows = await withTenant(tenantId, (tx) =>

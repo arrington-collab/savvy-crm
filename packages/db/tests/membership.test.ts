@@ -6,7 +6,7 @@ import { tenant } from "../src/schema/tenancy";
 import { makeTenant, makeLeadWithCustomer } from "./helpers";
 import {
   startMembershipCheckout, activateMembershipFromCheckout, cancelMembership,
-  maintenanceMrrCents,
+  maintenanceMrrCents, activeMemberCustomerIds,
 } from "../src/lifecycle/membership";
 import { gatherValuationInputs } from "../src/lifecycle/valuation";
 
@@ -107,5 +107,37 @@ describe("MRR — the valuation engine's missing input becomes real", () => {
 
     const inputsB = await gatherValuationInputs(tenantId, NOW);
     expect(inputsB.maintenanceMrrCents).toEqual({ value: 2900, quality: "real" });
+  });
+});
+
+describe("activeMemberCustomerIds — the top Strike List tier (Phase 20 S4 #309)", () => {
+  it("returns only customers with an ACTIVE membership (draft/pending/canceled excluded)", async () => {
+    const { tenantId } = await makeTenant();
+    await connectStripe(tenantId);
+    const active = await makeLeadWithCustomer(tenantId);
+    const pending = await makeLeadWithCustomer(tenantId);
+    const canceled = await makeLeadWithCustomer(tenantId);
+
+    // active
+    await startMembershipCheckout(tenantId, { customerId: active.customerId, stripe: fakeStripe });
+    const [aRow] = await adminDb.select().from(membership)
+      .where(and(eq(membership.tenantId, tenantId), eq(membership.customerId, active.customerId)));
+    await activateMembershipFromCheckout(tenantId, { checkoutSessionId: aRow!.checkoutSessionId!, stripeSubscriptionId: "sub_a", now: NOW });
+
+    // pending (never activated)
+    await startMembershipCheckout(tenantId, { customerId: pending.customerId, stripe: fakeStripe });
+
+    // canceled
+    await startMembershipCheckout(tenantId, { customerId: canceled.customerId, stripe: fakeStripe });
+    const [cRow] = await adminDb.select().from(membership)
+      .where(and(eq(membership.tenantId, tenantId), eq(membership.customerId, canceled.customerId)));
+    await activateMembershipFromCheckout(tenantId, { checkoutSessionId: cRow!.checkoutSessionId!, stripeSubscriptionId: "sub_c", now: NOW });
+    await cancelMembership(tenantId, { membershipId: cRow!.id, reason: "moved", stripe: fakeStripe, now: NOW });
+
+    const ids = await activeMemberCustomerIds(tenantId);
+    expect(ids.has(active.customerId)).toBe(true);
+    expect(ids.has(pending.customerId)).toBe(false);
+    expect(ids.has(canceled.customerId)).toBe(false);
+    expect(ids.size).toBe(1);
   });
 });
