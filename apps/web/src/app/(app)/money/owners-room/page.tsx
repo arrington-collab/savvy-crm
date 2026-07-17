@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOwnersRoom } from "@/lib/valuation-queries";
+import { ValuationAskSage } from "./ValuationAskSage";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
 
@@ -59,6 +60,11 @@ export default async function OwnersRoomPage() {
 
   return (
     <div className="space-y-6" data-testid="owners-room-page">
+      <ValuationAskSage snapshot={{
+        status: latest.status, periodKey: latest.periodKey,
+        valueLowCents: latest.valueLowCents, valueHighCents: latest.valueHighCents,
+        adjustments, reasons: latest.reasons as string[] | null,
+      }} />
       <PageHeader eyebrow="Money · Owner's Room" title="What the company could sell for" />
       <p className="mono -mt-4 text-xs" style={{ color: "var(--text-faint)" }}>{CAPTION}</p>
 

@@ -36,6 +36,7 @@ const KIND_LABEL: Record<string, string> = {
   supplier_invoice_unmatched: "Unmatched invoice",
   supplier_credit_review: "Credit request",
   supplier_credit_reconcile: "Reconcile credit",
+  valuation_move: "Valuation", valuation_input_degraded: "Valuation input",
   comms_deliverability: "SMS deliverability",
 };
 

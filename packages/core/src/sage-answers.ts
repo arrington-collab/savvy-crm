@@ -76,3 +76,40 @@ export function buildTaskHealthAnswer(d: TaskHealthLite): SageAnswer[] {
     },
   ];
 }
+
+/** "get_valuation(latest)" — what's the company worth, and why. Owner's Room S3. */
+export function buildValuationAnswers(snapshot: {
+  status: string;
+  periodKey: string;
+  valueLowCents: number | null;
+  valueHighCents: number | null;
+  adjustments: { key: string; rationale: string }[];
+  reasons?: string[] | null;
+}): SageAnswer[] {
+  const usdM = (c: number) => {
+    const m = c / 100_000_000;
+    return m >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(c / 100_000)}K`;
+  };
+  const actions = [{ label: "Open the Owner's Room", href: "/money/owners-room" }];
+
+  if (snapshot.status !== "ok" || snapshot.valueLowCents == null || snapshot.valueHighCents == null) {
+    return [{
+      q: "What's my company worth?",
+      answer:
+        "Not enough real operating data to price honestly yet — " +
+        `${(snapshot.reasons ?? []).join("; ") || "critical inputs are missing"}. ` +
+        "The room shows a range only when it comes from your data, never placeholders.",
+      actions,
+    }];
+  }
+
+  const ledger = snapshot.adjustments.map((a) => a.rationale).join(" · ");
+  return [{
+    q: "What's my company worth?",
+    answer:
+      `Planning range ${usdM(snapshot.valueLowCents)} – ${usdM(snapshot.valueHighCents)} as of ${snapshot.periodKey}, ` +
+      `from your operating data: ${ledger || "base multiple only"}. ` +
+      "This is not an appraisal or financial advice.",
+    actions,
+  }];
+}

@@ -50,3 +50,10 @@ describe("SPEC RED PATH: owner-tier cards never render for office", () => {
     expect(seen).toHaveLength(1);
   });
 });
+
+describe("Owner's Room S3 — valuation cards are owner-tier", () => {
+  it("office never sees valuation cards", () => {
+    const seen = visibleExceptionsFor("office", [item("valuation_move"), item("valuation_input_degraded"), item("appointment_missed")]);
+    expect(seen.map((i) => i.kind)).toEqual(["appointment_missed"]);
+  });
+});

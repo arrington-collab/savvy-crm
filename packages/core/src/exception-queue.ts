@@ -1,6 +1,6 @@
 import { materialDeliveryFlag } from "./material-order";
 
-export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile" | "stage_evidence" | "production_pace_lag" | "production_silence" | "production_crew_late" | "production_blocker" | "production_eod_missing" | "inspection_gate";
+export type ExceptionKind = "job_at_risk" | "invoice_overdue" | "appointment_missed" | "task_overdue" | "material_delivery" | "task_needs_approval" | "weather_at_risk" | "roof_type_needed" | "margin_outlier" | "photo_incomplete" | "photo_unmatched" | "photo_quality" | "supplier_invoice_unmatched" | "supplier_credit_review" | "supplier_credit_reconcile" | "stage_evidence" | "production_pace_lag" | "production_silence" | "production_crew_late" | "production_blocker" | "production_eod_missing" | "inspection_gate" | "valuation_move" | "valuation_input_degraded";
 export type ExceptionSeverity = "high" | "medium";
 
 export type ExceptionItem = {
@@ -53,6 +53,8 @@ export type ExceptionQueueInput = {
   productionBlockers?: ProductionBlockerInput[];
   eodMissing?: EodMissingInput[];
   inspectionGates?: InspectionGateInput[];
+  /** Owner's Room S3: pre-shaped threshold cards from detectValuationCards. */
+  valuationCards?: { kind: "valuation_move" | "valuation_input_degraded"; severity: "medium"; title: string; detail: string; href: string }[];
   marginOutliers?: MarginOutlierInput[];
   photoIncomplete?: PhotoIncompleteInput[];
   photoUnmatched?: PhotoUnmatchedInput[];
@@ -78,6 +80,10 @@ function dollars(cents: number | null): string {
 /** Normalize the four exception vectors into one severity-sorted worklist. Pure. */
 export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue {
   const items: ExceptionItem[] = [];
+
+  for (const v of input.valuationCards ?? []) {
+    items.push({ kind: v.kind, severity: v.severity, title: v.title, detail: v.detail, href: v.href, occurredAt: null });
+  }
 
   for (const p of input.paceLags ?? []) {
     items.push({

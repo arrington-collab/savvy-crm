@@ -1,5 +1,5 @@
-import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, buildFillLine, computeCalibration, summarizeAgentCoverage } from "@savvy/core";
-import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, fillWeekStats, recordAgentRun, user, eq, and } from "@savvy/db";
+import { buildDigestMessage, buildRecoveryLine, buildCalibrationLine, buildPartnerExpenseLine, buildPartnerQuarterlyLine, buildBlitzLine, buildFillLine, buildValuationLine, buildValueLevers, parseValuationConfig, computeCalibration, summarizeAgentCoverage, type ValuationSnapshotResult } from "@savvy/core";
+import { adminDb, computeTaskExceptions, getCreditRecoverySummary, getCalibrationInputs, loadAgentCoverageWindow, partnerExpenseWeeklySum, freshQuarterlyReportCount, blitzWeekStats, fillWeekStats, listValuationSnapshots, recordAgentRun, user, eq, and, tenant as tenantForValuation } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
 import { getTenantSms } from "./telephony";
 import { getTenantEmail } from "./email";
@@ -41,7 +41,36 @@ export async function sendTenantDigest(tenantId: string, deps: DigestDeps = {}):
   const partnerQuarterlyLine = buildPartnerQuarterlyLine(await freshQuarterlyReportCount(tenantId, now).catch(() => 0));
   const blitzLine = buildBlitzLine(await blitzWeekStats(tenantId, now).catch(() => ({ blitzes: 0, spendCents: 0, mobilizationLeads: 0, blitzedJobs12mo: 0, mobilizationRoofs12mo: 0 })));
   const fillLine = buildFillLine(await fillWeekStats(tenantId, now).catch(() => ({ gaps: 0, playsSent: 0, conversions: 0, idleCrewDaysRecovered: 0, pendingCards: 0 })));
-  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine, fillLine].filter(Boolean).join("\n");
+  // Owner's Room S3: the MONTHLY value pulse — rides the digest only on the
+  // first day after a fresh snapshot lands (never a daily nag). Fail-soft.
+  const valuationLine = await (async () => {
+    try {
+      const snaps = await listValuationSnapshots(tenantId, 5);
+      const latest = snaps[0];
+      if (!latest || now.getTime() - latest.computedAt.getTime() > 24 * 3_600_000) return null;
+      const shape = (r: typeof latest) => ({
+        periodKey: r.periodKey, status: r.status,
+        valueLowCents: r.valueLowCents, valueLikelyCents: r.valueLikelyCents, valueHighCents: r.valueHighCents,
+        adjustments: (r.adjustments ?? []) as { key: string; deltaLow: number; deltaHigh: number; rationale: string }[],
+        inputQuality: r.inputQuality as never,
+      });
+      const prior = snaps.slice(3).find((sn) => sn.status === "ok") ?? snaps[1] ?? null;
+      const [t] = await adminDb.select({ settings: tenantForValuation.settings }).from(tenantForValuation).where(eq(tenantForValuation.id, tenantId));
+      const config = parseValuationConfig((t?.settings as { valuation?: unknown } | null)?.valuation);
+      const levers = buildValueLevers({
+        ...shape(latest), reasons: undefined, sdeCents: latest.sdeCents, bandKey: null,
+        baseMultipleLow: 0, baseMultipleHigh: 0,
+        multipleLow: latest.multipleLow ?? 0, multipleHigh: latest.multipleHigh ?? 0,
+        inputQuality: (latest.inputQuality ?? { real: 0, estimated: 0, missing: 0, flags: {} }) as ValuationSnapshotResult["inputQuality"],
+        methodologyVersion: latest.methodologyVersion,
+        status: latest.status as "ok" | "insufficient_data",
+      }, config);
+      return buildValuationLine(shape(latest), prior ? shape(prior) : null, levers);
+    } catch {
+      return null;
+    }
+  })();
+  const exceptionBlock = [msg.body, recoveryLine, calibrationLine, partnerExpenseLine, partnerQuarterlyLine, blitzLine, fillLine, valuationLine].filter(Boolean).join("\n");
   const body = `${narrative}\n\n${exceptionBlock}`;
 
   const [owner] = await adminDb

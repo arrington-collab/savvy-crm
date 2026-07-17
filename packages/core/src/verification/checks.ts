@@ -918,6 +918,44 @@ export const evidenceChecks: Record<string, EvidenceCheck> = {
         and mr.created_at < now() - interval '14 days'`,
     { toRef: (r) => ({ type: "material_return", ref: String(r.id) }) },
   ),
+
+  // Owner's Room S3 — registered-unbound (Owner's Room tasks live outside the
+  // 214-task registry, same as Phase 26; the sweep still runs these).
+
+  // The monthly snapshot cron is alive: every non-demo tenant has a snapshot
+  // computed inside the last 35 days.
+  "valuation.snapshot_cadence": invariant(
+    "valuation.snapshot_cadence",
+    `select t.id from tenant t
+      where t.id = $1 and not t.demo
+        and not exists (
+          select 1 from valuation_snapshot vs
+          where vs.tenant_id = t.id and vs.computed_at >= now() - interval '35 days'
+        )`,
+    { toRef: (r) => ({ type: "tenant", ref: String(r.id) }) },
+  ),
+
+  // The honesty rule as an invariant: zero ok-status snapshots rendered with
+  // null values or missing-flagged critical inputs — placeholder valuations
+  // are structurally impossible, not just untested.
+  "valuation.no_placeholder": invariant(
+    "valuation.no_placeholder",
+    `select vs.id from valuation_snapshot vs
+      where vs.tenant_id = $1 and vs.status = 'ok'
+        and (vs.value_low_cents is null or vs.value_high_cents is null
+          or vs.input_quality #>> '{flags,ttmRevenueCents}' = 'missing'
+          or vs.input_quality #>> '{flags,ttmGrossMarginPct}' = 'missing')`,
+    { toRef: (r) => ({ type: "valuation_snapshot", ref: String(r.id) }) },
+  ),
+
+  // Every snapshot carries the methodology version that produced it — a config
+  // change can never silently rewrite what a historical number meant.
+  "valuation.methodology_current": invariant(
+    "valuation.methodology_current",
+    `select vs.id from valuation_snapshot vs
+      where vs.tenant_id = $1 and coalesce(vs.methodology_version, '') = ''`,
+    { toRef: (r) => ({ type: "valuation_snapshot", ref: String(r.id) }) },
+  ),
 };
 
 export function getCheck(checkKey: string): EvidenceCheck | undefined {
