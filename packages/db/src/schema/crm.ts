@@ -73,6 +73,12 @@ export const lead = pgTable("lead", {
   // Partner Ledger: attribution FK — partner-class sources (realtor/
   // insurance_agent/partner) must carry this (partner.attribution invariant).
   partnerId: uuid("partner_id").references(() => partner.id),
+  // Phase 26 slice 4 (#349): OPTIONAL win/loss price intel — captured on the
+  // lost flow when reason='price'; never required, never blocks the close.
+  lostReason: text("lost_reason"), // price|timing|went_dark|not_interested|other
+  lostAt: timestamp("lost_at", { withTimezone: true }),
+  competitorBidCents: integer("competitor_bid_cents"),
+  competitorId: uuid("competitor_id"),
   status: leadStatusEnum("status").notNull().default("new"),
   stormCertStatus: stormCertStatusEnum("storm_cert_status").notNull().default("pending"),
   stormCheckedAt: timestamp("storm_checked_at", { withTimezone: true }),

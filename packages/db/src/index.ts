@@ -14,6 +14,7 @@ export { generateQuarterlyPartnerReports, duePartnerEmailTouches, getPartnerRepo
 export { buildMobilizationBlitz, pendingBlitzApprovals, approveBlitzCampaign, blitzWeekStats, type BlitzResult, type PendingBlitz, type BlitzWeekStats } from "./lifecycle/mobilization-blitz";
 export { createBlitzTieIns, listActiveTerritories, blitzCanvassStats, resolveBoostCard, dueBoostCards, setMarketingConsent } from "./lifecycle/blitz-tie-ins";
 export { upsertMaterialLeftover, confirmNoLeftovers, reconcileJobMaterials, dueLeftoverPrompts, resolveMaterialReturn } from "./lifecycle/materials-reconcile";
+export { markLeadLostWithIntel, findOrCreateCompetitor, marketPricingSummary, LOST_REASONS, type LostReason, type MarketPricingArtifact } from "./lifecycle/price-intel";
 export { upsertCanvassKnock, isCanvassManager, isCanvassRepActive, type CanvassKnockUpsert } from "./lifecycle/canvass-knock";
 export { unlockAchievements, listAchievementKeys } from "./lifecycle/canvass-achievement";
 export { createChallenge, acceptChallenge, setChallengeStatus, listChallenges, standingsFor, settleDueChallenges, type ChallengeRow, type CreateChallengeArgs } from "./lifecycle/canvass-challenge";

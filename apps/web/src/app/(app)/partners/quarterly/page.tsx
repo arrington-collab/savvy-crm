@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/cockpit/PageHeader";
-import { internalQuarterlyRanking } from "@savvy/db";
+import { internalQuarterlyRanking, marketPricingSummary } from "@savvy/db";
 import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
@@ -20,6 +20,7 @@ function usd(cents: number): string {
 export default async function PartnersQuarterlyPage() {
   const tenantId = await getTenantId();
   const art = await internalQuarterlyRanking(tenantId, new Date());
+  const market = await marketPricingSummary(tenantId, new Date()).catch(() => null);
 
   return (
     <div className="space-y-5" data-testid="partners-quarterly-page">
@@ -68,6 +69,26 @@ export default async function PartnersQuarterlyPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {market && (
+        <Card className="p-4" data-testid="market-pricing">
+          <div className="eyebrow mb-2">
+            Market pricing · {market.captures} captured bids · capture rate {market.captureRatePct}% (target, not a gate)
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {market.byArea.map((a) => (
+              <div key={a.area} className="rounded-md border p-3" style={{ borderColor: "var(--border-panel)" }}>
+                <div className="font-medium">{a.area}</div>
+                <div className="mono mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  us ${(a.avgOurBidCents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })} · them $
+                  {(a.avgCompetitorBidCents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  {a.avgDeltaPct != null ? ` · ${a.avgDeltaPct > 0 ? "+" : ""}${a.avgDeltaPct}%` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       <Card className="overflow-x-auto p-0" data-testid="quarterly-table">
