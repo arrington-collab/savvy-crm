@@ -743,6 +743,13 @@
       "when": 1784254850798,
       "tag": "0105_price_intel",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1784261328309,
+      "tag": "0106_slow_week_fill",
+      "breakpoints": true
     }
   ]
 }
