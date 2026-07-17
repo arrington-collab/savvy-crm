@@ -146,3 +146,4 @@ export {
   movePlayGaps, transfersMissingRecord,
   type MoveSignalResult, type RegisterTransferResult,
 } from "./lifecycle/move-play";
+export { startMembershipCheckout, activateMembershipFromCheckout, cancelMembership, maintenanceMrrCents, membershipProgramUsed } from "./lifecycle/membership";

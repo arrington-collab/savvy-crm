@@ -2,6 +2,7 @@ import "server-only";
 import { withTenant, invoice, payment, job, commission, inArray, gte, and, eq, sql } from "@savvy/db";
 import { bucketArAging, computeMtdGrossMargin, type ArAging } from "@savvy/core";
 import { getTenantId } from "./tenant";
+import { maintenanceMrrCents, membershipProgramUsed } from "@savvy/db";
 
 const WEEK_MS = 7 * 86_400_000;
 // WIP = value committed but not yet closed/paid (approved through billing).
@@ -14,6 +15,8 @@ export type MoneyKpis = {
   gmMtdPct: number | null; // real MTD gross margin from job cost actuals; null → "—" when no costed job invoiced this month
   aging: ArAging;
   commissions: { pendingCents: number; approvedCents: number; paidCents: number };
+  /** Phase 20: monthly-equivalent recurring revenue from active memberships; null = program unused. */
+  mrrCents: number | null;
 };
 
 export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
@@ -76,6 +79,7 @@ export async function getMoneyKpis(now: Date = new Date()): Promise<MoneyKpis> {
 
   return {
     cashWkCents: Number(cashRows[0]?.total ?? 0),
+    mrrCents: (await membershipProgramUsed(tenantId)) ? await maintenanceMrrCents(tenantId) : null,
     wipCents: Number(wipRows[0]?.total ?? 0),
     wipJobs: Number(wipRows[0]?.n ?? 0),
     gmMtdPct,

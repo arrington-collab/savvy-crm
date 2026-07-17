@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripeGateway, makeFakeStripe } from "@savvy/integrations";
-import { recordStripePayment, recordEstimateDeposit } from "@savvy/db";
+import { recordStripePayment, recordEstimateDeposit, activateMembershipFromCheckout, cancelMembership } from "@savvy/db";
 import { inngest } from "@savvy/agents";
 import { log } from "@/lib/log";
 
@@ -20,9 +20,34 @@ export async function POST(req: Request): Promise<NextResponse> {
     return new NextResponse("bad signature", { status: 400 });
   }
 
+  // Phase 20: a Stripe-side subscription cancel (dashboard/dunning) closes the
+  // membership with reason 'stripe' — the churn watch still sees it.
+  if (evt.type === "customer.subscription.deleted") {
+    const sub = evt.data.object as { id?: string; metadata?: { membershipId?: string; tenantId?: string } };
+    if (sub.metadata?.tenantId && sub.metadata.membershipId) {
+      await cancelMembership(sub.metadata.tenantId, {
+        membershipId: sub.metadata.membershipId, reason: "stripe",
+        // Already canceled on Stripe's side — nothing to release there.
+        stripe: { createSubscriptionCheckout: async () => ({ id: "", url: "", subscriptionId: null }), cancelSubscription: async () => ({ canceled: true }) },
+      }).catch((e) => log.error("membership stripe-cancel reconcile failed", { route: "/api/stripe/webhook", msg: String(e) }));
+    }
+    return NextResponse.json({ received: true });
+  }
+
   const isSuccess = evt.type === "checkout.session.completed" || evt.type === "checkout.session.async_payment_succeeded";
   if (!isSuccess) return NextResponse.json({ received: true });
   log.info("stripe webhook received", { route: "/api/stripe/webhook", event: evt.type });
+
+  // Phase 20: subscription-mode checkout completing activates the membership.
+  {
+    const s = evt.data.object as { id?: string; subscription?: string; metadata?: { membershipId?: string; tenantId?: string } };
+    if (evt.type === "checkout.session.completed" && s.metadata?.membershipId && s.metadata.tenantId && s.id && s.subscription) {
+      await activateMembershipFromCheckout(s.metadata.tenantId, {
+        checkoutSessionId: s.id, stripeSubscriptionId: s.subscription,
+      }).catch((e) => log.error("membership activation failed", { route: "/api/stripe/webhook", msg: String(e) }));
+      return NextResponse.json({ received: true });
+    }
+  }
 
   const session = evt.data.object as {
     id?: string; payment_intent?: string; amount_total?: number;

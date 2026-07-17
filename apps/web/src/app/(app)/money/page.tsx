@@ -57,6 +57,7 @@ export default async function MoneyPage() {
         <Kpi label="Cash · wk" value={kpis.cashWkCents > 0 ? usdK(kpis.cashWkCents) : "—"} />
         <Kpi label="WIP value" value={kpis.wipCents > 0 ? usdK(kpis.wipCents) : "—"} sub={kpis.wipJobs > 0 ? `${kpis.wipJobs} job${kpis.wipJobs === 1 ? "" : "s"}` : undefined} />
         <Kpi label="GM · MTD" value={kpis.gmMtdPct != null ? `${kpis.gmMtdPct}%` : "est —"} tip="Month-to-date gross margin from supplier-invoice cost actuals" testId="kpi-gm-mtd" />
+        <Kpi label="MRR" value={kpis.mrrCents != null ? usd(kpis.mrrCents) : "—"} tip="Monthly-equivalent recurring revenue from active maintenance memberships" testId="kpi-mrr" />
         <Kpi label="AR outstanding" value={aging.totalCents > 0 ? usdK(aging.totalCents) : "—"} />
       </div>
 
