@@ -11,7 +11,7 @@ import {
 } from "@savvy/db";
 import {
   parseFinanceConfig, parseHomeownerConfig, parseRelationshipCadenceConfig, parseMovePlayConfig,
-  isWithinQuietHours, hourInTimeZone, renderTemplate,
+  parseSlowWeekFillConfig, isWithinQuietHours, hourInTimeZone, renderTemplate,
 } from "@savvy/core";
 import { inngest } from "../client";
 import { getTenantSms } from "../telephony";
@@ -20,6 +20,9 @@ export const RELATIONSHIP_TEMPLATE_KEYS = {
   checkin_30d: "relationship-checkin-30d",
   roofiversary: "relationship-roofiversary",
   move_play: "relationship-move-play",
+  // Phase 26 S5: fill plays send on this rail (governor-admitted touches only).
+  fill_discount: "fill-discount-offer",
+  fill_repair: "fill-repair-offer",
 } as const;
 
 export async function sweepTenantRelationshipCadence(
@@ -33,6 +36,7 @@ export async function sweepTenantRelationshipCadence(
   const settings = t?.settings as { finance?: unknown; homeowner?: unknown; relationship?: unknown; movePlay?: unknown } | null;
   const cfg = parseRelationshipCadenceConfig(settings?.relationship);
   const moveCfg = parseMovePlayConfig(settings?.movePlay);
+  const fillCfg = parseSlowWeekFillConfig((settings as { slowWeekFill?: unknown } | null)?.slowWeekFill);
   if (!cfg.enabled) return { enrolled: 0, extended: 0, sent: 0, held: 0 };
 
   const { enrolled } = await enrollCompletedJobs(tenantId, now);
@@ -55,6 +59,8 @@ export async function sweepTenantRelationshipCadence(
     const fallback =
       program === "checkin_30d" ? cfg.copy.checkin30d
       : program === "move_play" ? moveCfg.copy.playA
+      : program === "fill_discount" ? fillCfg.copy.discount
+      : program === "fill_repair" ? fillCfg.copy.repair
       : cfg.copy.roofiversary;
     const body = renderTemplate(tpl?.body?.trim() || fallback, {
       firstName: d.name.split(/\s+/)[0] ?? d.name,
@@ -64,9 +70,11 @@ export async function sweepTenantRelationshipCadence(
     const { sender, from } = await deps.getTenantSms(tenantId);
     await sender.sendSms({ to: d.phone, from, body });
     await markTouchSent({ tenantId, touchId: d.touchId });
-    // checkin/roofiversary sourceRefs are job-anchored (`${jobId}:…`);
-    // move_play is anchored on a move_event, so no jobId to log against.
-    const jobId = program === "move_play" ? null : d.sourceRef?.split(":")[0] ?? null;
+    // checkin/roofiversary sourceRefs are job-anchored (`${jobId}:…`); move_play
+    // (move_event) and fill plays (estimate/credit) have no jobId to log against.
+    const jobId = program === "checkin_30d" || program === "roofiversary"
+      ? d.sourceRef?.split(":")[0] ?? null
+      : null;
     await withTenant(tenantId, (tx) => tx.insert(communication).values({
       tenantId, jobId, customerId: d.customerId, channel: "sms", direction: "outbound",
       to: d.phone, body, aiHandled: false,

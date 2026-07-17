@@ -148,4 +148,7 @@ export * from "./delivery-touches";
 export * from "./touch-governor";
 export * from "./relationship-cadence";
 export * from "./move-play";
+export * from "./fill-config";
+export * from "./fill-discount";
+export * from "./fill-gaps";
 export * from "./roles";
