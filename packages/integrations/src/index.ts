@@ -23,3 +23,8 @@ export { distance, httpDistance, makeFakeDistance, fakeDriveMinutes, type Distan
 export { voice, httpVapi, makeFakeVoice, makeHttpVapi, verifyVapiCreds, type VoiceGateway, type VapiApiCreds } from "./vapi";
 export { httpForecastNws, makeFakeForecast, forecast, type ForecastGateway, type DailyForecast } from "./forecast";
 export { dormantFinancing, makeFakeFinancing, type FinancingProvider } from "./financing";
+export {
+  assessorFeed, makeDormantAssessorFeed, makeFakeAssessorFeed, makeMaricopaAssessorFeed,
+  mapMaricopaRoofCover, normalizeMaricopaParcel,
+  type AssessorFeed, type AssessorParcel, type MaricopaRawParcel,
+} from "./assessor-feed";

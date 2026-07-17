@@ -51,6 +51,16 @@ export const property = pgTable("property", {
   roofPitch: text("roof_pitch"),
   yearBuilt: integer("year_built"),
   roofTypeSecondary: text("roof_type_secondary"),
+  // Strike List slice 1 — structured, precedence-ranked roof material for
+  // pre-storm targeting (finer than roofType; see @savvy/core ROOF_MATERIAL_VALUES).
+  // roofMaterialSource ranks inspection>spotter>assessor>cv_pilot>inference; the
+  // single write path (setPropertyRoofMaterial) never lets a lower source clobber
+  // a higher one. subdivision anchors #260 inference clustering (parcelId/yearBuilt
+  // already exist above and are reused).
+  roofMaterial: text("roof_material"),
+  roofMaterialSource: text("roof_material_source"),
+  roofMaterialConfidence: doublePrecision("roof_material_confidence"),
+  subdivision: text("subdivision"),
   lastRoofReplacementAt: date("last_roof_replacement_at"),
   lastRoofReplacementSource: text("last_roof_replacement_source"),
   stories: integer("stories"),
