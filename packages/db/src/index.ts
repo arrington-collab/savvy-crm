@@ -147,5 +147,6 @@ export {
   type MoveSignalResult, type RegisterTransferResult,
 } from "./lifecycle/move-play";
 export { startMembershipCheckout, activateMembershipFromCheckout, cancelMembership, maintenanceMrrCents, membershipProgramUsed, activeMemberCustomerIds } from "./lifecycle/membership";
+export { setPropertyRoofMaterial } from "./lifecycle/roof-material";
 export { runMaintenanceOfferSweep, maintenanceChurnStats, type MaintenanceSweepResult, type MaintenanceChurnStats } from "./lifecycle/maintenance-offers";
 export { runMaintenanceVisitSweep, sendDueVisitReports, getVisitReport, type VisitSweepResult, type ReportSendResult, type VisitReportData } from "./lifecycle/maintenance-visits";
