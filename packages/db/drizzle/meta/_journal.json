@@ -750,6 +750,13 @@
       "when": 1784261328309,
       "tag": "0106_slow_week_fill",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1784265926041,
+      "tag": "0107_valuation_snapshot",
+      "breakpoints": true
     }
   ]
 }
