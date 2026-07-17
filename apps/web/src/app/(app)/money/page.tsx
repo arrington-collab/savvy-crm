@@ -16,6 +16,7 @@ function usdK(cents: number): string {
 }
 
 const DRILLDOWNS = [
+  { href: "/money/owners-room", label: "Owner's Room" },
   { href: "/invoices", label: "Invoices" },
   { href: "/commissions", label: "Commissions" },
   { href: "/billing", label: "Billing" },

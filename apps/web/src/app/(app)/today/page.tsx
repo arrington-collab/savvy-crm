@@ -19,6 +19,7 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { Odometer } from "@/components/odometer/Odometer";
 import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete, describeOdometer, visibleExceptionsFor } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
+import { getPortfolioValuationLine } from "@/lib/valuation-queries";
 import { A2P_REGISTRATION_STEPS } from "@/lib/deliverability-copy";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
@@ -69,6 +70,9 @@ export default async function TodayPage() {
     getOnboardingStatus(),
   ]);
   const showChecklist = !onboarding.state.dismissed && !isOnboardingComplete(onboarding.steps);
+  // Owner's Room S2: the empire scoreboard line — valuation is owner-tier, so
+  // it loads only when the viewer isn't office (never fetched, not just hidden).
+  const valuationLine = role !== "office" ? await getPortfolioValuationLine().catch(() => null) : null;
 
   // S6 matrix: office runs the day (scheduling, doc chasing, collections) but
   // owner-tier cards — money approvals, break-glass, dollars-at-risk — never
@@ -128,6 +132,11 @@ export default async function TodayPage() {
               <span>Cash wk <b style={{ color: "var(--text-body)" }}>{money.cashWkCents > 0 ? usdK(money.cashWkCents) : "—"}</b></span>
               <span>AR <b style={{ color: "var(--text-body)" }}>{money.arTotalCents > 0 ? usdK(money.arTotalCents) : "—"}</b></span>
               <span style={{ color: "var(--accent-gold)" }}>{coverage.openExceptions} exceptions</span>
+              {valuationLine && (
+                <Link href="/money/owners-room" data-testid="portfolio-valuation">
+                  Value <b style={{ color: "var(--text-body)" }}>{valuationLine}</b>
+                </Link>
+              )}
             </div>
           </Card>
           {/* Illustrative — the multi-tenant vision. No numbers: onboarding a tenant lights its map. */}

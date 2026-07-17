@@ -5,7 +5,7 @@ import { job } from "../src/schema/jobs";
 import { invoice } from "../src/schema/finance";
 import { valuationSnapshot } from "../src/schema/valuation";
 import { makeTenant, makeJobWithCustomer } from "./helpers";
-import { gatherValuationInputs, recordValuationSnapshot } from "../src/lifecycle/valuation";
+import { gatherValuationInputs, listValuationSnapshots, recordValuationSnapshot } from "../src/lifecycle/valuation";
 
 const NOW = new Date("2026-07-01T15:00:00Z");
 const PERIOD = "2026-06";
@@ -93,5 +93,17 @@ describe("recordValuationSnapshot — the honesty trail persists", () => {
     const rows = await adminDb.select().from(valuationSnapshot)
       .where(and(eq(valuationSnapshot.tenantId, tenantId), eq(valuationSnapshot.periodKey, PERIOD)));
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe("listValuationSnapshots", () => {
+  it("returns newest-first history for the trend line and quarterly delta", async () => {
+    const { tenantId } = await makeTenant();
+    await recordValuationSnapshot(tenantId, "2026-04", new Date("2026-05-01T15:00:00Z"));
+    await recordValuationSnapshot(tenantId, "2026-05", new Date("2026-06-01T15:00:00Z"));
+    await recordValuationSnapshot(tenantId, "2026-06", NOW);
+
+    const snaps = await listValuationSnapshots(tenantId, 2);
+    expect(snaps.map((s) => s.periodKey)).toEqual(["2026-06", "2026-05"]);
   });
 });
