@@ -11,6 +11,7 @@ import { lead } from "../schema/crm";
 import { tenantOpsRollup } from "../schema/task-registry";
 import { tenant as tenantTbl } from "../schema/tenancy";
 import { valuationSnapshot } from "../schema/valuation";
+import { maintenanceMrrCents, membershipProgramUsed } from "./membership";
 
 // Owner's Room slice 1 — input gathering. Every input carries its true
 // quality: real (measured), estimated (derived from a subset), or missing
@@ -112,12 +113,19 @@ export async function gatherValuationInputs(tenantId: string, asOf: Date): Promi
 
     const [t] = await adminDb.select({ qbo: tenantTbl.qboConnectionId }).from(tenantTbl).where(eq(tenantTbl.id, tenantId));
 
+    // MRR is 'real' only for tenants that actually use the membership program —
+    // an untouched tenant stays honestly 'missing' (widened range), never a
+    // synthetic $0 that narrows the range without a real signal.
+    const mrrInput = (await membershipProgramUsed(tenantId))
+      ? q(await maintenanceMrrCents(tenantId), "real")
+      : q(null, "missing");
+
     return {
       ttmMonths,
       ttmRevenueCents,
       ttmGrossMarginPct,
       insuranceMixPct,
-      maintenanceMrrCents: q(null, "missing"), // Phase 20 unbuilt — honest gap
+      maintenanceMrrCents: mrrInput, // Phase 20: real once the tenant uses the program
       topCustomerPct,
       topLeadSourcePct,
       coveragePct,

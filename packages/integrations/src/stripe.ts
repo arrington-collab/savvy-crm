@@ -14,6 +14,14 @@ export interface StripeGateway {
   // Cell 8 reconciliation: total funds collected (succeeded charges) in cents on
   // a connected account within [since, until). Read-only.
   collectedCents(o: { connectedAccountId: string; since: Date; until: Date }): Promise<{ cents: number }>;
+  // Phase 20: annual tune-up membership — hosted checkout in subscription mode
+  // (inline price_data, yearly interval), and cancellation on the connected account.
+  createSubscriptionCheckout(o: {
+    connectedAccountId: string; annualAmountCents: number; currency?: string;
+    tenantId: string; membershipId: string; description: string;
+    successUrl: string; cancelUrl: string; customerEmail?: string;
+  }): Promise<{ id: string; url: string; subscriptionId: string | null }>;
+  cancelSubscription(o: { connectedAccountId: string; subscriptionId: string }): Promise<{ canceled: boolean }>;
 }
 
 function client(): Stripe {
@@ -39,6 +47,28 @@ export const stripeGateway: StripeGateway = {
       ...(o.customerEmail ? { customer_email: o.customerEmail } : {}),
     }, { stripeAccount: o.connectedAccountId });
     return { id: session.id, url: session.url ?? "", paymentIntentId: (session.payment_intent as string | null) ?? null };
+  },
+  async createSubscriptionCheckout(o) {
+    const session = await client().checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: o.currency ?? "usd", unit_amount: o.annualAmountCents,
+          recurring: { interval: "year" },
+          product_data: { name: o.description },
+        },
+      }],
+      metadata: { membershipId: o.membershipId, tenantId: o.tenantId },
+      subscription_data: { metadata: { membershipId: o.membershipId, tenantId: o.tenantId } },
+      success_url: o.successUrl, cancel_url: o.cancelUrl,
+      ...(o.customerEmail ? { customer_email: o.customerEmail } : {}),
+    }, { stripeAccount: o.connectedAccountId });
+    return { id: session.id, url: session.url ?? "", subscriptionId: (session.subscription as string | null) ?? null };
+  },
+  async cancelSubscription(o) {
+    await client().subscriptions.cancel(o.subscriptionId, {}, { stripeAccount: o.connectedAccountId });
+    return { canceled: true };
   },
   constructWebhookEvent(rawBody, signature) {
     const evt = client().webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET ?? "");
@@ -77,6 +107,15 @@ export function makeFakeStripe(): StripeGateway & { calls: Array<Record<string, 
     async collectedCents(o) {
       calls.push({ op: "collected", ...o });
       return { cents: 0 };
+    },
+    async createSubscriptionCheckout(o) {
+      calls.push({ op: "subscription_checkout", ...o });
+      const id = `cs_sub_fake_${++n}`;
+      return { id, url: `https://checkout.stripe.test/${id}`, subscriptionId: null };
+    },
+    async cancelSubscription(o) {
+      calls.push({ op: "cancel_subscription", ...o });
+      return { canceled: true };
     },
   };
 }
