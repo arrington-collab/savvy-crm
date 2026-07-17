@@ -216,6 +216,62 @@ export async function runFillSweep(tenantId: string, now = new Date()): Promise<
   });
 }
 
+export type PendingFillApproval = {
+  playId: string; targetRef: string; discountBps: number | null;
+  originalTotalCents: number | null; discountedTotalCents: number | null; createdAt: Date;
+};
+
+/** Over-threshold discount plays awaiting the owner/admin card (S6 matrix). */
+export async function pendingFillApprovals(tenantId: string): Promise<PendingFillApproval[]> {
+  return withTenant(tenantId, (tx) =>
+    tx.select({
+      playId: fillPlay.id, targetRef: fillPlay.targetRef, discountBps: fillPlay.discountBps,
+      originalTotalCents: fillPlay.originalTotalCents, discountedTotalCents: fillPlay.discountedTotalCents,
+      createdAt: fillPlay.createdAt,
+    }).from(fillPlay)
+      .where(and(eq(fillPlay.tenantId, tenantId), eq(fillPlay.status, "pending_approval"))));
+}
+
+/**
+ * Owner/admin approval releases the offer — still THROUGH the governor (an
+ * approval can't bypass opt-outs or the cap; a refusal resolves the card as
+ * suppressed with the ledger row as evidence).
+ */
+export async function approveFillPlay(
+  tenantId: string,
+  input: { playId: string; userId: string | null },
+): Promise<{ ok: true } | { error: string }> {
+  const play = await withTenant(tenantId, async (tx) => {
+    const [p] = await tx.select({ id: fillPlay.id, targetRef: fillPlay.targetRef, status: fillPlay.status })
+      .from(fillPlay).where(and(eq(fillPlay.tenantId, tenantId), eq(fillPlay.id, input.playId)));
+    return p ?? null;
+  });
+  if (!play || play.status !== "pending_approval") return { error: "not pending" };
+
+  const customerId = await withTenant(tenantId, async (tx) => {
+    const [est] = await tx.select({ leadId: estimate.leadId }).from(estimate).where(eq(estimate.id, play.targetRef));
+    if (!est?.leadId) return null;
+    const [l] = await tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, est.leadId));
+    return l?.customerId ?? null;
+  });
+  if (!customerId) return { error: "no customer" };
+
+  const now = new Date();
+  const verdict = await scheduleRelationshipTouch({
+    tenantId, customerId, program: "fill_discount", channel: "text", scheduledFor: now,
+    sourceRef: `fill_discount:${play.targetRef}`, now,
+  });
+  const refused = "scheduled" in verdict && verdict.scheduled === false;
+  await withTenant(tenantId, (tx) =>
+    tx.update(fillPlay).set({
+      status: refused ? "suppressed" : "sent",
+      suppressedReason: refused ? verdict.reason : null,
+      resolvedAt: now,
+      resolvedByUserId: input.userId,
+    }).where(eq(fillPlay.id, play.id)));
+  return { ok: true };
+}
+
 export type FillWeekStats = {
   gaps: number; playsSent: number; conversions: number;
   idleCrewDaysRecovered: number; pendingCards: number;

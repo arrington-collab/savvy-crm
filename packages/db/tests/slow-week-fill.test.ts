@@ -10,7 +10,7 @@ import { customer } from "../src/schema/crm";
 import { tenant } from "../src/schema/tenancy";
 import { repairCredit } from "../src/schema/inspection";
 import { makeTenant, makeLeadWithCustomer } from "./helpers";
-import { fillWeekStats, runFillSweep } from "../src/lifecycle/slow-week-fill";
+import { approveFillPlay, fillWeekStats, pendingFillApprovals, runFillSweep } from "../src/lifecycle/slow-week-fill";
 import { dueCadenceTextTouches } from "../src/lifecycle/relationship-enrollment";
 
 // Wednesday noon UTC — the look-ahead window has plenty of workdays.
@@ -239,5 +239,54 @@ describe("fill offers ride the existing text-send rail", () => {
 
     const due = await dueCadenceTextTouches(tenantId, new Date(NOW.getTime() + 60_000));
     expect(due.some((d) => d.program === "fill_discount")).toBe(true);
+  });
+});
+
+describe("fill approval card (S6 matrix: owner/admin approve)", () => {
+  async function seedPendingPlay(tenantId: string) {
+    await seedIdleCrew(tenantId);
+    const { customerId } = await seedAgingEstimate(tenantId);
+    await setFillConfig(tenantId, { discountBps: 1500, maxAutoDiscountBps: 1000 });
+    await runFillSweep(tenantId, NOW);
+    const [play] = await adminDb.select().from(fillPlay)
+      .where(and(eq(fillPlay.tenantId, tenantId), eq(fillPlay.status, "pending_approval")));
+    return { playId: play!.id, customerId };
+  }
+
+  it("lists pending fill approvals with the money context the card needs", async () => {
+    const { tenantId } = await makeTenant();
+    const { playId } = await seedPendingPlay(tenantId);
+
+    const pending = await pendingFillApprovals(tenantId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ playId, discountBps: 1500 });
+    expect(pending[0]!.discountedTotalCents!).toBeLessThan(pending[0]!.originalTotalCents!);
+  });
+
+  it("approving releases the offer through the governor and resolves the card", async () => {
+    const { tenantId } = await makeTenant();
+    const { playId, customerId } = await seedPendingPlay(tenantId);
+
+    const r = await approveFillPlay(tenantId, { playId, userId: null });
+    expect(r).toEqual({ ok: true });
+
+    const [play] = await adminDb.select().from(fillPlay).where(eq(fillPlay.id, playId));
+    expect(play!.status).toBe("sent");
+    expect(play!.resolvedAt).not.toBeNull();
+    const touches = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.tenantId, tenantId), eq(relationshipTouch.customerId, customerId)));
+    expect(touches.some((t) => t.program === "fill_discount" && !t.suppressedReason)).toBe(true);
+  });
+
+  it("approving an opted-out customer's play records the suppression instead of sending", async () => {
+    const { tenantId } = await makeTenant();
+    const { playId, customerId } = await seedPendingPlay(tenantId);
+    await adminDb.update(customer).set({ smsOptOut: true }).where(eq(customer.id, customerId));
+
+    await approveFillPlay(tenantId, { playId, userId: null });
+
+    const [play] = await adminDb.select().from(fillPlay).where(eq(fillPlay.id, playId));
+    expect(play!.status).toBe("suppressed");
+    expect(play!.suppressedReason).toBe("opt_out");
   });
 });

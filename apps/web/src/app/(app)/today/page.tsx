@@ -6,6 +6,7 @@ import { MoveVerificationCard } from "./MoveVerificationCard";
 import { PartnerMergeCard } from "./PartnerMergeCard";
 import { PartnerGradeCard } from "./PartnerGradeCard";
 import { BlitzApprovalCard } from "./BlitzApprovalCard";
+import { FillApprovalCard } from "./FillApprovalCard";
 import { BoostCard } from "./BoostCard";
 import { LeftoverCard } from "./LeftoverCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
@@ -111,6 +112,7 @@ export default async function TodayPage() {
       {!isOffice && <PartnerMergeCard />}
       {!isOffice && <PartnerGradeCard />}
       {!isOffice && <BlitzApprovalCard />}
+      {!isOffice && <FillApprovalCard />}
       <BoostCard />
       <LeftoverCard />
 
