@@ -1,5 +1,5 @@
 "use server";
-import { withTenant, convertLeadToJob, setLeadOwner, setLeadLost, markLeadContacted, addLeadNote, property, eq } from "@savvy/db";
+import { withTenant, convertLeadToJob, setLeadOwner, markLeadLostWithIntel, markLeadContacted, addLeadNote, property, eq, type LostReason } from "@savvy/db";
 import { leadIntakeSchema, ROOF_TYPE_VALUES, ROOF_REPLACEMENT_SOURCE_VALUES } from "@savvy/core";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
@@ -57,10 +57,13 @@ export async function assignLeadOwner(
 
 export async function markLeadLost(
   leadId: string,
+  intel?: { reason?: LostReason; competitorBidCents?: number; competitorName?: string },
 ): Promise<{ ok: true } | { error: string }> {
   const tenantId = await getTenantId();
   try {
-    await withTenant(tenantId, (tx) => setLeadLost(tx, { tenantId, leadId }));
+    // Phase 26 slice 4: optional win/loss price intel rides along — a bare
+    // call is unchanged, and nothing here can block the close.
+    await markLeadLostWithIntel(tenantId, { leadId, ...intel });
     try { await inngest.send({ name: "lead/disqualified", data: { leadId, tenantId } }); } catch (e) { console.error(e); }
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/leads");
