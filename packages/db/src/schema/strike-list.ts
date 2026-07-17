@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, doublePrecision, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, boolean, doublePrecision, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
 import { property } from "./crm";
@@ -27,5 +27,23 @@ export const spotterPin = pgTable("spotter_pin", {
 }, (t) => [
   uniqueIndex("spotter_pin_tenant_external_uq").on(t.tenantId, t.externalId),
   index("spotter_pin_tenant_property_idx").on(t.tenantId, t.matchedPropertyId),
+  tenantIsolation(),
+]);
+
+// Strike List slice 4 (#269/#270) — Turf Score per neighborhood. Monthly the
+// scorer fills our_completed_jobs (recency-weighted) over parcel_count; crossing
+// the threshold emits a "neighbors chose us" campaign. One row per (tenant,
+// name) — the monthly sweep updates in place.
+export const neighborhood = pgTable("neighborhood", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
+  name: text("name").notNull(), // subdivision / plat name
+  parcelCount: integer("parcel_count").notNull().default(0),
+  ourCompletedJobs: integer("our_completed_jobs").notNull().default(0),
+  turfScore: doublePrecision("turf_score").notNull().default(0),
+  lastScoredAt: timestamp("last_scored_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("neighborhood_tenant_name_uq").on(t.tenantId, t.name),
   tenantIsolation(),
 ]);
