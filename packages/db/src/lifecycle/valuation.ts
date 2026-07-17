@@ -165,3 +165,12 @@ export async function recordValuationSnapshot(tenantId: string, periodKey: strin
       },
     }));
 }
+
+/** Newest-first snapshot history (trend line, quarterly delta). */
+export async function listValuationSnapshots(tenantId: string, limit = 13) {
+  return withTenant(tenantId, (tx) =>
+    tx.select().from(valuationSnapshot)
+      .where(eq(valuationSnapshot.tenantId, tenantId))
+      .orderBy(sql`${valuationSnapshot.periodKey} desc`)
+      .limit(limit));
+}
