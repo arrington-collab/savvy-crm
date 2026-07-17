@@ -67,7 +67,8 @@ describe("the touch governor — a customer is a relationship, not a mailing lis
     expect([...TOUCH_PRIORITY]).toEqual([
       "storm_check", "credit_checkin", "move_play",
       "fill_discount", "fill_repair",
-      "roofiversary", "holiday_card", "maintenance_offer",
+      "roofiversary", "holiday_card",
+      "maintenance_renewal", "maintenance_offer", "maintenance_winback",
     ]);
   });
 });

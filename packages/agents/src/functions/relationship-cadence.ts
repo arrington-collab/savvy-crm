@@ -7,11 +7,11 @@
 import {
   adminDb, withTenant, eq, and, tenant as tenantTbl, messageTemplate, communication,
   isDemoTenant, enrollCompletedJobs, extendStandingCadence, holdDuePrintTouches,
-  dueCadenceTextTouches, markTouchSent,
+  dueCadenceTextTouches, markTouchSent, runMaintenanceOfferSweep,
 } from "@savvy/db";
 import {
   parseFinanceConfig, parseHomeownerConfig, parseRelationshipCadenceConfig, parseMovePlayConfig,
-  parseSlowWeekFillConfig, isWithinQuietHours, hourInTimeZone, renderTemplate,
+  parseSlowWeekFillConfig, parseMaintenanceConfig, isWithinQuietHours, hourInTimeZone, renderTemplate,
 } from "@savvy/core";
 import { inngest } from "../client";
 import { getTenantSms } from "../telephony";
@@ -23,6 +23,10 @@ export const RELATIONSHIP_TEMPLATE_KEYS = {
   // Phase 26 S5: fill plays send on this rail (governor-admitted touches only).
   fill_discount: "fill-discount-offer",
   fill_repair: "fill-repair-offer",
+  // Phase 20 S2: maintenance program offers/renewals/winbacks.
+  maintenance_offer: "maintenance-offer",
+  maintenance_renewal: "maintenance-renewal",
+  maintenance_winback: "maintenance-winback",
 } as const;
 
 export async function sweepTenantRelationshipCadence(
@@ -37,9 +41,13 @@ export async function sweepTenantRelationshipCadence(
   const cfg = parseRelationshipCadenceConfig(settings?.relationship);
   const moveCfg = parseMovePlayConfig(settings?.movePlay);
   const fillCfg = parseSlowWeekFillConfig((settings as { slowWeekFill?: unknown } | null)?.slowWeekFill);
+  const maintCfg = parseMaintenanceConfig((settings as { maintenance?: unknown } | null)?.maintenance);
   if (!cfg.enabled) return { enrolled: 0, extended: 0, sent: 0, held: 0 };
 
   const { enrolled } = await enrollCompletedJobs(tenantId, now);
+  // Phase 20 S2: schedule maintenance offers/renewals/winbacks on the same
+  // daily pass — they send below through the identical governor-admitted rail.
+  await runMaintenanceOfferSweep(tenantId, now);
   const { scheduled: extended } = await extendStandingCadence(tenantId, now);
   // Holding print pieces is bookkeeping, not comms — quiet hours don't apply.
   const { held } = await holdDuePrintTouches(tenantId, now);
@@ -61,6 +69,9 @@ export async function sweepTenantRelationshipCadence(
       : program === "move_play" ? moveCfg.copy.playA
       : program === "fill_discount" ? fillCfg.copy.discount
       : program === "fill_repair" ? fillCfg.copy.repair
+      : program === "maintenance_offer" ? maintCfg.copy.offer
+      : program === "maintenance_renewal" ? maintCfg.copy.renewal
+      : program === "maintenance_winback" ? maintCfg.copy.winback
       : cfg.copy.roofiversary;
     const body = renderTemplate(tpl?.body?.trim() || fallback, {
       firstName: d.name.split(/\s+/)[0] ?? d.name,

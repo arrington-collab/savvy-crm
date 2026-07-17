@@ -21,7 +21,7 @@ type SubscriptionStripe = {
 
 export async function startMembershipCheckout(
   tenantId: string,
-  input: { customerId: string; stripe: SubscriptionStripe; baseUrl?: string },
+  input: { customerId: string; stripe: SubscriptionStripe; baseUrl?: string; source?: string },
 ): Promise<{ url: string; membershipId: string } | { error: string; membershipId: string }> {
   const [t] = await adminDb.select({ settings: tenantTbl.settings, stripeAccountId: tenantTbl.stripeAccountId })
     .from(tenantTbl).where(eq(tenantTbl.id, tenantId));
@@ -41,12 +41,14 @@ export async function startMembershipCheckout(
     if (!t?.stripeAccountId) {
       const membershipId = existing?.id ?? (await tx.insert(membership).values({
         tenantId, customerId: input.customerId, status: "draft", annualPriceCents: cfg.annualPriceCents,
+        source: input.source ?? "manual",
       }).returning({ id: membership.id }))[0]!.id;
       return { error: "stripe not connected — membership parked as draft", membershipId };
     }
 
     const membershipId = existing?.id ?? (await tx.insert(membership).values({
       tenantId, customerId: input.customerId, status: "pending", annualPriceCents: cfg.annualPriceCents,
+      source: input.source ?? "manual",
     }).returning({ id: membership.id }))[0]!.id;
 
     const base = input.baseUrl ?? process.env.APP_BASE_URL ?? "http://localhost:3000";
