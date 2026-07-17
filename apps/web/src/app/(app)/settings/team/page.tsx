@@ -1,12 +1,12 @@
 import { listTeam } from "@/lib/team-queries";
-import { isOrgAdmin } from "@/lib/authz";
+import { canManageSettingsNow } from "@/lib/authz";
 import { PageHeader } from "@/components/cockpit/PageHeader";
 import { TeamManager } from "./TeamManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamSettingsPage() {
-  if (!(await isOrgAdmin())) {
+  if (!(await canManageSettingsNow())) {
     return (
       <div className="space-y-6">
         <PageHeader eyebrow="Settings" title="Team" />

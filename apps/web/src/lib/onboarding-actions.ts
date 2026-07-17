@@ -8,12 +8,12 @@ import {
 import { BILLING_BANDS, parseFinanceConfig } from "@savvy/core";
 import { getTenantId } from "./tenant";
 import { getOnboardingStatus } from "./onboarding-queries";
-import { isOrgAdmin } from "./authz";
+import { canManageSettingsNow } from "./authz";
 
 type Result = { ok: true } | { error: string };
 
 export async function completeWelcome(companyName: string): Promise<Result> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const name = companyName.trim();
   if (!name) return { error: "company name required" };
   const tenantId = await getTenantId();
@@ -24,7 +24,7 @@ export async function completeWelcome(companyName: string): Promise<Result> {
 }
 
 export async function saveProfile(input: { revenueBand: string; timezone: string }): Promise<Result> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   if (!BILLING_BANDS.some((b) => b.key === input.revenueBand)) return { error: "invalid band" };
   // parseFinanceConfig validates the IANA timezone (throws on bad zone).
   let timezone: string;
@@ -46,7 +46,7 @@ export async function saveProfile(input: { revenueBand: string; timezone: string
 // the optional steps nag later via the Today onboarding card. Fixes the 2026-07-06
 // lockout loop where skip navigated away without ever writing requiredCompletedAt.
 export async function skipOnboarding(): Promise<Result> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const { tenantName } = await getOnboardingStatus();
   await setOnboardingRequiredComplete({ tenantId, name: tenantName });
@@ -56,7 +56,7 @@ export async function skipOnboarding(): Promise<Result> {
 }
 
 export async function dismissChecklist(): Promise<Result> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   await dismissOnboarding({ tenantId });
   revalidatePath("/today");

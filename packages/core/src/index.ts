@@ -151,3 +151,4 @@ export * from "./move-play";
 export * from "./fill-config";
 export * from "./fill-discount";
 export * from "./fill-gaps";
+export * from "./roles";

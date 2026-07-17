@@ -1,14 +1,26 @@
 import "server-only";
-import { auth } from "@clerk/nextjs/server";
+import { canApproveMoney, canManageSettings } from "@savvy/core";
+import { getCurrentUser } from "./current-user";
 
 /**
- * True if the caller is an org admin (or in TEST_MODE e2e, which has no Clerk
- * session). Server actions are independently callable HTTP endpoints, so any
- * privileged/credential-mutating action MUST call this — never rely on the UI
- * route being admin-only.
+ * Phase 26 S6: gates run on the SAVVY role (user.role), not the Clerk org role
+ * — the two diverge (see the S6a audit; this replaced isOrgAdmin). Server
+ * actions are independently callable HTTP endpoints, so any privileged/
+ * credential-mutating action MUST call these itself — never rely on the UI
+ * route being scoped. TEST_MODE e2e resolves to role "owner" in getCurrentUser.
  */
-export async function isOrgAdmin(): Promise<boolean> {
-  if (process.env.TEST_MODE === "1") return true;
-  const { orgRole } = await auth();
-  return orgRole === "org:admin";
+export async function canApproveMoneyNow(): Promise<boolean> {
+  try {
+    return canApproveMoney((await getCurrentUser()).role);
+  } catch {
+    return false; // unauthenticated / no org context ⇒ never privileged
+  }
+}
+
+export async function canManageSettingsNow(): Promise<boolean> {
+  try {
+    return canManageSettings((await getCurrentUser()).role);
+  } catch {
+    return false;
+  }
 }

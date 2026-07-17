@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { addSupplierAllowlistDomain, removeSupplierAllowlistDomain } from "@savvy/db";
 import { getTenantId } from "./tenant";
-import { isOrgAdmin } from "./authz";
+import { canManageSettingsNow } from "./authz";
 
 // Accept a domain or a full email; store just the lowercased domain part.
 function toDomain(raw: string): string | null {
@@ -13,7 +13,7 @@ function toDomain(raw: string): string | null {
 }
 
 export async function addSupplierDomain(formData: FormData): Promise<{ error?: string }> {
-  if (!(await isOrgAdmin())) return { error: "Not authorized" };
+  if (!(await canManageSettingsNow())) return { error: "Not authorized" };
   const tenantId = await getTenantId();
   const domain = toDomain(String(formData.get("domain") ?? ""));
   if (!domain) return { error: "Enter a valid domain (e.g. abcsupply.com)." };
@@ -24,7 +24,7 @@ export async function addSupplierDomain(formData: FormData): Promise<{ error?: s
 }
 
 export async function removeSupplierDomain(id: string): Promise<{ error?: string }> {
-  if (!(await isOrgAdmin())) return { error: "Not authorized" };
+  if (!(await canManageSettingsNow())) return { error: "Not authorized" };
   const tenantId = await getTenantId();
   await removeSupplierAllowlistDomain(tenantId, id);
   revalidatePath("/settings/suppliers");

@@ -3,13 +3,13 @@ import { adminDb, withTenant, tenant, job, eq } from "@savvy/db";
 import { getNangoConnection } from "@savvy/integrations";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
-import { isOrgAdmin } from "./authz";
+import { canManageSettingsNow } from "./authz";
 
 // Mirrors saveQuickBooksConnection: adminDb write to the tenant row, IDOR-checked.
 export async function saveCompanyCamConnection(
   connectionId: string,
 ): Promise<{ ok: true } | { error: "missing_connection_id" | "not_verified" | "forbidden" }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   if (!connectionId) return { error: "missing_connection_id" };
   const tenantId = await getTenantId();
   const integrationId = process.env.NANGO_COMPANYCAM_INTEGRATION_ID ?? "companycam";
@@ -23,7 +23,7 @@ export async function saveCompanyCamConnection(
 export async function linkCompanyCamProject(
   jobId: string, projectId: string,
 ): Promise<{ ok: true } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const pid = projectId.trim();
   if (pid) {

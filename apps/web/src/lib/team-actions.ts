@@ -3,7 +3,7 @@ import { withTenant, user, eq } from "@savvy/db";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
-import { isOrgAdmin } from "./authz";
+import { canManageSettingsNow } from "./authz";
 import { normalizePhone } from "@savvy/core";
 import type { UserRole } from "@savvy/core";
 
@@ -18,7 +18,7 @@ const CLERK_ROLE = (r: UserRole): "org:admin" | "org:member" =>
   r === "owner" || r === "admin" ? "org:admin" : "org:member";
 
 export async function inviteMember(email: string, role: UserRole): Promise<{ ok: true } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const orgId = await getOrgId();
   if (!orgId) return { error: "no organization" };
   try {
@@ -31,7 +31,7 @@ export async function inviteMember(email: string, role: UserRole): Promise<{ ok:
 }
 
 export async function changeUserRole(userId: string, role: UserRole): Promise<{ ok: true } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const orgId = await getOrgId();
   const target = await withTenant(tenantId, async (tx) => {
@@ -53,7 +53,7 @@ export async function changeUserRole(userId: string, role: UserRole): Promise<{ 
 }
 
 export async function removeMember(userId: string): Promise<{ ok: true } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const tenantId = await getTenantId();
   const orgId = await getOrgId();
   const target = await withTenant(tenantId, async (tx) => {
@@ -77,7 +77,7 @@ export async function removeMember(userId: string): Promise<{ ok: true } | { err
 /** Admin-set a member's mobile number (used for rep speed-to-lead alerts).
  *  Empty input clears the number; non-empty input that can't be normalized errors. */
 export async function setMemberPhone(userId: string, phone: string): Promise<{ ok: true } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   const trimmed = phone.trim();
   const normalized = trimmed ? normalizePhone(trimmed) : null;
   if (trimmed && !normalized) return { error: "invalid phone number" };
@@ -88,7 +88,7 @@ export async function setMemberPhone(userId: string, phone: string): Promise<{ o
 }
 
 export async function addCrewMember(name: string): Promise<{ ok: true; id: string } | { error: string }> {
-  if (!(await isOrgAdmin())) return { error: "forbidden" };
+  if (!(await canManageSettingsNow())) return { error: "forbidden" };
   if (!name.trim()) return { error: "name required" };
   const tenantId = await getTenantId();
   const id = await withTenant(tenantId, async (tx) => {

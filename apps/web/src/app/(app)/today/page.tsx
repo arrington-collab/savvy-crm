@@ -6,6 +6,7 @@ import { MoveVerificationCard } from "./MoveVerificationCard";
 import { PartnerMergeCard } from "./PartnerMergeCard";
 import { PartnerGradeCard } from "./PartnerGradeCard";
 import { BlitzApprovalCard } from "./BlitzApprovalCard";
+import { FillApprovalCard } from "./FillApprovalCard";
 import { BoostCard } from "./BoostCard";
 import { LeftoverCard } from "./LeftoverCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
@@ -16,7 +17,8 @@ import { getTodayMoney, getTodayDigest, getTenantIdentity } from "@/lib/today-qu
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { Odometer } from "@/components/odometer/Odometer";
-import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete, describeOdometer } from "@savvy/core";
+import { summarizeTenantCoverage, estimateDecisionMinutes, isOnboardingComplete, describeOdometer, visibleExceptionsFor } from "@savvy/core";
+import { getCurrentUser } from "@/lib/current-user";
 import { A2P_REGISTRATION_STEPS } from "@/lib/deliverability-copy";
 
 export const dynamic = "force-dynamic"; // always read live, tenant-scoped data
@@ -56,7 +58,8 @@ function ago(d: Date | null): string {
 }
 
 export default async function TodayPage() {
-  const [queue, taskExceptions, money, digest, rollup, identity, onboarding] = await Promise.all([
+  const [{ role }, queue, allTaskExceptions, money, digest, rollup, identity, onboarding] = await Promise.all([
+    getCurrentUser(),
     getExceptionQueue(),
     loadOpenTaskExceptions(),
     getTodayMoney(),
@@ -67,11 +70,20 @@ export default async function TodayPage() {
   ]);
   const showChecklist = !onboarding.state.dismissed && !isOnboardingComplete(onboarding.steps);
 
+  // S6 matrix: office runs the day (scheduling, doc chasing, collections) but
+  // owner-tier cards — money approvals, break-glass, dollars-at-risk — never
+  // render for it (the #354 invariant). Everyone else sees everything.
+  const isOffice = role === "office";
+  const scopedItems = visibleExceptionsFor(role, queue.items);
+  const taskExceptions = isOffice
+    ? allTaskExceptions.filter((e) => !e.breakGlass && e.dollarImpactCents <= 0)
+    : allTaskExceptions;
+
   // One ranked worklist: operational vectors + scoreboard task exceptions (which
   // cite a task and deep-link its proof page). High severity first — same merge
   // the old /exceptions page used, now the Today decision queue.
   const decisions: Decision[] = [
-    ...queue.items.map((i) => ({ kind: i.kind, severity: i.severity, title: i.title, detail: i.detail, href: i.href, occurredAt: i.occurredAt })),
+    ...scopedItems.map((i) => ({ kind: i.kind, severity: i.severity, title: i.title, detail: i.detail, href: i.href, occurredAt: i.occurredAt })),
     ...taskExceptions.map((e) => ({
       kind: e.kind,
       severity: (e.severity === "high" ? "high" : "medium") as "high" | "medium",
@@ -92,13 +104,15 @@ export default async function TodayPage() {
   return (
     <div className="space-y-7" data-testid="today-page">
       {showChecklist && <OnboardingChecklist steps={onboarding.steps} />}
-      {/* PORTFOLIO STRIP */}
+      {/* PORTFOLIO STRIP — owner-tier cards (money approvals, partner ledger)
+          never render for office (S6 #354 invariant). */}
       <VideoBatchCard />
       <StormBatchCard />
       <MoveVerificationCard />
-      <PartnerMergeCard />
-      <PartnerGradeCard />
-      <BlitzApprovalCard />
+      {!isOffice && <PartnerMergeCard />}
+      {!isOffice && <PartnerGradeCard />}
+      {!isOffice && <BlitzApprovalCard />}
+      {!isOffice && <FillApprovalCard />}
       <BoostCard />
       <LeftoverCard />
 
@@ -123,7 +137,7 @@ export default async function TodayPage() {
             </div>
             <p className="mt-2 text-[11px]" style={{ color: "var(--text-faint)" }}>Onboard = point a phone # + import the spine → this coverage map lights up.</p>
           </Card>
-          <div className="hidden lg:block">
+          <div className={isOffice ? "hidden" : "hidden lg:block"}>
             <LockedTile
               phase="Phase 24"
               title="M&A Machine"
