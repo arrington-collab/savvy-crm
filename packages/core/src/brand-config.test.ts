@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { parseBrandConfig, brandAccentVars, brandThemeVars } from "./brand-config";
+import { parseBrandConfig, brandAccentVars, brandThemeVars, resolveThemePreference } from "./brand-config";
 
 describe("parseBrandConfig", () => {
   it("defaults to no branding (Savvy chrome)", () => {
-    expect(parseBrandConfig(undefined)).toEqual({ name: null, logoUrl: null, accent: null, theme: null });
-    expect(parseBrandConfig(null)).toEqual({ name: null, logoUrl: null, accent: null, theme: null });
-    expect(parseBrandConfig({})).toEqual({ name: null, logoUrl: null, accent: null, theme: null });
+    expect(parseBrandConfig(undefined)).toEqual({ name: null, logoUrl: null, logoUrlDark: null, accent: null, theme: null });
+    expect(parseBrandConfig(null)).toEqual({ name: null, logoUrl: null, logoUrlDark: null, accent: null, theme: null });
+    expect(parseBrandConfig({})).toEqual({ name: null, logoUrl: null, logoUrlDark: null, accent: null, theme: null });
   });
 
   it("accepts a full brand", () => {
-    const b = parseBrandConfig({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", accent: "#b0752b", theme: "light" });
-    expect(b).toEqual({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", accent: "#b0752b", theme: "light" });
+    const b = parseBrandConfig({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
+    expect(b).toEqual({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
   });
 
   it("only recognizes the light theme; junk falls back to default dark", () => {
@@ -29,6 +29,7 @@ describe("parseBrandConfig", () => {
 
   it("only allows data: or https: logo urls", () => {
     expect(parseBrandConfig({ logoUrl: "javascript:alert(1)" }).logoUrl).toBeNull();
+    expect(parseBrandConfig({ logoUrlDark: "javascript:alert(1)" }).logoUrlDark).toBeNull();
     expect(parseBrandConfig({ logoUrl: "https://cdn.example.com/logo.svg" }).logoUrl).toBe("https://cdn.example.com/logo.svg");
   });
 });
@@ -86,6 +87,15 @@ describe("brandThemeVars", () => {
     const vars = brandThemeVars(parseBrandConfig({ theme: "light" }))!;
     expect(vars["--accent-gold"]).toBe("#b0722c");
     expect(vars["--background"]).toBe("#f0eee5");
+  });
+
+  it("resolveThemePreference: cookie overrides the tenant default; junk falls through", () => {
+    expect(resolveThemePreference(null, undefined)).toBe(null);
+    expect(resolveThemePreference("light", undefined)).toBe("light");
+    expect(resolveThemePreference("light", "dark")).toBe(null);
+    expect(resolveThemePreference(null, "light")).toBe("light");
+    expect(resolveThemePreference("light", "midnight; url(x)")).toBe("light");
+    expect(resolveThemePreference(null, "dark")).toBe(null);
   });
 
   it("light theme swaps status/persona colors to light-legible values", () => {

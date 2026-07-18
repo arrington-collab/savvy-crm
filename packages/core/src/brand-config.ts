@@ -8,20 +8,21 @@
 export interface BrandConfig {
   name: string | null;
   logoUrl: string | null;
+  logoUrlDark: string | null; // variant for the dark chrome (logos are imgs — they can't recolor with the theme)
   accent: string | null; // #rrggbb
   theme: "light" | null; // null = default dark cockpit
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
+const LOGO_URL = /^(data:image\/|https:\/\/)/;
 
 export function parseBrandConfig(raw: unknown): BrandConfig {
   const r = (raw ?? {}) as Record<string, unknown>;
   const name = typeof r.name === "string" && r.name.trim() ? r.name.trim() : null;
   const accent = typeof r.accent === "string" && HEX.test(r.accent.trim()) ? r.accent.trim() : null;
-  const logoRaw = typeof r.logoUrl === "string" ? r.logoUrl.trim() : "";
-  const logoUrl = /^(data:image\/|https:\/\/)/.test(logoRaw) ? logoRaw : null;
+  const logo = (v: unknown) => (typeof v === "string" && LOGO_URL.test(v.trim()) ? v.trim() : null);
   const theme = r.theme === "light" ? "light" : null;
-  return { name, logoUrl, accent, theme };
+  return { name, logoUrl: logo(r.logoUrl), logoUrlDark: logo(r.logoUrlDark), accent, theme };
 }
 
 function mix(hex: string, target: number, ratio: number): string {
@@ -51,6 +52,19 @@ export function brandAccentVars(accentHex: string): Record<string, string> {
 
 // Default accent for the light theme: the canvass app's copper (--acc).
 const CANVASS_COPPER = "#b0722c";
+
+/** Effective theme = per-browser cookie override, else the tenant default.
+ *  Returns the BrandConfig["theme"] shape: "light" or null (= dark cockpit).
+ *  Cookie values other than "light"/"dark" are ignored — the cookie is
+ *  client-writable, so it gets the same hostile-input treatment as settings. */
+export function resolveThemePreference(
+  tenantDefault: BrandConfig["theme"],
+  cookieValue: string | undefined,
+): BrandConfig["theme"] {
+  if (cookieValue === "dark") return null;
+  if (cookieValue === "light") return "light";
+  return tenantDefault;
+}
 
 /** Full CSS-variable override for a branded tenant.
  *

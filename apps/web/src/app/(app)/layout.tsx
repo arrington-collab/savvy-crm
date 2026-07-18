@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
 import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { InflightProvider } from "@/components/inflight/InflightProvider";
-import { needsOnboarding, brandThemeVars } from "@savvy/core";
+import { needsOnboarding, brandThemeVars, resolveThemePreference } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
@@ -33,9 +34,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // inheritance to any text without its own color utility). The light theme
   // therefore re-declares both here so they re-resolve against the overrides.
   const brand = await loadTenantBrand();
-  const themeVars = brandThemeVars(brand);
+  // The savvy-theme cookie is a per-browser override of the tenant default, so
+  // one operator can run dark while the tenant ships light (or vice versa).
+  const themeCookie = (await cookies()).get("savvy-theme")?.value;
+  const theme = resolveThemePreference(brand.theme, themeCookie);
+  const themeVars = brandThemeVars({ ...brand, theme });
   const brandStyle =
-    themeVars && brand.theme === "light"
+    themeVars && theme === "light"
       ? {
           ...themeVars,
           background: "var(--surface-app)",
@@ -48,7 +53,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen" style={brandStyle}>
         <Sidebar decisionCount={decisionCount} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar authEnabled={authEnabled} brandName={brand.name} brandLogoUrl={brand.logoUrl} />
+          <TopBar
+            authEnabled={authEnabled}
+            brandName={brand.name}
+            // logos are imgs and can't recolor with the theme — dark chrome
+            // prefers the dark variant when the tenant ships one
+            brandLogoUrl={theme === "light" ? brand.logoUrl : (brand.logoUrlDark ?? brand.logoUrl)}
+            theme={theme ?? "dark"}
+          />
           <main className="flex-1 p-6">{children}</main>
         </div>
         <AskSage />
