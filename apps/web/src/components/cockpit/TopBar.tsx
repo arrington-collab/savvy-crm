@@ -2,7 +2,15 @@
 import { useEffect, useState } from "react";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 
-export function TopBar({ authEnabled }: { authEnabled: boolean }) {
+export function TopBar({
+  authEnabled,
+  brandName,
+  brandLogoUrl,
+}: {
+  authEnabled: boolean;
+  brandName?: string | null;
+  brandLogoUrl?: string | null;
+}) {
   const [time, setTime] = useState("");
   useEffect(() => {
     const tick = () =>
@@ -18,7 +26,15 @@ export function TopBar({ authEnabled }: { authEnabled: boolean }) {
       style={{ borderBottom: "1px solid var(--border-panel)" }}
     >
       <div className="flex items-center gap-3">
-        <span className="font-semibold tracking-tight text-accent-gold">Savvy</span>
+        {brandLogoUrl ? (
+          // Per-tenant logo (settings.brand) — the operator always knows whose
+          // company they're in. eslint-disable: data-URL/https logos aren't
+          // next/image candidates.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={brandLogoUrl} alt={brandName ?? "Company logo"} className="h-8 w-auto" />
+        ) : (
+          <span className="font-semibold tracking-tight text-accent-gold">{brandName ?? "Savvy"}</span>
+        )}
         <span
           className="mono inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px]"
           style={{ background: "var(--accent-006)", border: "1px solid var(--border-panel)", color: "var(--text-muted)" }}

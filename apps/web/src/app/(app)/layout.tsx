@@ -5,10 +5,11 @@ import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { InflightProvider } from "@/components/inflight/InflightProvider";
-import { needsOnboarding } from "@savvy/core";
+import { needsOnboarding, brandAccentVars } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
+import { loadTenantBrand } from "@/lib/brand-queries";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const authEnabled = process.env.TEST_MODE !== "1";
@@ -24,12 +25,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The Today screen shows the precise live queue; this badge is at-a-glance.
   const rollup = await loadTenantRollup().catch(() => null);
   const decisionCount = rollup?.openExceptionCount ?? 0;
+  // Per-tenant branding: one validated accent hex retints the whole chrome by
+  // overriding the accent variables at the root (43 components read them).
+  const brand = await loadTenantBrand();
+  const brandVars = brand.accent ? brandAccentVars(brand.accent) : undefined;
   return (
     <InflightProvider>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen" style={brandVars}>
         <Sidebar decisionCount={decisionCount} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar authEnabled={authEnabled} />
+          <TopBar authEnabled={authEnabled} brandName={brand.name} brandLogoUrl={brand.logoUrl} />
           <main className="flex-1 p-6">{children}</main>
         </div>
         <AskSage />

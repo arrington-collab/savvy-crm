@@ -160,6 +160,7 @@ export * from "./maintenance-config";
 export * from "./maintenance-visit";
 export * from "./strike-list";
 export * from "./roof-material";
+export * from "./brand-config";
 export * from "./acculynx";
 export * from "./turf-score";
 export * from "./spotter-precision";
