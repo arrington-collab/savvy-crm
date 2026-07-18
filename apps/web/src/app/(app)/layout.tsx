@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { InflightProvider } from "@/components/inflight/InflightProvider";
-import { needsOnboarding, brandAccentVars } from "@savvy/core";
+import { needsOnboarding, brandThemeVars } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
@@ -25,13 +25,27 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The Today screen shows the precise live queue; this badge is at-a-glance.
   const rollup = await loadTenantRollup().catch(() => null);
   const decisionCount = rollup?.openExceptionCount ?? 0;
-  // Per-tenant branding: one validated accent hex retints the whole chrome by
-  // overriding the accent variables at the root (43 components read them).
+  // Per-tenant branding: validated brand settings override the theme's CSS
+  // variables on this wrapper; custom properties inherit, so every component
+  // below re-themes without knowing. body sets background and color OUTSIDE
+  // this subtree, where the overrides aren't in scope — both resolve there to
+  // the dark-chrome values and would leak in (background directly, color via
+  // inheritance to any text without its own color utility). The light theme
+  // therefore re-declares both here so they re-resolve against the overrides.
   const brand = await loadTenantBrand();
-  const brandVars = brand.accent ? brandAccentVars(brand.accent) : undefined;
+  const themeVars = brandThemeVars(brand);
+  const brandStyle =
+    themeVars && brand.theme === "light"
+      ? {
+          ...themeVars,
+          background: "var(--surface-app)",
+          color: "var(--text-primary)",
+          colorScheme: "light" as const,
+        }
+      : themeVars;
   return (
     <InflightProvider>
-      <div className="flex min-h-screen" style={brandVars}>
+      <div className="flex min-h-screen" style={brandStyle}>
         <Sidebar decisionCount={decisionCount} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar authEnabled={authEnabled} brandName={brand.name} brandLogoUrl={brand.logoUrl} />

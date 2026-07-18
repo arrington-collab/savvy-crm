@@ -10,6 +10,6 @@ export async function loadTenantBrand(): Promise<BrandConfig> {
     const [t] = await adminDb.select({ settings: tenant.settings }).from(tenant).where(eq(tenant.id, tenantId));
     return parseBrandConfig((t?.settings as { brand?: unknown } | null)?.brand);
   } catch {
-    return { name: null, logoUrl: null, accent: null };
+    return { name: null, logoUrl: null, accent: null, theme: null };
   }
 }
