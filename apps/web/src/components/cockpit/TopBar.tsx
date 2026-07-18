@@ -1,9 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 
-export function TopBar({ authEnabled }: { authEnabled: boolean }) {
+export function TopBar({
+  authEnabled,
+  brandName,
+  brandLogoUrl,
+  theme = "dark",
+}: {
+  authEnabled: boolean;
+  brandName?: string | null;
+  brandLogoUrl?: string | null;
+  theme?: "light" | "dark";
+}) {
+  const router = useRouter();
   const [time, setTime] = useState("");
+  // Theme vars render server-side from the savvy-theme cookie, so the toggle
+  // writes the cookie and re-renders the tree — no client theme state to drift.
+  const toggleTheme = () => {
+    const next = theme === "light" ? "dark" : "light";
+    document.cookie = `savvy-theme=${next}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  };
   useEffect(() => {
     const tick = () =>
       setTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -18,7 +37,15 @@ export function TopBar({ authEnabled }: { authEnabled: boolean }) {
       style={{ borderBottom: "1px solid var(--border-panel)" }}
     >
       <div className="flex items-center gap-3">
-        <span className="font-semibold tracking-tight text-accent-gold">Savvy</span>
+        {brandLogoUrl ? (
+          // Per-tenant logo (settings.brand) — the operator always knows whose
+          // company they're in. eslint-disable: data-URL/https logos aren't
+          // next/image candidates.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={brandLogoUrl} alt={brandName ?? "Company logo"} className="h-8 w-auto" />
+        ) : (
+          <span className="font-semibold tracking-tight text-accent-gold">{brandName ?? "Savvy"}</span>
+        )}
         <span
           className="mono inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px]"
           style={{ background: "var(--accent-006)", border: "1px solid var(--border-panel)", color: "var(--text-muted)" }}
@@ -31,6 +58,16 @@ export function TopBar({ authEnabled }: { authEnabled: boolean }) {
         <span className="mono text-[12px]" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>
           {time}
         </span>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[15px]"
+          style={{ border: "1px solid var(--border-panel)", color: "var(--text-muted)" }}
+        >
+          {theme === "light" ? "☾" : "☀"}
+        </button>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("ask-sage:open"))}
