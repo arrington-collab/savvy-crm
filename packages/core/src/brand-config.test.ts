@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBrandConfig, brandAccentVars, brandThemeVars, resolveThemePreference } from "./brand-config";
+import { parseBrandConfig, brandAccentVars, brandThemeVars, brandThemeCssVars, resolveThemePreference } from "./brand-config";
 
 describe("parseBrandConfig", () => {
   it("defaults to no branding (Savvy chrome)", () => {
@@ -96,6 +96,22 @@ describe("brandThemeVars", () => {
     expect(resolveThemePreference(null, "light")).toBe("light");
     expect(resolveThemePreference("light", "midnight; url(x)")).toBe("light");
     expect(resolveThemePreference(null, "dark")).toBe(null);
+  });
+
+  it("brandThemeCssVars: mode-explicit kebab records for client-side instant apply", () => {
+    const brand = parseBrandConfig({ accent: "#b0722c", theme: "light" });
+    const light = brandThemeCssVars(brand, "light");
+    // light record carries the wrapper's own paint + scheme as plain CSS keys
+    expect(light["background"]).toBe("var(--surface-app)");
+    expect(light["color"]).toBe("var(--text-primary)");
+    expect(light["color-scheme"]).toBe("light");
+    expect(light["--background"]).toBe("#f0eee5");
+    const dark = brandThemeCssVars(brand, "dark");
+    // dark mode for an accented brand = the four accent vars only, no surface keys
+    expect(Object.keys(dark)).toHaveLength(4);
+    expect(dark["--accent-gold"]).toBe("#b0722c");
+    // no brand at all → nothing to override in dark
+    expect(brandThemeCssVars(parseBrandConfig({}), "dark")).toEqual({});
   });
 
   it("light theme swaps status/persona colors to light-legible values", () => {
