@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/cockpit/Sidebar";
 import { TopBar } from "@/components/cockpit/TopBar";
 import { AskSage } from "@/components/cockpit/AskSage";
 import { InflightProvider } from "@/components/inflight/InflightProvider";
-import { needsOnboarding, brandThemeVars, resolveThemePreference } from "@savvy/core";
+import { needsOnboarding, brandThemeCssVars, resolveThemePreference } from "@savvy/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
@@ -37,29 +37,32 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The savvy-theme cookie is a per-browser override of the tenant default, so
   // one operator can run dark while the tenant ships light (or vice versa).
   const themeCookie = (await cookies()).get("savvy-theme")?.value;
-  const theme = resolveThemePreference(brand.theme, themeCookie);
-  const themeVars = brandThemeVars({ ...brand, theme });
-  const brandStyle =
-    themeVars && theme === "light"
-      ? {
-          ...themeVars,
-          background: "var(--surface-app)",
-          color: "var(--text-primary)",
-          colorScheme: "light" as const,
-        }
-      : themeVars;
+  const theme = resolveThemePreference(brand.theme, themeCookie) ?? "dark";
+  // Both modes' variable records go to the TopBar so its toggle can restyle
+  // #app-chrome instantly on the client — the cookie only has to be right for
+  // the NEXT full render, so no router.refresh() (≈5s of auth + queries).
+  const varsLight = brandThemeCssVars(brand, "light");
+  const varsDark = brandThemeCssVars(brand, "dark");
+  const ssrVars = theme === "light" ? varsLight : varsDark;
+  const { "color-scheme": ssrScheme, ...ssrRest } = ssrVars;
+  const brandStyle = Object.keys(ssrVars).length
+    ? { ...ssrRest, ...(ssrScheme ? { colorScheme: ssrScheme as "light" } : {}) }
+    : undefined;
   return (
     <InflightProvider>
-      <div className="flex min-h-screen" style={brandStyle}>
+      <div id="app-chrome" className="flex min-h-screen" style={brandStyle}>
         <Sidebar decisionCount={decisionCount} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             authEnabled={authEnabled}
             brandName={brand.name}
-            // logos are imgs and can't recolor with the theme — dark chrome
-            // prefers the dark variant when the tenant ships one
-            brandLogoUrl={theme === "light" ? brand.logoUrl : (brand.logoUrlDark ?? brand.logoUrl)}
-            theme={theme ?? "dark"}
+            // logos are imgs and can't recolor with the theme — the toggle
+            // swaps between the two variants client-side
+            brandLogoUrl={brand.logoUrl}
+            brandLogoUrlDark={brand.logoUrlDark}
+            theme={theme}
+            themeVarsLight={varsLight}
+            themeVarsDark={varsDark}
           />
           <main className="flex-1 p-6">{children}</main>
         </div>

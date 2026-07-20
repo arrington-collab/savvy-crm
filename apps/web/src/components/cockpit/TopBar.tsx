@@ -1,28 +1,45 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 
 export function TopBar({
   authEnabled,
   brandName,
   brandLogoUrl,
+  brandLogoUrlDark,
   theme = "dark",
+  themeVarsLight,
+  themeVarsDark,
 }: {
   authEnabled: boolean;
   brandName?: string | null;
   brandLogoUrl?: string | null;
+  brandLogoUrlDark?: string | null;
   theme?: "light" | "dark";
+  themeVarsLight?: Record<string, string>;
+  themeVarsDark?: Record<string, string>;
 }) {
-  const router = useRouter();
   const [time, setTime] = useState("");
-  // Theme vars render server-side from the savvy-theme cookie, so the toggle
-  // writes the cookie and re-renders the tree — no client theme state to drift.
+  // The toggle restyles #app-chrome directly — instant, no server round trip.
+  // The cookie only matters for the NEXT full render (SSR picks the theme from
+  // it), so we never router.refresh() here; that cost ~5s of auth + queries.
+  // React won't fight the DOM mutation: the layout is a server component whose
+  // style prop is only reapplied on a navigation, by which point the cookie
+  // makes SSR agree with what we set here.
+  const [mode, setMode] = useState<"light" | "dark">(theme);
   const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
+    const next = mode === "light" ? "dark" : "light";
+    const el = document.getElementById("app-chrome");
+    if (el) {
+      const union = { ...(themeVarsDark ?? {}), ...(themeVarsLight ?? {}) };
+      for (const key of Object.keys(union)) el.style.removeProperty(key);
+      const target = (next === "light" ? themeVarsLight : themeVarsDark) ?? {};
+      for (const [key, value] of Object.entries(target)) el.style.setProperty(key, value);
+    }
     document.cookie = `savvy-theme=${next}; path=/; max-age=31536000; samesite=lax`;
-    router.refresh();
+    setMode(next);
   };
+  const logoSrc = mode === "light" ? brandLogoUrl : (brandLogoUrlDark ?? brandLogoUrl);
   useEffect(() => {
     const tick = () =>
       setTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -37,12 +54,12 @@ export function TopBar({
       style={{ borderBottom: "1px solid var(--border-panel)" }}
     >
       <div className="flex items-center gap-3">
-        {brandLogoUrl ? (
+        {logoSrc ? (
           // Per-tenant logo (settings.brand) — the operator always knows whose
           // company they're in. eslint-disable: data-URL/https logos aren't
           // next/image candidates.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={brandLogoUrl} alt={brandName ?? "Company logo"} className="h-8 w-auto" />
+          <img src={logoSrc} alt={brandName ?? "Company logo"} className="h-8 w-auto" />
         ) : (
           <span className="font-semibold tracking-tight text-accent-gold">{brandName ?? "Savvy"}</span>
         )}
@@ -61,12 +78,12 @@ export function TopBar({
         <button
           type="button"
           onClick={toggleTheme}
-          aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
-          title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          aria-label={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          title={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[15px]"
           style={{ border: "1px solid var(--border-panel)", color: "var(--text-muted)" }}
         >
-          {theme === "light" ? "☾" : "☀"}
+          {mode === "light" ? "☾" : "☀"}
         </button>
         <button
           type="button"

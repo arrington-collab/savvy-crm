@@ -53,6 +53,19 @@ export function brandAccentVars(accentHex: string): Record<string, string> {
 // Default accent for the light theme: the canvass app's copper (--acc).
 const CANVASS_COPPER = "#b0722c";
 
+/** Mode-explicit CSS variable record with plain kebab keys, usable both for
+ *  SSR inline style and for client-side `style.setProperty` when the theme
+ *  toggle applies a theme WITHOUT a server round trip. The light record also
+ *  carries the wrapper's own paint ("background"/"color"/"color-scheme") —
+ *  body sets those outside the override scope, so the wrapper must. */
+export function brandThemeCssVars(brand: BrandConfig, mode: "light" | "dark"): Record<string, string> {
+  const vars = brandThemeVars({ ...brand, theme: mode === "light" ? "light" : null }) ?? {};
+  if (mode === "light") {
+    return { ...vars, background: "var(--surface-app)", color: "var(--text-primary)", "color-scheme": "light" };
+  }
+  return vars;
+}
+
 /** Effective theme = per-browser cookie override, else the tenant default.
  *  Returns the BrandConfig["theme"] shape: "light" or null (= dark cockpit).
  *  Cookie values other than "light"/"dark" are ignored — the cookie is
