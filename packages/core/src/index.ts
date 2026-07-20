@@ -166,3 +166,4 @@ export * from "./turf-score";
 export * from "./spotter-precision";
 export * from "./markets";
 export * from "./acculynx-attachments";
+export * from "./html-to-text";
