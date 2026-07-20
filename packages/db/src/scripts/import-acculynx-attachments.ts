@@ -73,6 +73,7 @@ async function main() {
       return abs ? new Uint8Array(readFileSync(abs)) : null;
     },
     dryRun,
+    onProgress: (d, total, guid) => console.log(`  [${d}/${total}] ${guid} committed`),
   });
 
   console.log(`\n${dryRun ? "[DRY RUN] would import" : "imported"}:`);
