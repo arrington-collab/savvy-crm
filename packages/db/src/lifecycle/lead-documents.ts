@@ -2,6 +2,7 @@ import { withTenant } from "../tenant";
 import { document, measurement } from "../schema/ops";
 import { claim } from "../schema/insurance";
 import { lead } from "../schema/crm";
+import { job } from "../schema/jobs";
 import { auditLog } from "../schema/agents";
 import { user } from "../schema/tenancy";
 import { and, eq, isNull, desc, inArray } from "drizzle-orm";
@@ -134,6 +135,28 @@ export async function getLeadDocumentForParse(
       .from(document)
       .where(eq(document.id, documentId));
     return d ?? null;
+  });
+}
+
+/** Job-or-lead-aware parse loader. Unlike getLeadDocumentForParse it also
+ *  returns jobId and, when the document itself carries no propertyId (as with
+ *  a bulk-imported job attachment), resolves it from the job — so a measurement
+ *  report on a job still lands on the right property. */
+export async function getDocumentForParse(
+  tenantId: string,
+  documentId: string,
+): Promise<{ r2Key: string | null; kind: string; leadId: string | null; jobId: string | null; propertyId: string | null } | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [d] = await tx
+      .select({ r2Key: document.r2Key, kind: document.kind, leadId: document.leadId, jobId: document.jobId, propertyId: document.propertyId })
+      .from(document)
+      .where(eq(document.id, documentId));
+    if (!d) return null;
+    if (!d.propertyId && d.jobId) {
+      const [j] = await tx.select({ propertyId: job.propertyId }).from(job).where(eq(job.id, d.jobId));
+      return { ...d, propertyId: j?.propertyId ?? null };
+    }
+    return d;
   });
 }
 

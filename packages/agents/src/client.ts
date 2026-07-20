@@ -60,8 +60,10 @@ type Events = {
   "production/blocker.reported": { data: { tenantId: string; jobId: string; blockerId: string; kind: string } };
   "supplier-invoice/received": { data: { tenantId: string; supplierInvoiceId: string; documentId: string } };
   "supplier-invoice/parsed": { data: { tenantId: string; supplierInvoiceId: string; jobId: string | null } };
-  // A lead-stage document upload that needs parsing (6b measurement_report, 6c insurance_estimate).
-  "lead-document/received": { data: { tenantId: string; documentId: string; leadId: string; kind: string } };
+  // A document that needs parsing (measurement_report / insurance_estimate). Attached to
+  // a lead OR a job (a bulk-imported carrier estimate has no lead). scopeId = lead||job id,
+  // used as the parse concurrency key so re-parses of one subject serialize.
+  "lead-document/received": { data: { tenantId: string; documentId: string; leadId?: string | null; jobId?: string | null; kind: string; scopeId?: string } };
   "canvass/contract.signed": { data: { tenantId: string; leadId: string; contract: CanvassContract; customerEmail?: string | null; customerName?: string | null } };
   // A knock is logged as a sale. Idempotency id "sale:" + knockId ensures one event per knock.
   "canvass/sale.logged": { data: { tenantId: string; knockId: string; repId: string } };

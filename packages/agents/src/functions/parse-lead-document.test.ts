@@ -8,7 +8,7 @@ function makeDeps(over: Partial<ParseLeadDocumentDeps> = {}): ParseLeadDocumentD
     eaveLf: 100, rakeLf: 50, stepFlashingLf: 0, penetrationCount: 0, facetCount: 0, confidence: 0.95,
   };
   return {
-    loadDoc: vi.fn().mockResolvedValue({ r2Key: "t/lead/l/m.pdf", kind: "measurement_report", leadId: "l1", propertyId: "p1" }),
+    loadDoc: vi.fn().mockResolvedValue({ r2Key: "t/lead/l/m.pdf", kind: "measurement_report", leadId: "l1", jobId: null, propertyId: "p1" }),
     fetchBytes: vi.fn().mockResolvedValue(new Uint8Array([1])),
     ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
     insertMeasurement: vi.fn().mockResolvedValue("m1"),
@@ -38,7 +38,7 @@ describe("parseLeadDocumentHandler", () => {
   });
 
   it("skips an unrecognized document kind", async () => {
-    const deps = makeDeps({ loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "other", leadId: "l1", propertyId: "p1" }) });
+    const deps = makeDeps({ loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "other", leadId: "l1", jobId: null, propertyId: "p1" }) });
     const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
     expect(res.status).toBe("skipped");
     expect(deps.ai.completeObject).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe("parseLeadDocumentHandler", () => {
   it("parses an insurance_estimate → attaches/creates a claim, sets parsed, returns claimId", async () => {
     const parsed = { carrierName: "State Farm", claimNumber: "C-9", acvCents: 800000, rcvCents: 1000000, deductibleCents: 200000, lines: [{ description: "shingles", quantity: 25, amountCents: 750000 }], confidence: 0.95 };
     const deps = makeDeps({
-      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", propertyId: "p1" }),
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", jobId: null, propertyId: "p1" }),
       ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
     });
     const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
@@ -63,10 +63,32 @@ describe("parseLeadDocumentHandler", () => {
     expect(deps.insertMeasurement).not.toHaveBeenCalled();
   });
 
+  it("parses a JOB-attached insurance_estimate (no lead) → attaches the claim to the job", async () => {
+    const parsed = { carrierName: "Allstate", claimNumber: "J-7", acvCents: 500000, rcvCents: 900000, deductibleCents: 100000, lines: [{ description: "ridge", quantity: 30, amountCents: 60000 }], confidence: 0.95 };
+    const deps = makeDeps({
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: null, jobId: "j1", propertyId: "p1" }),
+      ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
+    });
+    const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
+    expect(res.status).toBe("parsed");
+    expect(deps.attachClaim).toHaveBeenCalledWith(expect.objectContaining({ jobId: "j1", leadId: null, carrierName: "Allstate", parseConfidence: 0.95 }));
+    expect(deps.setStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "parsed" }));
+  });
+
+  it("fails a doc attached to neither lead nor job", async () => {
+    const parsed = { carrierName: "X", claimNumber: null, acvCents: null, rcvCents: null, deductibleCents: null, lines: [], confidence: 0.95 };
+    const deps = makeDeps({
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: null, jobId: null, propertyId: "p1" }),
+      ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
+    });
+    const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);
+    expect(res.status).toBe("parse_failed");
+  });
+
   it("cards a low-confidence insurance parse without creating a claim", async () => {
     const parsed = { carrierName: null, claimNumber: null, acvCents: null, rcvCents: null, deductibleCents: null, lines: [], confidence: 0.3 };
     const deps = makeDeps({
-      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", propertyId: "p1" }),
+      loadDoc: vi.fn().mockResolvedValue({ r2Key: "k", kind: "insurance_estimate", leadId: "l1", jobId: null, propertyId: "p1" }),
       ai: { completeObject: vi.fn().mockResolvedValue({ object: parsed, model: "stub" }) },
     });
     const res = await parseLeadDocumentHandler({ tenantId: "t1", documentId: "d1" }, deps);

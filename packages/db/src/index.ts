@@ -78,7 +78,7 @@ export { ensurePriceBook, ensureTierProducts, tierProductsNeedingCosts, getCurre
 export { createEstimateFromMeasurement, draftLeadEstimateIfReady, refreshLeadEstimateDraft, resolveEstimateDelivery, setEstimateStatus } from "./lifecycle/estimate";
 export { getLeadArtifacts, type LeadArtifacts } from "./lifecycle/lead-artifacts";
 export { recordLeadDocument, listLeadDocuments, type LeadDocumentRow } from "./lifecycle/lead-documents";
-export { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, getDocumentParseSummaries, getDocumentForView } from "./lifecycle/lead-documents";
+export { getLeadDocumentForParse, getDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, getDocumentParseSummaries, getDocumentForView } from "./lifecycle/lead-documents";
 export { saveSketchMeasurement, type SketchScope, type SaveSketchMeasurementResult } from "./lifecycle/measurement";
 export { computeTenantUsage, recordUsageSnapshot } from "./lifecycle/usage";
 export { setCallDuration, recordVoiceCallReport, setLeadVoiceCallId, getLeadByVoiceCallId } from "./lifecycle/voice";
@@ -119,7 +119,7 @@ export { listAssignableReps } from "./lifecycle/team";
 export { createMaterialOrderFromEstimate, setMaterialOrderStatus, getJobInstallDate, type MaterialOrderRow } from "./lifecycle/material-order";
 export { resolveTaskAutomation, gateAgentAutomation } from "./lifecycle/task-automation";
 export { getHomeownerStatus, listStageEventsToNotify, markStageEventNotified, type HomeownerStatus, type NotifiableEvent } from "./lifecycle/homeowner";
-export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, attachOrCreateLeadClaim, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
+export { upsertClaim, getClaimForJob, getAdjusterAppointmentForJob, bookAdjusterMeeting, attachOrCreateLeadClaim, attachOrCreateClaim, type ClaimRow, type AdjusterAppointment, type BookAdjusterMeetingInput } from "./lifecycle/claim";
 export { createCrew, listCrews, renameCrew, setCrewActive, setCrewLocation, setCrewPinHash, getCrewLoginCandidates, addCrewMember, removeCrewMember, listCrewIdsForUser, getCrewContacts, type CrewRow } from "./lifecycle/crew";
 export {
   getTelephonyMode, setTelephonyMode, upsertTwilioConnection, getTelephonyConnection,
