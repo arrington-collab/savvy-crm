@@ -7,6 +7,7 @@ import { presignDocumentUpload, presignDocumentView, recordDocument, reparseDocu
 import { linkCompanyCamProject } from "@/lib/companycam-actions";
 import { Button } from "@/components/ui/button";
 import { DocViewer, type ViewerDoc } from "@/components/DocViewer";
+import { PhotoAnnotator, type AnnotatorDoc } from "./PhotoAnnotator";
 import { parseSummaryView, type DocParseSummary } from "@savvy/core";
 
 // Mirrors the columns selected in page.tsx
@@ -80,6 +81,7 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
   const [ccProjectId, setCcProjectId] = useState(companycamProjectId ?? "");
   const [ccSaving, startCcSave] = useTransition();
   const [viewing, setViewing] = useState<ViewerDoc | null>(null);
+  const [annotating, setAnnotating] = useState<AnnotatorDoc | null>(null);
 
   const [selectedLabel, setSelectedLabel] = useState<string>(requiredPhotos[0] ?? "other");
   const [selectedKind, setSelectedKind] = useState<DocKind>("photo");
@@ -240,7 +242,15 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
                     data-testid="companycam-photo"
                   />
                 ) : (
-                  <DocThumb docId={doc.id} filename={doc.filename} />
+                  <button
+                    type="button"
+                    onClick={() => setAnnotating({ id: doc.id, filename: doc.filename, label: doc.label })}
+                    className="block rounded-md ring-offset-2 ring-offset-background transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    title="Open · view & markup"
+                    data-testid={`open-photo-${doc.id}`}
+                  >
+                    <DocThumb docId={doc.id} filename={doc.filename} />
+                  </button>
                 )}
                 {doc.label && (
                   <p className="w-24 truncate text-center text-xs text-muted-foreground">
@@ -377,6 +387,9 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
       </section>
 
       <DocViewer doc={viewing} onClose={() => setViewing(null)} />
+      {annotating && (
+        <PhotoAnnotator key={annotating.id} doc={annotating} jobId={jobId} onClose={() => setAnnotating(null)} onSaved={() => router.refresh()} />
+      )}
     </div>
   );
 }
