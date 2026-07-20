@@ -10,7 +10,7 @@ import { needsOnboarding, brandThemeCssVars, resolveThemePreference } from "@sav
 import { getCurrentUser } from "@/lib/current-user";
 import { getOnboardingStatus } from "@/lib/onboarding-queries";
 import { loadTenantRollup } from "@/lib/scoreboard-queries";
-import { loadTenantBrand } from "@/lib/brand-queries";
+import { loadTenantChrome } from "@/lib/brand-queries";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const authEnabled = process.env.TEST_MODE !== "1";
@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // the dark-chrome values and would leak in (background directly, color via
   // inheritance to any text without its own color utility). The light theme
   // therefore re-declares both here so they re-resolve against the overrides.
-  const brand = await loadTenantBrand();
+  const { brand, markets } = await loadTenantChrome();
   // The savvy-theme cookie is a per-browser override of the tenant default, so
   // one operator can run dark while the tenant ships light (or vice versa).
   const themeCookie = (await cookies()).get("savvy-theme")?.value;
@@ -63,6 +63,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             theme={theme}
             themeVarsLight={varsLight}
             themeVarsDark={varsDark}
+            markets={markets}
           />
           <main className="flex-1 p-6">{children}</main>
         </div>
