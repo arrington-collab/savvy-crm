@@ -43,6 +43,9 @@ export interface AttachmentDeps {
    *  Return null when the file is missing (counted, not fatal). */
   readFile: (guid: string, relPath: string) => Uint8Array | null;
   dryRun: boolean;
+  /** Optional per-job progress hook (index is 1-based) — lets a long CLI run
+   *  print a heartbeat instead of going silent for many minutes. */
+  onProgress?: (done: number, total: number, guid: string) => void;
 }
 
 export interface AttachmentResult {
@@ -94,10 +97,16 @@ export async function importAccuLynxAttachments(
     communications: 0, documents: 0, photos: 0, filesMissing: 0,
   };
 
-  await withTenant(tenantId, async (tx) => {
-    for (const b of bundles) {
+  // One transaction PER JOB, not one for the whole run: a 2000+-file import
+  // interleaves slow R2 uploads with DB writes, so a single transaction would
+  // stay open for many minutes (idle-in-transaction risk) and a mid-run failure
+  // would roll back everything. Per-job commits make the ledger durable after
+  // each job — a killed or timed-out run resumes cleanly, skipping finished jobs.
+  let done = 0;
+  for (const b of bundles) {
+    await withTenant(tenantId, async (tx) => {
       const ent = await resolveEntity(tx, tenantId, b.guid);
-      if (!ent) { r.jobsUnmatched += 1; continue; }
+      if (!ent) { r.jobsUnmatched += 1; return; }
       r.jobsMatched += 1;
       const { jobId, leadId, customerId } = ent;
 
@@ -181,8 +190,9 @@ export async function importAccuLynxAttachments(
         }).returning({ id: document.id });
         await ledger(tx, tenantId, externalId, "document", row!.id);
       }
-    }
-  });
+    });
+    deps.onProgress?.(++done, bundles.length, b.guid);
+  }
 
   return r;
 }
