@@ -155,3 +155,4 @@ export { runMaintenanceOfferSweep, maintenanceChurnStats, type MaintenanceSweepR
 export { runMaintenanceVisitSweep, sendDueVisitReports, getVisitReport, type VisitSweepResult, type ReportSendResult, type VisitReportData } from "./lifecycle/maintenance-visits";
 export { createScan, listScans, type CreateScanArgs, type ScanRow } from "./lifecycle/canvass-scan";
 export { insertPings, listPingsForDay, type PingPoint } from "./lifecycle/canvass-ping";
+export { importAccuLynxAttachments, type AttachmentJobBundle, type AttachmentDeps, type AttachmentResult } from "./lifecycle/acculynx-attachments-import";

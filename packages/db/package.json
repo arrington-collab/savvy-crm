@@ -21,7 +21,8 @@
     "@savvy/core": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "pg": "^8.13.0",
-    "uuidv7": "^1.0.2"
+    "uuidv7": "^1.0.2",
+    "@savvy/integrations": "workspace:*"
   },
   "devDependencies": {
     "drizzle-kit": "^0.28.0",
