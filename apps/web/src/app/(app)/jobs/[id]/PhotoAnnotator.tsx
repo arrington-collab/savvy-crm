@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { presignDocumentUpload, presignDocumentView, recordDocument } from "@/lib/document-actions";
 import { Button } from "@/components/ui/button";
 
 // Photo viewer + lightweight markup editor. Opens an imported/uploaded job
@@ -94,7 +93,6 @@ export function PhotoAnnotator({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [tool, setTool] = useState<Tool>("arrow");
@@ -105,19 +103,13 @@ export function PhotoAnnotator({
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string } | null>(null);
   const [saving, startSave] = useTransition();
 
-  // resolve the presigned image URL on mount. The parent remounts this per
-  // photo (keyed by doc id), so state starts fresh without a reset effect.
+  // Load the image through the SAME-ORIGIN proxy route, not the presigned R2
+  // URL directly: R2 sends no CORS headers, so a cross-origin <img> both fails
+  // to load and (if it loaded) would taint the canvas — breaking toBlob() on
+  // save. The proxy streams the bytes from our origin, so the canvas stays
+  // exportable. The parent remounts this per photo (keyed by id).
   const docId = doc?.id;
-  useEffect(() => {
-    if (!docId) return;
-    let cancelled = false;
-    presignDocumentView(docId).then((res) => {
-      if (cancelled) return;
-      if ("ok" in res) setSrc(res.url);
-      else setFailed(true);
-    });
-    return () => { cancelled = true; };
-  }, [docId]);
+  const src = docId ? `/api/documents/${docId}/view` : null;
 
   // (re)paint the canvas: base image, committed shapes, then the in-progress draft
   const repaint = useCallback(() => {
@@ -158,7 +150,7 @@ export function PhotoAnnotator({
     const p = toCanvas(e);
     if (tool === "text") { setTextInput({ x: p.x, y: p.y, value: "" }); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
-    draftRef.current = { tool, color, width, from: p, to: p, points: tool === "pen" ? [p] : undefined };
+    draftRef.current = { tool, color, width: scaledWidth(), from: p, to: p, points: tool === "pen" ? [p] : undefined };
   }
   function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!editing || !draftRef.current) return;
@@ -177,9 +169,16 @@ export function PhotoAnnotator({
     else repaint();
   }
 
+  // Stroke/text sizes are chosen against the on-screen preview but drawn in the
+  // image's native pixel space, so scale them up to the image's resolution —
+  // otherwise a 4px line is a hairline on a 3000px-wide photo.
+  function scaledWidth() {
+    return width * Math.max(1, (canvasRef.current?.width ?? 900) / 700);
+  }
+
   function commitText() {
     if (textInput && textInput.value.trim()) {
-      setShapes((prev) => [...prev, { tool: "text", color, width, from: { x: textInput.x, y: textInput.y }, to: { x: textInput.x, y: textInput.y }, text: textInput.value.trim() }]);
+      setShapes((prev) => [...prev, { tool: "text", color, width: scaledWidth(), from: { x: textInput.x, y: textInput.y }, to: { x: textInput.x, y: textInput.y }, text: textInput.value.trim() }]);
     }
     setTextInput(null);
   }
@@ -188,17 +187,20 @@ export function PhotoAnnotator({
     const canvas = canvasRef.current;
     if (!canvas || !doc) return;
     startSave(async () => {
-      const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png"));
+      // JPEG, not PNG: a full-res photo as PNG easily exceeds the upload body
+      // limit, and photos belong in JPEG anyway. Quality 0.9 keeps annotations crisp.
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", 0.9));
       if (!blob) { toast.error("Could not render the image."); return; }
       const base = (doc.filename ?? "photo").replace(/\.[a-z0-9]+$/i, "");
-      const filename = `${base}-markup.png`;
-      const pre = await presignDocumentUpload({ jobId, kind: "photo", label: doc.label ? `${doc.label} (markup)` : "markup", filename, contentType: "image/png" });
-      if (!("ok" in pre)) { toast.error("Storage not configured."); return; }
-      const put = await fetch(pre.uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": "image/png" } });
-      if (!put.ok) { toast.error("Upload failed."); return; }
-      const rec = await recordDocument({ jobId, r2Key: pre.r2Key, kind: "photo", label: doc.label ? `${doc.label} (markup)` : "markup", filename, mime: "image/png", sizeBytes: blob.size });
-      if ("ok" in rec) { toast.success("Marked-up photo saved."); onSaved(); onClose(); }
-      else toast.error(`Could not save (${rec.error}).`);
+      const filename = `${base}-markup.jpg`;
+      const fd = new FormData();
+      fd.append("file", blob, filename);
+      fd.append("filename", filename);
+      fd.append("label", doc.label ? `${doc.label} (markup)` : "markup");
+      const res = await fetch(`/api/jobs/${jobId}/annotated-photo`, { method: "POST", body: fd }).catch(() => null);
+      const json = res && res.ok ? await res.json().catch(() => null) : null;
+      if (json?.ok) { toast.success("Marked-up photo saved."); onSaved(); onClose(); }
+      else toast.error("Could not save the marked-up photo.");
     });
   }
 
@@ -213,7 +215,7 @@ export function PhotoAnnotator({
           {!editing ? (
             <>
               {src && (
-                <a href={src} download={doc.filename ?? "photo"} className="text-xs text-white/70 underline-offset-2 hover:underline">
+                <a href={`${src}?download=1`} download={doc.filename ?? "photo"} className="text-xs text-white/70 underline-offset-2 hover:underline">
                   Download
                 </a>
               )}
@@ -281,7 +283,7 @@ export function PhotoAnnotator({
           <>
             {/* hidden source image feeds the canvas */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={imgRef} src={src} alt="" className="hidden" crossOrigin="anonymous" onLoad={onImgLoad} onError={() => setFailed(true)} />
+            <img ref={imgRef} src={src} alt="" className="hidden" onLoad={onImgLoad} onError={() => setFailed(true)} />
             <canvas
               ref={canvasRef}
               onPointerDown={onPointerDown}
