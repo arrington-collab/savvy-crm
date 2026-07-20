@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import type { Market } from "@savvy/core";
 
 export function TopBar({
   authEnabled,
@@ -10,6 +11,7 @@ export function TopBar({
   theme = "dark",
   themeVarsLight,
   themeVarsDark,
+  markets = [],
 }: {
   authEnabled: boolean;
   brandName?: string | null;
@@ -18,9 +20,14 @@ export function TopBar({
   theme?: "light" | "dark";
   themeVarsLight?: Record<string, string>;
   themeVarsDark?: Record<string, string>;
+  markets?: Market[];
 }) {
   const [time, setTime] = useState("");
-  // The toggle restyles #app-chrome directly — instant, no server round trip.
+  // Market clocks: one local time per market the tenant operates in (settings.
+  // markets, validated in core). No markets configured → browser-local time,
+  // seconds included (the original clock). With markets, seconds are dropped —
+  // two-plus ticking second counters read as noise.
+  const [marketTimes, setMarketTimes] = useState<string[]>([]);
   // The cookie only matters for the NEXT full render (SSR picks the theme from
   // it), so we never router.refresh() here; that cost ~5s of auth + queries.
   // React won't fight the DOM mutation: the layout is a server component whose
@@ -41,11 +48,23 @@ export function TopBar({
   };
   const logoSrc = mode === "light" ? brandLogoUrl : (brandLogoUrlDark ?? brandLogoUrl);
   useEffect(() => {
-    const tick = () =>
-      setTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    const tick = () => {
+      if (markets.length) {
+        setMarketTimes(
+          markets.map((m) =>
+            new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: m.timezone }),
+          ),
+        );
+      } else {
+        setTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      }
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+    // markets come from server settings — stable per render; length/content only
+    // change with a full navigation, which remounts anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -72,9 +91,20 @@ export function TopBar({
         </span>
       </div>
       <div className="flex items-center gap-4">
-        <span className="mono text-[12px]" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>
-          {time}
-        </span>
+        {markets.length ? (
+          <span className="mono hidden items-center gap-3 text-[12px] md:flex" suppressHydrationWarning>
+            {markets.map((m, i) => (
+              <span key={m.label} className="flex items-center gap-1.5">
+                <span style={{ color: "var(--text-faint)" }}>{m.label}</span>
+                <span style={{ color: "var(--text-muted)" }}>{marketTimes[i] ?? ""}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="mono text-[12px]" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>
+            {time}
+          </span>
+        )}
         <button
           type="button"
           onClick={toggleTheme}
