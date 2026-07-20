@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import {
-  mapEstimate, mapInvoice, mapCommChannel, mapDocKind, attachmentR2Key,
+  mapEstimate, mapInvoice, mapCommChannel, mapDocKind, attachmentR2Key, htmlToText,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 
@@ -150,7 +150,7 @@ export async function importAccuLynxAttachments(
           const creator = (msg.Creator as { Name?: string } | undefined)?.Name ?? null;
           const [row] = await tx.insert(communication).values({
             tenantId, jobId, customerId, channel, direction: "outbound",
-            from: creator, body: (msg.Content as string) ?? null,
+            from: creator, body: htmlToText(msg.Content as string) || null,
             createdAt: msg.CreatedDate ? new Date(msg.CreatedDate as string) : undefined,
           }).returning({ id: communication.id });
           await ledger(tx, tenantId, externalId, "communication", row!.id);
