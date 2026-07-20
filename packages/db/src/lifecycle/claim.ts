@@ -117,13 +117,16 @@ export async function bookAdjusterMeeting(
 }
 
 /**
- * Attach a parsed carrier estimate to the lead's claim, or create a lead-scoped shell
- * (jobId null). Parsed money/carrier fields only FILL a null (never overwrite a
- * human-confirmed value); lineItems + parseConfidence are always written.
+ * Attach a parsed carrier estimate to the existing claim for a lead OR a job (a
+ * carrier estimate imported onto a job has no lead), or create a shell scoped to
+ * whichever id was given. Exactly one of leadId/jobId must be set. Parsed
+ * money/carrier fields only FILL a null (never overwrite a human-confirmed
+ * value); lineItems + parseConfidence are always written.
  */
-export async function attachOrCreateLeadClaim(input: {
+export async function attachOrCreateClaim(input: {
   tenantId: string;
-  leadId: string;
+  leadId?: string | null;
+  jobId?: string | null;
   propertyId: string | null;
   carrierName: string | null;
   claimNumber: string | null;
@@ -133,11 +136,17 @@ export async function attachOrCreateLeadClaim(input: {
   lineItems: InsuranceEstimateLine[];
   parseConfidence: number;
 }): Promise<{ claimId: string; created: boolean }> {
+  const scope = input.leadId
+    ? eq(claim.leadId, input.leadId)
+    : input.jobId
+      ? eq(claim.jobId, input.jobId)
+      : null;
+  if (!scope) throw new Error("attachOrCreateClaim: leadId or jobId required");
   return withTenant(input.tenantId, async (tx) => {
     const [existing] = await tx
       .select()
       .from(claim)
-      .where(and(eq(claim.tenantId, input.tenantId), eq(claim.leadId, input.leadId)))
+      .where(and(eq(claim.tenantId, input.tenantId), scope))
       .orderBy(desc(claim.createdAt))
       .limit(1);
 
@@ -161,7 +170,8 @@ export async function attachOrCreateLeadClaim(input: {
       .insert(claim)
       .values({
         tenantId: input.tenantId,
-        leadId: input.leadId,
+        leadId: input.leadId ?? null,
+        jobId: input.jobId ?? null,
         propertyId: input.propertyId,
         carrierName: input.carrierName,
         claimNumber: input.claimNumber,
@@ -174,4 +184,20 @@ export async function attachOrCreateLeadClaim(input: {
       .returning({ id: claim.id });
     return { claimId: row!.id, created: true };
   });
+}
+
+/** Back-compat wrapper — lead-scoped attach (see attachOrCreateClaim). */
+export async function attachOrCreateLeadClaim(input: {
+  tenantId: string;
+  leadId: string;
+  propertyId: string | null;
+  carrierName: string | null;
+  claimNumber: string | null;
+  acvCents: number | null;
+  rcvCents: number | null;
+  deductibleCents: number | null;
+  lineItems: InsuranceEstimateLine[];
+  parseConfidence: number;
+}): Promise<{ claimId: string; created: boolean }> {
+  return attachOrCreateClaim(input);
 }

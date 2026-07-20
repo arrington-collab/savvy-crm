@@ -1,4 +1,4 @@
-import { getLeadDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, attachOrCreateLeadClaim, withAgentRun } from "@savvy/db";
+import { getDocumentForParse, upsertUploadedMeasurement, setDocumentParseStatus, attachOrCreateClaim, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import {
   measurementReportParseSchema, MEASUREMENT_PARSE_MIN_CONFIDENCE, type MeasurementReportParse,
@@ -25,7 +25,7 @@ const INSURANCE_PROMPT =
   "item with its description, quantity, unit (if shown), unit price in cents, and line amount in cents.";
 
 export type ParseLeadDocumentDeps = {
-  loadDoc: (tenantId: string, documentId: string) => Promise<{ r2Key: string | null; kind: string; leadId: string | null; propertyId: string | null } | null>;
+  loadDoc: (tenantId: string, documentId: string) => Promise<{ r2Key: string | null; kind: string; leadId: string | null; jobId: string | null; propertyId: string | null } | null>;
   fetchBytes: (key: string) => Promise<Uint8Array>;
   // Typed via `typeof completeObject` (not a hand-rolled signature) so schemas with
   // `.default()` fields (measurementReportParseSchema) don't trip a ZodType<T> input/
@@ -33,7 +33,7 @@ export type ParseLeadDocumentDeps = {
   ai: Pick<typeof import("@savvy/ai"), "completeObject">;
   insertMeasurement: (input: { tenantId: string; propertyId: string; areas: Record<string, unknown>; pitch: string | null }) => Promise<string>;
   setStatus: (input: { tenantId: string; documentId: string; status: string; confidence?: number | null }) => Promise<void>;
-  attachClaim: (input: { tenantId: string; leadId: string; propertyId: string | null; carrierName: string | null; claimNumber: string | null; acvCents: number | null; rcvCents: number | null; deductibleCents: number | null; lineItems: InsuranceEstimateParse["lines"]; parseConfidence: number }) => Promise<{ claimId: string; created: boolean }>;
+  attachClaim: (input: { tenantId: string; leadId: string | null; jobId: string | null; propertyId: string | null; carrierName: string | null; claimNumber: string | null; acvCents: number | null; rcvCents: number | null; deductibleCents: number | null; lineItems: InsuranceEstimateParse["lines"]; parseConfidence: number }) => Promise<{ claimId: string; created: boolean }>;
   /**
    * Wraps the slow parse body with a live agent_run attributed to the lead
    * (opens `running`, resolves via `resolve` on success). Injected so this
@@ -100,8 +100,10 @@ export async function parseLeadDocumentHandler(
           return { status: "parsed" as const, measurementId, leadId: doc.leadId, propertyId: doc.propertyId };
         }
 
-        // doc.kind === "insurance_estimate"
-        if (!doc.leadId) throw new Error("insurance document missing lead");
+        // doc.kind === "insurance_estimate" — attach the claim to the lead, or
+        // to the job when the estimate lives on a job (no lead), e.g. a bulk-
+        // imported carrier estimate.
+        if (!doc.leadId && !doc.jobId) throw new Error("insurance document missing lead and job");
         const { object: parsed } = await deps.ai.completeObject<InsuranceEstimateParse>({
           capability: "reasoning",
           system: INSURANCE_SYSTEM,
@@ -114,7 +116,7 @@ export async function parseLeadDocumentHandler(
           return { status: "unparsed_low_confidence" as const };
         }
         const { claimId } = await deps.attachClaim({
-          tenantId, leadId: doc.leadId, propertyId: doc.propertyId,
+          tenantId, leadId: doc.leadId, jobId: doc.jobId, propertyId: doc.propertyId,
           carrierName: parsed.carrierName, claimNumber: parsed.claimNumber,
           acvCents: parsed.acvCents, rcvCents: parsed.rcvCents, deductibleCents: parsed.deductibleCents,
           lineItems: parsed.lines, parseConfidence: parsed.confidence,
@@ -134,16 +136,18 @@ export async function parseLeadDocumentHandler(
 }
 
 export const parseLeadDocument = inngest.createFunction(
-  { id: "parse-lead-document", concurrency: [{ limit: 5, key: "event.data.tenantId" }, { limit: 1, key: "event.data.leadId" }], retries: 2 },
+  // Serialize per document (scopeId = lead or job it hangs off, else the doc id)
+  // so two parses of the same subject can't race to create duplicate claims.
+  { id: "parse-lead-document", concurrency: [{ limit: 5, key: "event.data.tenantId" }, { limit: 1, key: "event.data.scopeId" }], retries: 2 },
   { event: "lead-document/received" },
   async ({ event, step }) => {
-    const { tenantId, documentId } = event.data as { tenantId: string; documentId: string; kind?: string };
+    const { tenantId, documentId } = event.data as { tenantId: string; documentId: string; kind?: string; scopeId?: string };
 
     const result = await step.run("parse", () =>
       parseLeadDocumentHandler(
         { tenantId, documentId },
         {
-          loadDoc: (t, d) => getLeadDocumentForParse(t, d),
+          loadDoc: (t, d) => getDocumentForParse(t, d),
           fetchBytes: async (key) => {
             // R2 isn't wired in e2e (the upload action stubs storage under TEST_MODE);
             // return a minimal PDF header so the pipeline stays exercisable — the stubbed
@@ -157,7 +161,7 @@ export const parseLeadDocument = inngest.createFunction(
           ai: { completeObject },
           insertMeasurement: (i) => upsertUploadedMeasurement(i),
           setStatus: (i) => setDocumentParseStatus(i),
-          attachClaim: (i) => attachOrCreateLeadClaim(i),
+          attachClaim: (i) => attachOrCreateClaim(i),
           withRun: (meta, work, resolve) =>
             withAgentRun({ tenantId, agent: "orchestrator", taskKey: meta.taskKey, leadId: meta.leadId }, work, { resolve }),
         },

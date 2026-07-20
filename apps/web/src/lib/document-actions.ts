@@ -67,6 +67,14 @@ export async function recordDocument(input: {
     return row;
   });
   if (!res) return { error: "not_found" };
+  // Parseable uploads (insurance estimate, measurement report) attached to a job
+  // feed the parse pipeline — extract the carrier claim / roof measurement.
+  if ((PARSEABLE_KINDS as readonly string[]).includes(input.kind)) {
+    await inngest.send({
+      name: "lead-document/received",
+      data: { tenantId, documentId: res.id, jobId: input.jobId, kind: input.kind, scopeId: input.jobId },
+    }).catch(() => {});
+  }
   revalidatePath(`/jobs/${input.jobId}`);
   return { ok: true, id: res.id };
 }
@@ -172,7 +180,7 @@ export async function recordLeadDocumentAction(input: {
   if ((PARSEABLE_KINDS as readonly string[]).includes(input.kind)) {
     await inngest.send({
       name: "lead-document/received",
-      data: { tenantId, documentId: res.id, leadId: input.leadId, kind: input.kind },
+      data: { tenantId, documentId: res.id, leadId: input.leadId, kind: input.kind, scopeId: input.leadId },
     }).catch(() => {});
   }
   revalidatePath(`/leads/${input.leadId}`);
@@ -191,22 +199,24 @@ export async function reparseDocument(
   const { tenantId } = await getCurrentUser();
   const doc = await withTenant(tenantId, async (tx) => {
     const [d] = await tx
-      .select({ id: document.id, kind: document.kind, leadId: document.leadId })
+      .select({ id: document.id, kind: document.kind, leadId: document.leadId, jobId: document.jobId })
       .from(document)
       .where(eq(document.id, documentId));
     return d;
   });
-  if (!doc || !doc.leadId) return { error: "not_found" };
+  // Works for lead- OR job-attached docs (a bulk-imported carrier estimate hangs
+  // off a job with no lead). scopeId serializes the parse per subject.
+  if (!doc || (!doc.leadId && !doc.jobId)) return { error: "not_found" };
   if (!(PARSEABLE_KINDS as readonly string[]).includes(doc.kind)) return { error: "not_parseable" };
-  const leadId = doc.leadId;
+  const scopeId = doc.leadId ?? doc.jobId!;
 
   await withTenant(tenantId, (tx) =>
     tx.update(document).set({ parseStatus: "pending", parseConfidence: null }).where(eq(document.id, documentId)),
   );
   await inngest.send({
     name: "lead-document/received",
-    data: { tenantId, documentId, leadId, kind: doc.kind },
+    data: { tenantId, documentId, leadId: doc.leadId, jobId: doc.jobId, kind: doc.kind, scopeId },
   }).catch(() => {});
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(doc.leadId ? `/leads/${doc.leadId}` : `/jobs/${doc.jobId}`);
   return { ok: true };
 }
