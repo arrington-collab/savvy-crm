@@ -48,6 +48,7 @@ export function JobTabs({
   esignRequests,
   customerEmail,
   checkins,
+  defaultTab,
 }: {
   ledgerRows: JobLedgerRow[];
   timeline: TimelineItem[];
@@ -60,9 +61,12 @@ export function JobTabs({
   esignRequests: EsignRow[];
   customerEmail: string | null;
   checkins: CheckinRow[];
+  // A ?focus= deep-link from the Today queue can open a specific tab on arrival.
+  defaultTab?: string;
 }) {
+  const TAB_KEYS = ["tasks", "timeline", "comms", "docs", "esign"];
   return (
-    <Tabs defaultValue="tasks">
+    <Tabs defaultValue={defaultTab && TAB_KEYS.includes(defaultTab) ? defaultTab : "tasks"}>
       <TabsList>
         <TabsTrigger value="tasks">Tasks</TabsTrigger>
         <TabsTrigger value="timeline">Timeline</TabsTrigger>
