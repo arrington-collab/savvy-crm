@@ -13,6 +13,7 @@ export const document = pgTable("document", {
   customerId: uuid("customer_id").references(() => customer.id),
   kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other|insurance_estimate|measurement_report
   label: text("label"),
+  notes: text("notes"), // free-form per-photo field note (rep-authored; feeds AI upsell drafting). Distinct from the short `label`.
   // Slice 6a: lead-stage scope + uploader + parse lifecycle (parsing lands in 6b/6c).
   leadId: uuid("lead_id").references(() => lead.id),
   propertyId: uuid("property_id").references(() => property.id),

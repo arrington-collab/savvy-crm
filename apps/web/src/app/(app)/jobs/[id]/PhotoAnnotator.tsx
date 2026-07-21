@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { saveDocumentNoteAction } from "@/lib/document-actions";
 
-// Photo viewer + lightweight markup editor. Opens an imported/uploaded job
-// photo full-screen; "Markup" reveals arrow/circle/text/pen tools drawn on a
-// canvas over the image. Saving composites the shapes onto the pixels and
-// uploads the result as a NEW photo document (the original is never touched),
-// reusing the existing presign→PUT→record flow.
+// Photo gallery + lightweight markup editor. Opens the job's photos full-screen;
+// ◀/▶ (and ←/→) page through the whole set. A notes box beside the image
+// autosaves a rep's field note per photo (fed to AI upsell drafting). "Markup"
+// reveals arrow/circle/text/pen tools drawn on a canvas over the image; saving
+// composites the shapes onto the pixels and uploads the result as a NEW photo
+// document (the original is never touched), reusing the presign→PUT→record flow.
 
 export interface AnnotatorDoc {
   id: string;
   filename: string | null;
   label: string | null;
+  notes: string | null;
+  externalUrl: string | null;
 }
 
 type Tool = "arrow" | "circle" | "text" | "pen";
@@ -84,9 +88,10 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape) {
 }
 
 export function PhotoAnnotator({
-  doc, jobId, onClose, onSaved,
+  docs, startIndex, jobId, onClose, onSaved,
 }: {
-  doc: AnnotatorDoc | null;
+  docs: AnnotatorDoc[];
+  startIndex: number;
   jobId: string;
   onClose: () => void;
   onSaved: () => void;
@@ -103,13 +108,51 @@ export function PhotoAnnotator({
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string } | null>(null);
   const [saving, startSave] = useTransition();
 
+  // ── gallery navigation ──
+  const [index, setIndex] = useState(() => Math.min(Math.max(startIndex, 0), Math.max(docs.length - 1, 0)));
+  const doc = docs[index] ?? null;
+  const atStart = index <= 0;
+  const atEnd = index >= docs.length - 1;
+  const go = useCallback((delta: number) => {
+    setIndex((i) => {
+      const next = Math.min(Math.max(i + delta, 0), docs.length - 1);
+      if (next !== i) { setEditing(false); setShapes([]); setFailed(false); setTextInput(null); }
+      return next;
+    });
+  }, [docs.length]);
+
+  // ── per-photo notes (autosave, debounced) ──
+  // In-session edits are held per document id so paging away and back shows the
+  // latest typed value; the server value (doc.notes) seeds each photo first.
+  const [noteEdits, setNoteEdits] = useState<Record<string, string>>({});
+  const [savedTick, setSavedTick] = useState(0);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteValue = doc ? (noteEdits[doc.id] ?? doc.notes ?? "") : "";
+  function onNoteChange(v: string) {
+    if (!doc) return;
+    const id = doc.id;
+    setNoteEdits((m) => ({ ...m, [id]: v }));
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(async () => {
+      const r = await saveDocumentNoteAction(id, v);
+      if ("error" in r) toast.error(r.error);
+      else setSavedTick((t) => t + 1);
+    }, 800);
+  }
+  useEffect(() => () => { if (noteTimer.current) clearTimeout(noteTimer.current); }, []);
+
   // Load the image through the SAME-ORIGIN proxy route, not the presigned R2
   // URL directly: R2 sends no CORS headers, so a cross-origin <img> both fails
   // to load and (if it loaded) would taint the canvas — breaking toBlob() on
   // save. The proxy streams the bytes from our origin, so the canvas stays
   // exportable. The parent remounts this per photo (keyed by id).
+  // R2-backed photos stream through the same-origin proxy (canvas stays
+  // exportable for markup). CompanyCam photos have only an external URL — show
+  // it directly (drawImage works cross-origin; only markup EXPORT would taint,
+  // so markup is disabled for those below).
   const docId = doc?.id;
-  const src = docId ? `/api/documents/${docId}/view` : null;
+  const src = doc?.externalUrl ?? (docId ? `/api/documents/${docId}/view` : null);
+  const canMarkup = !!src && !doc?.externalUrl;
 
   // (re)paint the canvas: base image, committed shapes, then the in-progress draft
   const repaint = useCallback(() => {
@@ -134,6 +177,21 @@ export function PhotoAnnotator({
   }
 
   useEffect(() => { repaint(); }, [shapes, repaint]);
+
+  // Keyboard: ←/→ page photos, Esc closes. Ignore arrows while typing in a
+  // field (notes textarea / markup text input) so the cursor still moves.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = document.activeElement;
+      const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+      if (e.key === "Escape") { onClose(); return; }
+      if (editing || typing) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, go, onClose]);
 
   // map a pointer event to canvas (image-pixel) coordinates
   function toCanvas(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -210,16 +268,22 @@ export function PhotoAnnotator({
     <div className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Photo viewer">
       {/* top bar */}
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
-        <span className="truncate text-sm text-white/80">{doc.label || doc.filename || "Photo"}</span>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="truncate text-sm text-white/80">{doc.label || doc.filename || "Photo"}</span>
+          {docs.length > 1 && (
+            <span className="mono shrink-0 text-xs text-white/50" data-testid="photo-counter">{index + 1} / {docs.length}</span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {!editing ? (
             <>
-              {src && (
+              {src && !doc.externalUrl && (
                 <a href={`${src}?download=1`} download={doc.filename ?? "photo"} className="text-xs text-white/70 underline-offset-2 hover:underline">
                   Download
                 </a>
               )}
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={!src} data-testid="photo-markup">
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={!canMarkup} data-testid="photo-markup"
+                title={doc.externalUrl ? "Markup unavailable for CompanyCam photos" : undefined}>
                 Markup
               </Button>
             </>
@@ -277,6 +341,18 @@ export function PhotoAnnotator({
 
       {/* stage */}
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
+        {!editing && docs.length > 1 && (
+          <>
+            <button
+              onClick={() => go(-1)} disabled={atStart} aria-label="Previous photo" data-testid="photo-prev"
+              className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl text-white/90 hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-30"
+            >‹</button>
+            <button
+              onClick={() => go(1)} disabled={atEnd} aria-label="Next photo" data-testid="photo-next"
+              className="absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl text-white/90 hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-30"
+            >›</button>
+          </>
+        )}
         {failed && <p className="text-sm text-white/70">Photo unavailable.</p>}
         {!failed && !src && <div className="h-40 w-40 animate-pulse rounded-md bg-white/10" aria-label="Loading photo" />}
         {src && (
@@ -308,6 +384,27 @@ export function PhotoAnnotator({
           </>
         )}
       </div>
+
+      {/* notes (view mode) — autosaves; fed to AI upsell drafting */}
+      {!editing && doc && (
+        <div className="border-t border-white/10 bg-black/40 px-4 py-3">
+          <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="photo-note" className="text-xs font-medium text-white/60">Notes for AI (estimates &amp; reports)</label>
+              {savedTick > 0 && <span className="text-[11px] text-white/40" data-testid="photo-note-saved">Saved</span>}
+            </div>
+            <textarea
+              id="photo-note"
+              data-testid="photo-note"
+              value={noteValue}
+              onChange={(e) => onNoteChange(e.target.value)}
+              rows={2}
+              placeholder="e.g. hail bruising on north slope; gutters dented; 3 aged skylights"
+              className="w-full resize-y rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

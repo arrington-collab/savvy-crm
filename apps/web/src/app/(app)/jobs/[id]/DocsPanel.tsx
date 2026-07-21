@@ -15,6 +15,7 @@ export interface DocRow {
   id: string;
   kind: string;
   label: string | null;
+  notes: string | null;
   filename: string | null;
   mime: string | null;
   source: string | null;
@@ -81,12 +82,16 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
   const [ccProjectId, setCcProjectId] = useState(companycamProjectId ?? "");
   const [ccSaving, startCcSave] = useTransition();
   const [viewing, setViewing] = useState<ViewerDoc | null>(null);
-  const [annotating, setAnnotating] = useState<AnnotatorDoc | null>(null);
+  // The gallery opens at the clicked photo's index and pages through them all.
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
   const [selectedLabel, setSelectedLabel] = useState<string>(requiredPhotos[0] ?? "other");
   const [selectedKind, setSelectedKind] = useState<DocKind>("photo");
 
   const photos = documents.filter((d) => d.kind === "photo");
+  const galleryDocs: AnnotatorDoc[] = photos.map((d) => ({
+    id: d.id, filename: d.filename, label: d.label, notes: d.notes, externalUrl: d.externalUrl,
+  }));
   const nonPhotos = documents.filter((d) => d.kind !== "photo");
 
   // ── required-photo checklist ──
@@ -231,22 +236,30 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
         <section>
           <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Photos</h3>
           <div className="flex flex-wrap gap-2">
-            {photos.map((doc) => (
+            {photos.map((doc, i) => (
               <div key={doc.id} className="space-y-1">
                 {doc.externalUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={doc.externalUrl}
-                    alt={doc.label ?? "photo"}
-                    className="h-24 w-24 rounded-md border border-border object-cover"
-                    data-testid="companycam-photo"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setGalleryIndex(i)}
+                    className="block rounded-md ring-offset-2 ring-offset-background transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    title="Open · view & notes"
+                    data-testid={`open-photo-${doc.id}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={doc.externalUrl}
+                      alt={doc.label ?? "photo"}
+                      className="h-24 w-24 rounded-md border border-border object-cover"
+                      data-testid="companycam-photo"
+                    />
+                  </button>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setAnnotating({ id: doc.id, filename: doc.filename, label: doc.label })}
+                    onClick={() => setGalleryIndex(i)}
                     className="block rounded-md ring-offset-2 ring-offset-background transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    title="Open · view & markup"
+                    title="Open · view, notes & markup"
                     data-testid={`open-photo-${doc.id}`}
                   >
                     <DocThumb docId={doc.id} filename={doc.filename} />
@@ -387,8 +400,14 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
       </section>
 
       <DocViewer doc={viewing} onClose={() => setViewing(null)} />
-      {annotating && (
-        <PhotoAnnotator key={annotating.id} doc={annotating} jobId={jobId} onClose={() => setAnnotating(null)} onSaved={() => router.refresh()} />
+      {galleryIndex !== null && galleryDocs.length > 0 && (
+        <PhotoAnnotator
+          docs={galleryDocs}
+          startIndex={galleryIndex}
+          jobId={jobId}
+          onClose={() => setGalleryIndex(null)}
+          onSaved={() => router.refresh()}
+        />
       )}
     </div>
   );

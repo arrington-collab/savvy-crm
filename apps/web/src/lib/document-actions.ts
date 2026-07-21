@@ -1,11 +1,23 @@
 "use server";
-import { withTenant, job, lead, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto, recordLeadDocument } from "@savvy/db";
+import { withTenant, job, lead, document, eq, keepFlaggedPhoto as dbKeepFlaggedPhoto, recordLeadDocument, setDocumentNote } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 import { validateUpload, PARSEABLE_KINDS, type UploadValidationError } from "@savvy/core";
 import { inngest } from "@savvy/agents";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "./tenant";
 import { getCurrentUser } from "./current-user";
+
+/** Autosave a rep's free-form note on a photo (called debounced from the gallery).
+ *  Note is client-local until the next server render, so no revalidate needed. */
+export async function saveDocumentNoteAction(documentId: string, notes: string): Promise<{ ok: true } | { error: string }> {
+  try {
+    const tenantId = await getTenantId();
+    const ok = await setDocumentNote(tenantId, { documentId, notes });
+    return ok ? { ok: true } : { error: "document not found" };
+  } catch {
+    return { error: "could not save note" };
+  }
+}
 
 export async function presignDocumentUpload(input: {
   jobId: string;
