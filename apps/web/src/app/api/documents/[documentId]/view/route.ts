@@ -35,7 +35,7 @@ export async function GET(
   headers.set("Content-Type", view.contentType);
   headers.set("Content-Disposition", view.disposition);
   headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Cache-Control", "private, no-store");
+  headers.set("Cache-Control", view.cacheControl);
   const len = upstream.headers.get("content-length");
   if (len) headers.set("Content-Length", len);
   return new Response(upstream.body, { status: 200, headers });

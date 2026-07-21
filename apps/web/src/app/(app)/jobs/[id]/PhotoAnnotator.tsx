@@ -110,16 +110,18 @@ export function PhotoAnnotator({
 
   // ── gallery navigation ──
   const [index, setIndex] = useState(() => Math.min(Math.max(startIndex, 0), Math.max(docs.length - 1, 0)));
+  const [loading, setLoading] = useState(true); // current photo is downloading (spinner)
   const doc = docs[index] ?? null;
   const atStart = index <= 0;
   const atEnd = index >= docs.length - 1;
   const go = useCallback((delta: number) => {
-    setIndex((i) => {
-      const next = Math.min(Math.max(i + delta, 0), docs.length - 1);
-      if (next !== i) { setEditing(false); setShapes([]); setFailed(false); setTextInput(null); }
-      return next;
-    });
-  }, [docs.length]);
+    const next = Math.min(Math.max(index + delta, 0), docs.length - 1);
+    if (next === index) return; // at a boundary — nothing to do (don't strand the spinner)
+    setIndex(next);
+    // Reset per-photo view state for the new image (side effects belong here, not
+    // inside the setIndex updater, which must stay pure).
+    setEditing(false); setShapes([]); setFailed(false); setTextInput(null); setLoading(true);
+  }, [index, docs.length]);
 
   // ── per-photo notes (autosave, debounced) ──
   // In-session edits are held per document id so paging away and back shows the
@@ -141,18 +143,28 @@ export function PhotoAnnotator({
   }
   useEffect(() => () => { if (noteTimer.current) clearTimeout(noteTimer.current); }, []);
 
-  // Load the image through the SAME-ORIGIN proxy route, not the presigned R2
-  // URL directly: R2 sends no CORS headers, so a cross-origin <img> both fails
-  // to load and (if it loaded) would taint the canvas — breaking toBlob() on
-  // save. The proxy streams the bytes from our origin, so the canvas stays
-  // exportable. The parent remounts this per photo (keyed by id).
-  // R2-backed photos stream through the same-origin proxy (canvas stays
-  // exportable for markup). CompanyCam photos have only an external URL — show
-  // it directly (drawImage works cross-origin; only markup EXPORT would taint,
-  // so markup is disabled for those below).
-  const docId = doc?.id;
-  const src = doc?.externalUrl ?? (docId ? `/api/documents/${docId}/view` : null);
+  // R2-backed photos load through the SAME-ORIGIN proxy route (not the presigned
+  // R2 URL directly): R2 sends no CORS headers, so a cross-origin <img> taints
+  // the canvas and breaks toBlob() on markup save. The proxy streams same-origin,
+  // and now serves an immutable Cache-Control, so re-views come from cache.
+  // CompanyCam photos have only an external URL — shown directly (drawImage works
+  // cross-origin; only markup EXPORT would taint, so markup is disabled for those).
+  const viewUrl = useCallback(
+    (d: AnnotatorDoc | null | undefined): string | null =>
+      d?.externalUrl ?? (d?.id ? `/api/documents/${d.id}/view` : null),
+    [],
+  );
+  const src = viewUrl(doc);
   const canMarkup = !!src && !doc?.externalUrl;
+
+  // Preload the adjacent photos so arrowing lands on an already-cached image
+  // (the immutable Cache-Control keeps them in the browser cache). Off-thread —
+  // a bare Image() request that never touches the canvas.
+  useEffect(() => {
+    for (const url of [viewUrl(docs[index - 1]), viewUrl(docs[index + 1])]) {
+      if (url) { const im = new Image(); im.src = url; }
+    }
+  }, [index, docs, viewUrl]);
 
   // (re)paint the canvas: base image, committed shapes, then the in-progress draft
   const repaint = useCallback(() => {
@@ -169,6 +181,7 @@ export function PhotoAnnotator({
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const img = e.currentTarget;
     imgRef.current = img;
+    setLoading(false);
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.width = img.naturalWidth;
@@ -354,12 +367,16 @@ export function PhotoAnnotator({
           </>
         )}
         {failed && <p className="text-sm text-white/70">Photo unavailable.</p>}
-        {!failed && !src && <div className="h-40 w-40 animate-pulse rounded-md bg-white/10" aria-label="Loading photo" />}
+        {!failed && (!src || loading) && (
+          <div className="absolute inset-0 z-0 flex items-center justify-center" aria-label="Loading photo">
+            <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+          </div>
+        )}
         {src && (
           <>
             {/* hidden source image feeds the canvas */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={imgRef} src={src} alt="" className="hidden" onLoad={onImgLoad} onError={() => setFailed(true)} />
+            <img ref={imgRef} src={src} alt="" className="hidden" onLoad={onImgLoad} onError={() => { setFailed(true); setLoading(false); }} />
             <canvas
               ref={canvasRef}
               onPointerDown={onPointerDown}

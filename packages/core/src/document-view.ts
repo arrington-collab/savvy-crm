@@ -9,6 +9,7 @@ export interface DocumentViewHeaders {
   disposition: string;
   noSniff: true;
   inline: boolean;
+  cacheControl: string;
 }
 
 /**
@@ -29,5 +30,10 @@ export function buildDocumentViewHeaders(input: {
     disposition: `${inline ? "inline" : "attachment"}; filename="${safe}"`,
     noSniff: true,
     inline,
+    // A document's bytes are immutable — markup/edits create a NEW document with a
+    // new id/URL — so the browser may cache aggressively. `private` keeps it out of
+    // shared/CDN caches (tenant-safe). This is what makes thumbnails + gallery
+    // re-views instant instead of re-downloading the full-res original every time.
+    cacheControl: "private, max-age=31536000, immutable",
   };
 }

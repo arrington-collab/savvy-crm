@@ -38,4 +38,11 @@ describe("buildDocumentViewHeaders", () => {
     expect(h.contentType).toBe("application/octet-stream");
     expect(h.disposition).toBe('attachment; filename="document"');
   });
+
+  it("marks the object immutable + privately cacheable (a document's bytes never change)", () => {
+    const h = buildDocumentViewHeaders({ mime: "image/jpeg", filename: "roof.jpg", download: false });
+    // private → browser-only (never a shared/CDN cache, tenant-safe); immutable +
+    // long max-age → thumbnails & gallery re-views come from cache, not a re-download.
+    expect(h.cacheControl).toBe("private, max-age=31536000, immutable");
+  });
 });
