@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { withTenant } from "../src/tenant.js";
 import { document } from "../src/schema/ops.js";
-import { setDocumentNote } from "../src/lifecycle/document-notes.js";
+import { setDocumentNote, listJobPhotoNotes } from "../src/lifecycle/document-notes.js";
 import { makeTenant, makeJobWithCustomer } from "./helpers.js";
 
 async function makePhoto(tenantId: string, jobId: string): Promise<string> {
@@ -45,5 +45,29 @@ describe("setDocumentNote — per-photo free-form note", () => {
   it("returns false for a document not in the tenant", async () => {
     const { tenantId } = await makeTenant();
     expect(await setDocumentNote(tenantId, { documentId: "00000000-0000-0000-0000-000000000000", notes: "hi" })).toBe(false);
+  });
+});
+
+describe("listJobPhotoNotes — the job's photo notes for AI upsell drafting", () => {
+  it("returns only non-empty notes on photo docs for the job", async () => {
+    const { tenantId } = await makeTenant();
+    const { jobId } = await makeJobWithCustomer(tenantId);
+
+    const withNote = await makePhoto(tenantId, jobId);
+    await setDocumentNote(tenantId, { documentId: withNote, notes: "gutters dented north side" });
+    await makePhoto(tenantId, jobId); // photo, no note → excluded
+    // a non-photo doc with a note → excluded
+    await withTenant(tenantId, (tx) =>
+      tx.insert(document).values({ tenantId, jobId, kind: "contract", notes: "should be ignored", r2Key: `${tenantId}/${jobId}/c.pdf` }),
+    );
+
+    expect(await listJobPhotoNotes(tenantId, jobId)).toEqual(["gutters dented north side"]);
+  });
+
+  it("returns [] for a job with no photo notes", async () => {
+    const { tenantId } = await makeTenant();
+    const { jobId } = await makeJobWithCustomer(tenantId);
+    await makePhoto(tenantId, jobId);
+    expect(await listJobPhotoNotes(tenantId, jobId)).toEqual([]);
   });
 });

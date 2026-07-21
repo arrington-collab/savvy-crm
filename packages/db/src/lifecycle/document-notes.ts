@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { withTenant } from "../tenant";
 import { document } from "../schema/ops";
 
@@ -16,5 +16,17 @@ export async function setDocumentNote(
     if (!cur) return false;
     await tx.update(document).set({ notes: trimmed === "" ? null : trimmed }).where(eq(document.id, input.documentId));
     return true;
+  });
+}
+
+/** The rep-authored notes on a job's PHOTO documents (non-empty, trimmed). Fed to
+ *  AI upsell drafting so suggestions reflect what the rep saw in the field. */
+export async function listJobPhotoNotes(tenantId: string, jobId: string): Promise<string[]> {
+  return withTenant(tenantId, async (tx) => {
+    const rows = await tx
+      .select({ notes: document.notes })
+      .from(document)
+      .where(and(eq(document.jobId, jobId), eq(document.kind, "photo")));
+    return rows.map((r) => (r.notes ?? "").trim()).filter((n) => n.length > 0);
   });
 }
