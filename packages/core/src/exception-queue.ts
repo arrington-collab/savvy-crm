@@ -95,7 +95,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: p.customerName ?? "—",
       detail: `${p.label} at ${p.elapsedHours.toFixed(1)}h vs ${p.expectedHours}h expected${p.crewContext ? ` — crew notes: ${p.crewContext}` : ""}`,
-      href: `/jobs/${p.jobId}`,
+      href: `/jobs/${p.jobId}?focus=tasks`,
       occurredAt: null,
     });
   }
@@ -105,7 +105,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "high",
       title: c.customerName ?? "—",
       detail: `Crew checked in but no photos or memos for ${Math.floor(c.hoursQuiet)}h`,
-      href: `/jobs/${c.jobId}`,
+      href: `/jobs/${c.jobId}?focus=tasks`,
       occurredAt: null,
     });
   }
@@ -115,7 +115,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "high",
       title: c.customerName ?? "—",
       detail: "No crew check-in past the start window",
-      href: `/jobs/${c.jobId}`,
+      href: `/jobs/${c.jobId}?focus=tasks`,
       occurredAt: c.startsAt,
     });
   }
@@ -125,7 +125,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "high",
       title: b.customerName ?? "—",
       detail: `${b.kind.replace(/_/g, " ")}${b.note ? `: ${b.note}` : ""}${b.hasChangeOrder ? " — change-order stub drafted" : ""}`,
-      href: `/jobs/${b.jobId}`,
+      href: `/jobs/${b.jobId}?focus=tasks`,
       occurredAt: b.createdAt,
     });
   }
@@ -135,7 +135,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: e.customerName ?? "—",
       detail: `No end-of-day report for ${e.dayKey} — the crew day is still open`,
-      href: `/jobs/${e.jobId}`,
+      href: `/jobs/${e.jobId}?focus=tasks`,
       occurredAt: null,
     });
   }
@@ -145,7 +145,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "high",
       title: g.customerName ?? "—",
       detail: `${g.phaseKey.replace(/_/g, " ")} is waiting on the ${g.requiredInspectionKey.replace(/_/g, " ")} city inspection`,
-      href: `/jobs/${g.jobId}`,
+      href: `/jobs/${g.jobId}?focus=tasks`,
       occurredAt: null,
     });
   }
@@ -156,7 +156,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: j.late ? "high" : "medium",
       title: j.customerName ?? "—",
       detail: j.reasons.length ? j.reasons.join("; ") : j.late ? "Late" : "Stuck",
-      href: `/jobs/${j.jobId}`,
+      href: `/jobs/${j.jobId}?focus=tasks`,
       occurredAt: j.stageEnteredAt,
     });
   }
@@ -188,7 +188,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: t.customerName ?? "—",
       detail: `Task overdue: ${t.title}`,
-      href: `/jobs/${t.jobId}`,
+      href: `/jobs/${t.jobId}?focus=tasks`,
       occurredAt: t.dueAt,
     });
   }
@@ -201,7 +201,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: misaligned ? "high" : "medium",
       title: m.customerName ?? "—",
       detail: misaligned ? "Materials arrive after install" : "No install scheduled for materials",
-      href: `/jobs/${m.jobId}`,
+      href: `/jobs/${m.jobId}?focus=materials`,
       occurredAt: misaligned ? m.installAt : m.createdAt,
     });
   }
@@ -211,7 +211,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: t.customerName ?? "—",
       detail: `Needs approval: ${t.title}`,
-      href: `/jobs/${t.jobId}`,
+      href: `/jobs/${t.jobId}?focus=tasks`,
       occurredAt: t.deferredAt,
     });
   }
@@ -244,7 +244,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: g.customerName ?? "—",
       detail: `Stage '${g.stage}' lacks evidence: ${g.missing}`,
-      href: `/jobs/${g.jobId}`,
+      href: `/jobs/${g.jobId}?focus=docs`,
       occurredAt: g.occurredAt,
     });
   }
@@ -256,7 +256,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: m.marginPct < 0 ? "high" : "medium",
       title: m.customerName ?? "—",
       detail: `Margin ${m.marginPct}%${m.marginPct < 0 ? " — losing money" : " — below target"}`,
-      href: `/jobs/${m.jobId}`,
+      href: `/jobs/${m.jobId}?focus=margin`,
       occurredAt: m.occurredAt,
     });
   }
@@ -267,7 +267,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: p.customerName ?? "—",
       detail: `Photos incomplete: ${p.missing.join(", ")}`,
-      href: `/jobs/${p.jobId}`,
+      href: `/jobs/${p.jobId}?focus=docs`,
       occurredAt: p.occurredAt,
     });
   }
@@ -289,7 +289,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       severity: "medium",
       title: "Photo needs attention",
       detail: `${p.label ? `${p.label}: ` : ""}${p.reason}`,
-      href: `/jobs/${p.jobId}`,
+      href: `/jobs/${p.jobId}?focus=docs`,
       occurredAt: p.occurredAt,
     });
   }

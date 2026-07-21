@@ -34,6 +34,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getTenantId } from "@/lib/tenant";
 import { JobTabs } from "./tabs";
+import { FocusOnMount } from "./FocusOnMount";
 import { JobLedgerCard } from "./JobLedgerCard";
 import { JobLedgerAskSage } from "./JobLedgerAskSage";
 import { AutomationModule } from "./AutomationModule";
@@ -71,10 +72,15 @@ function daysInStage(stageEnteredAt: Date | null): number {
 
 export default async function JobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ focus?: string }>;
 }) {
   const { id } = await params;
+  // A Today decision-card deep-links here with ?focus=<surface> (tasks/docs/
+  // materials/margin) so we open the right tab and ring the exact panel.
+  const { focus } = await searchParams;
   const tenantId = await getTenantId();
 
   const data = await withTenant(tenantId, async (tx) => {
@@ -384,6 +390,7 @@ export default async function JobDetailPage({
 
   return (
     <div data-testid="job-detail" className="space-y-6">
+      <FocusOnMount focus={focus} />
       <Breadcrumb segments={[{ label: "Jobs", href: "/jobs" }, { label: jobRow.customerName ?? "Job" }]} />
       {jobRow.rescissionHoldUntil && new Date(jobRow.rescissionHoldUntil) > new Date() && (
         <div
@@ -444,7 +451,7 @@ export default async function JobDetailPage({
         <ReferralFeeApproval jobId={id} title={referralApproval.title} amountCents={referralPaymentRow.amountCents} />
       )}
 
-      <Card data-testid="job-margin" className="p-5">
+      <Card id="focus-margin" data-testid="job-margin" className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="text-sm font-medium">Money &amp; margin</div>
           <div className="flex flex-wrap items-center gap-8">
@@ -481,19 +488,22 @@ export default async function JobDetailPage({
 
       <FlaggedPhotosPanel jobId={id} documents={flaggedPhotos} />
 
-      <JobTabs
-        ledgerRows={ledger}
-        timeline={timeline}
-        comms={comms}
-        docs={docs}
-        docParseSummaries={docParseSummaries}
-        requiredPhotos={requiredPhotos}
-        jobId={jobRow.id}
-        companycamProjectId={jobRow.companycamProjectId ?? null}
-        esignRequests={esignRows}
-        customerEmail={jobRow.customerEmail ?? null}
-        checkins={checkinRows}
-      />
+      <div id="focus-tabs">
+        <JobTabs
+          ledgerRows={ledger}
+          timeline={timeline}
+          comms={comms}
+          docs={docs}
+          docParseSummaries={docParseSummaries}
+          requiredPhotos={requiredPhotos}
+          jobId={jobRow.id}
+          companycamProjectId={jobRow.companycamProjectId ?? null}
+          esignRequests={esignRows}
+          customerEmail={jobRow.customerEmail ?? null}
+          checkins={checkinRows}
+          defaultTab={focus}
+        />
+      </div>
 
       {/* Job Ledger — the scoreboard proof surface for this job */}
       <JobLedgerAskSage jobId={jobRow.id} rows={ledger} />
@@ -544,7 +554,7 @@ export default async function JobDetailPage({
       </Card>
 
       {/* Materials section */}
-      <Card>
+      <Card id="focus-materials">
         <CardHeader><CardTitle>Materials</CardTitle></CardHeader>
         <CardContent>
           <MaterialsPanel jobId={id} orders={materialOrdersForClient} />

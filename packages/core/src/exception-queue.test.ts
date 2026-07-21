@@ -18,11 +18,11 @@ describe("buildExceptionQueue", () => {
     expect(q.total).toBe(4);
     expect(q.counts).toEqual({ job_at_risk: 1, invoice_overdue: 1, appointment_missed: 1, task_overdue: 1, material_delivery: 0, task_needs_approval: 0, weather_at_risk: 0, roof_type_needed: 0, margin_outlier: 0, photo_incomplete: 0, photo_unmatched: 0, photo_quality: 0, supplier_invoice_unmatched: 0, supplier_credit_review: 0, supplier_credit_reconcile: 0, stage_evidence: 0 });
     const job = q.items.find((i) => i.kind === "job_at_risk")!;
-    expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1" });
+    expect(job).toMatchObject({ severity: "medium", title: "Ann", href: "/jobs/j1?focus=tasks" });
     expect(job.detail).toContain("14d in production");
     expect(q.items.find((i) => i.kind === "invoice_overdue")!).toMatchObject({ severity: "high", href: "/invoices" });
     expect(q.items.find((i) => i.kind === "appointment_missed")!).toMatchObject({ severity: "high", href: "/schedule" });
-    expect(q.items.find((i) => i.kind === "task_overdue")!).toMatchObject({ severity: "medium", href: "/jobs/j4" });
+    expect(q.items.find((i) => i.kind === "task_overdue")!).toMatchObject({ severity: "medium", href: "/jobs/j4?focus=tasks" });
   });
 
   it("surfaces a roof_type_needed item for a property missing its roof type", () => {
@@ -101,7 +101,7 @@ describe("buildExceptionQueue", () => {
       });
       expect(q.counts.margin_outlier).toBe(2);
       const neg = q.items.find((i) => i.title === "Neg")!;
-      expect(neg).toMatchObject({ kind: "margin_outlier", severity: "high", href: "/jobs/jm1" });
+      expect(neg).toMatchObject({ kind: "margin_outlier", severity: "high", href: "/jobs/jm1?focus=margin" });
       expect(neg.detail).toContain("-5%");
       expect(q.items.find((i) => i.title === "Thin")!.severity).toBe("medium");
     });
@@ -117,7 +117,7 @@ describe("buildExceptionQueue", () => {
       });
       expect(q.counts.photo_incomplete).toBe(1);
       const it0 = q.items.find((i) => i.kind === "photo_incomplete")!;
-      expect(it0).toMatchObject({ severity: "medium", title: "Pat", href: "/jobs/jp1" });
+      expect(it0).toMatchObject({ severity: "medium", title: "Pat", href: "/jobs/jp1?focus=docs" });
       expect(it0.detail.toLowerCase()).toContain("before");
       expect(it0.detail.toLowerCase()).toContain("after");
     });
@@ -152,7 +152,7 @@ describe("buildExceptionQueue", () => {
       expect(row!.severity).toBe("high");
       expect(row!.title).toBe("Misa Mary");
       expect(row!.detail).toBe("Materials arrive after install");
-      expect(row!.href).toBe("/jobs/j1");
+      expect(row!.href).toBe("/jobs/j1?focus=materials");
       expect(row!.occurredAt).toEqual(install);
       expect(q.counts.material_delivery).toBe(1);
     });
@@ -198,7 +198,7 @@ describe("buildExceptionQueue", () => {
       expect(row!.severity).toBe("medium");
       expect(row!.title).toBe("Appro Amy");
       expect(row!.detail).toBe("Needs approval: Estimate import");
-      expect(row!.href).toBe("/jobs/j1");
+      expect(row!.href).toBe("/jobs/j1?focus=tasks");
       expect(row!.occurredAt).toEqual(deferredAt);
       expect(q.counts.task_needs_approval).toBe(1);
     });
