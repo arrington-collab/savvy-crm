@@ -30,6 +30,21 @@ test("a post-inspection job with no roof type appears as a Roof type exception",
   await expect(row).toContainText("Roof type");
 });
 
+test("resolving the roof type in place on Today clears the exception", async ({ page }) => {
+  const { name } = await seedRoofGap(randomUUID().slice(0, 8));
+
+  await page.goto("/today");
+  await expect(page.getByTestId("today-page")).toBeVisible();
+  const row = page.locator('[data-testid="decision-card"]', { hasText: name });
+  await expect(row).toContainText("Roof type");
+
+  // The card resolves in place — no navigation to a deadend job page.
+  await row.getByTestId("roof-type-material").selectOption("metal");
+  await row.getByTestId("roof-type-resolve").click();
+
+  await expect(page.locator('[data-testid="decision-card"]', { hasText: name })).toHaveCount(0);
+});
+
 test("setting the roof type on the lead clears the exception", async ({ page }) => {
   const stamp = randomUUID().slice(0, 8);
   const { name, leadId } = await seedRoofGap(stamp);

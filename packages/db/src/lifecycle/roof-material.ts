@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { canUpgradeRoofMaterial, type RoofMaterial, type RoofMaterialSource } from "@savvy/core";
+import { canUpgradeRoofMaterial, roofMaterialToRoofType, type RoofMaterial, type RoofMaterialSource } from "@savvy/core";
 import { withTenant } from "../tenant";
 import { property } from "../schema/crm";
 
@@ -31,6 +31,33 @@ export async function setPropertyRoofMaterial(
       roofMaterial: input.material,
       roofMaterialSource: input.source,
       roofMaterialConfidence: input.confidence ?? null,
+    }).where(eq(property.id, input.propertyId));
+    return true;
+  });
+}
+
+/**
+ * Human desk-confirmation of a roof type from the Today queue. Unlike the
+ * automated writers above, a person confirming IS authoritative and IS the
+ * human-facing answer — so this writes BOTH the fine `roofMaterial`
+ * (source "inspection", top of the ladder, for Strike List targeting) AND the
+ * legacy coarse `roofType` (derived) in one transaction. The `roof_type_needed`
+ * exception keys on `roofType is null`, so writing it is what clears the card.
+ * Always wins (a correction overrides an automated guess); returns false only
+ * when the property does not exist.
+ */
+export async function confirmPropertyRoofType(
+  tenantId: string,
+  input: { propertyId: string; material: RoofMaterial },
+): Promise<boolean> {
+  return withTenant(tenantId, async (tx) => {
+    const [cur] = await tx.select({ id: property.id }).from(property).where(eq(property.id, input.propertyId));
+    if (!cur) return false;
+    await tx.update(property).set({
+      roofMaterial: input.material,
+      roofMaterialSource: "inspection",
+      roofMaterialConfidence: 1,
+      roofType: roofMaterialToRoofType(input.material),
     }).where(eq(property.id, input.propertyId));
     return true;
   });

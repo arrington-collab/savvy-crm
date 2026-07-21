@@ -7,6 +7,7 @@ import { PartnerMergeCard } from "./PartnerMergeCard";
 import { PartnerGradeCard } from "./PartnerGradeCard";
 import { BlitzApprovalCard } from "./BlitzApprovalCard";
 import { FillApprovalCard } from "./FillApprovalCard";
+import { RoofTypeActions } from "./RoofTypeActions";
 import { BoostCard } from "./BoostCard";
 import { LeftoverCard } from "./LeftoverCard";
 import { CoverageMap } from "@/components/cockpit/CoverageMap";
@@ -40,7 +41,7 @@ const KIND_LABEL: Record<string, string> = {
   comms_deliverability: "SMS deliverability",
 };
 
-type Decision = { kind: string; severity: "high" | "medium"; title: string; detail: string; href: string; occurredAt: Date | null; checkKey?: string | null };
+type Decision = { kind: string; severity: "high" | "medium"; title: string; detail: string; href: string; occurredAt: Date | null; checkKey?: string | null; resolvePropertyId?: string };
 
 function usd(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -88,7 +89,7 @@ export default async function TodayPage() {
   // cite a task and deep-link its proof page). High severity first — same merge
   // the old /exceptions page used, now the Today decision queue.
   const decisions: Decision[] = [
-    ...scopedItems.map((i) => ({ kind: i.kind, severity: i.severity, title: i.title, detail: i.detail, href: i.href, occurredAt: i.occurredAt })),
+    ...scopedItems.map((i) => ({ kind: i.kind, severity: i.severity, title: i.title, detail: i.detail, href: i.href, occurredAt: i.occurredAt, resolvePropertyId: i.resolvePropertyId })),
     ...taskExceptions.map((e) => ({
       kind: e.kind,
       severity: (e.severity === "high" ? "high" : "medium") as "high" | "medium",
@@ -204,14 +205,18 @@ export default async function TodayPage() {
               </div>
               <div className="mt-2 flex items-center justify-between gap-4">
                 <span className="mono text-[12px]" style={{ color: "var(--text-muted)" }}>{d.detail}</span>
-                <Link
-                  href={d.href}
-                  className="mono shrink-0 rounded-md px-3 py-1.5 text-[12px] font-semibold"
-                  style={{ background: "var(--accent-gold)", color: "#1b1408" }}
-                  data-testid="decision-action"
-                >
-                  Resolve →
-                </Link>
+                {d.kind === "roof_type_needed" && d.resolvePropertyId ? (
+                  <RoofTypeActions propertyId={d.resolvePropertyId} />
+                ) : (
+                  <Link
+                    href={d.href}
+                    className="mono shrink-0 rounded-md px-3 py-1.5 text-[12px] font-semibold"
+                    style={{ background: "var(--accent-gold)", color: "#1b1408" }}
+                    data-testid="decision-action"
+                  >
+                    Resolve →
+                  </Link>
+                )}
               </div>
               {d.checkKey === "comms.deliverability" && (
                 <ol className="mono mt-3 space-y-1.5 border-t pt-3 text-[11px]">

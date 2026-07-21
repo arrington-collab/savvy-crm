@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminDb } from "../src/admin-client";
 import { property } from "../src/schema/crm";
-import { setPropertyRoofMaterial } from "../src/lifecycle/roof-material";
+import { setPropertyRoofMaterial, confirmPropertyRoofType } from "../src/lifecycle/roof-material";
 import { makeTenant } from "./helpers";
 
 async function makeProperty(tenantId: string, address = "1 Test St") {
@@ -64,5 +64,45 @@ describe("setPropertyRoofMaterial — the single precedence-guarded write path",
     const p = await readMaterial(propertyId);
     expect(p.roofMaterial).toBe("clay_tile");
     expect(p.roofMaterialConfidence).toBe(0.9);
+  });
+});
+
+describe("confirmPropertyRoofType — human desk confirmation from the Today queue", () => {
+  async function readTypeAndMaterial(propertyId: string) {
+    const [p] = await adminDb.select({
+      roofType: property.roofType,
+      roofMaterial: property.roofMaterial,
+      roofMaterialSource: property.roofMaterialSource,
+    }).from(property).where(eq(property.id, propertyId));
+    return p!;
+  }
+
+  it("writes the fine material AND the derived legacy roofType (clears roof_type_needed)", async () => {
+    const { tenantId } = await makeTenant();
+    const propertyId = await makeProperty(tenantId);
+
+    const ok = await confirmPropertyRoofType(tenantId, { propertyId, material: "clay_tile" });
+    expect(ok).toBe(true);
+    const p = await readTypeAndMaterial(propertyId);
+    expect(p.roofMaterial).toBe("clay_tile");        // fine value for Strike List targeting
+    expect(p.roofMaterialSource).toBe("inspection"); // human = highest authority
+    expect(p.roofType).toBe("tile");                 // legacy coarse — this is what the exception keys on
+  });
+
+  it("a human correction overrides an existing automated material", async () => {
+    const { tenantId } = await makeTenant();
+    const propertyId = await makeProperty(tenantId);
+    await setPropertyRoofMaterial(tenantId, { propertyId, material: "asphalt_shingle", source: "assessor" });
+
+    const ok = await confirmPropertyRoofType(tenantId, { propertyId, material: "metal" });
+    expect(ok).toBe(true);
+    const p = await readTypeAndMaterial(propertyId);
+    expect(p.roofMaterial).toBe("metal");
+    expect(p.roofType).toBe("metal");
+  });
+
+  it("returns false for a missing property", async () => {
+    const { tenantId } = await makeTenant();
+    expect(await confirmPropertyRoofType(tenantId, { propertyId: "00000000-0000-0000-0000-000000000000", material: "metal" })).toBe(false);
   });
 });
