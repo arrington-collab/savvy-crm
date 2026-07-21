@@ -21,13 +21,14 @@ test("?focus=docs opens the Docs tab on the job page", async ({ page }) => {
   const jobId = await seedJob(randomUUID().slice(0, 8));
   await page.goto(`/jobs/${jobId}?focus=docs`);
   await expect(page.getByTestId("job-detail")).toBeVisible();
-  // Radix marks the active tab aria-selected — the deep-link should have opened Docs.
-  await expect(page.locator('#focus-tabs [role="tab"][aria-selected="true"]')).toHaveText(/docs/i);
+  // The custom Tabs marks the active trigger data-state="active"; the tab bar is
+  // first in DOM order, so .first() is the JobTabs bar (not a nested tab panel).
+  await expect(page.locator('#focus-tabs button[data-state="active"]').first()).toHaveText(/docs/i);
 });
 
 test("no focus param leaves the default Tasks tab active", async ({ page }) => {
   const jobId = await seedJob(randomUUID().slice(0, 8));
   await page.goto(`/jobs/${jobId}`);
   await expect(page.getByTestId("job-detail")).toBeVisible();
-  await expect(page.locator('#focus-tabs [role="tab"][aria-selected="true"]')).toHaveText(/tasks/i);
+  await expect(page.locator('#focus-tabs button[data-state="active"]').first()).toHaveText(/tasks/i);
 });
