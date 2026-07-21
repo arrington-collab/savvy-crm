@@ -10,7 +10,7 @@
  *   DATABASE_URL=... DATABASE_ADMIN_URL=... pnpm test estimate-generate
  */
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, ensurePriceBook, measurement, tenant, property, customer, job, agentRun, eq, and } from "@savvy/db";
+import { adminDb, withTenant, ensurePriceBook, measurement, tenant, property, customer, job, document, agentRun, eq, and } from "@savvy/db";
 import { generateUpsells, draftEstimateWithRun } from "./estimate-generate";
 
 // ---------------------------------------------------------------------------
@@ -90,6 +90,29 @@ describe("generateUpsells", () => {
     expect(suggestions).toHaveLength(2);
     expect(suggestions[0]!.name).toBe("Skylight flashing upgrade");
     expect(suggestions[1]!.unitPriceCents).toBe(600);
+  });
+
+  it("feeds the job's photo notes into the upsell prompt", async () => {
+    let captured = "";
+    const captureAi = { completeObject: async (a: { prompt: string }) => { captured = a.prompt; return { object: { suggestions: [] }, model: "fake" }; } };
+    const { tenantId } = await makeTestTenant();
+    const { jobId, measurementId } = await makeJobWithMeasurement(tenantId);
+    await withTenant(tenantId, (tx) =>
+      tx.insert(document).values({ tenantId, jobId, kind: "photo", notes: "hail bruising on north slope", r2Key: `${tenantId}/${jobId}/p.jpg` }),
+    );
+
+    await generateUpsells(tenantId, measurementId, captureAi as never, { jobId });
+    expect(captured).toContain("hail bruising on north slope");
+  });
+
+  it("adds no notes section when the job has none", async () => {
+    let captured = "";
+    const captureAi = { completeObject: async (a: { prompt: string }) => { captured = a.prompt; return { object: { suggestions: [] }, model: "fake" }; } };
+    const { tenantId } = await makeTestTenant();
+    const { jobId, measurementId } = await makeJobWithMeasurement(tenantId);
+
+    await generateUpsells(tenantId, measurementId, captureAi as never, { jobId });
+    expect(captured).not.toMatch(/field notes/i);
   });
 });
 

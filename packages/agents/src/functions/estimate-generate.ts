@@ -1,4 +1,4 @@
-import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, applyRepairCreditToEstimate, appointment, estimate, measurement, getCurrentPriceBookTx, gateAgentAutomation, withAgentRun } from "@savvy/db";
+import { withTenant, eq, and, createEstimateFromMeasurement, draftLeadEstimateIfReady, resolveEstimateDelivery, applyRepairCreditToEstimate, listJobPhotoNotes, appointment, estimate, measurement, getCurrentPriceBookTx, gateAgentAutomation, withAgentRun } from "@savvy/db";
 import { completeObject } from "@savvy/ai";
 import { z } from "@savvy/core";
 import { inngest } from "../client";
@@ -40,6 +40,7 @@ export async function generateUpsells(
   tenantId: string,
   measurementId: string,
   aiClient: { completeObject: typeof completeObject } = { completeObject },
+  scope?: { jobId?: string },
 ): Promise<UpsellSuggestion[]> {
   try {
     const [m] = await withTenant(tenantId, (tx) =>
@@ -50,15 +51,24 @@ export async function generateUpsells(
       (await getCurrentPriceBookTx(tx)).items.filter((i) => i.category === "upgrade" && i.active),
     );
 
+    // Rep's field notes on the job's photos steer which optional upgrades the AI
+    // suggests (e.g. "gutters dented" → gutter replacement). Job-scoped; omitted
+    // when there's no jobId or no notes.
+    const photoNotes = scope?.jobId ? await listJobPhotoNotes(tenantId, scope.jobId) : [];
+    const notesLine = photoNotes.length
+      ? ` Field notes on inspection photos: ${photoNotes.map((n) => `- ${n}`).join("\n")}.`
+      : "";
+
     const { object } = await aiClient.completeObject({
       capability: "reasoning",
       schema: upsellSchema,
       system:
         "You are a roofing sales assistant. Suggest 0-3 optional upgrade line items a rep could offer. " +
-        "Never include core roof items already estimated.",
+        "Never include core roof items already estimated. Let the rep's field notes on the photos guide relevant upgrades.",
       prompt:
         `Roof measurement: ${JSON.stringify(m?.areas)}. ` +
-        `Available upgrade catalog: ${JSON.stringify(upgrades.map((u) => ({ name: u.name, unitPriceCents: u.unitPriceCents })))}.`,
+        `Available upgrade catalog: ${JSON.stringify(upgrades.map((u) => ({ name: u.name, unitPriceCents: u.unitPriceCents })))}.` +
+        notesLine,
     });
 
     return object.suggestions;
@@ -69,8 +79,8 @@ export async function generateUpsells(
 }
 
 /** Enrich a freshly-drafted estimate with AI upsell suggestions (non-fatal). */
-async function attachUpsells(tenantId: string, estimateId: string, measurementId: string): Promise<number> {
-  const upsells = await generateUpsells(tenantId, measurementId);
+async function attachUpsells(tenantId: string, estimateId: string, measurementId: string, scope?: { jobId?: string }): Promise<number> {
+  const upsells = await generateUpsells(tenantId, measurementId, undefined, scope);
   await withTenant(tenantId, (tx) =>
     tx.update(estimate).set({ upsellSuggestions: upsells }).where(eq(estimate.id, estimateId)),
   );
@@ -170,7 +180,8 @@ export const generateEstimateOnMeasurement = inngest.createFunction(
       draftEstimateWithRun({ tenantId, jobId, measurementId }),
     );
     if (!est) return { skipped: "no_measurement" };
-    const upsells = await step.run("upsell", () => attachUpsells(tenantId, est.id, measurementId));
+    // Job-stage draft: the rep's photo notes on this job steer the AI upsells.
+    const upsells = await step.run("upsell", () => attachUpsells(tenantId, est.id, measurementId, { jobId }));
     return { estimateId: est.id, upsells };
   },
 );
