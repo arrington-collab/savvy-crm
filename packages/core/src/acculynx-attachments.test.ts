@@ -93,6 +93,18 @@ describe("mapDocKind", () => {
     expect(mapDocKind("Email Documents")).toBe("other");
     expect(mapDocKind("Anything Else")).toBe("other");
   });
+
+  it("sharpens the Roof Report folder: the actual EagleView measurement is a report; the neighborhood/property-owner variants are not", () => {
+    // bare-numbered EagleView file in the Roof Report folder = the measurement report
+    expect(mapDocKind("Roof Report", "68897206")).toBe("measurement_report");
+    expect(mapDocKind("Roof Report", "1854 West 131st Drive.pdf")).toBe("measurement_report");
+    // EagleView's supplementary reports are NOT roof measurements → other
+    expect(mapDocKind("Roof Report", "71523661_neighborhood_report")).toBe("other");
+    expect(mapDocKind("Roof Report", "71523661_propertyowner_report")).toBe("other");
+    expect(mapDocKind("Roof Report", "72042424_property_owner_report.pdf")).toBe("other");
+    // filename only narrows the measurement folder; other folders ignore it
+    expect(mapDocKind("Insurance Estimate", "neighborhood_report")).toBe("insurance_estimate");
+  });
 });
 
 describe("attachmentR2Key", () => {
