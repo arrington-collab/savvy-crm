@@ -18,13 +18,21 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const { userId, orgId } = await auth();
     if (!userId) redirect("/sign-in");
     if (!orgId) redirect("/select-org");
-    await getCurrentUser(); // lazily provision tenant + this user's row
-    const status = await getOnboardingStatus();
-    if (needsOnboarding(status.state)) redirect("/onboarding");
   }
+  // Everything below runs on EVERY navigation and is independent (all key off the
+  // per-request-cached tenant), so load it in parallel instead of a sequential
+  // waterfall. getCurrentUser lazily provisions tenant + user row; the onboarding
+  // gate is checked after the batch resolves (redirect must run outside Promise.all).
+  const [, status, rollup, chrome, cookieStore] = await Promise.all([
+    authEnabled ? getCurrentUser() : Promise.resolve(null),
+    authEnabled ? getOnboardingStatus() : Promise.resolve(null),
+    loadTenantRollup().catch(() => null),
+    loadTenantChrome(),
+    cookies(),
+  ]);
+  if (status && needsOnboarding(status.state)) redirect("/onboarding");
   // Nav decision-count pill: the cheap nightly rollup's open-exception count.
   // The Today screen shows the precise live queue; this badge is at-a-glance.
-  const rollup = await loadTenantRollup().catch(() => null);
   const decisionCount = rollup?.openExceptionCount ?? 0;
   // Per-tenant branding: validated brand settings override the theme's CSS
   // variables on this wrapper; custom properties inherit, so every component
@@ -33,10 +41,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // the dark-chrome values and would leak in (background directly, color via
   // inheritance to any text without its own color utility). The light theme
   // therefore re-declares both here so they re-resolve against the overrides.
-  const { brand, markets } = await loadTenantChrome();
+  const { brand, markets } = chrome;
   // The savvy-theme cookie is a per-browser override of the tenant default, so
   // one operator can run dark while the tenant ships light (or vice versa).
-  const themeCookie = (await cookies()).get("savvy-theme")?.value;
+  const themeCookie = cookieStore.get("savvy-theme")?.value;
   const theme = resolveThemePreference(brand.theme, themeCookie) ?? "dark";
   // Both modes' variable records go to the TopBar so its toggle can restyle
   // #app-chrome instantly on the client — the cookie only has to be right for

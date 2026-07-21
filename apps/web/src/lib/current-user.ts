@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { adminDb, user, ensureUser, eq, and } from "@savvy/db";
 import { mapClerkRole } from "@savvy/core";
@@ -7,8 +8,9 @@ import { getTenantId } from "./tenant";
 export type CurrentUser = { tenantId: string; userId: string; role: string; clerkUserId: string | null };
 
 /** Resolves + lazily provisions the calling user's row. Called from (app)/layout
- *  (non-TEST_MODE) so every logged-in Clerk user gets a row on first request. */
-export async function getCurrentUser(): Promise<CurrentUser> {
+ *  (non-TEST_MODE) so every logged-in Clerk user gets a row on first request.
+ *  React.cache — memoized to one resolution per request (see getTenantId). */
+export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   if (process.env.TEST_MODE === "1") {
     const tenantId = process.env.TEST_TENANT_ID;
     if (!tenantId) throw new Error("TEST_MODE set but TEST_TENANT_ID missing");
@@ -34,4 +36,4 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   const role = mapClerkRole(orgRole, org.createdBy === clerkUserId);
   const { id } = await ensureUser({ tenantId, clerkUserId, name, email, role });
   return { tenantId, userId: id, role, clerkUserId };
-}
+});
