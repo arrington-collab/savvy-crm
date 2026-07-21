@@ -32,6 +32,11 @@ describe("staticMapImageUrl", () => {
     expect(url).toContain("center=Phoenix");
   });
 
+  it("honors an explicit zoom override", () => {
+    const url = staticMapImageUrl({ apiKey: "K", lat: 33.5, lng: -112.06, zoom: 20 });
+    expect(url).toContain("zoom=20");
+  });
+
   it("treats lat=0, lng=0 as valid (equator/prime meridian)", () => {
     const url = staticMapImageUrl({ apiKey: "K", lat: 0, lng: 0 });
     expect(url).toContain("center=0%2C0");
