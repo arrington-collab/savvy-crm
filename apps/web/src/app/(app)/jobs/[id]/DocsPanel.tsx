@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { presignDocumentUpload, presignDocumentView, recordDocument, reparseDocument } from "@/lib/document-actions";
+import { presignDocumentUpload, recordDocument, reparseDocument } from "@/lib/document-actions";
 import { linkCompanyCamProject } from "@/lib/companycam-actions";
 import { Button } from "@/components/ui/button";
 import { DocViewer, type ViewerDoc } from "@/components/DocViewer";
@@ -37,21 +37,11 @@ const KIND_OPTIONS = ["photo", "measurement", "contract", "evidence", "other"] a
 type DocKind = (typeof KIND_OPTIONS)[number];
 
 // ─── DocThumb ────────────────────────────────────────────────────────────────
-// Resolves a presigned URL on mount and renders an <img> or a fallback.
+// Loads a server-downscaled (?w=192), immutably-cached thumbnail through the
+// same-origin proxy. No presign round-trip, lazy-loaded so off-screen thumbs in
+// a long grid don't fetch until scrolled to.
 function DocThumb({ docId, filename }: { docId: string; filename: string | null }) {
-  const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    presignDocumentView(docId).then((res) => {
-      if (cancelled) return;
-      if ("ok" in res) setSrc(res.url);
-      else setFailed(true);
-    });
-    return () => { cancelled = true; };
-  }, [docId]);
-
   if (failed) {
     return (
       <div className="flex h-24 w-24 items-center justify-center rounded-md border border-border bg-muted text-xs text-muted-foreground">
@@ -59,17 +49,16 @@ function DocThumb({ docId, filename }: { docId: string; filename: string | null 
       </div>
     );
   }
-  if (!src) {
-    return (
-      <div className="h-24 w-24 animate-pulse rounded-md bg-muted" aria-label="Loading photo" />
-    );
-  }
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={`/api/documents/${docId}/view?w=192`}
       alt={filename ?? "document photo"}
-      className="h-24 w-24 rounded-md border border-border object-cover"
+      width={96}
+      height={96}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-24 w-24 rounded-md border border-border bg-muted object-cover"
     />
   );
 }
@@ -250,6 +239,7 @@ export function DocsPanel({ jobId, documents, parseSummaries, requiredPhotos, co
                     <img
                       src={doc.externalUrl}
                       alt={doc.label ?? "photo"}
+                      loading="lazy"
                       className="h-24 w-24 rounded-md border border-border object-cover"
                       data-testid="companycam-photo"
                     />
