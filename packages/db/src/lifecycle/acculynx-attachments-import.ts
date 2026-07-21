@@ -161,7 +161,7 @@ export async function importAccuLynxAttachments(
       for (const doc of b.docFiles) {
         const externalId = `doc:${doc.id}`;
         if (await ledgered(tx, tenantId, externalId)) continue;
-        const kind = mapDocKind(doc.folder);
+        const kind = mapDocKind(doc.folder, doc.name);
         const bytes = deps.readFile(b.guid, doc.relPath);
         if (!bytes) { r.filesMissing += 1; continue; }
         r.documents += 1;

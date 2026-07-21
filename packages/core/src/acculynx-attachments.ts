@@ -93,11 +93,22 @@ const DOC_KIND_BY_FOLDER: Array<[RegExp, string]> = [
   [/certificate|cert of|completion/i, "cert"],
 ];
 
-/** AccuLynx document folder → Savvy document.kind. Unmapped folders (Invoice,
- *  Permit, Warranty, Email Documents, Other, …) fall to "other" — the file is
+// The AccuLynx "Roof Report" folder is an EagleView order: alongside the actual
+// measurement report it holds neighborhood/property-owner reports, which are NOT
+// roof measurements. Tagging those as measurement_report just feeds the parser
+// PDFs it correctly rejects, so exclude them by filename.
+const NON_MEASUREMENT_REPORT = /neighborhood|property[\s_-]*owner/i;
+
+/** AccuLynx document folder (+ filename) → Savvy document.kind. Unmapped folders
+ *  (Invoice, Permit, Warranty, Email Documents, …) fall to "other" — the file is
  *  still preserved, just not specially typed. */
-export function mapDocKind(folder: string | undefined): string {
-  for (const [re, kind] of DOC_KIND_BY_FOLDER) if (folder && re.test(folder)) return kind;
+export function mapDocKind(folder: string | undefined, filename?: string | undefined): string {
+  for (const [re, kind] of DOC_KIND_BY_FOLDER) {
+    if (folder && re.test(folder)) {
+      if (kind === "measurement_report" && filename && NON_MEASUREMENT_REPORT.test(filename)) return "other";
+      return kind;
+    }
+  }
   return "other";
 }
 
