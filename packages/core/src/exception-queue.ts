@@ -10,6 +10,10 @@ export type ExceptionItem = {
   detail: string;
   href: string;
   occurredAt: Date | null;
+  /** Set only for kinds the Today queue resolves IN PLACE against a property
+   *  (roof_type_needed). When present, the card renders an inline control and
+   *  ignores `href`. */
+  resolvePropertyId?: string;
 };
 
 export type AtRiskJobInput = { jobId: string; customerName: string | null; stuck: boolean; late: boolean; reasons: string[]; stageEnteredAt: Date };
@@ -230,6 +234,7 @@ export function buildExceptionQueue(input: ExceptionQueueInput): ExceptionQueue 
       detail: "Roof type unknown — capture it",
       href: r.leadId ? `/leads/${r.leadId}` : `/jobs/${r.jobId}`,
       occurredAt: r.occurredAt,
+      resolvePropertyId: r.propertyId,
     });
   }
 

@@ -33,6 +33,8 @@ describe("buildExceptionQueue", () => {
     const item = q.items.find((i) => i.kind === "roof_type_needed")!;
     expect(item).toMatchObject({ severity: "medium", title: "Roof Ron", href: "/leads/l9" });
     expect(item.detail).toMatch(/roof type/i);
+    // Carries the property so Today can resolve the roof type in place (no nav).
+    expect(item.resolvePropertyId).toBe("p9");
     expect(q.counts.roof_type_needed).toBe(1);
   });
 
