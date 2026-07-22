@@ -17,6 +17,22 @@ export interface DocumentViewHeaders {
  * decision (inline-safe allowlist → neutral octet-stream + attachment for anything else,
  * sanitized filename, always nosniff) is unit-testable without the R2/stream plumbing.
  */
+/** Raster image mimes a thumbnail request may downscale (jimp can decode these).
+ *  Excludes gif (animation) + svg (already forced to attachment). */
+const THUMBNAILABLE = new Set(["image/png", "image/jpeg", "image/webp"]);
+export function isThumbnailable(mime: string | null | undefined): boolean {
+  return mime != null && THUMBNAILABLE.has(mime);
+}
+
+/** Parse a `?w=` thumbnail width, clamped to a sane [32, 1024] range. Returns
+ *  null (→ serve the full original, no resize) for absent/invalid values. */
+export function clampThumbWidth(raw: string | null | undefined): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return Math.min(Math.max(n, 32), 1024);
+}
+
 export function buildDocumentViewHeaders(input: {
   mime: string | null;
   filename: string | null;

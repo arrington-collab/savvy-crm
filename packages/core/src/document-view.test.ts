@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDocumentViewHeaders } from "./document-view";
+import { buildDocumentViewHeaders, clampThumbWidth, isThumbnailable } from "./document-view";
 
 describe("buildDocumentViewHeaders", () => {
   it("serves an allowlisted PDF inline with its own content-type + nosniff", () => {
@@ -44,5 +44,30 @@ describe("buildDocumentViewHeaders", () => {
     // private → browser-only (never a shared/CDN cache, tenant-safe); immutable +
     // long max-age → thumbnails & gallery re-views come from cache, not a re-download.
     expect(h.cacheControl).toBe("private, max-age=31536000, immutable");
+  });
+});
+
+describe("clampThumbWidth", () => {
+  it("parses a valid width and clamps to [32, 1024]", () => {
+    expect(clampThumbWidth("192")).toBe(192);
+    expect(clampThumbWidth("10")).toBe(32);    // below floor
+    expect(clampThumbWidth("5000")).toBe(1024); // above ceiling
+  });
+  it("returns null for absent/invalid widths (→ serve the original, no resize)", () => {
+    expect(clampThumbWidth(null)).toBeNull();
+    expect(clampThumbWidth("")).toBeNull();
+    expect(clampThumbWidth("abc")).toBeNull();
+    expect(clampThumbWidth("-4")).toBeNull();
+  });
+});
+
+describe("isThumbnailable", () => {
+  it("true only for raster images jimp can resize", () => {
+    expect(isThumbnailable("image/jpeg")).toBe(true);
+    expect(isThumbnailable("image/png")).toBe(true);
+    expect(isThumbnailable("image/webp")).toBe(true);
+    expect(isThumbnailable("application/pdf")).toBe(false);
+    expect(isThumbnailable("image/svg+xml")).toBe(false);
+    expect(isThumbnailable(null)).toBe(false);
   });
 });
