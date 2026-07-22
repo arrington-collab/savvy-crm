@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // own dist dir so two concurrent dev servers on this same project don't clash on
   // `.next`. Defaults to Next's standard `.next` for every normal run/build.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // sharp ships a native binary — keep it external so the .node file loads at
+  // runtime instead of being bundled by Turbopack.
+  serverExternalPackages: ["sharp"],
   transpilePackages: [
     "@savvy/db",
     "@savvy/agents",
