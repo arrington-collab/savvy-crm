@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDocumentViewHeaders, clampThumbWidth, isThumbnailable } from "./document-view";
+import { buildDocumentViewHeaders, clampThumbWidth, isThumbnailable, photoVariantKey, PHOTO_VARIANT_WIDTHS } from "./document-view";
 
 describe("buildDocumentViewHeaders", () => {
   it("serves an allowlisted PDF inline with its own content-type + nosniff", () => {
@@ -69,5 +69,15 @@ describe("isThumbnailable", () => {
     expect(isThumbnailable("application/pdf")).toBe(false);
     expect(isThumbnailable("image/svg+xml")).toBe(false);
     expect(isThumbnailable(null)).toBe(false);
+  });
+});
+
+describe("photo variants (pre-generation)", () => {
+  it("PHOTO_VARIANT_WIDTHS = [192, 1600]", () => {
+    expect([...PHOTO_VARIANT_WIDTHS]).toEqual([192, 1600]);
+  });
+  it("photoVariantKey derives a deterministic per-width key", () => {
+    expect(photoVariantKey("acculynx/t/j/photo/f_a.jpg", 192)).toBe("acculynx/t/j/photo/f_a.jpg__w192.jpg");
+    expect(photoVariantKey("k", 1600)).toBe("k__w1600.jpg");
   });
 });

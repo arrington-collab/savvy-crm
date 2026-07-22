@@ -820,6 +820,13 @@
       "when": 1784639936135,
       "tag": "0116_talented_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1784694264152,
+      "tag": "0117_medical_banshee",
+      "breakpoints": true
     }
   ]
 }

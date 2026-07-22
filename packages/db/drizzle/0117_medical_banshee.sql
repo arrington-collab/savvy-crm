@@ -1,0 +1,1 @@
+ALTER TABLE "document" ADD COLUMN "thumbs_ready" boolean DEFAULT false NOT NULL;
