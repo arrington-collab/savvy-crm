@@ -1,7 +1,7 @@
 import { Jimp } from "jimp";
 import { getDocumentForView } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
-import { buildDocumentViewHeaders, clampThumbWidth, isThumbnailable } from "@savvy/core";
+import { buildDocumentViewHeaders, clampThumbWidth } from "@savvy/core";
 import { getTenantId } from "@/lib/tenant";
 
 export const runtime = "nodejs";
@@ -35,11 +35,13 @@ export async function GET(
 
   const view = buildDocumentViewHeaders({ mime: doc.mime, filename: doc.filename, download });
 
-  // Thumbnail path: downscale server-side so the grid transfers ~KB, not the
-  // full-res original. Buffer once; on ANY resize error fall back to the bytes
-  // we already have (never break the image). The immutable Cache-Control means
-  // each width variant is fetched+resized at most once per browser.
-  if (thumbWidth && !download && isThumbnailable(doc.mime)) {
+  // Thumbnail/viewer path: downscale server-side so the grid + gallery transfer
+  // ~KB, not the full-res original. Attempt whenever a width was requested — jimp
+  // reads by content, NOT by doc.mime (which is often null on imported photos, the
+  // bug that made this silently no-op). On ANY resize error (non-image, HEIC, …)
+  // fall back to the original bytes — never break the image. Immutable
+  // Cache-Control means each width variant is fetched+resized at most once/browser.
+  if (thumbWidth && !download) {
     const original = Buffer.from(await upstream.arrayBuffer());
     try {
       const img = await Jimp.read(original);
