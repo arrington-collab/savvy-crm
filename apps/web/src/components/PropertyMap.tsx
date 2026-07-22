@@ -12,7 +12,8 @@ interface PropertyMapProps {
 /** Aerial static-map thumbnail (server component). Links out to Google Maps.
  *  Renders nothing when there is no API key or no location. */
 export function PropertyMap({ address, lat, lng, className }: PropertyMapProps) {
-  const img = staticMapImageUrl({ apiKey: KEY, lat, lng, address });
+  // zoom 20 ≈ single-property level: close enough to read the roof itself
+  const img = staticMapImageUrl({ apiKey: KEY, lat, lng, address, zoom: 20 });
   const link = mapsPlaceLinkUrl({ lat, lng, address });
   if (!img || !link) return null;
   return (
