@@ -1,4 +1,4 @@
-import { Jimp } from "jimp";
+import sharp from "sharp";
 import { getDocumentForView } from "@savvy/db";
 import { r2Storage } from "@savvy/integrations";
 import { buildDocumentViewHeaders, clampThumbWidth } from "@savvy/core";
@@ -36,17 +36,20 @@ export async function GET(
   const view = buildDocumentViewHeaders({ mime: doc.mime, filename: doc.filename, download });
 
   // Thumbnail/viewer path: downscale server-side so the grid + gallery transfer
-  // ~KB, not the full-res original. Attempt whenever a width was requested — jimp
-  // reads by content, NOT by doc.mime (which is often null on imported photos, the
-  // bug that made this silently no-op). On ANY resize error (non-image, HEIC, …)
-  // fall back to the original bytes — never break the image. Immutable
-  // Cache-Control means each width variant is fetched+resized at most once/browser.
+  // ~KB, not the full-res original. Uses sharp (native libvips) — a full-res photo
+  // resizes in ~150ms vs ~4-5s with pure-JS jimp, which was the request-time
+  // bottleneck making every gallery photo take 5+ seconds. Resizes by CONTENT, not
+  // doc.mime (often null on imported photos). On ANY error (non-image, HEIC, …)
+  // fall back to the original bytes — never break the image. Immutable Cache-Control
+  // means each width variant is fetched+resized at most once/browser.
   if (thumbWidth && !download) {
     const original = Buffer.from(await upstream.arrayBuffer());
     try {
-      const img = await Jimp.read(original);
-      if (img.bitmap.width > thumbWidth) img.resize({ w: thumbWidth });
-      const out = await img.getBuffer("image/jpeg");
+      const out = await sharp(original)
+        .rotate() // honour EXIF orientation (phone photos)
+        .resize({ width: thumbWidth, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
       return new Response(new Uint8Array(out), {
         status: 200,
         headers: {
