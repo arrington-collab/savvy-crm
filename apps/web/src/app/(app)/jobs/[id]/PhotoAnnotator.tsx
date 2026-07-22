@@ -149,9 +149,12 @@ export function PhotoAnnotator({
   // and now serves an immutable Cache-Control, so re-views come from cache.
   // CompanyCam photos have only an external URL — shown directly (drawImage works
   // cross-origin; only markup EXPORT would taint, so markup is disabled for those).
+  // Gallery loads a bounded viewer size (not the multi-MB original) — plenty for
+  // on-screen viewing and markup export. `rev` busts browsers that cached the old
+  // full-res/broken response under the immutable Cache-Control.
   const viewUrl = useCallback(
     (d: AnnotatorDoc | null | undefined): string | null =>
-      d?.externalUrl ?? (d?.id ? `/api/documents/${d.id}/view` : null),
+      d?.externalUrl ?? (d?.id ? `/api/documents/${d.id}/view?w=1600&rev=2` : null),
     [],
   );
   const src = viewUrl(doc);

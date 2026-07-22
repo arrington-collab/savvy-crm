@@ -52,7 +52,7 @@ function DocThumb({ docId, filename }: { docId: string; filename: string | null 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/api/documents/${docId}/view?w=192`}
+      src={`/api/documents/${docId}/view?w=192&rev=2`}
       alt={filename ?? "document photo"}
       width={96}
       height={96}
