@@ -114,10 +114,10 @@ export async function listLeadDocuments(input: {
 export async function getDocumentForView(
   tenantId: string,
   documentId: string,
-): Promise<{ r2Key: string | null; mime: string | null; filename: string | null } | null> {
+): Promise<{ r2Key: string | null; mime: string | null; filename: string | null; thumbsReady: boolean } | null> {
   return withTenant(tenantId, async (tx) => {
     const [d] = await tx
-      .select({ r2Key: document.r2Key, mime: document.mime, filename: document.filename })
+      .select({ r2Key: document.r2Key, mime: document.mime, filename: document.filename, thumbsReady: document.thumbsReady })
       .from(document)
       .where(eq(document.id, documentId));
     return d ?? null;

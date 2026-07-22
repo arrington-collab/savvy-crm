@@ -24,6 +24,16 @@ export function isThumbnailable(mime: string | null | undefined): boolean {
   return mime != null && THUMBNAILABLE.has(mime);
 }
 
+/** The photo widths we PRE-GENERATE at import/backfill (grid thumbnail + gallery
+ *  viewer). The view route serves these ready-made — no request-time resize. */
+export const PHOTO_VARIANT_WIDTHS = [192, 1600] as const;
+
+/** Deterministic R2 key for a pre-generated width variant of a photo. Derived from
+ *  the original key so re-runs overwrite the same object. */
+export function photoVariantKey(r2Key: string, width: number): string {
+  return `${r2Key}__w${width}.jpg`;
+}
+
 /** Parse a `?w=` thumbnail width, clamped to a sane [32, 1024] range. Returns
  *  null (→ serve the full original, no resize) for absent/invalid values. */
 export function clampThumbWidth(raw: string | null | undefined): number | null {

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, jsonb, index, timestamp, uniqueIndex, doublePrecision, boolean } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant, user } from "./tenancy";
 import { customer, property, lead } from "./crm";
@@ -14,6 +14,7 @@ export const document = pgTable("document", {
   kind: text("kind").notNull(), // photo|measurement|contract|lien_waiver|cert|evidence|other|insurance_estimate|measurement_report
   label: text("label"),
   notes: text("notes"), // free-form per-photo field note (rep-authored; feeds AI upsell drafting). Distinct from the short `label`.
+  thumbsReady: boolean("thumbs_ready").notNull().default(false), // pre-generated width variants exist in R2 → view route streams them (no request-time resize)
   // Slice 6a: lead-stage scope + uploader + parse lifecycle (parsing lands in 6b/6c).
   leadId: uuid("lead_id").references(() => lead.id),
   propertyId: uuid("property_id").references(() => property.id),
