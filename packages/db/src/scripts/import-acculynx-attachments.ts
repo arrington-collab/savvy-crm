@@ -74,6 +74,12 @@ async function main() {
     },
     dryRun,
     onProgress: (d, total, guid) => console.log(`  [${d}/${total}] ${guid} committed`),
+    // sharp runs here in the CLI (native, offline) — never in the app bundle.
+    resizeVariant: async (bytes, width) => {
+      const sharp = (await import("sharp")).default;
+      const out = await sharp(Buffer.from(bytes)).rotate().resize({ width, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+      return new Uint8Array(out);
+    },
   });
 
   console.log(`\n${dryRun ? "[DRY RUN] would import" : "imported"}:`);
