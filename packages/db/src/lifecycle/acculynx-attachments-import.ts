@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import {
   mapEstimate, mapInvoice, mapCommChannel, mapDocKind, attachmentR2Key, htmlToText,
+  photoVariantKey, PHOTO_VARIANT_WIDTHS,
 } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 
@@ -46,6 +47,12 @@ export interface AttachmentDeps {
   /** Optional per-job progress hook (index is 1-based) — lets a long CLI run
    *  print a heartbeat instead of going silent for many minutes. */
   onProgress?: (done: number, total: number, guid: string) => void;
+  /** Optional resizer (sharp lives in the CLI runner, not this package, so the
+   *  native binary never reaches the app bundle). When provided, each imported
+   *  photo gets its PHOTO_VARIANT_WIDTHS variants generated + stored and the row
+   *  is marked thumbs_ready — the view route then streams them with no runtime
+   *  resize. When omitted, photos import unflagged (a later backfill fills them). */
+  resizeVariant?: (bytes: Uint8Array, width: number) => Promise<Uint8Array>;
 }
 
 export interface AttachmentResult {
@@ -184,9 +191,22 @@ export async function importAccuLynxAttachments(
         if (deps.dryRun) continue;
         const key = attachmentR2Key(tenantId, scopeId, "photo", ph.fileId, ph.name);
         await deps.storage.putObject({ key, bytes, contentType: "image/jpeg" });
+        // Pre-generate the width variants when a resizer is injected, so the grid
+        // + gallery stream ready-made bytes (no runtime resize). Best-effort — a
+        // resize failure imports the photo unflagged (backfill catches it later).
+        let thumbsReady = false;
+        if (deps.resizeVariant) {
+          try {
+            for (const w of PHOTO_VARIANT_WIDTHS) {
+              const out = await deps.resizeVariant(bytes, w);
+              await deps.storage.putObject({ key: photoVariantKey(key, w), bytes: out, contentType: "image/jpeg" });
+            }
+            thumbsReady = true;
+          } catch { thumbsReady = false; }
+        }
         const [row] = await tx.insert(document).values({
           tenantId, jobId, leadId, kind: "photo", label: ph.name, r2Key: key,
-          filename: ph.name, sizeBytes: bytes.length, source: SOURCE,
+          filename: ph.name, mime: "image/jpeg", sizeBytes: bytes.length, source: SOURCE, thumbsReady,
         }).returning({ id: document.id });
         await ledger(tx, tenantId, externalId, "document", row!.id);
       }

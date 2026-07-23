@@ -1,6 +1,7 @@
 import { it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
+import { photoVariantKey } from "@savvy/core";
 import { adminDb, tenant } from "../index";
 import { customer, property } from "../schema/crm";
 import { job } from "../schema/jobs";
@@ -114,4 +115,34 @@ it("counts an unmatched job (no ledger entry) without throwing", async () => {
   const r = await importAccuLynxAttachments(tenantId, [{ ...BUNDLE, guid: "ghost-guid" }], deps());
   expect(r.jobsUnmatched).toBe(1);
   expect(r.estimates).toBe(0);
+});
+
+it("generates width variants + sets thumbs_ready/mime when a resizer is injected", async () => {
+  const s = fakeStorage();
+  const widths: number[] = [];
+  const bundle: AttachmentJobBundle = {
+    ...BUNDLE,
+    estimates: [], invoices: [], commThreads: [], docFiles: [],
+    photoFiles: [{ fileId: "p2", name: "roof2.jpg", tags: ["Damage"], relPath: "photos/p2_roof2.jpg" }],
+  };
+  const d = {
+    storage: s.gateway,
+    readFile: () => new Uint8Array([1, 2, 3]),
+    dryRun: false,
+    resizeVariant: async (_bytes: Uint8Array, w: number) => { widths.push(w); return new Uint8Array([9, 9]); },
+  } as AttachmentDeps;
+
+  await importAccuLynxAttachments(tenantId, [bundle], d);
+
+  // both variant widths were generated
+  expect([...widths].sort((a, b) => a - b)).toEqual([192, 1600]);
+  // the original + both variant keys were uploaded
+  const originalKey = s.puts.find((k) => k.includes("/photo/") && !k.includes("__w"))!;
+  expect(s.puts).toContain(photoVariantKey(originalKey, 192));
+  expect(s.puts).toContain(photoVariantKey(originalKey, 1600));
+  // the row is flagged ready with the correct mime
+  const [photo] = await adminDb.select({ thumbsReady: document.thumbsReady, mime: document.mime })
+    .from(document).where(and(eq(document.tenantId, tenantId), eq(document.label, "roof2.jpg")));
+  expect(photo!.thumbsReady).toBe(true);
+  expect(photo!.mime).toBe("image/jpeg");
 });
