@@ -1,6 +1,6 @@
 import { it, expect } from "vitest";
 import { Orchestrator } from "./engine";
-import { InMemoryStore } from "./store";
+import { InMemoryStore, type OrchestratorStore } from "./store";
 import { makeEvent, type EventType } from "./events";
 import type { Subscription } from "./triggers";
 
@@ -34,6 +34,22 @@ it("an invalid event is dead-lettered, not processed", async () => {
   const bad = { ...lead(), payload: { nope: true } } as never;
   await o.publish(bad);
   expect(store.audits.some((a) => a.outcome === "dead_letter")).toBe(true);
+});
+
+it("a store-write failure while dead-lettering does not throw out of publish()", async () => {
+  // The Drizzle store's withTenant does a uuid cast, so a garbage tenantId (the
+  // very thing that failed envelope validation) throws inside appendAudit. That
+  // must not surface as a rejected publish() — the event is unprocessable, drop it.
+  const throwingStore: OrchestratorStore = {
+    insertEventIfNew: async () => true,
+    appendAudit: async () => { throw new Error("invalid input syntax for type uuid"); },
+    recordEscalation: async () => {},
+    traceByCorrelation: async () => [],
+    listEscalations: async () => [],
+  };
+  const o = new Orchestrator({ store: throwingStore });
+  const badTenant = { ...lead(), tenantId: "not-a-uuid" } as never;
+  await expect(o.publish(badTenant)).resolves.toBeUndefined();
 });
 
 it("an escalation rule records to the exception queue", async () => {

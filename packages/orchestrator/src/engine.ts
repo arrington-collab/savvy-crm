@@ -35,7 +35,15 @@ export class Orchestrator {
     // 1. Validate — a malformed event never enters the pipeline.
     const v = validateEvent(event);
     if (!v.ok) {
-      await this.store.appendAudit({ event, agent: "system", outcome: "dead_letter", emitted: [], error: v.reason });
+      // Best-effort dead-letter. The event is already unprocessable, and a
+      // persistent store may itself reject the garbage that failed validation
+      // (e.g. the Drizzle store's withTenant does a uuid cast, so a non-UUID
+      // tenantId throws). A dropped event must never become a rejected publish().
+      try {
+        await this.store.appendAudit({ event, agent: "system", outcome: "dead_letter", emitted: [], error: v.reason });
+      } catch {
+        // Nothing more can be durably recorded for a malformed event.
+      }
       return;
     }
 

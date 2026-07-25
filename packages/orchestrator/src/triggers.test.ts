@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { subscriptionsFor, type ActionCtx } from "./triggers";
+import { subscriptionsFor, assertUniqueSubscriptions, TRIGGERS, type ActionCtx, type Subscription } from "./triggers";
 import { makeEvent, type EventType, type PayloadFor } from "./events";
 
 function collectEmits(type: EventType, payload: PayloadFor<EventType>) {
@@ -22,12 +22,31 @@ it("contract.signed emits material order + job approved", () => {
   expect(emitted.sort()).toEqual(["job.approved", "material.order.created"]);
 });
 
-it("payment.received is handled silently (no follow-on)", () => {
-  const { subs, emitted } = collectEmits("payment.received", { invoiceId: "i1", amountCents: 100 });
-  expect(subs.every((s) => s.silent)).toBe(true);
+it("payment.received is a routine terminal handler (no follow-on)", () => {
+  const { emitted } = collectEmits("payment.received", { invoiceId: "i1", amountCents: 100 });
   expect(emitted).toEqual([]);
 });
 
 it("an event with no subscribers returns []", () => {
   expect(subscriptionsFor("lead.assigned")).toEqual([]);
+});
+
+it("assertUniqueSubscriptions throws when two entries share the same (event, agent)", () => {
+  const dupes: Subscription[] = [
+    { event: "lead.created", agent: "comms", action: () => {} },
+    { event: "lead.created", agent: "comms", action: () => {} },
+  ];
+  expect(() => assertUniqueSubscriptions(dupes)).toThrow(/duplicate.*lead\.created.*comms/i);
+});
+
+it("assertUniqueSubscriptions allows the same event across different agents", () => {
+  const ok: Subscription[] = [
+    { event: "lead.created", agent: "comms", action: () => {} },
+    { event: "lead.created", agent: "orchestrator", action: () => {} },
+  ];
+  expect(() => assertUniqueSubscriptions(ok)).not.toThrow();
+});
+
+it("the real TRIGGERS registry has no duplicate (event, agent) pairs", () => {
+  expect(() => assertUniqueSubscriptions(TRIGGERS)).not.toThrow();
 });
