@@ -49,12 +49,16 @@ export class Orchestrator {
     // 4. Run each subscriber in isolation; collect its emits.
     for (const sub of this.triggers(event.type)) {
       const emitted: DomainEvent[] = [];
+      // Per-subscriber emit sequence: disambiguates siblings of the same type
+      // emitted by the same subscriber (e.g. lead.assigned x2) so they don't
+      // collide on (tenantId, idempotencyKey) and get silently deduped.
+      let emitSeq = 0;
       const ctx: ActionCtx = {
         emit: <U extends EventType>(type: U, payload: PayloadFor<U>) =>
           emitted.push(makeEvent({
             type, payload, source: "system", tenantId: event.tenantId,
             correlationId: event.correlationId,
-            idempotencyKey: `${event.idempotencyKey}>${type}`,
+            idempotencyKey: `${event.idempotencyKey}>${sub.agent}>${type}#${emitSeq++}`,
           })),
       };
       try {

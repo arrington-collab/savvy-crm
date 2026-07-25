@@ -44,6 +44,18 @@ it("an escalation rule records to the exception queue", async () => {
   expect(q.map((e) => e.ruleId)).toContain("low-margin");
 });
 
+it("two same-type sibling emits from one parent are both processed (no silent dedupe drop)", async () => {
+  const store = new InMemoryStore();
+  const emitTwice: Subscription = { event: "lead.created", agent: "orchestrator", action: (_e, ctx) => {
+    ctx.emit("lead.assigned", { leadId: "l1", userId: "rep1" });
+    ctx.emit("lead.assigned", { leadId: "l1", userId: "rep2" });
+  }};
+  const o = new Orchestrator({ store, triggers: (t) => (t === "lead.created" ? [emitTwice] : []) });
+  await o.publish(lead());
+  const assigned = store.audits.filter((a) => a.event.type === "lead.assigned" && a.outcome === "received");
+  expect(assigned).toHaveLength(2); // both siblings processed, neither dropped
+});
+
 it("a throwing subscriber is isolated: dead-letter + handler.failed, siblings still run", async () => {
   const store = new InMemoryStore();
   const throwing: Subscription = { event: "lead.created", agent: "comms", action: () => { throw new Error("boom"); } };
