@@ -32,14 +32,14 @@ it("validateEvent rejects an unknown type", () => {
 });
 
 it("validateEvent rejects a missing envelope field", () => {
-  const e = makeEvent(base) as Record<string, unknown>;
+  const e = makeEvent(base) as unknown as Record<string, unknown>;
   delete e.tenantId;
   const r = validateEvent(e);
   expect(r.ok).toBe(false);
 });
 
 it("validateEvent rejects a payload that does not match its type", () => {
-  const e = makeEvent(base) as Record<string, unknown>;
+  const e = makeEvent(base) as unknown as Record<string, unknown>;
   e.payload = { wrong: true };
   const r = validateEvent(e);
   expect(r.ok).toBe(false);
