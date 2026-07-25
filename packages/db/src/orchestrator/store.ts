@@ -46,7 +46,10 @@ export class DrizzleOrchestratorStore implements OrchestratorStore {
   async traceByCorrelation(tenantId: string, correlationId: string): Promise<AuditRecord[]> {
     return withTenant(tenantId, async (tx) => {
       const rows = await tx.select().from(orchestratorEvent)
-        .where(and(eq(orchestratorEvent.tenantId, tenantId), eq(orchestratorEvent.correlationId, correlationId)));
+        .where(and(eq(orchestratorEvent.tenantId, tenantId), eq(orchestratorEvent.correlationId, correlationId)))
+        // Stable chronological order for the Command Center trace timeline —
+        // select() is otherwise unordered.
+        .orderBy(orchestratorEvent.createdAt);
       return rows.map((row) => ({
         event: {
           id: row.eventId, type: row.eventType as DomainEvent["type"], version: row.version,
@@ -66,7 +69,8 @@ export class DrizzleOrchestratorStore implements OrchestratorStore {
   async listEscalations(tenantId: string): Promise<EscalationRecord[]> {
     return withTenant(tenantId, async (tx) => {
       const rows = await tx.select().from(orchestratorEscalation)
-        .where(eq(orchestratorEscalation.tenantId, tenantId));
+        .where(eq(orchestratorEscalation.tenantId, tenantId))
+        .orderBy(orchestratorEscalation.createdAt);
       return rows.map((row) => ({
         tenantId: row.tenantId, correlationId: row.correlationId, eventId: row.eventId,
         eventType: row.eventType, ruleId: row.ruleId,

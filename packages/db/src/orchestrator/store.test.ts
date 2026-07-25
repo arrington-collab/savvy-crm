@@ -44,3 +44,30 @@ it("recordEscalation + listEscalations round-trips", async () => {
   const list = await store.listEscalations(tenantId);
   expect(list.some((x) => x.ruleId === "low-margin")).toBe(true);
 });
+
+it("traceByCorrelation returns rows ordered by createdAt (insertion order shuffled)", async () => {
+  const store = new DrizzleOrchestratorStore();
+  const corr = `corr-order-${randomUUID()}`;
+  const base = new Date("2026-01-01T00:00:00.000Z").getTime();
+  // Insert out of chronological order: newest first, oldest second, middle last.
+  await adminDb.insert(orchestratorEvent).values([
+    { tenantId, eventId: "e3", eventType: "lead.created", source: "savvy", correlationId: corr, idempotencyKey: `k-${randomUUID()}`, agent: "third", outcome: "handled", emitted: [], payload: {}, createdAt: new Date(base + 2000) },
+    { tenantId, eventId: "e1", eventType: "lead.created", source: "savvy", correlationId: corr, idempotencyKey: `k-${randomUUID()}`, agent: "first", outcome: "handled", emitted: [], payload: {}, createdAt: new Date(base + 0) },
+    { tenantId, eventId: "e2", eventType: "lead.created", source: "savvy", correlationId: corr, idempotencyKey: `k-${randomUUID()}`, agent: "second", outcome: "handled", emitted: [], payload: {}, createdAt: new Date(base + 1000) },
+  ]);
+  const trace = await store.traceByCorrelation(tenantId, corr);
+  expect(trace.map((a) => a.agent)).toEqual(["first", "second", "third"]);
+});
+
+it("listEscalations returns rows ordered by createdAt (insertion order shuffled)", async () => {
+  const store = new DrizzleOrchestratorStore();
+  const corr = `esc-order-${randomUUID()}`;
+  const base = new Date("2026-02-01T00:00:00.000Z").getTime();
+  await adminDb.insert(orchestratorEscalation).values([
+    { tenantId, ruleId: "third", severity: "high", reason: "r", notify: [], eventId: "e3", eventType: "review.posted", correlationId: corr, createdAt: new Date(base + 2000) },
+    { tenantId, ruleId: "first", severity: "high", reason: "r", notify: [], eventId: "e1", eventType: "review.posted", correlationId: corr, createdAt: new Date(base + 0) },
+    { tenantId, ruleId: "second", severity: "high", reason: "r", notify: [], eventId: "e2", eventType: "review.posted", correlationId: corr, createdAt: new Date(base + 1000) },
+  ]);
+  const list = (await store.listEscalations(tenantId)).filter((x) => x.correlationId === corr);
+  expect(list.map((x) => x.ruleId)).toEqual(["first", "second", "third"]);
+});

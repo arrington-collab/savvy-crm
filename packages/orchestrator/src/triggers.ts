@@ -12,7 +12,6 @@ export interface Subscription {
   event: EventType;
   agent: Agent;
   action: Action;
-  silent?: boolean; // routine, no exception-queue interest even if a rule matches
 }
 
 // STUB agent actions — Day 1 emits the follow-on events (the choreography) but
@@ -68,7 +67,7 @@ export const TRIGGERS: Subscription[] = [
     },
   },
   {
-    event: "payment.received", agent: "finance", silent: true,
+    event: "payment.received", agent: "finance",
     action: () => {}, // reconcile + close; routine, emits nothing on Day 1
   },
   {
@@ -80,25 +79,25 @@ export const TRIGGERS: Subscription[] = [
     action: () => {}, // referral ask or escalation (negative-review rule)
   },
   // Follow-on event subscribers (terminal handlers). Routine end-of-chain
-  // acknowledgements — silent, like payment.received (no escalation interest).
+  // acknowledgements, like payment.received (no follow-on emits).
   {
-    event: "lead.first_touch", agent: "comms", silent: true,
+    event: "lead.first_touch", agent: "comms",
     action: () => {}, // send initial message
   },
   {
-    event: "material.order.created", agent: "orchestrator", silent: true,
+    event: "material.order.created", agent: "orchestrator",
     action: () => {}, // track order lifecycle
   },
   {
-    event: "job.approved", agent: "orchestrator", silent: true,
+    event: "job.approved", agent: "orchestrator",
     action: () => {}, // broadcast approval
   },
   {
-    event: "invoice.created", agent: "finance", silent: true,
+    event: "invoice.created", agent: "finance",
     action: () => {}, // track payment lifecycle
   },
   {
-    event: "review.requested", agent: "comms", silent: true,
+    event: "review.requested", agent: "comms",
     action: () => {}, // send review request
   },
 ];
@@ -106,3 +105,22 @@ export const TRIGGERS: Subscription[] = [
 export function subscriptionsFor(type: EventType): Subscription[] {
   return TRIGGERS.filter((s) => s.event === type);
 }
+
+// (event, agent) must be unique across the registry. The engine derives each
+// emitted child's idempotencyKey from a PER-SUBSCRIBER emitSeq
+// (`${parentIdem}>${agent}>${type}#${emitSeq}`), so two subscriptions on the
+// same (event, agent) emitting the same child type would mint colliding keys
+// and the second would be silently dedupe-dropped. Enforce it at module load
+// so a future contributor can't reintroduce the collision unnoticed.
+export function assertUniqueSubscriptions(subs: readonly Subscription[]): void {
+  const seen = new Set<string>();
+  for (const s of subs) {
+    const key = `${s.event} ${s.agent}`;
+    if (seen.has(key)) {
+      throw new Error(`duplicate subscription for (${s.event}, ${s.agent}) — (event, agent) must be unique`);
+    }
+    seen.add(key);
+  }
+}
+
+assertUniqueSubscriptions(TRIGGERS);
