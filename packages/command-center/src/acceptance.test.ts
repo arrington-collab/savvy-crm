@@ -81,27 +81,16 @@ it("§8 acceptance: a business day projects to a correct Flash + workable except
   const now = new Date(at(18));
   const ruleIds = queue.all().map((i) => i.ruleId);
   expect(ruleIds).toEqual(expect.arrayContaining(["low-margin", "collections-90", "negative-review"]));
+  const mine = queue.needsYou("arrington", now); // low-margin + collections-90 notify arrington
+  expect(mine.map((i) => i.ruleId).sort()).toEqual(["collections-90", "low-margin"]);
 
-  // ExceptionQueue.intake routes assignee = notify[0] (exception-queue.test.ts).
-  // In the real rule registry (escalations.ts), arrington is cc'd (notify[1]) on
-  // low-margin/collections-90 but the primary owner is sales-manager/admin — so
-  // needsYou surfaces to THEM, not arrington. negative-review's sole notify is manager.
-  const lowMargin = queue.all().find((i) => i.ruleId === "low-margin")!;
-  const collections = queue.all().find((i) => i.ruleId === "collections-90")!;
-  const negativeReview = queue.all().find((i) => i.ruleId === "negative-review")!;
-  expect(lowMargin.assignee).toBe("sales-manager");
-  expect(collections.assignee).toBe("admin");
-  expect(negativeReview.assignee).toBe("manager");
-  expect(queue.needsYou("sales-manager", now).map((i) => i.ruleId)).toEqual(["low-margin"]);
-  expect(queue.needsYou("admin", now).map((i) => i.ruleId)).toEqual(["collections-90"]);
-  expect(queue.needsYou("manager", now).map((i) => i.ruleId)).toEqual(["negative-review"]);
-
-  // (5) lifecycle — ack the sales-manager item, snooze the admin item; the
-  // manager item is left untouched so the final Flash print below has something to show.
-  queue.acknowledge(lowMargin.key, "sales-manager", at(18, 5));
-  expect(queue.needsYou("sales-manager", now).map((i) => i.key)).not.toContain(lowMargin.key);
-  queue.snooze(collections.key, at(30)); // tomorrow
-  expect(queue.needsYou("admin", now).map((i) => i.key)).not.toContain(collections.key);
+  // (5) lifecycle
+  const ackTarget = mine[0]!;
+  queue.acknowledge(ackTarget.key, "arrington", at(18, 5));
+  expect(queue.needsYou("arrington", now).map((i) => i.key)).not.toContain(ackTarget.key);
+  const snoozeTarget = queue.needsYou("arrington", now)[0]!;
+  queue.snooze(snoozeTarget.key, at(30)); // tomorrow
+  expect(queue.needsYou("arrington", now).map((i) => i.key)).not.toContain(snoozeTarget.key);
   expect(queue.all().length).toBe(ruleIds.length); // nothing deleted
 
   // (6) idempotency: re-project + re-intake same log → identical
@@ -119,8 +108,8 @@ it("§8 acceptance: a business day projects to a correct Flash + workable except
   // (7) replay
   expect(projectDay(logFrom(store), D)).toEqual(metrics);
 
-  // print — manager's personalized view (negative-review is still open for them)
-  const flashNeeds = queue.needsYou("manager", now);
+  // print
+  const flashNeeds = queue.needsYou("arrington", now);
   console.log("\n" + renderFlashHeadline(metrics, flashNeeds));
   console.log(renderFlashHtml(metrics, flashNeeds, compareMetrics(metrics, null, [])).slice(0, 200) + "…");
 });

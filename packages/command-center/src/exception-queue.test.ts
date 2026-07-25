@@ -27,6 +27,16 @@ it("routes assignee from notify[0] and surfaces arrington items in needsYou", ()
   expect(mine[0]!.assignee).toBe("arrington");
 });
 
+it("needsYou is notify-MEMBERSHIP, not assignee-only: a non-primary notify entry still surfaces", () => {
+  const q = new ExceptionQueue();
+  // arrington is oversight (notify[1]), sales-manager owns the fix (notify[0]/assignee).
+  const item = q.intake(esc({ eventId: "e1", notify: ["sales-manager", "arrington"] }), "2026-07-01T18:00:00Z");
+  expect(item.assignee).toBe("sales-manager"); // primary/display owner unchanged
+  const now = new Date("2026-07-01T19:00:00Z");
+  expect(q.needsYou("arrington", now).map((i) => i.key)).toEqual([item.key]); // oversight still surfaces
+  expect(q.needsYou("sales-manager", now).map((i) => i.key)).toEqual([item.key]); // primary owner surfaces too
+});
+
 it("acknowledge leaves open but keeps the record; resolve never deletes", () => {
   const q = new ExceptionQueue();
   const item = q.intake(esc({ eventId: "e1" }), "2026-07-01T18:00:00Z");

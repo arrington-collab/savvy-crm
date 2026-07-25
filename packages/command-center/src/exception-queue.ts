@@ -53,9 +53,15 @@ export class ExceptionQueue {
     it.state = "snoozed"; it.snoozeUntil = until;
   }
 
-  /** Items needing THIS assignee's attention now: open, or snoozed past their snoozeUntil. */
-  needsYou(assignee: string, now: Date): QueueItem[] {
-    return [...this.items.values()].filter((it) => it.assignee === assignee && this.isActive(it, now));
+  /**
+   * Items needing THIS person's attention now: open, or snoozed past their
+   * snoozeUntil. Membership is by `notify` (anyone the escalation names —
+   * primary owner or oversight), not just the primary `assignee`: a rule can
+   * list an operational role first (owns the fix) with a person further down
+   * the list as oversight, and that person's Flash still needs to surface it.
+   */
+  needsYou(who: string, now: Date): QueueItem[] {
+    return [...this.items.values()].filter((it) => it.notify.includes(who) && this.isActive(it, now));
   }
 
   openCount(now: Date): { total: number; bySeverity: Record<string, number> } {
