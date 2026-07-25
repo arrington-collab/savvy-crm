@@ -16,6 +16,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@savvy/agents": "workspace:*",
     "@savvy/ai": "workspace:*",
+    "@savvy/command-center": "workspace:*",
     "@savvy/core": "workspace:*",
     "@savvy/db": "workspace:*",
     "@savvy/integrations": "workspace:*",
