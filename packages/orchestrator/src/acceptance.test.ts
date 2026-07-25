@@ -13,9 +13,9 @@ it("§8 acceptance: a full job lifecycle chains, escalates, dedupes, and isolate
   const o = new Orchestrator({ store });
 
   // (1) lead.created → first_touch + qualified + assigned
-  await fire(o, "lead.created", "job-1", "lc-1", { leadId: "l1", customerId: "c1" });
+  await fire(o, "lead.created", "job-1", "lc-1", { leadId: "l1", customerId: "c1", source: "web" });
   // (2) contract.signed → material.order.created + job.approved
-  await fire(o, "contract.signed", "job-1", "cs-1", { jobId: "j1", customerId: "c1" });
+  await fire(o, "contract.signed", "job-1", "cs-1", { jobId: "j1", customerId: "c1", contractValueCents: 2400000 });
   // (3) estimate.approved @ 18% → low-margin escalation
   await fire(o, "estimate.approved", "job-1", "ea-1", { estimateId: "e1", jobId: "j1", marginPct: 18 });
   // (4) job.completed → invoice.created + review.requested
@@ -26,7 +26,7 @@ it("§8 acceptance: a full job lifecycle chains, escalates, dedupes, and isolate
   await fire(o, "invoice.past_due", "job-2", "pd-1", { invoiceId: "i2", daysPastDue: 92 });
   // (7) re-publish step 1 with the SAME idempotencyKey → no double processing
   const before = store.audits.length;
-  await fire(o, "lead.created", "job-1", "lc-1", { leadId: "l1", customerId: "c1" });
+  await fire(o, "lead.created", "job-1", "lc-1", { leadId: "l1", customerId: "c1", source: "web" });
   expect(store.audits.length).toBe(before);
 
   const types = store.audits.map((a) => `${a.event.type}:${a.outcome}`);

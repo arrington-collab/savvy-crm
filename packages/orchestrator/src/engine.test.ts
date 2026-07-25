@@ -5,7 +5,7 @@ import { makeEvent, type EventType } from "./events";
 import type { Subscription } from "./triggers";
 
 const T = "11111111-1111-1111-1111-111111111111";
-const lead = () => makeEvent({ type: "lead.created", source: "savvy", tenantId: T, correlationId: "corr-1", idempotencyKey: "idem-1", payload: { leadId: "l1", customerId: "c1" } });
+const lead = () => makeEvent({ type: "lead.created", source: "savvy", tenantId: T, correlationId: "corr-1", idempotencyKey: "idem-1", payload: { leadId: "l1", customerId: "c1", source: "web" } });
 
 it("chains emitted events: lead.created produces first_touch/qualified/assigned", async () => {
   const store = new InMemoryStore();

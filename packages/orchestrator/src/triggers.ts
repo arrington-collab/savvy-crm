@@ -63,7 +63,9 @@ export const TRIGGERS: Subscription[] = [
     event: "job.completed", agent: "finance",
     action: (e, ctx) => {
       const p = e.payload as PayloadFor<"job.completed">;
-      ctx.emit("invoice.created", { invoiceId: `inv-${p.jobId}`, jobId: p.jobId });
+      // amountCents is a stub placeholder — no real invoice amount is known at
+      // job.completed time; finance later reconciles the real figure.
+      ctx.emit("invoice.created", { invoiceId: `inv-${p.jobId}`, jobId: p.jobId, amountCents: 0 });
     },
   },
   {

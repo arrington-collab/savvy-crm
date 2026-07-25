@@ -3,7 +3,7 @@ import { InMemoryStore } from "./store";
 import { makeEvent } from "./events";
 
 const T = "11111111-1111-1111-1111-111111111111";
-const ev = makeEvent({ type: "lead.created", source: "savvy", tenantId: T, correlationId: "corr-1", idempotencyKey: "idem-1", payload: { leadId: "l1", customerId: "c1" } });
+const ev = makeEvent({ type: "lead.created", source: "savvy", tenantId: T, correlationId: "corr-1", idempotencyKey: "idem-1", payload: { leadId: "l1", customerId: "c1", source: "web" } });
 
 it("insertEventIfNew returns true first time, false on a repeat idempotencyKey", async () => {
   const s = new InMemoryStore();

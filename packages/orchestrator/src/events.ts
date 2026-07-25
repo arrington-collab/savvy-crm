@@ -14,21 +14,28 @@ const TOOL = z.enum([
 // Per-type payload schemas. Add a new event by adding one entry here; the
 // EventType union, PayloadFor map, and validateEvent all derive from it.
 const payloadSchemas = {
-  "lead.created": z.object({ leadId: z.string(), customerId: z.string() }),
+  "lead.created": z.object({ leadId: z.string(), customerId: z.string(), source: z.string() }),
   "lead.first_touch": z.object({ leadId: z.string(), channel: z.string() }),
   "lead.qualified": z.object({ leadId: z.string(), score: z.number() }),
   "lead.assigned": z.object({ leadId: z.string(), userId: z.string() }),
-  "contract.signed": z.object({ jobId: z.string(), customerId: z.string() }),
+  "contract.signed": z.object({ jobId: z.string(), customerId: z.string(), contractValueCents: z.number().int() }),
   "material.order.created": z.object({ jobId: z.string() }),
   "job.approved": z.object({ jobId: z.string() }),
   "estimate.approved": z.object({ estimateId: z.string(), jobId: z.string(), marginPct: z.number() }),
   "job.completed": z.object({ jobId: z.string() }),
-  "invoice.created": z.object({ invoiceId: z.string(), jobId: z.string() }),
+  "invoice.created": z.object({ invoiceId: z.string(), jobId: z.string(), amountCents: z.number().int() }),
   "review.requested": z.object({ jobId: z.string(), customerId: z.string() }),
   "payment.received": z.object({ invoiceId: z.string(), amountCents: z.number() }),
   "invoice.past_due": z.object({ invoiceId: z.string(), daysPastDue: z.number() }),
   "supplement.approved": z.object({ supplementId: z.string(), amountCents: z.number() }),
   "review.posted": z.object({ jobId: z.string(), stars: z.number() }),
+  "appointment.set": z.object({
+    appointmentId: z.string(),
+    leadId: z.string().optional(),
+    jobId: z.string().optional(),
+    scheduledAt: z.string(),
+  }),
+  "appointment.no_show": z.object({ appointmentId: z.string(), jobId: z.string().optional() }),
   // system-synthesized: emitted when a subscriber throws.
   "handler.failed": z.object({ ofType: z.string(), agent: z.string(), error: z.string() }),
 } as const;

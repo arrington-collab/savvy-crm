@@ -19,7 +19,7 @@ afterAll(async () => {
   await adminDb.delete(tenant).where(eq(tenant.id, tenantId));
 });
 
-const ev = () => makeEvent({ type: "lead.created", source: "savvy", tenantId, correlationId: "corr-1", idempotencyKey: `idem-${randomUUID()}`, payload: { leadId: "l1", customerId: "c1" } });
+const ev = () => makeEvent({ type: "lead.created", source: "savvy", tenantId, correlationId: "corr-1", idempotencyKey: `idem-${randomUUID()}`, payload: { leadId: "l1", customerId: "c1", source: "web" } });
 
 it("insertEventIfNew is true then false for the same idempotencyKey", async () => {
   const store = new DrizzleOrchestratorStore();
