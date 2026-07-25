@@ -51,6 +51,7 @@ it("§8 acceptance: a business day projects to a correct Flash + workable except
   await fire(o, "estimate.approved", { estimateId: "e1", jobId: "j1", marginPct: 18 }, at(4, 30), "ea1"); // low-margin
   await fire(o, "invoice.past_due", { invoiceId: "i9", daysPastDue: 92 }, at(8), "pd1"); // collections-90
   await fire(o, "review.posted", { jobId: "j1", stars: 2 }, at(9), "rp1"); // negative-review
+  await fire(o, "handler.failed", { ofType: "estimate.approved", agent: "finance", error: "boom" }, at(10), "hf1"); // handler-failure
 
   const log = logFrom(store);
   const metrics = projectDay(log, D);
@@ -80,9 +81,18 @@ it("§8 acceptance: a business day projects to a correct Flash + workable except
   }
   const now = new Date(at(18));
   const ruleIds = queue.all().map((i) => i.ruleId);
-  expect(ruleIds).toEqual(expect.arrayContaining(["low-margin", "collections-90", "negative-review"]));
+  // Exactly the 4 Day-1 escalations — not a subset check. arrayContaining would
+  // silently accept 3-of-4 as "the four escalations appear"; assert the exact set.
+  expect([...new Set(ruleIds)].sort()).toEqual(["collections-90", "handler-failure", "low-margin", "negative-review"]);
+  expect(queue.all().find((i) => i.ruleId === "low-margin")?.severity).toBe("high");
+  expect(queue.all().find((i) => i.ruleId === "handler-failure")?.severity).toBe("high");
   const mine = queue.needsYou("arrington", now); // low-margin + collections-90 notify arrington
   expect(mine.map((i) => i.ruleId).sort()).toEqual(["collections-90", "low-margin"]);
+
+  // print — right after check 4, before the lifecycle mutations below consume
+  // arrington's items, so the printed demo honestly shows his 2 open items.
+  console.log("\n" + renderFlashHeadline(metrics, mine));
+  console.log(renderFlashHtml(metrics, mine, compareMetrics(metrics, null, [])).slice(0, 200) + "…");
 
   // (5) lifecycle
   const ackTarget = mine[0]!;
@@ -107,11 +117,6 @@ it("§8 acceptance: a business day projects to a correct Flash + workable except
 
   // (7) replay
   expect(projectDay(logFrom(store), D)).toEqual(metrics);
-
-  // print
-  const flashNeeds = queue.needsYou("arrington", now);
-  console.log("\n" + renderFlashHeadline(metrics, flashNeeds));
-  console.log(renderFlashHtml(metrics, flashNeeds, compareMetrics(metrics, null, [])).slice(0, 200) + "…");
 });
 
 it("§8(8) quiet day: an empty log yields a valid quiet-day flash, no crash, zero exceptions", () => {
