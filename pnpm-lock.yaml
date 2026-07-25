@@ -192,6 +192,9 @@ importers:
       '@savvy/integrations':
         specifier: workspace:*
         version: link:../integrations
+      '@savvy/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       drizzle-orm:
         specifier: ^0.36.0
         version: 0.36.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@types/react@19.2.17)(pg@8.21.0)(react@19.2.7)
