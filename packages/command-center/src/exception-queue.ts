@@ -3,10 +3,9 @@ import type { EscalationRecord } from "@savvy/orchestrator";
 export type QueueState = "open" | "acknowledged" | "resolved" | "snoozed";
 
 export interface QueueItem {
-  key: string; // `${escalationId}:${idempotencyKey}`
-  escalationId: string;
-  idempotencyKey: string;
+  key: string; // `${ruleId}:${eventId}`
   ruleId: string;
+  eventId: string;
   severity: string;
   reason: string;
   notify: string[];
@@ -19,19 +18,18 @@ export interface QueueItem {
   createdAt: string;
 }
 
-// EscalationRecord as delivered to the queue also carries the source escalation's
-// own id + the triggering event's idempotencyKey (added by the intake caller).
-type IntakeRecord = EscalationRecord & { id: string; idempotencyKey: string };
-
 export class ExceptionQueue {
   private items = new Map<string, QueueItem>();
 
-  intake(esc: IntakeRecord, at: string): QueueItem {
-    const key = `${esc.id}:${esc.idempotencyKey}`;
+  intake(esc: EscalationRecord, at: string): QueueItem {
+    // eventId is unique per processed event (the engine dedupes on idempotencyKey
+    // before escalations fire), so ruleId:eventId is a stable, deterministic key —
+    // re-intake of the same escalation always yields the same key.
+    const key = `${esc.ruleId}:${esc.eventId}`;
     const existing = this.items.get(key);
     if (existing) return existing; // idempotent
     const item: QueueItem = {
-      key, escalationId: esc.id, idempotencyKey: esc.idempotencyKey, ruleId: esc.ruleId,
+      key, ruleId: esc.ruleId, eventId: esc.eventId,
       severity: esc.severity, reason: esc.reason, notify: esc.notify,
       assignee: esc.notify[0] ?? "unassigned",
       state: "open", acknowledgedAt: null, resolvedAt: null, resolutionNote: null, snoozeUntil: null, createdAt: at,
@@ -50,9 +48,9 @@ export class ExceptionQueue {
     it.state = "resolved"; it.resolutionNote = note; it.resolvedAt = at;
   }
 
-  snooze(key: string, until: string, at: string): void {
+  snooze(key: string, until: string): void {
     const it = this.items.get(key); if (!it) return;
-    it.state = "snoozed"; it.snoozeUntil = until; it.acknowledgedAt = at;
+    it.state = "snoozed"; it.snoozeUntil = until;
   }
 
   /** Items needing THIS assignee's attention now: open, or snoozed past their snoozeUntil. */
