@@ -79,25 +79,26 @@ export const TRIGGERS: Subscription[] = [
     event: "review.posted", agent: "comms",
     action: () => {}, // referral ask or escalation (negative-review rule)
   },
-  // Follow-on event subscribers (terminal handlers).
+  // Follow-on event subscribers (terminal handlers). Routine end-of-chain
+  // acknowledgements — silent, like payment.received (no escalation interest).
   {
-    event: "lead.first_touch", agent: "comms",
+    event: "lead.first_touch", agent: "comms", silent: true,
     action: () => {}, // send initial message
   },
   {
-    event: "material.order.created", agent: "orchestrator",
+    event: "material.order.created", agent: "orchestrator", silent: true,
     action: () => {}, // track order lifecycle
   },
   {
-    event: "job.approved", agent: "orchestrator",
+    event: "job.approved", agent: "orchestrator", silent: true,
     action: () => {}, // broadcast approval
   },
   {
-    event: "invoice.created", agent: "finance",
+    event: "invoice.created", agent: "finance", silent: true,
     action: () => {}, // track payment lifecycle
   },
   {
-    event: "review.requested", agent: "comms",
+    event: "review.requested", agent: "comms", silent: true,
     action: () => {}, // send review request
   },
 ];
