@@ -827,6 +827,13 @@
       "when": 1784694264152,
       "tag": "0117_medical_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1784993080844,
+      "tag": "0118_overconfident_blindfold",
+      "breakpoints": true
     }
   ]
 }

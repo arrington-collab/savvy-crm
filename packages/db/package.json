@@ -20,6 +20,7 @@
   "dependencies": {
     "@savvy/core": "workspace:*",
     "@savvy/integrations": "workspace:*",
+    "@savvy/orchestrator": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "pg": "^8.13.0",
     "uuidv7": "^1.0.2"
