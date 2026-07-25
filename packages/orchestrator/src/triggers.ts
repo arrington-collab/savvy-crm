@@ -79,6 +79,27 @@ export const TRIGGERS: Subscription[] = [
     event: "review.posted", agent: "comms",
     action: () => {}, // referral ask or escalation (negative-review rule)
   },
+  // Follow-on event subscribers (terminal handlers).
+  {
+    event: "lead.first_touch", agent: "comms",
+    action: () => {}, // send initial message
+  },
+  {
+    event: "material.order.created", agent: "orchestrator",
+    action: () => {}, // track order lifecycle
+  },
+  {
+    event: "job.approved", agent: "orchestrator",
+    action: () => {}, // broadcast approval
+  },
+  {
+    event: "invoice.created", agent: "finance",
+    action: () => {}, // track payment lifecycle
+  },
+  {
+    event: "review.requested", agent: "comms",
+    action: () => {}, // send review request
+  },
 ];
 
 export function subscriptionsFor(type: EventType): Subscription[] {
