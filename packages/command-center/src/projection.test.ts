@@ -60,3 +60,63 @@ it("ignores events from other days", () => {
   const m = projectDay([ev("lead.created", { leadId: "x", customerId: "c", source: "web" }, other)], D);
   expect(m.topLine.leadsTotal).toBe(0);
 });
+
+it("AR buckets use the latest-by-time daysPastDue reading, not the last-in-array one", () => {
+  const events: DomainEvent[] = [
+    // later-occurredAt reading (should win) appears FIRST in the array
+    ev("invoice.past_due", { invoiceId: "i1", daysPastDue: 92 }, at(5)),
+    // earlier-occurredAt reading appears LAST in the array — must NOT overwrite the later one
+    ev("invoice.past_due", { invoiceId: "i1", daysPastDue: 10 }, at(2)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.money.arPastDue.d90).toBe(1);
+  expect(m.money.arPastDue.d60).toBe(0);
+  expect(m.money.arPastDue.d30).toBe(0);
+});
+
+it("AR buckets 30/60/90 are mutually exclusive at boundaries", () => {
+  const events: DomainEvent[] = [
+    ev("invoice.past_due", { invoiceId: "i29", daysPastDue: 29 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i30", daysPastDue: 30 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i59", daysPastDue: 59 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i60", daysPastDue: 60 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i89", daysPastDue: 89 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i90", daysPastDue: 90 }, at(1)),
+    ev("invoice.past_due", { invoiceId: "i92", daysPastDue: 92 }, at(1)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.money.arPastDue.d30).toBe(2); // i30, i59
+  expect(m.money.arPastDue.d60).toBe(2); // i60, i89
+  expect(m.money.arPastDue.d90).toBe(2); // i90, i92
+});
+
+it("sums supplement.approved amounts in cents", () => {
+  const events: DomainEvent[] = [
+    ev("supplement.approved", { supplementId: "s1", amountCents: 50000 }, at(1)),
+    ev("supplement.approved", { supplementId: "s2", amountCents: 25000 }, at(2)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.money.supplementsApprovedCents).toBe(75000);
+});
+
+it("averages review stars", () => {
+  const events: DomainEvent[] = [
+    ev("review.posted", { jobId: "j1", stars: 4 }, at(1)),
+    ev("review.posted", { jobId: "j2", stars: 2 }, at(2)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.quality.reviewsPosted).toBe(2);
+  expect(m.quality.avgStars).toBe(3);
+});
+
+it("averages estimate margin and counts material orders", () => {
+  const events: DomainEvent[] = [
+    ev("estimate.approved", { estimateId: "e1", jobId: "j1", marginPct: 20 }, at(1)),
+    ev("estimate.approved", { estimateId: "e2", jobId: "j2", marginPct: 30 }, at(2)),
+    ev("material.order.created", { jobId: "j1" }, at(3)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.production.estimatesApproved).toBe(2);
+  expect(m.production.avgMarginPct).toBe(25);
+  expect(m.production.materialOrders).toBe(1);
+});

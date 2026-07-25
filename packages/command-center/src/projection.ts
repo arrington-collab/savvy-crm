@@ -21,7 +21,7 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
 
   const stars: number[] = [];
   const margins: number[] = [];
-  const pastDueByInvoice = new Map<string, number>(); // latest daysPastDue per invoice
+  const pastDueByInvoice = new Map<string, { days: number; atMs: number }>(); // latest-by-time daysPastDue per invoice
 
   for (const e of day) {
     switch (e.type) {
@@ -29,7 +29,8 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
         const p = e.payload as PayloadFor<"lead.created">;
         m.topLine.leadsTotal += 1;
         m.topLine.leadsBySource[p.source] = (m.topLine.leadsBySource[p.source] ?? 0) + 1;
-        createdAt.set(p.leadId, Date.parse(e.occurredAt));
+        const createdT = Date.parse(e.occurredAt);
+        if (!createdAt.has(p.leadId) || createdT < createdAt.get(p.leadId)!) createdAt.set(p.leadId, createdT);
         break;
       }
       case "lead.first_touch": {
@@ -64,7 +65,9 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
       }
       case "invoice.past_due": {
         const p = e.payload as PayloadFor<"invoice.past_due">;
-        pastDueByInvoice.set(p.invoiceId, p.daysPastDue);
+        const atMs = Date.parse(e.occurredAt);
+        const prev = pastDueByInvoice.get(p.invoiceId);
+        if (!prev || atMs >= prev.atMs) pastDueByInvoice.set(p.invoiceId, { days: p.daysPastDue, atMs });
         break;
       }
       case "review.posted": {
@@ -84,8 +87,8 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
     }
   }
 
-  // AR buckets (30/60/90) from the latest past-due reading per invoice
-  for (const days of pastDueByInvoice.values()) {
+  // AR buckets (30/60/90) from the latest-by-time past-due reading per invoice
+  for (const { days } of pastDueByInvoice.values()) {
     if (days >= 90) m.money.arPastDue.d90 += 1;
     else if (days >= 60) m.money.arPastDue.d60 += 1;
     else if (days >= 30) m.money.arPastDue.d30 += 1;
