@@ -39,3 +39,4 @@ export * from "./membership";
 export * from "./strike-list";
 export * from "./import-record";
 export * from "./orchestrator";
+export * from "./command-center";

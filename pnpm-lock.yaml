@@ -202,6 +202,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@savvy/command-center':
+        specifier: workspace:*
+        version: link:../command-center
       '@savvy/core':
         specifier: workspace:*
         version: link:../core

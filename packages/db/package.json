@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@savvy/command-center": "workspace:*",
     "@savvy/core": "workspace:*",
     "@savvy/integrations": "workspace:*",
     "@savvy/orchestrator": "workspace:*",
