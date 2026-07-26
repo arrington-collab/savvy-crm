@@ -2,6 +2,7 @@ export * from "./enums";
 export * from "./schemas";
 export * from "./verification";
 export * from "./render-template";
+export * from "./localized-templates";
 export * from "./comms";
 export * from "./scheduling";
 export * from "./finance";
