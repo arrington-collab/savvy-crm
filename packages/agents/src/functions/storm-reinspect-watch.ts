@@ -10,13 +10,14 @@ import {
   adminDb, withTenant, eq, and, customer, tenant as tenantTbl, messageTemplate,
   getBaselinedProperties, proposeStormReinspectBatch, markStormBatchSent,
   stormReinspectBatch, isDemoTenant, activeMemberCustomerIds,
-  scheduleRelationshipTouch, markTouchSent,
+  scheduleRelationshipTouch, markTouchSent, isSuppressed,
 } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate, strikeListOrder } from "@savvy/core";
 import { stormProof, slimStormSwaths } from "@savvy/integrations";
 import { clusterKnockCenters } from "../storm-alert";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 export const STORM_OUTREACH_TEMPLATE_KEY = "roof-record-storm-outreach";
 const DEFAULT_OUTREACH =
@@ -110,7 +111,15 @@ export async function sendStormReinspectOutreach(
     if (!("touchId" in admitted)) continue; // opt-out — instantly honored
     const touchId = admitted.touchId;
     const cust = await withTenant(input.tenantId, async (tx) => {
-      const [c] = await tx.select({ name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut })
+      const [c] = await tx
+        .select({
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          smsOptOut: customer.smsOptOut,
+          emailOptOut: customer.emailOptOut,
+          smsConsentAt: customer.smsConsentAt,
+        })
         .from(customer).where(eq(customer.id, p.customerId!));
       return c ?? null;
     });
@@ -122,10 +131,25 @@ export async function sendStormReinspectOutreach(
       kind: batch.kind,
       baselineMonth,
     });
-    const { sender, from } = await deps.getTenantSms(input.tenantId);
-    await sender.sendSms({ to: cust.phone, from, body });
-    await markTouchSent({ tenantId: input.tenantId, touchId });
-    sent += 1;
+    try {
+      const { sender, from } = await deps.getTenantSms(input.tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId: input.tenantId, channel: "sms", to: cust.phone, from, body,
+          consent: { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt },
+          a2pApproved: resolveA2pApproved(input.tenantId, from),
+          contactId: p.customerId ?? cust.id,
+        },
+      );
+      if (result.status === "sent") {
+        await markTouchSent({ tenantId: input.tenantId, touchId });
+        sent += 1;
+      }
+    } catch {
+      // Fail-soft: a guard/DB throw skips this recipient — the batch keeps
+      // moving rather than stalling the whole outreach sweep.
+    }
   }
   await markStormBatchSent({ tenantId: input.tenantId, batchId: input.batchId });
   return { sent };
