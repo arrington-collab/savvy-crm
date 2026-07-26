@@ -47,6 +47,26 @@ it("computes median speed-to-lead and % under 5 min; a lead with no first touch 
   expect(m.speed.pctLeadsUnder5Min).toBeCloseTo(1 / 3); // 1 of 3 leads
 });
 
+it("uses lead.first_touch.latencySeconds directly for the speed metric when there is no paired lead.created", () => {
+  const events: DomainEvent[] = [
+    ev("lead.first_touch", { leadId: "l1", channel: "sms", latencySeconds: 45 }, at(1)), // 45s → under 5min SLA
+  ];
+  const m = projectDay(events, D);
+  expect(m.speed.medianSpeedToLeadMs).toBe(45_000);
+  expect(m.speed.pctLeadsUnder5Min).toBe(1);
+});
+
+it("does not double-count a lead that has both a direct latencySeconds and a paired lead.created", () => {
+  const events: DomainEvent[] = [
+    ev("lead.created", { leadId: "l1", customerId: "c1", source: "web" }, at(1, 0)),
+    // paired timestamps would compute 3min, but the direct latencySeconds (45s) should win and be counted once
+    ev("lead.first_touch", { leadId: "l1", channel: "sms", latencySeconds: 45 }, at(1, 3)),
+  ];
+  const m = projectDay(events, D);
+  expect(m.speed.medianSpeedToLeadMs).toBe(45_000);
+  expect(m.speed.pctLeadsUnder5Min).toBe(1);
+});
+
 it("a quiet day yields zeroed metrics, no crash", () => {
   const m = projectDay([], D);
   expect(m.businessDate).toBe(D);

@@ -18,6 +18,10 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
   // speed-to-lead: pair lead.created with the first lead.first_touch by leadId (same day)
   const createdAt = new Map<string, number>();
   const firstTouchAt = new Map<string, number>();
+  // some first_touch events (from the bridge) already carry a computed latencySeconds and have no
+  // paired lead.created DomainEvent — capture the earliest such value per lead so we can fold it in directly.
+  const directLatencySecondsByLead = new Map<string, number>();
+  const directLatencyRecordedAt = new Map<string, number>();
 
   const stars: number[] = [];
   const margins: number[] = [];
@@ -37,6 +41,12 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
         const p = e.payload as PayloadFor<"lead.first_touch">;
         const t = Date.parse(e.occurredAt);
         if (!firstTouchAt.has(p.leadId) || t < firstTouchAt.get(p.leadId)!) firstTouchAt.set(p.leadId, t);
+        if (p.latencySeconds != null) {
+          if (!directLatencyRecordedAt.has(p.leadId) || t < directLatencyRecordedAt.get(p.leadId)!) {
+            directLatencyRecordedAt.set(p.leadId, t);
+            directLatencySecondsByLead.set(p.leadId, p.latencySeconds);
+          }
+        }
         break;
       }
       case "appointment.set": m.topLine.appointmentsSet += 1; break;
@@ -97,16 +107,33 @@ export function projectDay(events: DomainEvent[], businessDate: string): DailyMe
   // speed-to-lead
   const durations: number[] = [];
   let underSla = 0;
-  for (const [leadId, created] of createdAt) {
-    const touched = firstTouchAt.get(leadId);
-    if (touched !== undefined) {
-      const dur = touched - created;
-      durations.push(dur);
-      if (dur <= SLA_MS) underSla += 1;
-    }
+  const speedCountedLeads = new Set<string>();
+
+  // Direct path: first_touch events that already carry a computed latencySeconds (bridge output),
+  // used even when there's no paired lead.created DomainEvent for that lead.
+  for (const [leadId, latencySeconds] of directLatencySecondsByLead) {
+    const dur = latencySeconds * 1000;
+    durations.push(dur);
+    if (dur <= SLA_MS) underSla += 1;
+    speedCountedLeads.add(leadId);
   }
+
+  // Paired path: lead.created <-> lead.first_touch by leadId. Skip leads already counted via the
+  // direct path above to avoid double-counting the same lead.
+  for (const [leadId, created] of createdAt) {
+    if (!speedCountedLeads.has(leadId)) {
+      const touched = firstTouchAt.get(leadId);
+      if (touched !== undefined) {
+        const dur = touched - created;
+        durations.push(dur);
+        if (dur <= SLA_MS) underSla += 1;
+      }
+    }
+    speedCountedLeads.add(leadId); // every created lead counts toward the SLA denominator, touched or not
+  }
+
   m.speed.medianSpeedToLeadMs = median(durations);
-  m.speed.pctLeadsUnder5Min = createdAt.size === 0 ? null : underSla / createdAt.size;
+  m.speed.pctLeadsUnder5Min = speedCountedLeads.size === 0 ? null : underSla / speedCountedLeads.size;
 
   m.quality.avgStars = stars.length ? stars.reduce((a, b) => a + b, 0) / stars.length : null;
   m.production.avgMarginPct = margins.length ? margins.reduce((a, b) => a + b, 0) / margins.length : null;
