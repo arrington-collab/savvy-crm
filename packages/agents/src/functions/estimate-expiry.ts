@@ -79,10 +79,14 @@ export async function sweepTenantEstimateExpiry(
       } else {
         meta = { suppressed: `guard_${result.status === "blocked" ? result.reason : result.status}` };
       }
+      await recordEstimateEvent({ tenantId, estimateId: est.id, kind: "expiry_notice", ...(meta ? { meta } : {}) });
     } catch (err) {
-      meta = { suppressed: "guard_error", error: err instanceof Error ? err.message : "guardedSms failed" };
+      // Fail-soft: a thrown error (DB blip, provider 5xx) is transient — do NOT
+      // record expiry_notice, so the once-ever gate stays open and the next
+      // sweep retries instead of silently dropping the notice.
+      console.error("sweepTenantEstimateExpiry: guardedSms threw, will retry next sweep", err);
+      continue;
     }
-    await recordEstimateEvent({ tenantId, estimateId: est.id, kind: "expiry_notice", ...(meta ? { meta } : {}) });
     if (sentOk) noticed += 1;
   }
   return { noticed };

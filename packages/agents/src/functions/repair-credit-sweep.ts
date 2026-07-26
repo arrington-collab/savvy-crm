@@ -98,9 +98,11 @@ export async function sweepTenantRepairCredits(
         // Blocked/deferred by the guard — the cadence RAN; it was suppressed.
         await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind, commId: null });
       }
-    } catch {
-      // Fail-soft: a guard/DB throw must not be recorded as a successful touch.
-      await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind, commId: null });
+    } catch (err) {
+      // Fail-soft: a THROWN error (DB blip, provider 5xx) is transient — do NOT
+      // record the check-in, so `creditCheckinsDue` still finds this kind due
+      // and a later sweep retries instead of silently dropping the touch.
+      console.error("sweepTenantRepairCredits: guardedSms threw, will retry next sweep", err);
     }
   }
   return { touched, expired };

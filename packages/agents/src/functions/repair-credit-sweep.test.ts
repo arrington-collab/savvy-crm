@@ -122,4 +122,29 @@ describe("sweepTenantRepairCredits", () => {
     // global suppression list inside guardedSms, not the governor.
     expect(touches[0]!.suppressedReason).toBeNull();
   });
+
+  // Review follow-up: the try/catch around guardedSms must not treat a THROWN
+  // error (transient DB blip / provider 5xx) the same as a genuine blocked
+  // verdict. A throw must NOT append to checkinLog, so a later sweep retries
+  // instead of silently dropping the homeowner touch.
+  it("guardedSms throw is NOT recorded in checkinLog — a later sweep retries", async () => {
+    const { tenantId, creditId } = await seedCreditAt12mo({ phone: "+16025559876" });
+    const throwingDeps = {
+      getTenantSms: (async () => { throw new Error("provider 5xx"); }) as never,
+    };
+
+    const first = await sweepTenantRepairCredits(tenantId, throwingDeps as never);
+    expect(first.touched).toBe(0);
+
+    const [row] = await adminDb.select().from(repairCredit).where(eq(repairCredit.id, creditId));
+    expect((row!.checkinLog as { kind: string }[]).map((l) => l.kind)).toEqual([]);
+
+    // Next sweep, with a working sender, retries and succeeds — proving the
+    // transient failure did not permanently close the checkinLog gate.
+    const workingDeps = fakeSmsDeps();
+    const retry = await sweepTenantRepairCredits(tenantId, workingDeps as never);
+    expect(retry.touched).toBe(1);
+    expect(workingDeps.sent).toHaveLength(1);
+    expect(workingDeps.sent[0]!.to).toBe("+16025559876");
+  });
 });

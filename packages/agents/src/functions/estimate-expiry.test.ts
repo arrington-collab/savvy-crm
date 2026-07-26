@@ -91,4 +91,35 @@ describe("sweepTenantEstimateExpiry", () => {
     expect(again.noticed).toBe(0);
     expect(sent).toHaveLength(0);
   });
+
+  // Review follow-up: the try/catch around guardedSms must not treat a THROWN
+  // error (transient DB blip / provider 5xx) the same as a genuine blocked
+  // verdict. A throw must NOT record the once-ever expiry_notice event, so a
+  // later sweep retries instead of silently dropping the homeowner notice.
+  it("guardedSms throw is NOT recorded as expiry_notice — a later sweep retries", async () => {
+    const { estimateId, phone } = await seedExpiredEstimate({ phone: "+16025551234" });
+    const throwingDeps = {
+      getTenantSms: (async () => { throw new Error("provider 5xx"); }) as never,
+    };
+
+    const first = await sweepTenantEstimateExpiry(tenantId, throwingDeps);
+    expect(first.noticed).toBe(0);
+
+    const events = await listEstimateEvents(tenantId, estimateId);
+    expect(events.some((e) => e.kind === "expiry_notice")).toBe(false);
+
+    // Next sweep, with a working sender, retries and succeeds — proving the
+    // transient failure did not permanently close the once-ever gate.
+    const sent: { to: string; body: string }[] = [];
+    const workingDeps = {
+      getTenantSms: (async () => ({
+        sender: { sendSms: async (m: { to: string; body: string }) => { sent.push(m); return { sid: "mock" }; } },
+        from: "+15555550000",
+      })) as never,
+    };
+    const retry = await sweepTenantEstimateExpiry(tenantId, workingDeps);
+    expect(retry.noticed).toBe(1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.to).toBe(phone);
+  });
 });
