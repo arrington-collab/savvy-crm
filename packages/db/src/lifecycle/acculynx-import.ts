@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { mapAccuLynxMilestone, mapAccuLynxLeadSource, mapAccuLynxWorkType } from "@savvy/core";
 import { withTenant, type Tx } from "../tenant";
 import { customer, property, lead } from "../schema/crm";
@@ -73,6 +73,11 @@ async function upsertCustomer(
   const [row] = await tx.insert(customer).values({
     tenantId, name: o.name, phone: o.phone ?? null, email: o.email ?? null,
     emailSource: o.email ? "self_reported" : null, // they gave it to Alta directly
+    // Implied consent (business-relationship basis) for imported customers — they're
+    // an existing Alta relationship, not a cold contact. Formal express consent is a
+    // later task; see packages/db/src/scripts/backfill-implied-consent.ts for the
+    // one-time backfill covering rows created before this stamp existed.
+    smsConsentAt: o.phone ? sql`now()` : null,
   }).returning({ id: customer.id });
   await ledger(tx, tenantId, `contact:${o.contactId}`, "customer", row!.id);
   result.customers += 1;

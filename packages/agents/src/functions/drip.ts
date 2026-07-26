@@ -155,12 +155,12 @@ export async function sendDripStep(
   // carrier-filtering problem. Email is unaffected. Fail-soft ⇒ false.
   const smsThrottled = step.channel === "sms" && await (deps.isThrottled ?? isOutboundThrottled)(tenantId);
   let blockedReason: string | null = null;
-  try {
-    if (step.channel === "sms" && !smsThrottled) {
-      // to is non-null here: the suppress guard returned when the address was missing.
-      // guardedSms is the single chokepoint: it re-checks global suppression
-      // (the compliance bypass this closes), consent/opt-out, and A2P approval
-      // before the sender is ever invoked.
+  if (step.channel === "sms" && !smsThrottled) {
+    // to is non-null here: the suppress guard returned when the address was missing.
+    // guardedSms is the single chokepoint: it re-checks global suppression
+    // (the compliance bypass this closes), consent/opt-out, and A2P approval
+    // before the sender is ever invoked.
+    try {
       const result = await guardedSms(
         { isSuppressed: deps.isSuppressed ?? isSuppressed, sms: deps.sms, smsFrom: () => deps.from },
         {
@@ -172,14 +172,23 @@ export async function sendDripStep(
       );
       if (result.status === "sent") providerId = result.sid;
       else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
-    } else if (step.channel === "email") {
+    } catch (err) {
+      // guardedSms itself threw — could be isSuppressed's DB call (a transient
+      // compliance-check failure) or the sender's send call. Either way, the
+      // real send never fired, so this must NOT be logged as a successful
+      // "sent" comm (that was the prior, misleading fail-soft behavior).
+      // Record a failure instead — over-send risk is nil since nothing sent.
+      blockedReason = `error: ${err instanceof Error ? err.message : "guardedSms failed"}`;
+    }
+  } else if (step.channel === "email") {
+    try {
       ({ id: providerId } = await deps.email.sendEmail({
         to: to!, from: process.env.EMAIL_FROM ?? "noreply@example.com",
         subject: "A note from your roofing team", html: drafted.body,
       }));
+    } catch {
+      // No creds in dev/test — still log the comm with a mock id (fail-soft, email unaffected).
     }
-  } catch {
-    // No creds in dev/test — still log the comm with a mock id (fail-soft).
   }
 
   if (blockedReason) {

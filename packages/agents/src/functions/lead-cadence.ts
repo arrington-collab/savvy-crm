@@ -93,7 +93,12 @@ export const leadCadence = inngest.createFunction(
             );
             if (result.status === "sent") sid = result.sid;
             else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
-          } catch { /* dev */ }
+          } catch (err) {
+            // getTenantSms/guardedSms threw (e.g. a transient isSuppressed DB
+            // error, or the sender itself failing) — the real send never
+            // fired, so this must NOT be logged as a successful "sent" comm.
+            blockedReason = `error: ${err instanceof Error ? err.message : "guardedSms failed"}`;
+          }
 
           if (blockedReason) {
             // blocked/deferred at actual send time: don't send. The prior sleepUntil
