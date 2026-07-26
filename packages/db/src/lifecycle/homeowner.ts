@@ -42,7 +42,7 @@ export async function getHomeownerStatus(tenantId: string, jobId: string): Promi
   });
 }
 
-export type NotifiableEvent = { eventId: string; jobId: string; toStage: JobStage; customerId: string | null; phone: string | null; email: string | null; smsOptOut: boolean; emailOptOut: boolean };
+export type NotifiableEvent = { eventId: string; jobId: string; toStage: JobStage; customerId: string | null; phone: string | null; email: string | null; smsOptOut: boolean; emailOptOut: boolean; smsConsentAt: Date | null };
 
 export async function listStageEventsToNotify(
   tenantId: string, opts: { stages: JobStage[]; sinceMs: number; now: Date },
@@ -53,7 +53,7 @@ export async function listStageEventsToNotify(
     const rows = await tx.select({
       eventId: jobStageEvent.id, jobId: jobStageEvent.jobId, toStage: jobStageEvent.toStage,
       customerId: customer.id, phone: customer.phone, email: customer.email,
-      smsOptOut: customer.smsOptOut, emailOptOut: customer.emailOptOut,
+      smsOptOut: customer.smsOptOut, emailOptOut: customer.emailOptOut, smsConsentAt: customer.smsConsentAt,
     })
       .from(jobStageEvent)
       .leftJoin(job, eq(job.id, jobStageEvent.jobId))
@@ -67,7 +67,7 @@ export async function listStageEventsToNotify(
     return rows.map((r) => ({
       eventId: r.eventId, jobId: r.jobId, toStage: r.toStage as JobStage,
       customerId: r.customerId, phone: r.phone, email: r.email,
-      smsOptOut: r.smsOptOut ?? false, emailOptOut: r.emailOptOut ?? false,
+      smsOptOut: r.smsOptOut ?? false, emailOptOut: r.emailOptOut ?? false, smsConsentAt: r.smsConsentAt ?? null,
     }));
   });
 }
