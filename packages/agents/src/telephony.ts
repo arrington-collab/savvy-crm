@@ -116,3 +116,21 @@ export async function getTenantVoice(
   }
   return deps.platformVoice;
 }
+
+/**
+ * Fail-closed A2P-campaign resolution for `guardedSms`. There is no
+ * per-tenant A2P-campaign-status field yet, so a REAL Twilio sender (tenant
+ * BYO or platform account) always resolves unapproved (false) until that
+ * field exists — better to silently defer/block than risk carrier filtering
+ * or TCPA exposure on an unregistered campaign.
+ *
+ * The demo/mock sender is exempt: it never touches a real carrier, so A2P
+ * approval doesn't apply. `getTenantSms` signals "this is the mock sender"
+ * by returning `from === "mock"` (see mock-comms.ts / isDemoTenant above) —
+ * that's the same signal this helper keys off of, so demo tenants and the
+ * existing mock-backed tests keep resolving `a2pApproved = true`.
+ */
+export function resolveA2pApproved(tenantId: string, from: string): boolean {
+  void tenantId; // reserved for when a per-tenant A2P-campaign-status field lands
+  return from === "mock";
+}

@@ -1,7 +1,8 @@
-import { withTenant, eq, appointment, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
+import { withTenant, eq, appointment, communication, isSuppressed, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
 import { parseSchedulingConfig, signPayloadToken, requireSecret, parseEmailConfig } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
+import { guardedSms } from "../comms-gateway";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
@@ -37,6 +38,9 @@ export const appointmentReminders = inngest.createFunction(
         customerId: a.customerId,
         phone: cust?.phone ?? null,
         email: cust?.email ?? null,
+        smsOptOut: cust?.smsOptOut ?? false,
+        emailOptOut: cust?.emailOptOut ?? false,
+        smsConsentAt: cust?.smsConsentAt ?? null,
         settings: (t?.settings as { scheduling?: unknown })?.scheduling,
         gmailConnectionId: parseEmailConfig((t?.settings as { email?: unknown } | undefined)?.email).gmailConnectionId ?? null,
       };
@@ -73,10 +77,25 @@ export const appointmentReminders = inngest.createFunction(
         );
         const to = r.channel === "sms" ? ctx.phone : ctx.email;
         if (!to) return { sent: false };
+        let loggedBody = body;
         try {
           if (r.channel === "sms") {
+            // Inngest step.run serialises the "load" step's return through JSON —
+            // smsConsentAt arrives as a string. Re-hydrate before passing to the guard.
+            const smsConsentAt = ctx.smsConsentAt ? new Date(ctx.smsConsentAt as unknown as string) : null;
             const { sender, from } = await getTenantSms(tenantId);
-            await sender.sendSms({ to, from, body });
+            const result = await guardedSms(
+              { isSuppressed, sms: sender, smsFrom: () => from },
+              {
+                tenantId, channel: "sms", to, from, body,
+                consent: { smsOptOut: ctx.smsOptOut, emailOptOut: ctx.emailOptOut, smsConsentAt },
+                a2pApproved: resolveA2pApproved(tenantId, from),
+                contactId: ctx.customerId ?? undefined,
+              },
+            );
+            if (result.status !== "sent") {
+              loggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+            }
           } else {
             const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: ctx.gmailConnectionId });
             await emailSender.sendEmail({
@@ -96,11 +115,11 @@ export const appointmentReminders = inngest.createFunction(
             channel: r.channel,
             direction: "outbound",
             to,
-            body,
+            body: loggedBody,
             aiHandled: false,
           }),
         );
-        return { sent: true };
+        return { sent: loggedBody === body };
       });
     }
     return { done: true };

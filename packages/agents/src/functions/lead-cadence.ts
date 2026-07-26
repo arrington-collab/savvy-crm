@@ -1,7 +1,8 @@
-import { adminDb, withTenant, lead, customer, tenant, communication, eq } from "@savvy/db";
+import { adminDb, withTenant, lead, customer, tenant, communication, recordAgentRun, isSuppressed, eq } from "@savvy/db";
 import { parseLeadCadenceConfig, parseFinanceConfig, shouldSendChannel, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
+import { guardedSms } from "../comms-gateway";
 import { buildAckSms, buildAckEmail } from "./lead-intake";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
@@ -75,14 +76,37 @@ export const leadCadence = inngest.createFunction(
       await step.run(`send-${i}`, async () => {
         const vars = { name: ctx.name ?? "there", bookingUrl };
         if (touch.channel === "sms") {
+          // Quiet hours were already respected by the sleepUntil above; guardedSms
+          // re-checks at actual send time (defense-in-depth) plus enforces global
+          // suppression, consent/opt-out, and A2P approval before the sender fires.
           let sid = "mock";
+          let blockedReason: string | null = null;
           try {
             const { sender, from } = await getTenantSms(tenantId);
-            ({ sid } = await sender.sendSms({ to: ctx.phone!, from, body: buildAckSms(vars) }));
+            const result = await guardedSms(
+              { isSuppressed, sms: sender, smsFrom: () => from },
+              {
+                tenantId, channel: "sms", to: ctx.phone!, from, body: buildAckSms(vars),
+                consent: gate, a2pApproved: resolveA2pApproved(tenantId, from),
+                quiet: { tz: setup.tz, qh: setup.cfg.quietHours }, contactId: ctx.customerId ?? undefined,
+              },
+            );
+            if (result.status === "sent") sid = result.sid;
+            else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
           } catch { /* dev */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({
-            tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
-          }));
+
+          if (blockedReason) {
+            // blocked/deferred at actual send time: don't send. The prior sleepUntil
+            // already handles the expected quiet-hours case; a later Slice B task
+            // turns `blocked` into a compliance-block escalation — for now, just log.
+            await recordAgentRun({
+              tenantId, leadId, agent: "comms", taskKey: "lead.cadence.sms", status: "skipped", error: blockedReason,
+            });
+          } else {
+            await withTenant(tenantId, (tx) => tx.insert(communication).values({
+              tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
+            }));
+          }
         } else {
           const { subject, html } = buildAckEmail(vars);
           try {

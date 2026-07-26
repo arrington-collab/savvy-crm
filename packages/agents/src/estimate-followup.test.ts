@@ -26,7 +26,7 @@ beforeAll(async () => {
   await ensureTierProducts(tenantId);
   await withTenant(tenantId, (tx) => tx.update(tierProduct).set({ unitPriceCents: 20000, unitCostCents: 12000 }));
   const ids = await withTenant(tenantId, async (tx) => {
-    const [c] = await tx.insert(customer).values({ tenantId, name: "Follow Up", phone: "+16025550333" }).returning();
+    const [c] = await tx.insert(customer).values({ tenantId, name: "Follow Up", phone: "+16025550333", smsConsentAt: new Date("2026-01-01") }).returning();
     const [p] = await tx.insert(property).values({ tenantId, customerId: c!.id, address: "6 FU Ln", city: "Chandler" }).returning();
     const [l] = await tx.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "referral", status: "qualified" }).returning();
     const [m] = await tx.insert(measurement).values({ tenantId, propertyId: p!.id, provider: "roofr", areas: { squares: 20, predominantPitch: "6/12", eaveLf: 100, rakeLf: 50 } }).returning();

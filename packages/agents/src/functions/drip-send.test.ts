@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { REGISTRY_TASK } from "@savvy/core";
 import {
   adminDb, adminPool, pool, eq, and,
-  tenant, customer, lead, property, drip, dripEnrollment, communication, agentRun, taskRegistry, leadTask,
+  tenant, customer, lead, property, drip, dripEnrollment, communication, agentRun, taskRegistry, leadTask, suppress, contactSuppression,
 } from "@savvy/db";
 import { sendDripStep } from "./drip";
 
@@ -11,7 +11,10 @@ let tId: string, custId: string, dripId: string, enrId: string;
 beforeAll(async () => {
   const [t] = await adminDb.insert(tenant).values({ name: "DS", publicKey: "ds", clerkOrgId: "org_ds" }).returning();
   tId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId: tId, name: "Pat Owner", phone: "+15555551234", email: "pat@x.com" }).returning();
+  // smsConsentAt: real intake auto-records consent the moment a phone is captured
+  // (packages/db/src/lifecycle/lead-intake.ts) — these fixtures represent an
+  // already-consented customer, matching that real-world path.
+  const [c] = await adminDb.insert(customer).values({ tenantId: tId, name: "Pat Owner", phone: "+15555551234", email: "pat@x.com", smsConsentAt: new Date("2026-01-01") }).returning();
   custId = c!.id;
   const [d] = await adminDb.insert(drip).values({ tenantId: tId, key: "k", name: "D", steps: [] }).returning();
   dripId = d!.id;
@@ -20,6 +23,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await adminDb.delete(contactSuppression).where(eq(contactSuppression.tenantId, tId));
   await adminDb.delete(communication).where(eq(communication.tenantId, tId));
   await adminDb.delete(agentRun).where(eq(agentRun.tenantId, tId));
   await adminDb.delete(dripEnrollment).where(eq(dripEnrollment.tenantId, tId));
@@ -132,7 +136,7 @@ describe("sendDripStep", () => {
   });
 
   it("healthy tenant: sendSms IS called when throttle check returns false", async () => {
-    const [c4] = await adminDb.insert(customer).values({ tenantId: tId, name: "Healthy Owner", phone: "+15555558888" }).returning();
+    const [c4] = await adminDb.insert(customer).values({ tenantId: tId, name: "Healthy Owner", phone: "+15555558888", smsConsentAt: new Date("2026-01-01") }).returning();
     const [e4] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c4!.id, status: "active" }).returning();
     const sms = { sendSms: vi.fn().mockResolvedValue({ sid: "sm-healthy" }) };
     await sendDripStep(
@@ -150,7 +154,7 @@ describe("sendDripStep", () => {
   });
 
   it("marks lead_task 24 (follow-up sequence) done with the communication ref when a leadId is present", async () => {
-    const [c5] = await adminDb.insert(customer).values({ tenantId: tId, name: "Lead Owner", phone: "+15555559000" }).returning();
+    const [c5] = await adminDb.insert(customer).values({ tenantId: tId, name: "Lead Owner", phone: "+15555559000", smsConsentAt: new Date("2026-01-01") }).returning();
     const [p5] = await adminDb.insert(property).values({ tenantId: tId, customerId: c5!.id, address: "5 Drip Ln" }).returning();
     const [l5] = await adminDb.insert(lead).values({ tenantId: tId, customerId: c5!.id, propertyId: p5!.id, status: "contacted" }).returning();
     const [e5] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c5!.id, leadId: l5!.id, status: "active" }).returning();
@@ -171,5 +175,34 @@ describe("sendDripStep", () => {
     const [row] = await adminDb.select().from(leadTask).where(and(eq(leadTask.leadId, l5!.id), eq(leadTask.taskId, REGISTRY_TASK.FOLLOW_UP_SEQUENCE)));
     expect(row!.status).toBe("done");
     expect(row!.evidence).toEqual({ type: "communication", ref: comm!.id });
+  });
+
+  // Task 5 (Day 3 Slice A): drip.ts previously bypassed the global suppression
+  // list entirely — a contact who had STOPped (contact_suppression) could still
+  // receive a drip SMS because sendDripStep only checked per-customer
+  // smsOptOut/address, never the shared @savvy/db isSuppressed() chokepoint.
+  // This proves the bypass is closed: sendDripStep does NOT override
+  // isSuppressed in its deps, so it exercises the real DB-backed check.
+  it("does NOT call the sender when the contact is globally suppressed (compliance bypass closed)", async () => {
+    const [c6] = await adminDb.insert(customer).values({
+      tenantId: tId, name: "Suppressed Sam", phone: "+15555550001", smsConsentAt: new Date("2026-01-01"),
+    }).returning();
+    const [e6] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c6!.id, status: "active" }).returning();
+    await suppress({ tenantId: tId, phoneE164: "+15555550001", channel: "sms", reason: "stop", source: "test" });
+
+    const sms = { sendSms: vi.fn() };
+    const res = await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: e6!.id, customerId: c6!.id,
+        step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Hi {{firstName}}!",
+      },
+      { sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never },
+    );
+
+    expect(res.sent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    const comms = await adminDb.select().from(communication).where(eq(communication.customerId, c6!.id));
+    expect(comms.some((r) => r.body?.includes("blocked: suppressed"))).toBe(true);
   });
 });
