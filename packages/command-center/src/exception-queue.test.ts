@@ -1,5 +1,6 @@
 import { it, expect } from "vitest";
-import { ExceptionQueue } from "./exception-queue";
+import { ExceptionQueue, needsYouFor } from "./exception-queue";
+import type { QueueItem } from "./exception-queue";
 import type { EscalationRecord } from "@savvy/orchestrator";
 
 const T = "11111111-1111-1111-1111-111111111111";
@@ -72,4 +73,45 @@ it("openCount groups by severity", () => {
   const c = q.openCount(new Date("2026-07-01T19:00:00Z"));
   expect(c.total).toBe(2);
   expect(c.bySeverity).toEqual({ high: 1, medium: 1 });
+});
+
+function queueItem(over: Partial<QueueItem> = {}): QueueItem {
+  return {
+    key: "low-margin:e1", ruleId: "low-margin", eventId: "e1", severity: "high",
+    reason: "18% margin", notify: ["arrington"], assignee: "arrington",
+    state: "open", acknowledgedAt: null, resolvedAt: null, resolutionNote: null,
+    snoozeUntil: null, createdAt: "2026-07-01T18:00:00Z",
+    ...over,
+  };
+}
+
+it("needsYouFor includes an open item whose notify contains who", () => {
+  const item = queueItem({ state: "open", notify: ["arrington"] });
+  const now = new Date("2026-07-01T19:00:00Z");
+  expect(needsYouFor([item], "arrington", now)).toEqual([item]);
+});
+
+it("needsYouFor EXCLUDES an item whose notify does NOT contain who (de-hardcode proof)", () => {
+  const item = queueItem({ state: "open", notify: ["arrington"] });
+  const now = new Date("2026-07-01T19:00:00Z");
+  expect(needsYouFor([item], "scott", now)).toEqual([]);
+});
+
+it("needsYouFor includes a snoozed item whose snoozeUntil is in the PAST", () => {
+  const item = queueItem({ state: "snoozed", snoozeUntil: "2026-07-01T18:00:00Z", notify: ["arrington"] });
+  const now = new Date("2026-07-01T19:00:00Z"); // after snoozeUntil
+  expect(needsYouFor([item], "arrington", now)).toEqual([item]);
+});
+
+it("needsYouFor EXCLUDES a snoozed item whose snoozeUntil is in the FUTURE", () => {
+  const item = queueItem({ state: "snoozed", snoozeUntil: "2026-07-02T18:00:00Z", notify: ["arrington"] });
+  const now = new Date("2026-07-01T19:00:00Z"); // before snoozeUntil
+  expect(needsYouFor([item], "arrington", now)).toEqual([]);
+});
+
+it("needsYouFor EXCLUDES acknowledged and resolved items even if notify contains who", () => {
+  const now = new Date("2026-07-01T19:00:00Z");
+  const acknowledged = queueItem({ state: "acknowledged", notify: ["arrington"] });
+  const resolved = queueItem({ state: "resolved", notify: ["arrington"] });
+  expect(needsYouFor([acknowledged, resolved], "arrington", now)).toEqual([]);
 });
