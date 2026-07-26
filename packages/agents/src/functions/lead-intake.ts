@@ -186,7 +186,7 @@ export async function bridgeFirstTouch(
   },
 ): Promise<{ complianceBlock?: EscalationRecord }> {
   const deferred = a.result.status === "deferred";
-  await publishDomainEvent(store, makeEvent({
+  const published = await publishDomainEvent(store, makeEvent({
     type: "lead.first_touch", source: "savvy", tenantId: a.tenantId,
     correlationId: a.leadId, idempotencyKey: `lead.first_touch:${a.leadId}`,
     payload: {
@@ -195,7 +195,13 @@ export async function bridgeFirstTouch(
       slaLatencySeconds: a.latencySeconds, quietHoursDeferred: deferred,
     },
   }));
-  if (a.result.status === "blocked") {
+  // Only record the compliance-block escalation when the lead.first_touch
+  // event was NEWLY inserted (published.published === true). recordEscalation
+  // does not dedupe on its own, so on a duplicate lead/created delivery
+  // (published: false, per the Day-1 unique index) this must be skipped —
+  // otherwise a retried/duplicate delivery appends a second compliance-block
+  // row to the raw escalation trail. Mirrors bridgeAssignment's gating below.
+  if (published.published && a.result.status === "blocked") {
     const esc = makeComplianceBlock({
       tenantId: a.tenantId, correlationId: a.leadId,
       eventId: `lead.first_touch:${a.leadId}`, eventType: "lead.first_touch",

@@ -49,6 +49,25 @@ describe("bridgeFirstTouch", () => {
     await bridgeFirstTouch(store, { tenantId: T, leadId: "l4", latencySeconds: 1, occurredAtLeadCreated: "2026-07-26T10:00:00.000Z", result: { status: "sent", sid: "SM1" } });
     expect(store.audits.length).toBe(before);
   });
+
+  it("is idempotent on a blocked verdict — a duplicate delivery for the same leadId does not double-record the compliance-block escalation", async () => {
+    const store = new InMemoryStore();
+    const verdict = { status: "blocked" as const, reason: "a2p_unapproved" as const };
+    const first = await bridgeFirstTouch(store, {
+      tenantId: T, leadId: "l5", latencySeconds: 2,
+      occurredAtLeadCreated: "2026-07-26T10:00:00.000Z",
+      result: verdict,
+    });
+    expect(first.complianceBlock?.ruleId).toBe("compliance-block");
+    // Simulate a duplicate lead/created delivery for the same lead + blocked verdict
+    // (e.g. an Inngest retry) hitting the bridge a second time.
+    await bridgeFirstTouch(store, {
+      tenantId: T, leadId: "l5", latencySeconds: 2,
+      occurredAtLeadCreated: "2026-07-26T10:00:00.000Z",
+      result: verdict,
+    });
+    expect(store.escalations.filter((e) => e.ruleId === "compliance-block").length).toBe(1);
+  });
 });
 
 describe("bridgeAssignment", () => {
