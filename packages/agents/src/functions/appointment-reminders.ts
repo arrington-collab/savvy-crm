@@ -78,8 +78,8 @@ export const appointmentReminders = inngest.createFunction(
         const to = r.channel === "sms" ? ctx.phone : ctx.email;
         if (!to) return { sent: false };
         let loggedBody = body;
-        try {
-          if (r.channel === "sms") {
+        if (r.channel === "sms") {
+          try {
             // Inngest step.run serialises the "load" step's return through JSON —
             // smsConsentAt arrives as a string. Re-hydrate before passing to the guard.
             const smsConsentAt = ctx.smsConsentAt ? new Date(ctx.smsConsentAt as unknown as string) : null;
@@ -96,7 +96,14 @@ export const appointmentReminders = inngest.createFunction(
             if (result.status !== "sent") {
               loggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
             }
-          } else {
+          } catch (err) {
+            // getTenantSms/guardedSms threw (e.g. a transient isSuppressed DB
+            // error, or the sender itself failing) — the real send never
+            // fired, so this must NOT be logged as a successful "sent" comm.
+            loggedBody = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+          }
+        } else {
+          try {
             const emailSender = await getTenantEmail(tenantId, { gmailConnectionId: ctx.gmailConnectionId });
             await emailSender.sendEmail({
               to,
@@ -104,9 +111,9 @@ export const appointmentReminders = inngest.createFunction(
               subject: "Appointment reminder",
               html: body,
             });
+          } catch {
+            // Fail-soft in dev/test (no credentials configured, email unaffected).
           }
-        } catch {
-          // Fail-soft in dev/test (no credentials configured).
         }
         await withTenant(tenantId, (tx) =>
           tx.insert(communication).values({

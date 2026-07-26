@@ -205,4 +205,35 @@ describe("sendDripStep", () => {
     const comms = await adminDb.select().from(communication).where(eq(communication.customerId, c6!.id));
     expect(comms.some((r) => r.body?.includes("blocked: suppressed"))).toBe(true);
   });
+
+  // Fix-pass follow-up: a guardedSms throw (e.g. a transient isSuppressed DB
+  // error) must NOT be recorded as a false-positive "sent" communication row.
+  // Proves the narrowed catch in sendDripStep's SMS branch.
+  it("records a failure (not a false-positive sent row) when isSuppressed rejects", async () => {
+    const [c7] = await adminDb.insert(customer).values({
+      tenantId: tId, name: "Flaky Fran", phone: "+15555550002", smsConsentAt: new Date("2026-01-01"),
+    }).returning();
+    const [e7] = await adminDb.insert(dripEnrollment).values({ tenantId: tId, dripId, customerId: c7!.id, status: "active" }).returning();
+
+    const sms = { sendSms: vi.fn().mockResolvedValue({ sid: "sm-should-not-fire" }) };
+    const res = await sendDripStep(
+      {
+        tenantId: tId, enrollmentId: e7!.id, customerId: c7!.id,
+        step: { stepNum: 1, delayHours: 0, channel: "sms", templateKey: "welcome" },
+        templateBody: "Hi {{firstName}}!",
+      },
+      {
+        sms, from: "+15550000000", email: { sendEmail: vi.fn() }, ai: { complete: vi.fn() } as never,
+        isSuppressed: vi.fn().mockRejectedValue(new Error("suppression lookup timed out")),
+      },
+    );
+
+    expect(res.sent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    const [comm] = await adminDb.select().from(communication).where(eq(communication.customerId, c7!.id));
+    expect(comm!.body).toContain("error: suppression lookup timed out");
+    // No false-positive sid — the row must NOT read as a successful send.
+    expect(comm!.twilioSid).not.toBe("sm-should-not-fire");
+    expect(comm!.twilioSid).not.toBe("mock");
+  });
 });
