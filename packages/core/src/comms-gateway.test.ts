@@ -50,6 +50,22 @@ it("blocks cap_exceeded when governor refuses", () => {
   });
 });
 
+it("defers on quiet hours BEFORE checking cap (ordering guardrail)", () => {
+  // Same quiet window as the "defers inside quiet hours" test, but cap already
+  // says refuse — if quiet/cap were checked in the wrong order this would
+  // wrongly resolve to blocked/cap_exceeded instead of deferred.
+  const now = new Date("2026-07-01T12:00:00Z"); // 06:00 MDT, inside 21-8 quiet window
+  const v = evaluateGuard({ ...base, quiet: { tz: "America/Denver", now, qh }, cap: { verdict: "cap_exceeded" } });
+  expect(v.status).toBe("deferred");
+});
+
+it("blocks cap_exceeded when governor verdict is opt_out (not admit)", () => {
+  expect(evaluateGuard({ ...base, cap: { verdict: "opt_out" } })).toEqual({
+    status: "blocked",
+    reason: "cap_exceeded",
+  });
+});
+
 it("email path ignores A2P + sms consent, honors suppression + email opt-out", () => {
   expect(
     evaluateGuard({ ...base, channel: "email", a2pApproved: false, consent: { ...consentOk, smsConsentAt: null } })
