@@ -28,7 +28,7 @@ export { missingProductionPhotos, hasScheduledCrewInstall } from "./lifecycle/pr
 export { gatherStageEvidence } from "./lifecycle/stage-evidence-db";
 export { detectDepreciationRecovery, draftDepreciationInvoice, sendDepreciationInvoice, DEPRECIATION_TASK_KEY, DEPRECIATION_APPROVAL_TASK_KEY } from "./lifecycle/depreciation-recovery";
 export { stopDripEnrollments } from "./lifecycle/stop-drip";
-export { setLeadOwner, setLeadLost } from "./lifecycle/leads";
+export { setLeadOwner, setLeadLost, getLeadCreatedAt } from "./lifecycle/leads";
 export { markLeadContacted, markCustomerLeadsContacted } from "./lifecycle/contact";
 export { setCustomerEmail, findCustomersNeedingEmail, type EmailSource, type CustomerEmailDue } from "./lifecycle/customer";
 export {

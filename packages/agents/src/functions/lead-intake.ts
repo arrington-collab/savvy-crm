@@ -2,14 +2,16 @@ import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoring
 import {
   withTenant, lead, customer, property, communication, recordAgentRun, isSuppressed, eq, sql, createBookingLink,
   getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
-  tenant as tenantTbl,
+  tenant as tenantTbl, getLeadCreatedAt, DrizzleOrchestratorStore, recordException,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
+import type { OrchestratorStore, EscalationRecord } from "@savvy/orchestrator";
+import { publishDomainEvent, makeEvent, makeComplianceBlock } from "@savvy/orchestrator";
 import { inngest } from "../client";
 import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
-import { guardedSms } from "../comms-gateway";
+import { guardedSms, type GuardedSmsResult } from "../comms-gateway";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
 
@@ -162,6 +164,90 @@ export async function runLeadAssignment(
 }
 
 
+// --- Slice B bridge helpers ---------------------------------------------
+// Pure, DB-free (given a store) so they're unit-testable with an
+// InMemoryStore. The Inngest steps below call these with a
+// DrizzleOrchestratorStore. Kept separate from the guardedSms/assignment
+// side effects themselves so a bridge failure never has to unwind a send
+// that already happened.
+
+/**
+ * Publishes lead.first_touch for the ack send, and — only when guardedSms
+ * returned "blocked" — builds + records a compliance-block escalation
+ * (compliance-block is not event-driven; see @savvy/orchestrator escalations.ts).
+ * Returns the escalation (if any) so the caller can project it into the
+ * Command Center exception queue via recordException.
+ */
+export async function bridgeFirstTouch(
+  store: OrchestratorStore,
+  a: {
+    tenantId: string; leadId: string; locationId?: string | null;
+    latencySeconds: number; occurredAtLeadCreated: string; result: GuardedSmsResult;
+  },
+): Promise<{ complianceBlock?: EscalationRecord }> {
+  const deferred = a.result.status === "deferred";
+  await publishDomainEvent(store, makeEvent({
+    type: "lead.first_touch", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.leadId, idempotencyKey: `lead.first_touch:${a.leadId}`,
+    payload: {
+      leadId: a.leadId, channel: "sms", locationId: a.locationId ?? null,
+      latencySeconds: a.latencySeconds, occurredAtLeadCreated: a.occurredAtLeadCreated,
+      slaLatencySeconds: a.latencySeconds, quietHoursDeferred: deferred,
+    },
+  }));
+  if (a.result.status === "blocked") {
+    const esc = makeComplianceBlock({
+      tenantId: a.tenantId, correlationId: a.leadId,
+      eventId: `lead.first_touch:${a.leadId}`, eventType: "lead.first_touch",
+      reason: a.result.reason,
+    });
+    await store.recordEscalation(esc);
+    return { complianceBlock: esc };
+  }
+  return {};
+}
+
+// Skip reasons from runLeadAssignment that are NOT failures — they're
+// expected outcomes (assignment turned off for the tenant, or a rep already
+// owns the lead) and must not raise an assignment-failure escalation.
+const BENIGN_ASSIGNMENT_SKIPS = new Set(["off", "already-assigned"]);
+
+/**
+ * Publishes lead.assigned when runLeadAssignment found a rep, otherwise
+ * (for a genuine failure reason — no-candidate/no-lead/error, NOT an
+ * intentional skip) publishes lead.assignment_failed, which the orchestrator's
+ * event-driven ESCALATIONS rules turn into an "assignment-failure" hit.
+ * Returns that escalation (if any) for the caller to project via recordException.
+ */
+export async function bridgeAssignment(
+  store: OrchestratorStore,
+  a: {
+    tenantId: string; leadId: string;
+    result: { assigned: string | null; reason: string };
+    locationId?: string | null; territory?: string;
+  },
+): Promise<{ assignmentFailed?: EscalationRecord }> {
+  if (a.result.assigned) {
+    await publishDomainEvent(store, makeEvent({
+      type: "lead.assigned", source: "savvy", tenantId: a.tenantId,
+      correlationId: a.leadId, idempotencyKey: `lead.assigned:${a.leadId}`,
+      payload: {
+        leadId: a.leadId, userId: a.result.assigned, repId: a.result.assigned,
+        locationId: a.locationId ?? null, territory: a.territory,
+      },
+    }));
+    return {};
+  }
+  if (BENIGN_ASSIGNMENT_SKIPS.has(a.result.reason)) return {};
+  const published = await publishDomainEvent(store, makeEvent({
+    type: "lead.assignment_failed", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.leadId, idempotencyKey: `lead.assignment_failed:${a.leadId}`,
+    payload: { leadId: a.leadId, reason: a.result.reason },
+  }));
+  const esc = published.escalations.find((e) => e.ruleId === "assignment-failure");
+  return esc ? { assignmentFailed: esc } : {};
+}
+
 export const leadIntake = inngest.createFunction(
   { id: "lead-intake", concurrency: { limit: 5 } },
   { event: "lead/created" },
@@ -275,7 +361,7 @@ export const leadIntake = inngest.createFunction(
       return r;
     });
 
-    await step.run("assign-lead", async () => {
+    const assignResult = await step.run("assign-lead", async () => {
       try {
         const r = await runLeadAssignment(tenantId, leadId, { state: ctx.state, city: ctx.city ?? null });
         await recordAgentRun({
@@ -292,7 +378,24 @@ export const leadIntake = inngest.createFunction(
       }
     });
 
-    await step.run("send-ack", async () => {
+    // Slice B bridge: project the assignment outcome onto the domain-event bus
+    // (lead.assigned, or lead.assignment_failed -> assignment-failure escalation).
+    // A separate, sibling step (not nested inside assign-lead) so it's durable +
+    // retried independently, and fail-soft: a publish error must never unwind
+    // the assignment that already happened above.
+    await step.run("bridge-assigned", async () => {
+      try {
+        const store = new DrizzleOrchestratorStore();
+        const { assignmentFailed } = await bridgeAssignment(store, {
+          tenantId, leadId, result: assignResult,
+        });
+        if (assignmentFailed) await recordException(tenantId, assignmentFailed);
+      } catch (err) {
+        console.error("bridge-assigned: failed to publish assignment bridge event:", err instanceof Error ? err.message : err);
+      }
+    });
+
+    const ackResult = await step.run("send-ack", async () => {
       const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
       const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
       const token = signPayloadToken({ leadId, tenantId, type: "inspection" }, secret);
@@ -307,7 +410,13 @@ export const leadIntake = inngest.createFunction(
         }).from(customer).leftJoin(tenantTbl, eq(tenantTbl.id, customer.tenantId)).where(eq(customer.id, ctx.customerId));
         return row ?? null;
       });
-      if (!cust) return { skipped: "no-customer" };
+      if (!cust) return { skipped: "no-customer" as const, smsBridge: null };
+
+      // Slice B bridge payload: only populated when guardedSms produced a real
+      // verdict (sent/deferred/blocked). Plain strings/numbers only — this is
+      // returned from step.run and gets JSON-serialized into Inngest's
+      // execution state, so no Date/class instances here.
+      let smsBridge: { result: GuardedSmsResult; latencySeconds: number; occurredAtLeadCreated: string } | null = null;
 
       // SMS ack (transactional — quiet-hours EXEMPT). guardedSms is the single
       // chokepoint: it checks global suppression, consent/opt-out, and A2P
@@ -315,6 +424,7 @@ export const leadIntake = inngest.createFunction(
       if (ctx.phone) {
         let sid = "mock";
         let blockedReason: string | null = null;
+        let verdict: GuardedSmsResult | null = null;
         try {
           const { sender, from } = await getTenantSms(tenantId);
           const result = await guardedSms(
@@ -326,18 +436,22 @@ export const leadIntake = inngest.createFunction(
               contactId: ctx.customerId,
             },
           );
+          verdict = result;
           if (result.status === "sent") sid = result.sid;
           else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
         } catch (err) {
           // getTenantSms/guardedSms threw (e.g. a transient isSuppressed DB
           // error, or the sender itself failing) — the real send never
-          // fired, so this must NOT be logged as a successful "sent" comm.
+          // fired, so this must NOT be logged as a successful "sent" comm, and
+          // there's no GuardedSmsResult verdict to bridge (no compliance
+          // "blocked" reason to report — this is an infra failure, not a
+          // guard verdict).
           blockedReason = `error: ${err instanceof Error ? err.message : "guardedSms failed"}`;
         }
 
         if (blockedReason) {
-          // blocked/deferred: don't send. A later Slice B task turns a `blocked`
-          // verdict into a compliance-block escalation — for now, just log it.
+          // blocked/deferred: don't send. A blocked verdict is turned into a
+          // compliance-block escalation by the bridge-first-touch step below.
           await recordAgentRun({
             tenantId, leadId, agent: "comms", taskKey: "lead.ack.sms", status: "skipped", error: blockedReason,
           });
@@ -345,6 +459,15 @@ export const leadIntake = inngest.createFunction(
           await withTenant(tenantId, (tx) => tx.insert(communication).values({
             tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
           }));
+        }
+
+        if (verdict) {
+          const createdAt = await getLeadCreatedAt(tenantId, leadId);
+          const latencySeconds = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : 0;
+          smsBridge = {
+            result: verdict, latencySeconds,
+            occurredAtLeadCreated: (createdAt ?? new Date()).toISOString(),
+          };
         }
       }
       // Email ack, gated by opt-out.
@@ -356,8 +479,27 @@ export const leadIntake = inngest.createFunction(
           tenantId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: cust.email, body: subject, aiHandled: false,
         }));
       }
-      return { ok: true };
+      return { ok: true as const, smsBridge };
     });
+
+    // Slice B bridge: publish lead.first_touch for the SMS ack attempt (and,
+    // on a "blocked" guardedSms verdict, record a compliance-block escalation).
+    // Sibling step (not nested in send-ack) so a bridge failure is caught here
+    // and never unwinds the ack that already went out.
+    if (ackResult.smsBridge) {
+      const { result, latencySeconds, occurredAtLeadCreated } = ackResult.smsBridge;
+      await step.run("bridge-first-touch", async () => {
+        try {
+          const store = new DrizzleOrchestratorStore();
+          const { complianceBlock } = await bridgeFirstTouch(store, {
+            tenantId, leadId, latencySeconds, occurredAtLeadCreated, result,
+          });
+          if (complianceBlock) await recordException(tenantId, complianceBlock);
+        } catch (err) {
+          console.error("bridge-first-touch: failed to publish first-touch bridge event:", err instanceof Error ? err.message : err);
+        }
+      });
+    }
 
     return { leadId, score: scored.score };
   },
