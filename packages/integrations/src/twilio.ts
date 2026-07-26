@@ -65,9 +65,14 @@ export async function verifyTwilioCreds(
 // telephony_mode = 'platform'. Tests inject a mock SmsSender instead.
 export const twilioSms: SmsSender = {
   async sendSms(opts) {
-    return makeTwilioSms({
-      accountSid: process.env.TWILIO_ACCOUNT_SID!,
-      authToken: process.env.TWILIO_AUTH_TOKEN!,
-    }).sendSms(opts);
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    // No real platform Twilio configured (dev / CI / the current mock-only prod):
+    // do NOT hit a carrier. Return a clearly-mock sid so callers record a mock
+    // communication instead of throwing on missing creds. Real creds → real send.
+    if (!accountSid || !authToken) {
+      return { sid: `mock-${opts.to}` };
+    }
+    return makeTwilioSms({ accountSid, authToken }).sendSms(opts);
   },
 };

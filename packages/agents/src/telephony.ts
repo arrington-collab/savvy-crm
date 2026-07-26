@@ -124,13 +124,25 @@ export async function getTenantVoice(
  * field exists — better to silently defer/block than risk carrier filtering
  * or TCPA exposure on an unregistered campaign.
  *
- * The demo/mock sender is exempt: it never touches a real carrier, so A2P
- * approval doesn't apply. `getTenantSms` signals "this is the mock sender"
- * by returning `from === "mock"` (see mock-comms.ts / isDemoTenant above) —
- * that's the same signal this helper keys off of, so demo tenants and the
- * existing mock-backed tests keep resolving `a2pApproved = true`.
+ * A send is exempt from the A2P gate when it never reaches a real carrier:
+ *   - the demo/mock sender (`getTenantSms` returns `from === "mock"`), and
+ *   - any environment with no real platform Twilio configured (dev / CI / the
+ *     current mock-only prod) — there is simply no carrier to be filtered by.
+ * The moment real platform Twilio creds exist, this fails closed (returns false)
+ * until a per-tenant A2P-campaign-status field lands — better to defer/block than
+ * risk carrier filtering or TCPA exposure on an unregistered campaign.
+ *
+ * NOTE (follow-up): this keys off PLATFORM Twilio creds, so a future BYO tenant
+ * with its own real creds would need the per-tenant A2P field to fail-closed
+ * correctly. No tenant has real Twilio today, so there's no live gap.
  */
-export function resolveA2pApproved(tenantId: string, from: string): boolean {
+export function resolveA2pApproved(
+  tenantId: string,
+  from: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   void tenantId; // reserved for when a per-tenant A2P-campaign-status field lands
-  return from === "mock";
+  if (from === "mock") return true;
+  const hasRealTwilio = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN);
+  return !hasRealTwilio;
 }
