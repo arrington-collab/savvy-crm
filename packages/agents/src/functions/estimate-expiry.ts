@@ -3,10 +3,11 @@
 // variant follow-up and the rep hears about it — renewal re-prices against the
 // CURRENT price book (never the stale one).
 
-import { withTenant, eq, and, isNull, lt, estimate, lead, customer, tenant as tenantTbl, adminDb, recordEstimateEvent, listEstimateEvents, ensureEstimateLink } from "@savvy/db";
+import { withTenant, eq, and, isNull, lt, estimate, lead, customer, tenant as tenantTbl, adminDb, recordEstimateEvent, listEstimateEvents, ensureEstimateLink, isSuppressed } from "@savvy/db";
 import { parseEstimateConfig, parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone } from "@savvy/core";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 const EXPIRY_COPY = (link: string) =>
   `Your roof estimate has expired — material prices move, so the numbers need a quick refresh. Nothing to do on your end; we'll send an updated one. You can still view the original here: ${link}`;
@@ -41,7 +42,16 @@ export async function sweepTenantEstimateExpiry(
       if (!est.leadId) return null;
       const [l] = await tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, est.leadId));
       if (!l?.customerId) return null;
-      const [c] = await tx.select({ phone: customer.phone, smsOptOut: customer.smsOptOut }).from(customer).where(eq(customer.id, l.customerId));
+      const [c] = await tx
+        .select({
+          id: customer.id,
+          phone: customer.phone,
+          smsOptOut: customer.smsOptOut,
+          emailOptOut: customer.emailOptOut,
+          smsConsentAt: customer.smsConsentAt,
+        })
+        .from(customer)
+        .where(eq(customer.id, l.customerId));
       return c ?? null;
     });
     if (!cust?.phone || cust.smsOptOut) {
@@ -51,10 +61,29 @@ export async function sweepTenantEstimateExpiry(
 
     const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
     const { code } = await ensureEstimateLink({ tenantId, estimateId: est.id });
-    const { sender, from } = await deps.getTenantSms(tenantId);
-    await sender.sendSms({ to: cust.phone, from, body: EXPIRY_COPY(`${base}/estimate/${code}`) });
-    await recordEstimateEvent({ tenantId, estimateId: est.id, kind: "expiry_notice" });
-    noticed += 1;
+    let sentOk = false;
+    let meta: Record<string, unknown> | undefined;
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: cust.phone, from, body: EXPIRY_COPY(`${base}/estimate/${code}`),
+          consent: { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: cust.id,
+        },
+      );
+      if (result.status === "sent") {
+        sentOk = true;
+      } else {
+        meta = { suppressed: `guard_${result.status === "blocked" ? result.reason : result.status}` };
+      }
+    } catch (err) {
+      meta = { suppressed: "guard_error", error: err instanceof Error ? err.message : "guardedSms failed" };
+    }
+    await recordEstimateEvent({ tenantId, estimateId: est.id, kind: "expiry_notice", ...(meta ? { meta } : {}) });
+    if (sentOk) noticed += 1;
   }
   return { noticed };
 }
