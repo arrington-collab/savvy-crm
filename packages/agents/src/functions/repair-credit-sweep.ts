@@ -8,11 +8,12 @@
 import {
   adminDb, withTenant, eq, customer, tenant as tenantTbl, messageTemplate, and,
   creditCheckinsDue, recordCreditCheckin, expireLapsedCredits, isDemoTenant,
-  scheduleRelationshipTouch, markTouchSent,
+  scheduleRelationshipTouch, markTouchSent, isSuppressed,
 } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, hourInTimeZone, renderTemplate } from "@savvy/core";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 export const CREDIT_CHECKIN_TEMPLATE_KEY = "roof-record-credit-checkin";
 
@@ -53,7 +54,15 @@ export async function sweepTenantRepairCredits(
     }
     const touchId = admitted.touchId;
     const cust = await withTenant(tenantId, async (tx) => {
-      const [c] = await tx.select({ name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut })
+      const [c] = await tx
+        .select({
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          smsOptOut: customer.smsOptOut,
+          emailOptOut: customer.emailOptOut,
+          smsConsentAt: customer.smsConsentAt,
+        })
         .from(customer).where(eq(customer.id, d.customerId));
       return c ?? null;
     });
@@ -70,11 +79,29 @@ export async function sweepTenantRepairCredits(
       amount: (d.amountCents / 100).toFixed(0),
     });
 
-    const { sender, from } = await deps.getTenantSms(tenantId);
-    await sender.sendSms({ to: cust.phone, from, body });
-    await markTouchSent({ tenantId, touchId });
-    await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind });
-    touched += 1;
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: cust.phone, from, body,
+          consent: { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: d.customerId,
+        },
+      );
+      if (result.status === "sent") {
+        await markTouchSent({ tenantId, touchId });
+        await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind });
+        touched += 1;
+      } else {
+        // Blocked/deferred by the guard — the cadence RAN; it was suppressed.
+        await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind, commId: null });
+      }
+    } catch {
+      // Fail-soft: a guard/DB throw must not be recorded as a successful touch.
+      await recordCreditCheckin({ tenantId, creditId: d.creditId, kind: d.kind, commId: null });
+    }
   }
   return { touched, expired };
 }
