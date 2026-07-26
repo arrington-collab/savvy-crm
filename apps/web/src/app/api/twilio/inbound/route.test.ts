@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock every collaborator so this exercises ONLY the route's STOP/HELP branch.
 // vi.mock factories are hoisted above imports, so the mock fns must be too.
-const { tenantByPhoneMock, createLeadForTenantMock, handleInboundSmsMock, suppressMock } = vi.hoisted(() => ({
+const {
+  tenantByPhoneMock, createLeadForTenantMock, handleInboundSmsMock, suppressMock,
+  publishDomainEventMock, makeEventMock, DrizzleOrchestratorStoreMock,
+} = vi.hoisted(() => ({
   tenantByPhoneMock: vi.fn(),
   createLeadForTenantMock: vi.fn(),
   handleInboundSmsMock: vi.fn(),
   suppressMock: vi.fn(),
+  publishDomainEventMock: vi.fn(),
+  makeEventMock: vi.fn((input: unknown) => input),
+  DrizzleOrchestratorStoreMock: vi.fn(function DrizzleOrchestratorStoreMock(this: unknown) {}),
 }));
 
 vi.mock("@/lib/intake", () => ({
@@ -18,6 +24,11 @@ vi.mock("@/lib/inbound-sms", () => ({
 }));
 vi.mock("@savvy/db", () => ({
   suppress: suppressMock,
+  DrizzleOrchestratorStore: DrizzleOrchestratorStoreMock,
+}));
+vi.mock("@savvy/orchestrator", () => ({
+  publishDomainEvent: publishDomainEventMock,
+  makeEvent: makeEventMock,
 }));
 vi.mock("@/lib/log", () => ({
   log: { info: vi.fn(), error: vi.fn() },
@@ -61,6 +72,17 @@ describe("POST /api/twilio/inbound — STOP/HELP", () => {
       body: "STOP",
       twilioSid: "SM1",
     });
+    // Slice B bridge: STOP branch emits contact.opted_out after suppress().
+    expect(DrizzleOrchestratorStoreMock).toHaveBeenCalled();
+    expect(publishDomainEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: "contact.opted_out",
+        tenantId: "tenant-1",
+        idempotencyKey: "contact.opted_out:sms:+15550001111",
+        payload: { channel: "sms", reason: "stop" },
+      }),
+    );
   });
 
   it("HELP replies with an info message and does NOT suppress", async () => {
@@ -72,6 +94,7 @@ describe("POST /api/twilio/inbound — STOP/HELP", () => {
     expect(text).toContain("<Message>");
     expect(text.toLowerCase()).toContain("stop to opt out");
     expect(text).toContain("Acme Roofing");
+    expect(publishDomainEventMock).not.toHaveBeenCalled();
   });
 
   it("INFO (alternate keyword) also replies with info and does NOT suppress", async () => {
