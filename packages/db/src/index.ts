@@ -158,5 +158,7 @@ export { createScan, listScans, type CreateScanArgs, type ScanRow } from "./life
 export { insertPings, listPingsForDay, type PingPoint } from "./lifecycle/canvass-ping";
 export { importAccuLynxAttachments, type AttachmentJobBundle, type AttachmentDeps, type AttachmentResult } from "./lifecycle/acculynx-attachments-import";
 export { DrizzleOrchestratorStore } from "./orchestrator/store";
+export { isSuppressed, suppress } from "./lifecycle/contact-suppression";
+export { contactSuppression } from "./schema/comms-suppression";
 export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue } from "./command-center/store";
 export { dailyMetrics, exceptionQueue } from "./schema/command-center";
