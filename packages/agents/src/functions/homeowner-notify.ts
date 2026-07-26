@@ -1,8 +1,9 @@
-import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq } from "@savvy/db";
+import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq, isSuppressed } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
+import { guardedSms } from "../comms-gateway";
 import { inngest } from "../client";
 
 const LOOKBACK_MS = 2 * 3_600_000;
@@ -29,12 +30,28 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
     const copy = homeownerStageCopy(ev.toStage);
     const link = await buildShortLink({ tenantId, token: signPayloadToken({ tenantId, jobId: ev.jobId }, secret), kind: "status" });
     const body = `${copy.headline} ${copy.body} Track your project: ${link}`;
+    let delivered = false;
     // SMS — claim-then-send: insert the communication row first (dedupe key prevents double rows);
-    // only send if we won the claim. jobId links it to the job timeline.
+    // only send if we won the claim. jobId links it to the job timeline. The actual
+    // send is routed through guardedSms so global contact_suppression, consent, and
+    // A2P are enforced — a blocked/deferred verdict simply doesn't send and isn't
+    // counted in `sent`; the claim (and its dedupe row) still stands.
     if (ev.phone && !ev.smsOptOut && !smsQuiet) {
       const claimed = await claimCommunication({ tenantId, jobId: ev.jobId, customerId: ev.customerId, channel: "sms", direction: "outbound", to: ev.phone, body, dedupeKey: `stage:sms:${ev.phone}:${ev.eventId}` });
       if (claimed && smsSender) {
-        try { const { sender, from } = smsSender; await sender.sendSms({ to: ev.phone, from, body }); } catch { /* fail-soft */ }
+        try {
+          const { sender, from } = smsSender;
+          const result = await guardedSms(
+            { isSuppressed, sms: sender, smsFrom: () => from },
+            {
+              tenantId, channel: "sms", to: ev.phone, from, body,
+              consent: { smsOptOut: ev.smsOptOut, emailOptOut: ev.emailOptOut, smsConsentAt: ev.smsConsentAt },
+              a2pApproved: resolveA2pApproved(tenantId, from),
+              contactId: ev.customerId ?? undefined,
+            },
+          );
+          if (result.status === "sent") delivered = true;
+        } catch { /* fail-soft */ }
       }
     }
     // Email — same claim-then-send pattern
@@ -45,10 +62,11 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
           const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
           await emailSender.sendEmail({ to: ev.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: copy.headline, html: `<p>${copy.body}</p><p><a href="${link}">Track your project</a></p>` });
         } catch { /* fail-soft */ }
+        delivered = true;
       }
     }
     await markStageEventNotified(tenantId, ev.eventId);
-    sent++;
+    if (delivered) sent++;
   }
   return { sent };
 }

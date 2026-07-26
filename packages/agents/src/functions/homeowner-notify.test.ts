@@ -1,15 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq, and } from "@savvy/db";
+import { adminDb, withTenant, tenant, job, customer, property, jobStageEvent, communication, eq, and, suppress } from "@savvy/db";
 import { evaluateTenantHomeownerNotifs } from "./homeowner-notify";
 
-async function seedTenantWithEvent(toStage: string, optOut = false, enteredAt: Date = new Date()): Promise<{ tenantId: string; eventId: string; customerId: string }> {
+async function seedTenantWithEvent(toStage: string, optOut = false, enteredAt: Date = new Date()): Promise<{ tenantId: string; eventId: string; customerId: string; phone: string }> {
   const [t] = await adminDb.insert(tenant).values({ name: "HO Co", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`, settings: { homeowner: { enabled: true } } }).returning();
   const tenantId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Homer", phone: "+15555551234", email: "homer@e2e.test", smsOptOut: optOut, emailOptOut: optOut }).returning();
+  const phone = `+1555555${Math.floor(1000 + Math.random() * 9000)}`;
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Homer", phone, email: "homer@e2e.test", smsOptOut: optOut, emailOptOut: optOut, smsConsentAt: new Date("2026-01-01") }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "1 Roof Ln" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: toStage as never }).returning();
   const [ev] = await adminDb.insert(jobStageEvent).values({ tenantId, jobId: j!.id, toStage: toStage as never, enteredAt }).returning();
-  return { tenantId, eventId: ev!.id, customerId: c!.id };
+  return { tenantId, eventId: ev!.id, customerId: c!.id, phone };
 }
 
 describe("evaluateTenantHomeownerNotifs", () => {
@@ -71,5 +72,29 @@ describe("evaluateTenantHomeownerNotifs", () => {
       tx.select().from(communication).where(and(eq(communication.tenantId, tenantId), eq(communication.channel, "sms"))),
     );
     expect(smsRows).toHaveLength(1);
+  });
+
+  // Compliance follow-up: the SMS milestone send previously called
+  // smsSender.sender.sendSms directly, bypassing the global contact_suppression
+  // list. Proves guardedSms is wired: a globally suppressed, consented,
+  // email-opted-out customer (SMS is the only viable channel) is not texted
+  // and the event is not counted as delivered.
+  it("globally suppressed customer (no other channel) → SMS not sent, not counted", async () => {
+    // 16:00 UTC = 09:00 Arizona — outside quiet hours so SMS would otherwise send.
+    const midMorning = new Date("2026-07-15T16:00:00Z");
+    const [t] = await adminDb.insert(tenant).values({ name: "HO Co", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`, settings: { homeowner: { enabled: true } } }).returning();
+    const tenantId = t!.id;
+    const phone = "+15555559999";
+    const [c] = await adminDb.insert(customer).values({ tenantId, name: "Homer", phone, email: "homer@e2e.test", smsOptOut: false, emailOptOut: true, smsConsentAt: new Date("2026-01-01") }).returning();
+    const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "1 Roof Ln" }).returning();
+    const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
+    await adminDb.insert(jobStageEvent).values({ tenantId, jobId: j!.id, toStage: "production", enteredAt: midMorning });
+    await suppress({ tenantId, phoneE164: phone, channel: "sms", reason: "stop", source: "test" });
+
+    const r = await evaluateTenantHomeownerNotifs(tenantId, midMorning);
+    // Not counted as delivered — guardedSms blocked the send on the global
+    // suppression list (the claim row is still inserted for dedupe/idempotency,
+    // but no message actually went out and it isn't counted as sent).
+    expect(r.sent).toBe(0);
   });
 });
