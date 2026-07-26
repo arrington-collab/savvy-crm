@@ -3,11 +3,14 @@ import * as ai from "@savvy/ai";
 import {
   withTenant, eq, and, customer, communication, agentRun, dripEnrollment, drip, messageTemplate, tenant as tenantTbl,
   markLeadTaskDoneTx, estimate, desc, ensureEstimateLink, adminDb, recordEstimateEvent, isSuppressed,
+  DrizzleOrchestratorStore, recordException,
 } from "@savvy/db";
 import type { SmsSender, EmailSender } from "@savvy/integrations";
+import type { OrchestratorStore, EscalationRecord } from "@savvy/orchestrator";
+import { publishDomainEvent, makeEvent, makeComplianceBlock } from "@savvy/orchestrator";
 import { getTenantSms, isOutboundThrottled, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
-import { guardedSms, type GuardedSmsDeps } from "../comms-gateway";
+import { guardedSms, type GuardedSmsDeps, type GuardedSmsResult } from "../comms-gateway";
 import { inngest } from "../client";
 
 export type DripContext = { name: string; firstName: string } & Record<string, string>;
@@ -72,7 +75,7 @@ export async function sendDripStep(
     step: DripStep; templateBody?: string; jobId?: string; leadId?: string;
   },
   deps: SendDeps,
-): Promise<{ sent: boolean }> {
+): Promise<{ sent: boolean; guardResult?: GuardedSmsResult }> {
   const { tenantId, enrollmentId, customerId, step, templateBody, jobId, leadId } = input;
 
   const c = await withTenant(tenantId, async (tx) => {
@@ -155,6 +158,11 @@ export async function sendDripStep(
   // carrier-filtering problem. Email is unaffected. Fail-soft ⇒ false.
   const smsThrottled = step.channel === "sms" && await (deps.isThrottled ?? isOutboundThrottled)(tenantId);
   let blockedReason: string | null = null;
+  // Captured only when guardedSms actually returned a verdict (not on a thrown
+  // error — that's an infra failure, not a compliance verdict, so there's
+  // nothing for the Slice B bridge below to report). Threaded through the
+  // return value so the dripRun step.run wrapper can bridge it.
+  let guardResult: GuardedSmsResult | undefined;
   if (step.channel === "sms" && !smsThrottled) {
     // to is non-null here: the suppress guard returned when the address was missing.
     // guardedSms is the single chokepoint: it re-checks global suppression
@@ -170,6 +178,7 @@ export async function sendDripStep(
           contactId: customerId,
         },
       );
+      guardResult = result;
       if (result.status === "sent") providerId = result.sid;
       else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
     } catch (err) {
@@ -193,8 +202,9 @@ export async function sendDripStep(
 
   if (blockedReason) {
     // blocked/deferred: don't send. Log + advance the step, same shape as the
-    // opt-out/no-address suppress guard above. A later Slice B task turns
-    // `blocked` into a compliance-block escalation — for now, just log.
+    // opt-out/no-address suppress guard above. guardResult is returned so the
+    // dripRun step.run wrapper can bridge it: a "blocked" verdict turns into a
+    // compliance-block escalation (Slice B); "deferred" raises nothing.
     await withTenant(tenantId, async (tx) => {
       await tx.insert(communication).values({
         tenantId, customerId, jobId: jobId ?? null, channel: step.channel, direction: "outbound",
@@ -202,7 +212,7 @@ export async function sendDripStep(
       });
       await tx.update(dripEnrollment).set({ currentStep: step.stepNum }).where(eq(dripEnrollment.id, enrollmentId));
     });
-    return { sent: false };
+    return { sent: false, guardResult };
   }
 
   await withTenant(tenantId, async (tx) => {
@@ -239,7 +249,45 @@ export async function sendDripStep(
     }
   }
 
-  return { sent: true };
+  return { sent: true, guardResult };
+}
+
+// --- Slice B bridge helper ------------------------------------------------
+// Pure, DB-free (given a store) so it's unit-testable with an InMemoryStore.
+// drip.step.sent is the only registered event for this idempotency key, so a
+// "blocked" verdict also publishes it (there's no separate "drip.step.blocked"
+// event type) — mirroring bridgeFirstTouch's fixed idempotency gate
+// (lead-intake.ts): the compliance-block escalation is recorded ONLY when
+// that publish newly inserted the event (published === true), so a retried
+// Inngest step never double-records the escalation. A "deferred" verdict
+// (quiet hours / throttle) raises neither event nor escalation — the
+// enrollment simply re-attempts the same step on a later run.
+export async function bridgeDripStep(
+  store: OrchestratorStore,
+  a: {
+    tenantId: string; customerId: string; leadId?: string | null;
+    step: number; channel: string; result: GuardedSmsResult;
+  },
+): Promise<{ complianceBlock?: EscalationRecord }> {
+  if (a.result.status === "deferred") return {};
+
+  const idempotencyKey = `drip.step.sent:${a.customerId}:${a.step}`;
+  const published = await publishDomainEvent(store, makeEvent({
+    type: "drip.step.sent", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.customerId, idempotencyKey,
+    payload: { leadId: a.leadId ?? null, customerId: a.customerId, step: a.step, channel: a.channel },
+  }));
+
+  if (published.published && a.result.status === "blocked") {
+    const esc = makeComplianceBlock({
+      tenantId: a.tenantId, correlationId: a.customerId,
+      eventId: idempotencyKey, eventType: "drip.step.sent",
+      reason: a.result.reason,
+    });
+    await store.recordEscalation(esc);
+    return { complianceBlock: esc };
+  }
+  return {};
 }
 
 /**
@@ -298,7 +346,7 @@ export const dripRun = inngest.createFunction(
       );
       if (!stillActive) return { stopped: true, atStep: s.stepNum };
 
-      await step.run(`send-${s.stepNum}`, async () => {
+      const sendResult = await step.run(`send-${s.stepNum}`, async () => {
         let templateBody: string | undefined;
         if (s.templateKey) {
           templateBody = await withTenant(tenantId, async (tx) => {
@@ -313,6 +361,25 @@ export const dripRun = inngest.createFunction(
           { sms: sender, from, email, a2pApproved: resolveA2pApproved(tenantId, from) },
         );
       });
+
+      // Slice B bridge: publish drip.step.sent for this step's guardedSms
+      // verdict (and, on "blocked", record a compliance-block escalation).
+      // Sibling step (not nested in send-${s.stepNum}) so a bridge failure is
+      // caught here and never unwinds the send that already happened.
+      if (sendResult.guardResult) {
+        const guardResult = sendResult.guardResult;
+        await step.run(`bridge-drip-${s.stepNum}`, async () => {
+          try {
+            const store = new DrizzleOrchestratorStore();
+            const { complianceBlock } = await bridgeDripStep(store, {
+              tenantId, customerId, leadId: leadId ?? null, step: s.stepNum, channel: s.channel, result: guardResult,
+            });
+            if (complianceBlock) await recordException(tenantId, complianceBlock);
+          } catch (err) {
+            console.error("bridge-drip-step: failed to publish drip.step.sent bridge event:", err instanceof Error ? err.message : err);
+          }
+        });
+      }
     }
 
     await step.run("complete", async () =>
