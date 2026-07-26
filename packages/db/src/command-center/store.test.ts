@@ -72,6 +72,7 @@ it("upsertQueueItem/listQueue round-trips with eventId/ruleId intact; re-upsert 
   expect(got.eventId).toBe("evt-1");
   expect(got.state).toBe("acknowledged");
   expect(got.assignee).toBe("scott");
+  expect(got.createdAt).toBe(at(2)); // intake timestamp must be preserved
   expect((got as never as Record<string, unknown>)["escalationId"]).toBeUndefined();
   expect((got as never as Record<string, unknown>)["idempotencyKey"]).toBeUndefined();
 });
