@@ -25,6 +25,7 @@ export const orchestratorEvent = pgTable("orchestrator_event", {
   createdAt: createdAt(),
 }, (t) => [
   index("orchestrator_event_corr_idx").on(t.tenantId, t.correlationId),
+  index("orchestrator_event_created_idx").on(t.tenantId, t.createdAt),
   // Dedupe backstop: an idempotencyKey processes at most once per tenant. Only
   // the "received" audit row (the one that claims the key) participates in
   // the constraint — handled/dead_letter rows are one-per-subscriber and must

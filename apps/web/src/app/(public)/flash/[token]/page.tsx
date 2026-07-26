@@ -1,5 +1,5 @@
 import { getDailyMetrics, listQueue } from "@savvy/db";
-import { compareMetrics, renderFlashHtml } from "@savvy/command-center";
+import { compareMetrics, renderFlashHtml, needsYouFor } from "@savvy/command-center";
 import { addDays } from "@savvy/core";
 import { verifyFlashToken } from "@/lib/flash-token";
 
@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * Signed Flash page: the token (packages/web/src/lib/flash-token.ts) carries
- * tenantId + businessDate, verified on every view — no DB-backed link table,
- * same stateless recipe as the status-photo proxy. Renders the same
- * self-contained HTML the SMS/email delivery would link to.
+ * tenantId + businessDate + recipient, verified on every view — no DB-backed
+ * link table, same stateless recipe as the status-photo proxy. Renders the
+ * same self-contained HTML the SMS/email delivery would link to.
  */
 export default async function FlashPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -34,7 +34,7 @@ export default async function FlashPage({ params }: { params: Promise<{ token: s
   const comparison = compareMetrics(metrics, yesterday, trailing7);
 
   const queue = await listQueue(tenantId);
-  const needsYou = queue.filter((i) => i.notify.includes("arrington") && i.state === "open");
+  const needsYou = needsYouFor(queue, payload.recipient, new Date());
 
   const html = renderFlashHtml(metrics, needsYou, comparison);
 

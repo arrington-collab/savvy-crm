@@ -26,6 +26,7 @@ export async function upsertQueueItem(tenantId: string, it: QueueItem): Promise<
     await tx.insert(exceptionQueue).values({
       tenantId, escalationKey: it.key, ruleId: it.ruleId, eventId: it.eventId, severity: it.severity, reason: it.reason,
       notify: it.notify, assignee: it.assignee, state: it.state,
+      createdAt: new Date(it.createdAt),
       acknowledgedAt: it.acknowledgedAt ? new Date(it.acknowledgedAt) : null,
       resolvedAt: it.resolvedAt ? new Date(it.resolvedAt) : null,
       resolutionNote: it.resolutionNote, snoozeUntil: it.snoozeUntil ? new Date(it.snoozeUntil) : null,

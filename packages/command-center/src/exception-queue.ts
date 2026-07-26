@@ -18,6 +18,28 @@ export interface QueueItem {
   createdAt: string;
 }
 
+// "Active" = needs attention: strictly open, or a snooze whose time has passed.
+// acknowledged/resolved are not active. A snooze still in the future is not active.
+export function isActive(it: QueueItem, now: Date): boolean {
+  if (it.state === "open") return true;
+  if (it.state === "snoozed" && it.snoozeUntil && new Date(it.snoozeUntil) <= now) return true;
+  return false;
+}
+
+/**
+ * Items needing THIS person's attention now: open, or snoozed past their
+ * snoozeUntil. Membership is by `notify` (anyone the escalation names —
+ * primary owner or oversight), not just the primary `assignee`: a rule can
+ * list an operational role first (owns the fix) with a person further down
+ * the list as oversight, and that person's Flash still needs to surface it.
+ *
+ * Operates over a flat array (what the DB `listQueue` returns), unlike
+ * `ExceptionQueue.needsYou` which operates over the in-memory queue.
+ */
+export function needsYouFor(items: QueueItem[], who: string, now: Date): QueueItem[] {
+  return items.filter((it) => it.notify.includes(who) && isActive(it, now));
+}
+
 export class ExceptionQueue {
   private items = new Map<string, QueueItem>();
 
@@ -61,23 +83,15 @@ export class ExceptionQueue {
    * the list as oversight, and that person's Flash still needs to surface it.
    */
   needsYou(who: string, now: Date): QueueItem[] {
-    return [...this.items.values()].filter((it) => it.notify.includes(who) && this.isActive(it, now));
+    return needsYouFor(this.all(), who, now);
   }
 
   openCount(now: Date): { total: number; bySeverity: Record<string, number> } {
-    const active = [...this.items.values()].filter((it) => this.isActive(it, now));
+    const active = this.all().filter((it) => isActive(it, now));
     const bySeverity: Record<string, number> = {};
     for (const it of active) bySeverity[it.severity] = (bySeverity[it.severity] ?? 0) + 1;
     return { total: active.length, bySeverity };
   }
 
   all(): QueueItem[] { return [...this.items.values()]; }
-
-  // "Active" = needs attention: strictly open, or a snooze whose time has passed.
-  // acknowledged/resolved are not active. A snooze still in the future is not active.
-  private isActive(it: QueueItem, now: Date): boolean {
-    if (it.state === "open") return true;
-    if (it.state === "snoozed" && it.snoozeUntil && new Date(it.snoozeUntil) <= now) return true;
-    return false;
-  }
 }
