@@ -32,3 +32,20 @@ it("suppress() is idempotent (second call no-throw, one effective row per key/ch
   await suppress({ tenantId, phoneE164: "+15551235555", channel: "sms", reason: "stop", source: "b" });
   expect(await isSuppressed({ tenantId, phoneE164: "+15551235555", channel: "sms" })).toBe(true);
 });
+
+it("normalizes email casing/whitespace so suppress() and isSuppressed() agree regardless of input casing", async () => {
+  await suppress({ tenantId, email: "John@Example.com", channel: "email", reason: "manual", source: "test" });
+  expect(await isSuppressed({ tenantId, email: "john@example.com", channel: "email" })).toBe(true);
+});
+
+it("does not leak across tenants (RLS): suppressing a phone under tenant A does not suppress it under tenant B", async () => {
+  const tenantBId = randomUUID();
+  await adminDb.insert(tenant).values({ id: tenantBId, name: "Sup-Test-B", publicKey: `sup-b-${tenantBId.slice(0, 8)}` });
+  try {
+    await suppress({ tenantId, phoneE164: "+15551238888", channel: "sms", reason: "stop", source: "test" });
+    expect(await isSuppressed({ tenantId: tenantBId, phoneE164: "+15551238888", channel: "sms" })).toBe(false);
+  } finally {
+    await adminDb.delete(contactSuppression).where(eq(contactSuppression.tenantId, tenantBId));
+    await adminDb.delete(tenant).where(eq(tenant.id, tenantBId));
+  }
+});
