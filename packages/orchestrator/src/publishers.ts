@@ -72,7 +72,7 @@ export async function publishLeadAssigned(
 
 export async function publishReminderSent(
   o: Orchestrator,
-  a: { tenantId: string; leadId: string; appointmentId: string; offset: "24h" | "1h"; channel: string; locationId?: string | null; correlationId?: string; actor?: string },
+  a: { tenantId: string; leadId: string; appointmentId: string; offset: string; channel: string; locationId?: string | null; correlationId?: string; actor?: string },
 ): Promise<void> {
   await o.publish(makeEvent({
     type: "reminder.sent",

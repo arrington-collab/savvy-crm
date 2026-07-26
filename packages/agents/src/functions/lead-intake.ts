@@ -182,7 +182,9 @@ export async function bridgeFirstTouch(
   store: OrchestratorStore,
   a: {
     tenantId: string; leadId: string; locationId?: string | null;
-    latencySeconds: number; occurredAtLeadCreated: string; result: GuardedSmsResult;
+    // undefined when getLeadCreatedAt found no lead row — see the
+    // latencySeconds handling below for why this must NOT default to 0.
+    latencySeconds: number | undefined; occurredAtLeadCreated: string; result: GuardedSmsResult;
   },
 ): Promise<{ complianceBlock?: EscalationRecord }> {
   const deferred = a.result.status === "deferred";
@@ -191,8 +193,14 @@ export async function bridgeFirstTouch(
     correlationId: a.leadId, idempotencyKey: `lead.first_touch:${a.leadId}`,
     payload: {
       leadId: a.leadId, channel: "sms", locationId: a.locationId ?? null,
-      latencySeconds: a.latencySeconds, occurredAtLeadCreated: a.occurredAtLeadCreated,
-      slaLatencySeconds: a.latencySeconds, quietHoursDeferred: deferred,
+      occurredAtLeadCreated: a.occurredAtLeadCreated, quietHoursDeferred: deferred,
+      // Omit latencySeconds/slaLatencySeconds entirely when the lead's
+      // createdAt couldn't be resolved, rather than defaulting to 0 — a 0
+      // reads as an instant, within-SLA first touch and would corrupt the
+      // live speed-to-lead metric with a false signal.
+      ...(a.latencySeconds !== undefined
+        ? { latencySeconds: a.latencySeconds, slaLatencySeconds: a.latencySeconds }
+        : {}),
     },
   }));
   // Only record the compliance-block escalation when the lead.first_touch
@@ -422,7 +430,7 @@ export const leadIntake = inngest.createFunction(
       // verdict (sent/deferred/blocked). Plain strings/numbers only — this is
       // returned from step.run and gets JSON-serialized into Inngest's
       // execution state, so no Date/class instances here.
-      let smsBridge: { result: GuardedSmsResult; latencySeconds: number; occurredAtLeadCreated: string } | null = null;
+      let smsBridge: { result: GuardedSmsResult; latencySeconds: number | undefined; occurredAtLeadCreated: string } | null = null;
 
       // SMS ack (transactional — quiet-hours EXEMPT). guardedSms is the single
       // chokepoint: it checks global suppression, consent/opt-out, and A2P
@@ -469,7 +477,12 @@ export const leadIntake = inngest.createFunction(
 
         if (verdict) {
           const createdAt = await getLeadCreatedAt(tenantId, leadId);
-          const latencySeconds = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : 0;
+          // No lead row found (createdAt === null) must NOT be treated as an
+          // instant, 0-second first touch — that would mask a missing lead
+          // as within-SLA and corrupt the live speed-to-lead metric.
+          // bridgeFirstTouch omits latencySeconds/slaLatencySeconds from the
+          // published event entirely when this is undefined.
+          const latencySeconds = createdAt ? (Date.now() - createdAt.getTime()) / 1000 : undefined;
           smsBridge = {
             result: verdict, latencySeconds,
             occurredAtLeadCreated: (createdAt ?? new Date()).toISOString(),

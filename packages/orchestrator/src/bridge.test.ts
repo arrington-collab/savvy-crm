@@ -41,3 +41,32 @@ it("records an escalation hit when the event matches a rule", async () => {
   expect(r.escalations.length).toBeGreaterThan(0);
   expect(store.escalations.length).toBe(r.escalations.length);
 });
+
+it("never runs subscriber choreography — a bridged publish records only the receipt audit, not the subscriber-handled outcomes Orchestrator.publish() would produce", async () => {
+  // lead.created has TWO registered subscriptions in triggers.ts (comms ->
+  // lead.first_touch, orchestrator -> lead.qualified/lead.assigned). If
+  // publishDomainEvent were ever swapped for (or delegated to)
+  // Orchestrator.publish(), those subscribers would run and re-fire agent
+  // actions on every Inngest retry — the whole reason this bridge exists
+  // instead of engine.ts's publish(). Assert the store sees exactly the
+  // system "received" audit and nothing that looks like subscriber
+  // choreography (no "handled" outcome, no non-"system" agent, no child
+  // events queued).
+  const store = new InMemoryStore();
+  const e = makeEvent({
+    type: "lead.created", source: "savvy", tenantId: TENANT,
+    correlationId: "lead-choreo", idempotencyKey: "lead.created:lead-choreo",
+    payload: { leadId: "lead-choreo", customerId: "cust-1", source: "web" },
+  });
+
+  const r = await publishDomainEvent(store, e);
+
+  expect(r.published).toBe(true);
+  expect(store.audits).toHaveLength(1);
+  expect(store.audits[0]).toMatchObject({ agent: "system", outcome: "received" });
+  expect(store.audits.some((a) => a.agent !== "system")).toBe(false);
+  expect(store.audits.some((a) => a.outcome === "handled")).toBe(false);
+  // No lead.first_touch / lead.qualified / lead.assigned child events were
+  // inserted — choreography never ran, so nothing downstream was recorded.
+  expect(store.audits.some((a) => a.event.type !== "lead.created")).toBe(false);
+});

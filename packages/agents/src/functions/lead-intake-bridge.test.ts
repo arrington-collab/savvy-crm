@@ -50,6 +50,34 @@ describe("bridgeFirstTouch", () => {
     expect(store.audits.length).toBe(before);
   });
 
+  it("omits latencySeconds/slaLatencySeconds when createdAt is unavailable, instead of masking it as a bogus 0", async () => {
+    // A null/undefined latencySeconds (the caller passes this through when
+    // getLeadCreatedAt returned null — no lead row found) must NOT be
+    // defaulted to 0 in the published payload: a 0 reads as an instant,
+    // within-SLA first touch and would corrupt the live speed-to-lead metric.
+    const store = new InMemoryStore();
+    await bridgeFirstTouch(store, {
+      tenantId: T, leadId: "l6", latencySeconds: undefined,
+      occurredAtLeadCreated: "2026-07-26T10:00:00.000Z",
+      result: { status: "sent", sid: "SM6" },
+    });
+    const audit = store.audits.find((x) => x.event.idempotencyKey === "lead.first_touch:l6");
+    expect(audit).toBeTruthy();
+    expect(audit?.event.payload).not.toHaveProperty("latencySeconds");
+    expect(audit?.event.payload).not.toHaveProperty("slaLatencySeconds");
+  });
+
+  it("publishes real latencySeconds/slaLatencySeconds when createdAt IS available", async () => {
+    const store = new InMemoryStore();
+    await bridgeFirstTouch(store, {
+      tenantId: T, leadId: "l7", latencySeconds: 42,
+      occurredAtLeadCreated: "2026-07-26T10:00:00.000Z",
+      result: { status: "sent", sid: "SM7" },
+    });
+    const audit = store.audits.find((x) => x.event.idempotencyKey === "lead.first_touch:l7");
+    expect(audit?.event.payload).toMatchObject({ latencySeconds: 42, slaLatencySeconds: 42 });
+  });
+
   it("is idempotent on a blocked verdict — a duplicate delivery for the same leadId does not double-record the compliance-block escalation", async () => {
     const store = new InMemoryStore();
     const verdict = { status: "blocked" as const, reason: "a2p_unapproved" as const };
