@@ -6,6 +6,7 @@ export * from "./comms";
 export * from "./scheduling";
 export * from "./finance";
 export * from "./quiet-hours";
+export * from "./comms-gateway";
 export * from "./dunning";
 export * from "./commission";
 export * from "./production";

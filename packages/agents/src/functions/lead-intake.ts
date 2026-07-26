@@ -1,14 +1,15 @@
 import { z, signPayloadToken, requireSecret, scoreLead, deriveLane, parseScoringConfig, buildLeadFeatures, deriveInstallRecommendation, parseAssignmentConfig, pickAssignee, resolveRepOrigin, shouldSendChannel, renderTemplate, type LeadFeatures, type ScoringConfig } from "@savvy/core";
 import {
-  withTenant, lead, customer, property, communication, recordAgentRun, eq, sql, createBookingLink,
+  withTenant, lead, customer, property, communication, recordAgentRun, isSuppressed, eq, sql, createBookingLink,
   getAssignmentCandidates, getAssignmentSettings, getScoringSettings, setLeadOwner, getRepSameDayAppts, getSchedulingOffice,
   tenant as tenantTbl,
 } from "@savvy/db";
 import * as ai from "@savvy/ai";
 import { stormProof as defaultStormProof, type StormProofGateway, distance, type LatLng } from "@savvy/integrations";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
+import { guardedSms } from "../comms-gateway";
 
 const scoreSchema = z.object({ score: z.number().min(0).max(100), reason: z.string().max(200) });
 
@@ -308,16 +309,43 @@ export const leadIntake = inngest.createFunction(
       });
       if (!cust) return { skipped: "no-customer" };
 
-      // SMS ack (transactional — quiet-hours EXEMPT), gated by consent + opt-out.
-      if (ctx.phone && shouldSendChannel("sms", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {
+      // SMS ack (transactional — quiet-hours EXEMPT). guardedSms is the single
+      // chokepoint: it checks global suppression, consent/opt-out, and A2P
+      // approval before the sender is ever invoked.
+      if (ctx.phone) {
         let sid = "mock";
+        let blockedReason: string | null = null;
         try {
           const { sender, from } = await getTenantSms(tenantId);
-          ({ sid } = await sender.sendSms({ to: ctx.phone, from, body: buildAckSms(vars) }));
-        } catch { /* dev: no creds */ }
-        await withTenant(tenantId, (tx) => tx.insert(communication).values({
-          tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
-        }));
+          const result = await guardedSms(
+            { isSuppressed, sms: sender, smsFrom: () => from },
+            {
+              tenantId, channel: "sms", to: ctx.phone, from, body: buildAckSms(vars),
+              consent: { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt },
+              a2pApproved: resolveA2pApproved(tenantId, from),
+              contactId: ctx.customerId,
+            },
+          );
+          if (result.status === "sent") sid = result.sid;
+          else blockedReason = result.status === "blocked" ? `blocked: ${result.reason}` : `deferred: ${result.untilIso}`;
+        } catch (err) {
+          // getTenantSms/guardedSms threw (e.g. a transient isSuppressed DB
+          // error, or the sender itself failing) — the real send never
+          // fired, so this must NOT be logged as a successful "sent" comm.
+          blockedReason = `error: ${err instanceof Error ? err.message : "guardedSms failed"}`;
+        }
+
+        if (blockedReason) {
+          // blocked/deferred: don't send. A later Slice B task turns a `blocked`
+          // verdict into a compliance-block escalation — for now, just log it.
+          await recordAgentRun({
+            tenantId, leadId, agent: "comms", taskKey: "lead.ack.sms", status: "skipped", error: blockedReason,
+          });
+        } else {
+          await withTenant(tenantId, (tx) => tx.insert(communication).values({
+            tenantId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body: buildAckSms(vars), twilioSid: sid, aiHandled: false,
+          }));
+        }
       }
       // Email ack, gated by opt-out.
       if (cust.email && shouldSendChannel("email", { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt })) {

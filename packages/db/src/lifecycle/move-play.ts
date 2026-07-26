@@ -167,6 +167,10 @@ export async function registerWarrantyTransfer(input: {
     const [newCust] = await tx.insert(customer).values({
       tenantId: input.tenantId, name: input.name, phone: input.phone ?? null, email: input.email ?? null,
       emailSource: input.email ? "self_reported" : null,
+      // Implied consent (business-relationship basis) — the new owner is
+      // registering into an active warranty-transfer relationship, not a cold
+      // contact. See packages/db/src/scripts/backfill-implied-consent.ts.
+      smsConsentAt: input.phone ? sql`now()` : null,
     }).returning();
 
     await tx.update(property).set({ customerId: newCust!.id }).where(eq(property.id, wt.propertyId));

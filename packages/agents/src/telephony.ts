@@ -116,3 +116,33 @@ export async function getTenantVoice(
   }
   return deps.platformVoice;
 }
+
+/**
+ * Fail-closed A2P-campaign resolution for `guardedSms`. There is no
+ * per-tenant A2P-campaign-status field yet, so a REAL Twilio sender (tenant
+ * BYO or platform account) always resolves unapproved (false) until that
+ * field exists — better to silently defer/block than risk carrier filtering
+ * or TCPA exposure on an unregistered campaign.
+ *
+ * A send is exempt from the A2P gate when it never reaches a real carrier:
+ *   - the demo/mock sender (`getTenantSms` returns `from === "mock"`), and
+ *   - any environment with no real platform Twilio configured (dev / CI / the
+ *     current mock-only prod) — there is simply no carrier to be filtered by.
+ * The moment real platform Twilio creds exist, this fails closed (returns false)
+ * until a per-tenant A2P-campaign-status field lands — better to defer/block than
+ * risk carrier filtering or TCPA exposure on an unregistered campaign.
+ *
+ * NOTE (follow-up): this keys off PLATFORM Twilio creds, so a future BYO tenant
+ * with its own real creds would need the per-tenant A2P field to fail-closed
+ * correctly. No tenant has real Twilio today, so there's no live gap.
+ */
+export function resolveA2pApproved(
+  tenantId: string,
+  from: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  void tenantId; // reserved for when a per-tenant A2P-campaign-status field lands
+  if (from === "mock") return true;
+  const hasRealTwilio = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN);
+  return !hasRealTwilio;
+}

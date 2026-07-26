@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { parsePartnerLedgerConfig, parseCityFromAddress, requireSecret, roofAgeRange, type RoofAgeRange } from "@savvy/core";
 import { withTenant } from "../tenant";
 import { adminDb } from "../admin-client";
@@ -66,6 +66,9 @@ export async function createCertRequest(
 
     const [c] = await tx.insert(customer).values({
       tenantId, name: input.customerName, email: input.customerEmail ?? null, phone: input.customerPhone ?? null,
+      // Implied consent (business-relationship basis) — a partner-referred cert
+      // request customer. See packages/db/src/scripts/backfill-implied-consent.ts.
+      smsConsentAt: input.customerPhone ? sql`now()` : null,
     }).returning();
     const [prop] = await tx.insert(property).values({
       tenantId, customerId: c!.id, address: input.address, city: parseCityFromAddress(input.address),
