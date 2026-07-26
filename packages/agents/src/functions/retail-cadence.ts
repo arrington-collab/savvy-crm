@@ -1,9 +1,56 @@
-import { withTenant, invoice, job, customer, tenant, communication, eq, jobHasActiveEnrollment } from "@savvy/db";
+import { withTenant, invoice, job, customer, tenant, communication, eq, jobHasActiveEnrollment, isSuppressed } from "@savvy/db";
 import { parseRetailCadenceConfig, buildRetailTouchBody, stepAbsorbedByRelationship, nextAllowedSendTime, signPayloadToken, requireSecret } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
+import { guardedSms } from "../comms-gateway";
 import { inngest } from "../client";
+
+export type RetailTouchSendResult = { sent: boolean };
+
+/**
+ * Send site for a single retail-cadence SMS touch (extracted from the
+ * Inngest step.run callback so it's directly unit-testable, mirroring
+ * dunning.ts's sendDunningStep / homeowner-crew-notify.ts's sendCrewTouch).
+ * SMS goes through guardedSms — the global contact_suppression list,
+ * consent, and A2P are enforced. A thrown error (getTenantSms/guardedSms/
+ * sender.sendSms) is fail-soft: caught and swallowed, never recorded as a
+ * false "sent".
+ */
+export async function sendRetailSmsTouch(
+  input: {
+    tenantId: string; jobId: string; customerId: string; phone: string;
+    smsOptOut: boolean; emailOptOut: boolean; smsConsentAt: Date | null;
+    body: string;
+  },
+  deps: { getTenantSms: typeof getTenantSms } = { getTenantSms },
+): Promise<RetailTouchSendResult> {
+  const { tenantId, jobId, customerId, phone, smsOptOut, emailOptOut, smsConsentAt, body } = input;
+  let loggedBody = body;
+  let sent = false;
+  try {
+    const { sender, from } = await deps.getTenantSms(tenantId);
+    const result = await guardedSms(
+      { isSuppressed, sms: sender, smsFrom: () => from },
+      {
+        tenantId, channel: "sms", to: phone, from, body,
+        consent: { smsOptOut, emailOptOut, smsConsentAt },
+        a2pApproved: resolveA2pApproved(tenantId, from),
+        contactId: customerId,
+      },
+    );
+    sent = result.status === "sent";
+    if (result.status !== "sent") {
+      loggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+    }
+  } catch (err) {
+    // fail-soft: no creds / provider error — never a false "sent", and the
+    // logged row must not read as a delivered text either.
+    loggedBody = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+  }
+  await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "sms", direction: "outbound", to: phone, body: loggedBody, aiHandled: false }));
+  return { sent };
+}
 
 /**
  * Retail close-out follow-up cadence (§F/retail lane): when a **retail** job's invoice is
@@ -39,6 +86,7 @@ export const retailCloseoutCadence = inngest.createFunction(
         email: cust.email ?? null,
         smsOptOut: cust.smsOptOut,
         emailOptOut: cust.emailOptOut,
+        smsConsentAt: cust.smsConsentAt,
         tz: t?.timezone ?? "America/Phoenix",
         settings: (t?.settings ?? {}) as { retailCadence?: unknown; email?: unknown },
       };
@@ -83,8 +131,13 @@ export const retailCloseoutCadence = inngest.createFunction(
       await step.run(`send-${i}`, async () => {
         const body = buildRetailTouchBody({ balanceCents: live.balanceCents, payLink: statusLink, reviewLink, copy: cfg.copy });
         if (touch.channel === "sms") {
-          try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: setup.phone!, from, body }); } catch { /* fail-soft */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: setup.jobId, customerId: setup.customerId, channel: "sms", direction: "outbound", to: setup.phone, body, aiHandled: false }));
+          await sendRetailSmsTouch({
+            tenantId, jobId: setup.jobId, customerId: setup.customerId, phone: setup.phone!,
+            smsOptOut: setup.smsOptOut, emailOptOut: setup.emailOptOut,
+            // setup crossed the step.run/JSON boundary — re-hydrate the Date.
+            smsConsentAt: setup.smsConsentAt ? new Date(setup.smsConsentAt as unknown as string) : null,
+            body,
+          });
         } else {
           const gmailConnectionId = null;
           try {
