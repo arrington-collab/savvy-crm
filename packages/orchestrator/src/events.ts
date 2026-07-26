@@ -89,6 +89,11 @@ const payloadSchemas = {
     fromNumber: z.string(),
     toNumber: z.string(),
   }),
+  // Slice B escalation-layer additions (Task B3) — synthesized when the
+  // speed-to-lead or assignment agents detect a breach/failure, so the
+  // event-driven ESCALATIONS rules in escalations.ts can react to them.
+  "lead.sla_breach": z.object({ leadId: z.string(), minutes: z.number() }),
+  "lead.assignment_failed": z.object({ leadId: z.string(), reason: z.string() }),
 } as const;
 
 export type EventType = keyof typeof payloadSchemas;

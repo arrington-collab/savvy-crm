@@ -160,5 +160,5 @@ export { importAccuLynxAttachments, type AttachmentJobBundle, type AttachmentDep
 export { DrizzleOrchestratorStore } from "./orchestrator/store";
 export { isSuppressed, suppress } from "./lifecycle/contact-suppression";
 export { contactSuppression } from "./schema/comms-suppression";
-export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue } from "./command-center/store";
+export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue, recordException } from "./command-center/store";
 export { dailyMetrics, exceptionQueue } from "./schema/command-center";
