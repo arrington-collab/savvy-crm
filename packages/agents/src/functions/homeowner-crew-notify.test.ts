@@ -49,12 +49,17 @@ describe("sendCrewTouch — crew-day SMS routed through guardedSms", () => {
     expect(deps.sent[0]!.to).toBe(phone);
 
     const rows = await withTenant(tenantId, (tx) => tx.select().from(communication).where(eq(communication.jobId, jobId)));
-    expect(rows.some((r) => r.channel === "sms")).toBe(true);
+    const smsRow = rows.find((r) => r.channel === "sms");
+    expect(smsRow).toBeDefined();
+    // Logged body must equal the real outbound body on a "sent" verdict.
+    expect(smsRow!.body).toBe("Crew arrives tomorrow! Track your project: https://x.test/b/abc");
   });
 
   // Proves guardedSms is wired: a consented, non-opted-out customer who is
-  // globally suppressed is NOT texted.
-  it("globally suppressed customer → not texted, mock sender not called", async () => {
+  // globally suppressed is NOT texted, AND that the logged communication row
+  // does not fabricate a "delivered" record — it must reflect the blocked
+  // verdict, not the real message body.
+  it("globally suppressed customer → not texted, mock sender not called, logged body reflects the block (not the real body)", async () => {
     const { tenantId, jobId, customerId } = await seedTenantCustomer({ phone: "+16025550222" });
     await suppress({ tenantId, phoneE164: "+16025550222", channel: "sms", reason: "stop", source: "test" });
     const deps = fakeSmsDeps();
@@ -67,6 +72,12 @@ describe("sendCrewTouch — crew-day SMS routed through guardedSms", () => {
 
     expect(res.smsSent).toBe(false);
     expect(deps.sent).toHaveLength(0);
+
+    const rows = await withTenant(tenantId, (tx) => tx.select().from(communication).where(eq(communication.jobId, jobId)));
+    const smsRow = rows.find((r) => r.channel === "sms");
+    expect(smsRow).toBeDefined();
+    expect(smsRow!.body).toContain("blocked: suppressed");
+    expect(smsRow!.body).not.toBe("Crew arrives tomorrow! Track your project: https://x.test/b/abc");
   });
 
   // A thrown error (transient DB blip / provider 5xx) is fail-soft — swallowed,

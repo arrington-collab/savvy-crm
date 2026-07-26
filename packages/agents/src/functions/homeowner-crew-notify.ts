@@ -29,6 +29,7 @@ export async function sendCrewTouch(
   let smsSent = false;
 
   if (phone && !smsOptOut) {
+    let smsLoggedBody = body;
     try {
       const { sender, from } = await deps.getTenantSms(tenantId);
       const result = await guardedSms(
@@ -41,8 +42,15 @@ export async function sendCrewTouch(
         },
       );
       smsSent = result.status === "sent";
-    } catch { /* fail-soft: no creds / provider error — never a false "sent" */ }
-    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "sms", direction: "outbound", to: phone, body, aiHandled: false }));
+      if (result.status !== "sent") {
+        smsLoggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+      }
+    } catch (err) {
+      // fail-soft: no creds / provider error — never a false "sent", and the
+      // logged row must not read as a delivered text either.
+      smsLoggedBody = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+    }
+    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "sms", direction: "outbound", to: phone, body: smsLoggedBody, aiHandled: false }));
   }
 
   if (email && !emailOptOut) {
