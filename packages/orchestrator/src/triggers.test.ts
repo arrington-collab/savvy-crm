@@ -12,13 +12,13 @@ function collectEmits(type: EventType, payload: PayloadFor<EventType>) {
 }
 
 it("lead.created fans out to comms + orchestrator and emits the follow-ons", () => {
-  const { subs, emitted } = collectEmits("lead.created", { leadId: "l1", customerId: "c1" });
+  const { subs, emitted } = collectEmits("lead.created", { leadId: "l1", customerId: "c1", source: "web" });
   expect(subs.map((s) => s.agent).sort()).toEqual(["comms", "orchestrator"]);
   expect(emitted.sort()).toEqual(["lead.assigned", "lead.first_touch", "lead.qualified"]);
 });
 
 it("contract.signed emits material order + job approved", () => {
-  const { emitted } = collectEmits("contract.signed", { jobId: "j1", customerId: "c1" });
+  const { emitted } = collectEmits("contract.signed", { jobId: "j1", customerId: "c1", contractValueCents: 2400000 });
   expect(emitted.sort()).toEqual(["job.approved", "material.order.created"]);
 });
 

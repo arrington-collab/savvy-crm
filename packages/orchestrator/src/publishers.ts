@@ -6,24 +6,24 @@ import type { Orchestrator } from "./engine";
 // idempotencyKey is derived from the entity so a retried webhook dedupes.
 
 export function publishLeadCreated(
-  o: Orchestrator, a: { tenantId: string; leadId: string; customerId: string; actor?: string },
+  o: Orchestrator, a: { tenantId: string; leadId: string; customerId: string; source: string; actor?: string },
 ): Promise<void> {
   return o.publish(makeEvent({
     type: "lead.created", source: "savvy", tenantId: a.tenantId,
     correlationId: a.leadId, idempotencyKey: `lead.created:${a.leadId}`,
     ...(a.actor ? { actor: a.actor } : {}),
-    payload: { leadId: a.leadId, customerId: a.customerId },
+    payload: { leadId: a.leadId, customerId: a.customerId, source: a.source },
   }));
 }
 
 export function publishContractSigned(
-  o: Orchestrator, a: { tenantId: string; jobId: string; customerId: string; actor?: string },
+  o: Orchestrator, a: { tenantId: string; jobId: string; customerId: string; contractValueCents: number; actor?: string },
 ): Promise<void> {
   return o.publish(makeEvent({
     type: "contract.signed", source: "canvass", tenantId: a.tenantId,
     correlationId: a.jobId, idempotencyKey: `contract.signed:${a.jobId}`,
     ...(a.actor ? { actor: a.actor } : {}),
-    payload: { jobId: a.jobId, customerId: a.customerId },
+    payload: { jobId: a.jobId, customerId: a.customerId, contractValueCents: a.contractValueCents },
   }));
 }
 

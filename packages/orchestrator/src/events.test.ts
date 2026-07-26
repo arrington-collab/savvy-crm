@@ -7,7 +7,7 @@ const base = {
   tenantId: "11111111-1111-1111-1111-111111111111",
   correlationId: "corr-1",
   idempotencyKey: "lead.created:lead-1",
-  payload: { leadId: "lead-1", customerId: "cust-1" },
+  payload: { leadId: "lead-1", customerId: "cust-1", source: "web" },
 };
 
 it("makeEvent fills id/occurredAt/version and preserves fields", () => {
@@ -16,7 +16,7 @@ it("makeEvent fills id/occurredAt/version and preserves fields", () => {
   expect(e.version).toBe(1);
   expect(typeof e.occurredAt).toBe("string");
   expect(e.type).toBe("lead.created");
-  expect(e.payload).toEqual({ leadId: "lead-1", customerId: "cust-1" });
+  expect(e.payload).toEqual({ leadId: "lead-1", customerId: "cust-1", source: "web" });
 });
 
 it("validateEvent accepts a well-formed event", () => {

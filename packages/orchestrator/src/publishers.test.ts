@@ -8,14 +8,14 @@ const T = "11111111-1111-1111-1111-111111111111";
 it("publishLeadCreated fires the lead.created chain", async () => {
   const store = new InMemoryStore();
   const o = new Orchestrator({ store });
-  await publishLeadCreated(o, { tenantId: T, leadId: "l1", customerId: "c1" });
+  await publishLeadCreated(o, { tenantId: T, leadId: "l1", customerId: "c1", source: "web" });
   expect(store.audits.some((a) => a.event.type === "lead.qualified")).toBe(true);
 });
 
 it("publishContractSigned fires job.approved", async () => {
   const store = new InMemoryStore();
   const o = new Orchestrator({ store });
-  await publishContractSigned(o, { tenantId: T, jobId: "j1", customerId: "c1" });
+  await publishContractSigned(o, { tenantId: T, jobId: "j1", customerId: "c1", contractValueCents: 2400000 });
   expect(store.audits.some((a) => a.event.type === "job.approved")).toBe(true);
 });
 
