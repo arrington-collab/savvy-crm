@@ -56,8 +56,11 @@ test("drip: enroll -> step 1 logs a communication -> inbound STOP stops it + opt
     }).onConflictDoNothing();
   }
 
-  // A contact to enroll.
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: `Drip Dan ${stamp}`, phone }).returning();
+  // A contact to enroll. smsConsentAt is stamped because drip now routes through
+  // the compliance gateway (guardedSms), which requires recorded consent for SMS.
+  // Real drip-eligible customers get this stamped at creation (lead-intake/import);
+  // this raw insert must too, else step 1 is blocked no_consent instead of sent.
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: `Drip Dan ${stamp}`, phone, smsConsentAt: new Date() }).returning();
   const customerId = c!.id;
 
   // Enroll -> dripRun creates the enrollment + sends step 1 (mock SMS, fail-soft, logs the comm).
