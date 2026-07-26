@@ -8,11 +8,12 @@
 import * as ai from "@savvy/ai";
 import {
   adminDb, withTenant, eq, and, customer, job, tenant as tenantTbl, crewEodReport, productionUpdate, productionMedia, document,
-  recordProductionUpdate, createStatusLink, isDemoTenant, withAgentRun, sql, desc,
+  recordProductionUpdate, createStatusLink, isDemoTenant, withAgentRun, sql, desc, isSuppressed,
 } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, isWithinQuietHours, nextAllowedSendTime, signPayloadToken } from "@savvy/core";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 export type EodWrapResult = { sent: true } | { sent: false; suppressed: string } | { deferUntil: Date };
 
@@ -42,7 +43,10 @@ export async function sendEodWrap(
   const cust = await withTenant(input.tenantId, async (tx) => {
     const [j] = await tx.select({ customerId: job.customerId }).from(job).where(eq(job.id, input.jobId));
     if (!j?.customerId) return null;
-    const [c] = await tx.select({ name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut, preferredLanguage: customer.preferredLanguage })
+    const [c] = await tx.select({
+      id: customer.id, name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut,
+      emailOptOut: customer.emailOptOut, smsConsentAt: customer.smsConsentAt, preferredLanguage: customer.preferredLanguage,
+    })
       .from(customer).where(eq(customer.id, j.customerId));
     return c ?? null;
   });
@@ -89,7 +93,21 @@ export async function sendEodWrap(
     { tenantId: input.tenantId, agent: "comms", taskKey: "production_pulse.eod_wrap", jobId: input.jobId, leadId: null },
     async () => {
       const { sender, from } = await deps.getTenantSms(input.tenantId);
-      await sender.sendSms({ to: cust.phone!, from, body });
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId: input.tenantId, channel: "sms", to: cust.phone!, from, body,
+          consent: { smsOptOut: cust.smsOptOut, emailOptOut: cust.emailOptOut, smsConsentAt: cust.smsConsentAt },
+          a2pApproved: resolveA2pApproved(input.tenantId, from),
+          contactId: cust.id,
+        },
+      );
+      if (result.status !== "sent") {
+        // Blocked/deferred by the guard — never a false "sent"; the once-
+        // per-job-day ledger still records it (same convention as every
+        // other suppression reason in this sender).
+        return suppress(`guard_${result.status === "blocked" ? result.reason : result.status}`);
+      }
       await recordProductionUpdate({
         tenantId: input.tenantId, jobId: input.jobId, kind: "eod_wrap", phaseKey: ledgerKey,
         body, photoIds: photo ? [photo.documentId] : [], sentAt: new Date(),
