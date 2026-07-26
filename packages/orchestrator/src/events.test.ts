@@ -45,3 +45,28 @@ it("validateEvent rejects a payload that does not match its type", () => {
   expect(r.ok).toBe(false);
   if (!r.ok) expect(r.reason).toMatch(/payload/i);
 });
+
+it("accepts an extended lead.first_touch with latency + deferred fields", () => {
+  const e = makeEvent({
+    type: "lead.first_touch",
+    source: "savvy",
+    tenantId: "11111111-1111-1111-1111-111111111111",
+    correlationId: "c1",
+    idempotencyKey: "lead.first_touch:lead-1",
+    payload: { leadId: "lead-1", channel: "sms", locationId: null, latencySeconds: 42, occurredAtLeadCreated: "2026-07-26T10:00:00.000Z", slaLatencySeconds: 42, quietHoursDeferred: false },
+  });
+  const r = validateEvent(e);
+  expect(r.ok).toBe(true);
+});
+
+it("accepts the new reminder.sent, drip.step.sent, message.inbound, contact.opted_out, call.missed", () => {
+  const base = { source: "savvy" as const, tenantId: "11111111-1111-1111-1111-111111111111", correlationId: "c1" };
+  const events = [
+    makeEvent({ ...base, type: "reminder.sent", idempotencyKey: "reminder.sent:a1:24h", payload: { leadId: "l1", appointmentId: "a1", offset: "24h", channel: "sms" } }),
+    makeEvent({ ...base, type: "drip.step.sent", idempotencyKey: "drip.step.sent:c1:2", payload: { customerId: "c1", step: 2, channel: "sms" } }),
+    makeEvent({ ...base, type: "message.inbound", idempotencyKey: "message.inbound:SM1", payload: { customerId: "c1", channel: "sms", isOptOut: true } }),
+    makeEvent({ ...base, type: "contact.opted_out", idempotencyKey: "contact.opted_out:sms:+15551234567", payload: { channel: "sms", reason: "stop" } }),
+    makeEvent({ ...base, type: "call.missed", idempotencyKey: "call.missed:+1a:+1b:t", payload: { fromNumber: "+1a", toNumber: "+1b" } }),
+  ];
+  for (const e of events) expect(validateEvent(e).ok).toBe(true);
+});
