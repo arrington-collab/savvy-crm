@@ -1,9 +1,78 @@
-import { withTenant, eq, and, materialOrder, job, appointment, communication, customer as customerTbl, tenant as tenantTbl, recordProductionUpdate } from "@savvy/db";
+import { withTenant, eq, and, materialOrder, job, appointment, communication, customer as customerTbl, tenant as tenantTbl, recordProductionUpdate, isSuppressed } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, buildDeliveryTouches, signPayloadToken, requireSecret, type DeliveryTouch } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
+import { guardedSms } from "../comms-gateway";
 import { inngest } from "../client";
+
+export type DeliveryTouchSendResult = { smsSent: boolean };
+
+/**
+ * Send site for a single delivery touch leg (extracted from the Inngest
+ * step.run callback so it's directly unit-testable, mirroring dunning.ts's
+ * sendDunningStep). SMS goes through guardedSms — the global
+ * contact_suppression list, consent, and A2P are enforced. A thrown error
+ * (getTenantSms/guardedSms/sender.sendSms) is fail-soft: caught and
+ * swallowed, never recorded as a false "sent" or a completed delivery notice
+ * in the production_update ledger.
+ */
+export async function sendDeliveryTouch(
+  input: {
+    tenantId: string; jobId: string; customerId: string; kind: string;
+    phone: string | null; email: string | null; smsOptOut: boolean; emailOptOut: boolean; smsConsentAt: Date | null;
+    body: string; link: string; gmailConnectionId: string | null;
+  },
+  deps: { getTenantSms: typeof getTenantSms; getTenantEmail: typeof getTenantEmail } = { getTenantSms, getTenantEmail },
+): Promise<DeliveryTouchSendResult> {
+  const { tenantId, jobId, customerId, kind, phone, email, smsOptOut, emailOptOut, smsConsentAt, body: copy, link, gmailConnectionId } = input;
+  const body = `${copy} Track your project: ${link}`;
+  let smsSent = false;
+  let suppressedReason: string | null = null;
+
+  if (phone && !smsOptOut) {
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: phone, from, body,
+          consent: { smsOptOut, emailOptOut, smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: customerId,
+        },
+      );
+      if (result.status === "sent") {
+        smsSent = true;
+      } else {
+        suppressedReason = `guard_${result.status === "blocked" ? result.reason : result.status}`;
+      }
+    } catch {
+      // fail-soft: no creds / provider error — never a false "sent".
+      suppressedReason = "guard_error";
+    }
+  } else {
+    suppressedReason = smsOptOut ? "opt_out" : "no_phone";
+  }
+
+  if (smsSent) {
+    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "sms", direction: "outbound", to: phone, body, aiHandled: false }));
+    await recordProductionUpdate({ tenantId, jobId, kind, body, sentAt: new Date() });
+  } else {
+    // Blocked, deferred, or thrown — never recorded as a completed delivery notice.
+    await recordProductionUpdate({ tenantId, jobId, kind, suppressedReason: suppressedReason ?? "guard_blocked" });
+  }
+
+  if (email && !emailOptOut) {
+    try {
+      const emailSender = await deps.getTenantEmail(tenantId, { gmailConnectionId });
+      await emailSender.sendEmail({ to: email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Your roofing materials — delivery details", html: `<p>${copy}</p><p><a href="${link}">Track your project</a></p>` });
+    } catch { /* fail-soft */ }
+    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "email", direction: "outbound", to: email, body, aiHandled: false }));
+  }
+
+  return { smsSent };
+}
 
 /**
  * Delivery homeowner comms (§F extended by Production Pulse slice 2 §0, owner
@@ -35,6 +104,7 @@ export const homeownerDeliveryNotify = inngest.createFunction(
         email: cust.email ?? null,
         smsOptOut: cust.smsOptOut,
         emailOptOut: cust.emailOptOut,
+        smsConsentAt: cust.smsConsentAt,
         tz: t?.timezone ?? "America/Phoenix",
         settings: (t?.settings ?? {}) as { homeowner?: unknown; email?: unknown },
         nowMs: Date.now(),
@@ -68,30 +138,22 @@ export const homeownerDeliveryNotify = inngest.createFunction(
       );
       if (!stillActive) return { stopped: true, sent };
 
-      await step.run(`send-${leg.kind}`, async () => {
+      await step.run(`send-${leg.kind}`, () => {
         // Schedules move — merge the CURRENT build date into the copy.
-        const freshBuildMs = await resolveBuildStartsAt(tenantId, ctx.jobId);
-        const fresh = buildDeliveryTouches(
-          new Date(ctx.deliveryAtMs), freshBuildMs ? new Date(freshBuildMs) : null, ctx.tz, cfg,
-          new Date(new Date(leg.fireAt as unknown as string).getTime() - 1),
-        );
-        const copy = (fresh.find((f) => f.kind === leg.kind) ?? (leg as DeliveryTouch)).body;
-        const body = `${copy} Track your project: ${link}`;
-
-        if (ctx.phone && !ctx.smsOptOut) {
-          try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: ctx.phone, from, body }); } catch { /* fail-soft */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body, aiHandled: false }));
-          await recordProductionUpdate({ tenantId, jobId: ctx.jobId, kind: leg.kind, body, sentAt: new Date() });
-        } else {
-          await recordProductionUpdate({ tenantId, jobId: ctx.jobId, kind: leg.kind, suppressedReason: ctx.smsOptOut ? "opt_out" : "no_phone" });
-        }
-        if (ctx.email && !ctx.emailOptOut) {
-          try {
-            const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
-            await emailSender.sendEmail({ to: ctx.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "Your roofing materials — delivery details", html: `<p>${copy}</p><p><a href="${link}">Track your project</a></p>` });
-          } catch { /* fail-soft */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: ctx.email, body, aiHandled: false }));
-        }
+        return resolveBuildStartsAt(tenantId, ctx.jobId).then((freshBuildMs) => {
+          const fresh = buildDeliveryTouches(
+            new Date(ctx.deliveryAtMs), freshBuildMs ? new Date(freshBuildMs) : null, ctx.tz, cfg,
+            new Date(new Date(leg.fireAt as unknown as string).getTime() - 1),
+          );
+          const copy = (fresh.find((f) => f.kind === leg.kind) ?? (leg as DeliveryTouch)).body;
+          return sendDeliveryTouch({
+            tenantId, jobId: ctx.jobId, customerId: ctx.customerId, kind: leg.kind,
+            phone: ctx.phone, email: ctx.email, smsOptOut: ctx.smsOptOut, emailOptOut: ctx.emailOptOut,
+            // ctx crossed the step.run/JSON boundary — re-hydrate the Date.
+            smsConsentAt: ctx.smsConsentAt ? new Date(ctx.smsConsentAt as unknown as string) : null,
+            body: copy, link, gmailConnectionId,
+          });
+        });
       });
       sent += 1;
     }
