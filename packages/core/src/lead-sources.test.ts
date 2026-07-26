@@ -19,14 +19,18 @@ describe("lead sources", () => {
 });
 
 describe("lead source taxonomy", () => {
-  it("has the 6 human + 4 machine members", () => {
-    expect(LEAD_SOURCE_VALUES).toEqual(["referral","insurance_agent","ads","realtor","partner","other","web","inbound_call","canvass","direct_mail","mobilization"]);
-    expect(MACHINE_LEAD_SOURCES).toEqual(["web","inbound_call","canvass","direct_mail","mobilization"]);
+  it("has the 6 human + 5 machine members (incl. missed_call)", () => {
+    expect(LEAD_SOURCE_VALUES).toEqual(["referral","insurance_agent","ads","realtor","partner","other","web","inbound_call","canvass","direct_mail","mobilization","missed_call"]);
+    expect(MACHINE_LEAD_SOURCES).toEqual(["web","inbound_call","canvass","direct_mail","mobilization","missed_call"]);
     expect(AD_PLATFORM_VALUES).toContain("google_lsa");
   });
   it("classifies machine vs human sources", () => {
     expect(isMachineSource("web")).toBe(true);
     expect(isMachineSource("referral")).toBe(false);
+  });
+  it("missed_call is a valid source and machine-sourced (C2: Twilio missed-call webhook)", () => {
+    expect(LEAD_SOURCE_VALUES).toContain("missed_call");
+    expect(isMachineSource("missed_call")).toBe(true);
   });
 });
 

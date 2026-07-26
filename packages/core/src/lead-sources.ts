@@ -30,11 +30,11 @@ export function mergeLeadSources(custom: string[] | null | undefined): LeadSourc
 
 export const LEAD_SOURCE_VALUES = [
   "referral", "insurance_agent", "ads", "realtor", "partner", "other",
-  "web", "inbound_call", "canvass", "direct_mail", "mobilization",
+  "web", "inbound_call", "canvass", "direct_mail", "mobilization", "missed_call",
 ] as const;
 export type LeadSourceValue = (typeof LEAD_SOURCE_VALUES)[number];
 
-export const MACHINE_LEAD_SOURCES = ["web", "inbound_call", "canvass", "direct_mail", "mobilization"] as const;
+export const MACHINE_LEAD_SOURCES = ["web", "inbound_call", "canvass", "direct_mail", "mobilization", "missed_call"] as const;
 export const AD_PLATFORM_VALUES = ["google_lsa", "google_ads", "meta", "nextdoor", "other"] as const;
 
 export function isMachineSource(s: string): boolean {
