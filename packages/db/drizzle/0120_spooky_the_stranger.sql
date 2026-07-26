@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "orchestrator_event_created_idx" ON "orchestrator_event" USING btree ("tenant_id","created_at");
