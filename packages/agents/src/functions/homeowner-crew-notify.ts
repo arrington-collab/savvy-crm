@@ -1,9 +1,60 @@
-import { withTenant, eq, appointment, job, communication, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
+import { withTenant, eq, appointment, job, communication, customer as customerTbl, tenant as tenantTbl, isSuppressed } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, buildCrewDayTouches, signPayloadToken, requireSecret } from "@savvy/core";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
 import { buildShortLink } from "../short-link";
+import { guardedSms } from "../comms-gateway";
 import { inngest } from "../client";
+
+export type CrewTouchSendResult = { smsSent: boolean };
+
+/**
+ * Send site for a single crew-day touch (extracted from the Inngest step.run
+ * callback so it's directly unit-testable, mirroring dunning.ts's
+ * sendDunningStep). SMS goes through guardedSms — the global
+ * contact_suppression list, consent, and A2P are enforced. A thrown error
+ * (getTenantSms/guardedSms/sender.sendSms) is fail-soft: caught and
+ * swallowed, never recorded as a false "sent".
+ */
+export async function sendCrewTouch(
+  input: {
+    tenantId: string; jobId: string; customerId: string;
+    phone: string | null; email: string | null; smsOptOut: boolean; emailOptOut: boolean; smsConsentAt: Date | null;
+    touchBody: string; link: string; gmailConnectionId: string | null;
+  },
+  deps: { getTenantSms: typeof getTenantSms; getTenantEmail: typeof getTenantEmail } = { getTenantSms, getTenantEmail },
+): Promise<CrewTouchSendResult> {
+  const { tenantId, jobId, customerId, phone, email, smsOptOut, emailOptOut, smsConsentAt, touchBody, link, gmailConnectionId } = input;
+  const body = `${touchBody} Track your project: ${link}`;
+  let smsSent = false;
+
+  if (phone && !smsOptOut) {
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: phone, from, body,
+          consent: { smsOptOut, emailOptOut, smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: customerId,
+        },
+      );
+      smsSent = result.status === "sent";
+    } catch { /* fail-soft: no creds / provider error — never a false "sent" */ }
+    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "sms", direction: "outbound", to: phone, body, aiHandled: false }));
+  }
+
+  if (email && !emailOptOut) {
+    try {
+      const emailSender = await deps.getTenantEmail(tenantId, { gmailConnectionId });
+      await emailSender.sendEmail({ to: email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "An update on your roofing project", html: `<p>${touchBody}</p><p><a href="${link}">Track your project</a></p>` });
+    } catch { /* fail-soft */ }
+    await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId, customerId, channel: "email", direction: "outbound", to: email, body, aiHandled: false }));
+  }
+
+  return { smsSent };
+}
 
 /**
  * Homeowner crew-day journey (§F): when a crew (install) appointment is booked, schedule
@@ -39,6 +90,7 @@ export const homeownerCrewNotify = inngest.createFunction(
         email: cust.email ?? null,
         smsOptOut: cust.smsOptOut,
         emailOptOut: cust.emailOptOut,
+        smsConsentAt: cust.smsConsentAt,
         tz: t?.timezone ?? "America/Phoenix",
         settings: (t?.settings ?? {}) as { homeowner?: unknown; email?: unknown },
         nowMs: Date.now(),
@@ -67,21 +119,15 @@ export const homeownerCrewNotify = inngest.createFunction(
       );
       if (!stillScheduled) return { stopped: t.key };
 
-      await step.run(`send-${t.key}`, async () => {
-        const body = `${t.body} Track your project: ${link}`;
-        if (ctx.phone && !ctx.smsOptOut) {
-          try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: ctx.phone, from, body }); } catch { /* fail-soft: no creds */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "sms", direction: "outbound", to: ctx.phone, body, aiHandled: false }));
-        }
-        if (ctx.email && !ctx.emailOptOut) {
-          try {
-            const emailSender = await getTenantEmail(tenantId, { gmailConnectionId });
-            await emailSender.sendEmail({ to: ctx.email, from: process.env.EMAIL_FROM ?? "noreply@example.com", subject: "An update on your roofing project", html: `<p>${t.body}</p><p><a href="${link}">Track your project</a></p>` });
-          } catch { /* fail-soft */ }
-          await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: ctx.jobId, customerId: ctx.customerId, channel: "email", direction: "outbound", to: ctx.email, body, aiHandled: false }));
-        }
-        return { sent: t.key };
-      });
+      await step.run(`send-${t.key}`, () =>
+        sendCrewTouch({
+          tenantId, jobId: ctx.jobId, customerId: ctx.customerId,
+          phone: ctx.phone, email: ctx.email, smsOptOut: ctx.smsOptOut, emailOptOut: ctx.emailOptOut,
+          // ctx crossed the step.run/JSON boundary — re-hydrate the Date.
+          smsConsentAt: ctx.smsConsentAt ? new Date(ctx.smsConsentAt as unknown as string) : null,
+          touchBody: t.body, link, gmailConnectionId,
+        }),
+      );
     }
     return { scheduled: touches.length };
   },
