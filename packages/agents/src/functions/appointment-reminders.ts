@@ -8,14 +8,12 @@ import { guardedSms } from "../comms-gateway";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
 
-// The reminder.sent event's offset field is a narrow enum ("24h" | "1h"), not
-// an arbitrary hour count — tenants can configure other offsets (e.g. 2h) via
-// scheduling settings, and those simply don't get bridged onto the domain-event
-// bus (no Command Center rule cares about them; only the 24h/1h cadence does).
-export function reminderOffsetLabel(offsetH: number): "24h" | "1h" | null {
-  if (offsetH === 24) return "24h";
-  if (offsetH === 1) return "1h";
-  return null;
+// The reminder.sent event's offset field is a flexible string, not a narrow
+// enum — tenants can configure any positive-hour offset via scheduling
+// settings (the default schedule itself is 24h + 2h), and every configured
+// offset gets bridged onto the domain-event bus.
+export function reminderOffsetLabel(offsetH: number): string {
+  return `${offsetH}h`;
 }
 
 // --- Slice B bridge helper ------------------------------------------------
@@ -25,7 +23,7 @@ export function reminderOffsetLabel(offsetH: number): "24h" | "1h" | null {
 // unlike bridgeBreach (lead-speed-to-lead.ts) there's nothing to record back.
 export async function bridgeReminderSent(
   store: OrchestratorStore,
-  a: { tenantId: string; leadId: string; appointmentId: string; offset: "24h" | "1h"; channel: string },
+  a: { tenantId: string; leadId: string; appointmentId: string; offset: string; channel: string },
 ): Promise<void> {
   await publishDomainEvent(store, makeEvent({
     type: "reminder.sent", source: "savvy", tenantId: a.tenantId,
@@ -165,11 +163,10 @@ export const appointmentReminders = inngest.createFunction(
       // nested inside "send-*") so it's durable + retried independently, and
       // fail-soft: a publish error must never unwind the comm log that already
       // landed above. Only fires for reminders with a lead to attribute to (crew/
-      // install appointments post-conversion have no leadId) and an offset the
-      // narrow reminder.sent schema recognizes (24h/1h — other configured offsets,
-      // e.g. 2h, are simply not bridged).
+      // install appointments post-conversion have no leadId) — every configured
+      // offset (24h, 2h, 1h, or any other tenant-configured hour count) bridges.
       const offset = reminderOffsetLabel(r.offsetH);
-      if (sendResult.smsSentOk && ctx.leadId && offset) {
+      if (sendResult.smsSentOk && ctx.leadId) {
         await step.run(`bridge-reminder-${r.offsetH}-${r.channel}`, async () => {
           try {
             const store = new DrizzleOrchestratorStore();

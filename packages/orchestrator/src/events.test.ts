@@ -63,6 +63,9 @@ it("accepts the new reminder.sent, drip.step.sent, message.inbound, contact.opte
   const base = { source: "savvy" as const, tenantId: "11111111-1111-1111-1111-111111111111", correlationId: "c1" };
   const events = [
     makeEvent({ ...base, type: "reminder.sent", idempotencyKey: "reminder.sent:a1:24h", payload: { leadId: "l1", appointmentId: "a1", offset: "24h", channel: "sms" } }),
+    // offset is a flexible string, not a "24h"|"1h" enum — any tenant-configured
+    // hour count (e.g. the 2h default) must validate too.
+    makeEvent({ ...base, type: "reminder.sent", idempotencyKey: "reminder.sent:a2:2h", payload: { leadId: "l1", appointmentId: "a2", offset: "2h", channel: "sms" } }),
     makeEvent({ ...base, type: "drip.step.sent", idempotencyKey: "drip.step.sent:c1:2", payload: { customerId: "c1", step: 2, channel: "sms" } }),
     makeEvent({ ...base, type: "message.inbound", idempotencyKey: "message.inbound:SM1", payload: { customerId: "c1", channel: "sms", isOptOut: true } }),
     makeEvent({ ...base, type: "contact.opted_out", idempotencyKey: "contact.opted_out:sms:+15551234567", payload: { channel: "sms", reason: "stop" } }),

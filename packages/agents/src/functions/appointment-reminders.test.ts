@@ -17,13 +17,10 @@ test("email reminder includes link, no CANCEL reply hint", () => {
 });
 
 describe("reminderOffsetLabel", () => {
-  it("maps 24 -> '24h' and 1 -> '1h'", () => {
+  it("maps 24 -> '24h', 2 -> '2h', and 1 -> '1h'", () => {
     expect(reminderOffsetLabel(24)).toBe("24h");
+    expect(reminderOffsetLabel(2)).toBe("2h");
     expect(reminderOffsetLabel(1)).toBe("1h");
-  });
-
-  it("returns null for any other configured offset (e.g. 2h) — not bridged", () => {
-    expect(reminderOffsetLabel(2)).toBeNull();
   });
 });
 
@@ -54,5 +51,18 @@ describe("bridgeReminderSent", () => {
       (a) => a.event.type === "reminder.sent" && (a.event.payload as { appointmentId?: string }).appointmentId === "appt-3",
     );
     expect(audits.map((a) => a.event.idempotencyKey).sort()).toEqual(["reminder.sent:appt-3:1h", "reminder.sent:appt-3:24h"]);
+  });
+
+  // Regression coverage for the dropped-events defect: the tenant default reminder
+  // schedule (packages/core/src/scheduling.ts) is 24h + 2h, not 24h + 1h. A 2h
+  // reminder must bridge onto the domain-event bus like any other configured offset.
+  it("bridges a 2h reminder (the tenant default's non-24h/1h offset) using the flexible offset formatter", async () => {
+    const store = new InMemoryStore();
+    await bridgeReminderSent(store, {
+      tenantId: T, leadId: "lead-4", appointmentId: "appt-4", offset: reminderOffsetLabel(2), channel: "sms",
+    });
+    const audit = store.audits.find((a) => a.event.idempotencyKey === "reminder.sent:appt-4:2h");
+    expect(audit).toBeTruthy();
+    expect(audit?.event.payload).toMatchObject({ leadId: "lead-4", appointmentId: "appt-4", offset: "2h", channel: "sms" });
   });
 });

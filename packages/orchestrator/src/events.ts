@@ -58,7 +58,7 @@ const payloadSchemas = {
     leadId: z.string(),
     locationId: z.string().nullable().optional(),
     appointmentId: z.string(),
-    offset: z.enum(["24h", "1h"]),
+    offset: z.string(),
     channel: z.string(),
   }),
   "drip.step.sent": z.object({
