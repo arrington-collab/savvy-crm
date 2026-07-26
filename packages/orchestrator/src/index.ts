@@ -4,3 +4,4 @@ export * from "./escalations";
 export * from "./store";
 export * from "./engine";
 export * from "./publishers";
+export * from "./bridge";
