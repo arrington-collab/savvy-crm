@@ -59,6 +59,9 @@ importers:
       '@savvy/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
+      '@savvy/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
       '@sentry/nextjs':
         specifier: ^10.58.0
         version: 10.58.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.218.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.0))(next@16.2.7(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.107.2(lightningcss@1.32.0))
@@ -144,6 +147,9 @@ importers:
       '@savvy/integrations':
         specifier: workspace:*
         version: link:../integrations
+      '@savvy/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       inngest:
         specifier: ^3.22.0
         version: 3.54.2(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(express@5.2.1)(hono@4.12.25)(next@16.2.7(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.7))(react@19.2.7))(typescript@5.9.3)(zod@3.25.76)

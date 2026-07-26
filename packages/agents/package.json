@@ -11,6 +11,7 @@
     "@savvy/core": "workspace:*",
     "@savvy/db": "workspace:*",
     "@savvy/integrations": "workspace:*",
+    "@savvy/orchestrator": "workspace:*",
     "inngest": "^3.22.0",
     "jimp": "1.6.1"
   },

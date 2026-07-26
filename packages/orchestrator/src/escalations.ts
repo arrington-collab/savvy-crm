@@ -1,4 +1,5 @@
 import type { DomainEvent, EventType, PayloadFor } from "./events";
+import type { EscalationRecord } from "./store";
 
 export type Severity = "low" | "medium" | "high";
 
@@ -53,10 +54,41 @@ export const ESCALATIONS: EscalationRule[] = [
       return `${p.agent} handler for ${p.ofType} threw: ${p.error}`;
     },
   },
+  {
+    id: "speed-to-lead-breach", event: "lead.sla_breach", severity: "high",
+    notify: ["sales-manager", "arrington"],
+    when: () => true,
+    reason: (e) => `lead ${(e.payload as PayloadFor<"lead.sla_breach">).leadId} breached speed-to-lead SLA by ${(e.payload as PayloadFor<"lead.sla_breach">).minutes}m`,
+  },
+  {
+    id: "assignment-failure", event: "lead.assignment_failed", severity: "medium",
+    notify: ["admin", "arrington"],
+    when: () => true,
+    reason: (e) => `lead ${(e.payload as PayloadFor<"lead.assignment_failed">).leadId} failed to assign: ${(e.payload as PayloadFor<"lead.assignment_failed">).reason}`,
+  },
 ];
 
 export function evaluateEscalations(e: DomainEvent): EscalationHit[] {
   return ESCALATIONS
     .filter((r) => r.event === e.type && r.when(e))
     .map((r) => ({ ruleId: r.id, severity: r.severity, reason: r.reason(e), notify: r.notify }));
+}
+
+// compliance-block is NOT event-driven: it's raised directly from a guardedSms
+// verdict (a blocked send is never a DomainEvent on the bus), so it has no
+// entry in ESCALATIONS — this constructor builds the EscalationRecord in place
+// of evaluateEscalations for that one caller.
+export function makeComplianceBlock(input: {
+  tenantId: string; correlationId: string; eventId: string; eventType: string; reason: string; notify?: string[];
+}): EscalationRecord {
+  return {
+    ruleId: "compliance-block",
+    severity: "high",
+    reason: `SMS blocked: ${input.reason}`,
+    notify: input.notify ?? [],
+    tenantId: input.tenantId,
+    correlationId: input.correlationId,
+    eventId: input.eventId,
+    eventType: input.eventType,
+  };
 }

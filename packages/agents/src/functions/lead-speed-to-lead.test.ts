@@ -7,7 +7,10 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { pickReassignee, type AssignmentCandidate } from "@savvy/core";
-import { runRepAlert } from "./lead-speed-to-lead";
+import { InMemoryStore } from "@savvy/orchestrator";
+import { runRepAlert, bridgeBreach } from "./lead-speed-to-lead";
+
+const T = "22222222-2222-2222-2222-222222222222";
 
 // Simulate the check-overdue predicate: uncontacted+assigned lead yields { owner }
 function checkOverduePredicate(row: { contacted: Date | null; owner: string | null } | null) {
@@ -110,5 +113,28 @@ describe("runRepAlert", () => {
     const s = fakeSender();
     expect(await runRepAlert({ tenantId: "t-test", source: "web", ownerPhone: "+16025550001", customerName: "Dale", customerPhone: null, city: null }, s as never)).toBe("skip-no-lead-phone");
     expect(s.sendSms).not.toHaveBeenCalled();
+  });
+});
+
+describe("bridgeBreach", () => {
+  it("publishes lead.sla_breach and returns the speed-to-lead-breach escalation", async () => {
+    const store = new InMemoryStore();
+    const r = await bridgeBreach(store, { tenantId: T, leadId: "l1", minutes: 15 });
+    const audit = store.audits.find((x) => x.event.idempotencyKey === "lead.sla_breach:l1");
+    expect(audit).toBeTruthy();
+    expect(audit?.event.payload).toMatchObject({ leadId: "l1", minutes: 15 });
+    expect(r.breach?.ruleId).toBe("speed-to-lead-breach");
+    expect(store.escalations.some((e) => e.ruleId === "speed-to-lead-breach" && e.correlationId === "l1")).toBe(true);
+  });
+
+  it("is idempotent — a second call for the same leadId does not double-publish or double-record", async () => {
+    const store = new InMemoryStore();
+    const first = await bridgeBreach(store, { tenantId: T, leadId: "l2", minutes: 15 });
+    expect(first.breach?.ruleId).toBe("speed-to-lead-breach");
+    const before = store.audits.length;
+    const second = await bridgeBreach(store, { tenantId: T, leadId: "l2", minutes: 15 });
+    expect(store.audits.length).toBe(before);
+    expect(second.breach).toBeUndefined();
+    expect(store.escalations.filter((e) => e.ruleId === "speed-to-lead-breach" && e.correlationId === "l2").length).toBe(1);
   });
 });

@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { lead, user } from "../schema/index";
+import { withTenant } from "../tenant";
 
 type Tx = Parameters<Parameters<typeof import("../client").db.transaction>[0]>[0];
 
@@ -33,4 +34,18 @@ export async function setLeadLost(
     .update(lead)
     .set({ status: "lost" })
     .where(and(eq(lead.id, opts.leadId), eq(lead.tenantId, opts.tenantId)));
+}
+
+/**
+ * Reads a lead's createdAt timestamp. Used by the Slice B first-touch bridge
+ * to compute speed-to-lead latency (now - createdAt) at ack-send time.
+ */
+export async function getLeadCreatedAt(tenantId: string, leadId: string): Promise<Date | null> {
+  return withTenant(tenantId, async (tx) => {
+    const [row] = await tx
+      .select({ createdAt: lead.createdAt })
+      .from(lead)
+      .where(and(eq(lead.id, leadId), eq(lead.tenantId, tenantId)));
+    return row?.createdAt ?? null;
+  });
 }

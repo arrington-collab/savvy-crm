@@ -15,9 +15,23 @@ const TOOL = z.enum([
 // EventType union, PayloadFor map, and validateEvent all derive from it.
 const payloadSchemas = {
   "lead.created": z.object({ leadId: z.string(), customerId: z.string(), source: z.string() }),
-  "lead.first_touch": z.object({ leadId: z.string(), channel: z.string() }),
+  "lead.first_touch": z.object({
+    leadId: z.string(),
+    channel: z.string(),
+    locationId: z.string().nullable().optional(),
+    latencySeconds: z.number().optional(),
+    occurredAtLeadCreated: z.string().optional(),
+    slaLatencySeconds: z.number().optional(),
+    quietHoursDeferred: z.boolean().optional(),
+  }),
   "lead.qualified": z.object({ leadId: z.string(), score: z.number() }),
-  "lead.assigned": z.object({ leadId: z.string(), userId: z.string() }),
+  "lead.assigned": z.object({
+    leadId: z.string(),
+    userId: z.string(),
+    repId: z.string().optional(),
+    locationId: z.string().nullable().optional(),
+    territory: z.string().optional(),
+  }),
   "contract.signed": z.object({ jobId: z.string(), customerId: z.string(), contractValueCents: z.number().int() }),
   "material.order.created": z.object({ jobId: z.string() }),
   "job.approved": z.object({ jobId: z.string() }),
@@ -38,6 +52,48 @@ const payloadSchemas = {
   "appointment.no_show": z.object({ appointmentId: z.string(), jobId: z.string().optional() }),
   // system-synthesized: emitted when a subscriber throws.
   "handler.failed": z.object({ ofType: z.string(), agent: z.string(), error: z.string() }),
+  // Slice B bridge additions — publishers.ts + later wiring tasks (B2+) emit
+  // these onto the same bus so the Command Center read-model can project them.
+  "reminder.sent": z.object({
+    leadId: z.string(),
+    locationId: z.string().nullable().optional(),
+    appointmentId: z.string(),
+    offset: z.string(),
+    channel: z.string(),
+  }),
+  "drip.step.sent": z.object({
+    leadId: z.string().nullable().optional(),
+    customerId: z.string(),
+    locationId: z.string().nullable().optional(),
+    step: z.number(),
+    channel: z.string(),
+  }),
+  "message.inbound": z.object({
+    contactId: z.string().nullable().optional(),
+    customerId: z.string().nullable().optional(),
+    leadId: z.string().nullable().optional(),
+    locationId: z.string().nullable().optional(),
+    channel: z.string(),
+    isOptOut: z.boolean(),
+  }),
+  "contact.opted_out": z.object({
+    contactId: z.string().nullable().optional(),
+    customerId: z.string().nullable().optional(),
+    locationId: z.string().nullable().optional(),
+    channel: z.string(),
+    reason: z.string(),
+  }),
+  "call.missed": z.object({
+    leadId: z.string().nullable().optional(),
+    locationId: z.string().nullable().optional(),
+    fromNumber: z.string(),
+    toNumber: z.string(),
+  }),
+  // Slice B escalation-layer additions (Task B3) — synthesized when the
+  // speed-to-lead or assignment agents detect a breach/failure, so the
+  // event-driven ESCALATIONS rules in escalations.ts can react to them.
+  "lead.sla_breach": z.object({ leadId: z.string(), minutes: z.number() }),
+  "lead.assignment_failed": z.object({ leadId: z.string(), reason: z.string() }),
 } as const;
 
 export type EventType = keyof typeof payloadSchemas;

@@ -1,6 +1,8 @@
-import { adminDb, withTenant, lead, tenant, customer, property, user, eq, getAssignmentCandidates, setLeadOwner, recordAgentRun } from "@savvy/db";
+import { adminDb, withTenant, lead, tenant, customer, property, user, eq, getAssignmentCandidates, setLeadOwner, recordAgentRun, DrizzleOrchestratorStore, recordException } from "@savvy/db";
 import { parseSpeedToLeadConfig, pickReassignee, buildRepAlertSms } from "@savvy/core";
 import { smsFrom, type SmsSender } from "@savvy/integrations";
+import type { OrchestratorStore, EscalationRecord } from "@savvy/orchestrator";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
 import { getTenantSms } from "../telephony";
 import { inngest } from "../client";
 
@@ -37,6 +39,29 @@ export async function runRepAlert(ctx: RepAlertCtx, sender?: SmsSender): Promise
   } catch {
     return "send-failed";
   }
+}
+
+// --- Slice B bridge helper ------------------------------------------------
+// Pure, DB-free (given a store) so it's unit-testable with an InMemoryStore.
+// Publishes lead.sla_breach onto the domain-event bus once at the overdue
+// point; the orchestrator's event-driven ESCALATIONS rules turn it into a
+// "speed-to-lead-breach" hit. The idempotencyKey (keyed on leadId only, not
+// per-attempt) means a later reassign step firing the same bridge again
+// can't double-queue the escalation. Returns the escalation (if any) so the
+// caller can project it into the Command Center exception queue via
+// recordException.
+export async function bridgeBreach(
+  store: OrchestratorStore,
+  a: { tenantId: string; leadId: string; minutes: number },
+): Promise<{ breach?: EscalationRecord }> {
+  const published = await publishDomainEvent(store, makeEvent({
+    type: "lead.sla_breach", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.leadId, idempotencyKey: `lead.sla_breach:${a.leadId}`,
+    payload: { leadId: a.leadId, minutes: a.minutes },
+  }));
+  if (!published.published) return {};
+  const esc = published.escalations.find((e) => e.ruleId === "speed-to-lead-breach");
+  return esc ? { breach: esc } : {};
 }
 
 export const leadSpeedToLead = inngest.createFunction(
@@ -88,6 +113,23 @@ export const leadSpeedToLead = inngest.createFunction(
       await inngest.send({ name: "lead/contact-overdue", data: { leadId, tenantId } });
       await recordAgentRun({ tenantId, leadId, agent: "orchestrator", taskKey: "lead.sla.overdue", status: "ok" });
       return { emitted: true };
+    });
+
+    // Slice B bridge: project the SLA breach onto the domain-event bus
+    // (lead.sla_breach -> speed-to-lead-breach escalation). A separate,
+    // sibling step (not nested inside emit-overdue) so it's durable + retried
+    // independently, and fail-soft: a publish error must never unwind the
+    // internal overdue event that already fired above. Emitted once, here,
+    // at the overdue point — the lead.sla_breach:${leadId} idempotency key
+    // means the reassign step below firing this again can't double-queue it.
+    await step.run("bridge-breach", async () => {
+      try {
+        const store = new DrizzleOrchestratorStore();
+        const { breach } = await bridgeBreach(store, { tenantId, leadId, minutes: cfg.firstTouchSlaMin });
+        if (breach) await recordException(tenantId, breach);
+      } catch (err) {
+        console.error("bridge-breach: failed to publish SLA breach bridge event:", err instanceof Error ? err.message : err);
+      }
     });
 
     await step.sleep("escalate-window", `${Math.max(1, cfg.escalateMin - cfg.firstTouchSlaMin)}m`);

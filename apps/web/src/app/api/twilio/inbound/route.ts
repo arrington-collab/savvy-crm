@@ -3,7 +3,8 @@ import { createLeadForTenant, tenantByPhone } from "@/lib/intake";
 import { handleInboundSms } from "@/lib/inbound-sms";
 import { log } from "@/lib/log";
 import { isStopKeyword } from "@savvy/core";
-import { suppress } from "@savvy/db";
+import { suppress, DrizzleOrchestratorStore } from "@savvy/db";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,17 @@ export async function POST(req: Request) {
     // STOP -> GLOBAL suppression (applies across every agent/channel), takes precedence over HELP.
     if (isStopKeyword(bodyStr)) {
       await suppress({ tenantId: t.id, phoneE164: from, channel: "sms", reason: "stop", source: "twilio-inbound" });
+      // Slice B bridge: suppress() is a pure DB write (contact-suppression.ts:60-63) —
+      // this caller emits contact.opted_out onto the domain-event bus. Fail-soft:
+      // a publish error must never block the STOP confirmation reply below.
+      try {
+        const store = new DrizzleOrchestratorStore();
+        await publishDomainEvent(store, makeEvent({
+          type: "contact.opted_out", source: "savvy", tenantId: t.id,
+          correlationId: from, idempotencyKey: `contact.opted_out:sms:${from}`,
+          payload: { channel: "sms", reason: "stop" },
+        }));
+      } catch (e) { console.error("bridge-contact-opted-out: failed to publish contact.opted_out", e); }
       return xml(
         "<Response><Message>You're unsubscribed and won't receive more texts. Reply START to opt back in.</Message></Response>",
       );

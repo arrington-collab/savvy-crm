@@ -1,9 +1,28 @@
 import {
   withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
-  createMoveLeadOnReply,
+  createMoveLeadOnReply, DrizzleOrchestratorStore,
 } from "@savvy/db";
 import { isStopKeyword, isCancelKeyword } from "@savvy/core";
 import { inngest } from "@savvy/agents";
+import type { OrchestratorStore } from "@savvy/orchestrator";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
+
+// --- Slice B bridge helper ------------------------------------------------
+// Pure, DB-free (given a store) so it's unit-testable with an InMemoryStore.
+// Publishes onto the domain-event bus for EVERY inbound SMS (matched or not —
+// customerId is nullable on the payload) so the Command Center read-model can
+// project it, regardless of whether the reply matched an existing customer.
+export async function bridgeMessageInbound(
+  store: OrchestratorStore,
+  a: { tenantId: string; messageSid: string; customerId: string | null; isOptOut: boolean },
+): Promise<void> {
+  await publishDomainEvent(store, makeEvent({
+    type: "message.inbound", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.customerId ?? a.messageSid,
+    idempotencyKey: `message.inbound:${a.messageSid}`,
+    payload: { customerId: a.customerId, channel: "sms", isOptOut: a.isOptOut },
+  }));
+}
 
 /**
  * Handles an inbound SMS for a tenant:
@@ -16,7 +35,10 @@ import { inngest } from "@savvy/agents";
 export async function handleInboundSms(
   tenantId: string,
   opts: { from: string; body: string; twilioSid?: string },
+  deps: { store?: OrchestratorStore } = {},
 ): Promise<{ matched: boolean; stopped: "opted_out" | "reply" | null }> {
+  const store = deps.store ?? new DrizzleOrchestratorStore();
+
   // 1) Log inbound communication + match customer by phone
   const c = await withTenant(tenantId, async (tx) => {
     const [row] = await tx.select().from(customer).where(eq(customer.phone, opts.from));
@@ -26,6 +48,16 @@ export async function handleInboundSms(
     });
     return row ?? null;
   });
+
+  // Slice B bridge: publish message.inbound regardless of match. Fail-soft —
+  // a publish error must never block the inbound reply flow below.
+  try {
+    const messageSid = opts.twilioSid ?? `no-sid-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+    await bridgeMessageInbound(store, {
+      tenantId, messageSid, customerId: c?.id ?? null, isOptOut: isStopKeyword(opts.body),
+    });
+  } catch (e) { console.error("bridge-message-inbound: failed to publish message.inbound", e); }
+
   if (!c) return { matched: false, stopped: null };
 
   // 2) CANCEL -> cancel next upcoming scheduled appointment (no opt-out, no drip stop)

@@ -1,10 +1,36 @@
-import { withTenant, eq, appointment, communication, isSuppressed, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
+import { withTenant, eq, appointment, communication, isSuppressed, customer as customerTbl, tenant as tenantTbl, DrizzleOrchestratorStore } from "@savvy/db";
 import { parseSchedulingConfig, signPayloadToken, requireSecret, parseEmailConfig } from "@savvy/core";
+import type { OrchestratorStore } from "@savvy/orchestrator";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
 import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
 import { guardedSms } from "../comms-gateway";
 import { buildShortLink } from "../short-link";
 import { inngest } from "../client";
+
+// The reminder.sent event's offset field is a flexible string, not a narrow
+// enum — tenants can configure any positive-hour offset via scheduling
+// settings (the default schedule itself is 24h + 2h), and every configured
+// offset gets bridged onto the domain-event bus.
+export function reminderOffsetLabel(offsetH: number): string {
+  return `${offsetH}h`;
+}
+
+// --- Slice B bridge helper ------------------------------------------------
+// Pure, DB-free (given a store) so it's unit-testable with an InMemoryStore.
+// Publishes reminder.sent onto the domain-event bus so the Command Center
+// read-model can project it. No escalation rule keys off reminder.sent, so
+// unlike bridgeBreach (lead-speed-to-lead.ts) there's nothing to record back.
+export async function bridgeReminderSent(
+  store: OrchestratorStore,
+  a: { tenantId: string; leadId: string; appointmentId: string; offset: string; channel: string },
+): Promise<void> {
+  await publishDomainEvent(store, makeEvent({
+    type: "reminder.sent", source: "savvy", tenantId: a.tenantId,
+    correlationId: a.appointmentId, idempotencyKey: `reminder.sent:${a.appointmentId}:${a.offset}`,
+    payload: { leadId: a.leadId, appointmentId: a.appointmentId, offset: a.offset, channel: a.channel },
+  }));
+}
 
 export function buildReminderMessage(
   appt: { type: string; startsAt: Date }, bookUrl: string, channel: "sms" | "email",
@@ -35,6 +61,7 @@ export const appointmentReminders = inngest.createFunction(
       return {
         startsAt: a.startsAt,
         type: a.type,
+        leadId: a.leadId,
         customerId: a.customerId,
         phone: cust?.phone ?? null,
         email: cust?.email ?? null,
@@ -68,7 +95,7 @@ export const appointmentReminders = inngest.createFunction(
       );
       if (!stillScheduled) return { stopped: true };
 
-      await step.run(`send-${r.offsetH}-${r.channel}`, async () => {
+      const sendResult = await step.run(`send-${r.offsetH}-${r.channel}`, async () => {
         // Re-hydrate startsAt (string after JSON round-trip) before passing to buildReminderMessage.
         const body = buildReminderMessage(
           { type: ctx.type, startsAt: new Date(ctx.startsAt as unknown as string) },
@@ -76,8 +103,9 @@ export const appointmentReminders = inngest.createFunction(
           r.channel,
         );
         const to = r.channel === "sms" ? ctx.phone : ctx.email;
-        if (!to) return { sent: false };
+        if (!to) return { sent: false, smsSentOk: false };
         let loggedBody = body;
+        let smsSentOk = false;
         if (r.channel === "sms") {
           try {
             // Inngest step.run serialises the "load" step's return through JSON —
@@ -93,6 +121,7 @@ export const appointmentReminders = inngest.createFunction(
                 contactId: ctx.customerId ?? undefined,
               },
             );
+            smsSentOk = result.status === "sent";
             if (result.status !== "sent") {
               loggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
             }
@@ -126,8 +155,29 @@ export const appointmentReminders = inngest.createFunction(
             aiHandled: false,
           }),
         );
-        return { sent: loggedBody === body };
+        return { sent: loggedBody === body, smsSentOk };
       });
+
+      // Slice B bridge: project a successful SMS reminder send onto the domain-event
+      // bus (reminder.sent -> Command Center read-model). A sibling step.run (not
+      // nested inside "send-*") so it's durable + retried independently, and
+      // fail-soft: a publish error must never unwind the comm log that already
+      // landed above. Only fires for reminders with a lead to attribute to (crew/
+      // install appointments post-conversion have no leadId) — every configured
+      // offset (24h, 2h, 1h, or any other tenant-configured hour count) bridges.
+      const offset = reminderOffsetLabel(r.offsetH);
+      if (sendResult.smsSentOk && ctx.leadId) {
+        await step.run(`bridge-reminder-${r.offsetH}-${r.channel}`, async () => {
+          try {
+            const store = new DrizzleOrchestratorStore();
+            await bridgeReminderSent(store, {
+              tenantId, leadId: ctx.leadId as string, appointmentId, offset, channel: r.channel,
+            });
+          } catch (err) {
+            console.error("bridge-reminder-sent: failed to publish reminder.sent bridge event:", err instanceof Error ? err.message : err);
+          }
+        });
+      }
     }
     return { done: true };
   },

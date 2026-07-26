@@ -2,12 +2,41 @@
 import { revalidatePath } from "next/cache";
 import {
   rescheduleAppointment, cancelAppointment, setAppointmentStatus, SlotTakenError, reassignAppointment,
-  bookAppointment, withTenant, job, eq,
+  bookAppointment, withTenant, job, eq, DrizzleOrchestratorStore,
 } from "@savvy/db";
 import type { AppointmentType } from "@savvy/core";
 import { searchSchedulableJobs, type SchedulableJob } from "./schedule-create-queries";
 import { inngest } from "@savvy/agents";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
 import { getTenantId } from "./tenant";
+
+// Slice B bridge: fail-soft, direct publish (these are server actions, not
+// Inngest steps — no step.run seam here). appointment.set/no_show are only
+// exercised end-to-end by the B10 integration test since these actions have
+// no injectable store seam of their own.
+async function bridgeAppointmentSet(a: {
+  tenantId: string; appointmentId: string; jobId?: string; leadId?: string; scheduledAt: string;
+}): Promise<void> {
+  try {
+    const store = new DrizzleOrchestratorStore();
+    await publishDomainEvent(store, makeEvent({
+      type: "appointment.set", source: "savvy", tenantId: a.tenantId,
+      correlationId: a.appointmentId, idempotencyKey: `appointment.set:${a.appointmentId}`,
+      payload: { appointmentId: a.appointmentId, jobId: a.jobId, leadId: a.leadId, scheduledAt: a.scheduledAt },
+    }));
+  } catch (e) { console.error("bridge-appointment-set: failed to publish appointment.set", e); }
+}
+
+async function bridgeAppointmentNoShow(a: { tenantId: string; appointmentId: string; jobId?: string }): Promise<void> {
+  try {
+    const store = new DrizzleOrchestratorStore();
+    await publishDomainEvent(store, makeEvent({
+      type: "appointment.no_show", source: "savvy", tenantId: a.tenantId,
+      correlationId: a.appointmentId, idempotencyKey: `appointment.no_show:${a.appointmentId}`,
+      payload: { appointmentId: a.appointmentId, jobId: a.jobId },
+    }));
+  } catch (e) { console.error("bridge-appointment-no-show: failed to publish appointment.no_show", e); }
+}
 
 export async function searchJobsAction(q: string): Promise<SchedulableJob[]> {
   return searchSchedulableJobs(q);
@@ -58,6 +87,9 @@ export async function markStatusAction(
     try { await inngest.send({ name: "appointment/completed", data: { appointmentId, tenantId } }); }
     catch (e) { console.error("inngest.send failed", e); }
   }
+  if (status === "no_show") {
+    await bridgeAppointmentNoShow({ tenantId, appointmentId });
+  }
   revalidatePath("/schedule");
   return { ok: true as const };
 }
@@ -107,6 +139,7 @@ export async function createAppointmentAction(input: {
   }
   try { await inngest.send({ name: "appointment/booked", data: { appointmentId, tenantId } }); }
   catch (e) { console.error("inngest.send failed", e); }
+  await bridgeAppointmentSet({ tenantId, appointmentId, jobId: input.jobId, scheduledAt: input.startsAt });
   revalidatePath("/schedule");
   return { ok: true as const };
 }

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@savvy/core": "workspace:*",
     "@savvy/db": "workspace:*",
     "@savvy/integrations": "workspace:*",
+    "@savvy/orchestrator": "workspace:*",
     "@sentry/nextjs": "^10.58.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",

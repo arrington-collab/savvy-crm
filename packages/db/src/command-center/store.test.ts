@@ -7,7 +7,7 @@ import type { QueueItem } from "@savvy/command-center";
 import { adminDb, tenant } from "../index";
 import { orchestratorEvent } from "../schema/orchestrator";
 import { dailyMetrics, exceptionQueue } from "../schema/command-center";
-import { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue } from "./store";
+import { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue, recordException } from "./store";
 
 let tenantId: string;
 const D = "2026-07-01";
@@ -75,4 +75,12 @@ it("upsertQueueItem/listQueue round-trips with eventId/ruleId intact; re-upsert 
   expect(got.createdAt).toBe(at(2)); // intake timestamp must be preserved
   expect((got as never as Record<string, unknown>)["escalationId"]).toBeUndefined();
   expect((got as never as Record<string, unknown>)["idempotencyKey"]).toBeUndefined();
+});
+
+it("recordException upserts an open queue item idempotently", async () => {
+  const esc = { ruleId: "assignment-failure", severity: "medium" as const, reason: "no-candidate", notify: [], tenantId, correlationId: "l1", eventId: "e-abc", eventType: "lead.assignment_failed" };
+  await recordException(tenantId, esc, new Date("2026-07-26T10:00:00.000Z"));
+  await recordException(tenantId, esc, new Date("2026-07-26T10:00:00.000Z"));
+  const rows = await listQueue(tenantId);
+  expect(rows.filter((r) => r.key === "assignment-failure:e-abc")).toHaveLength(1);
 });

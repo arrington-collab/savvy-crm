@@ -2,10 +2,27 @@
 import {
   adminDb, lead, job, user, property, appointment, tenant, eq, and, or,
   bookAppointment, rescheduleAppointment, SlotTakenError, NoAssigneeError,
-  bookLeadSlot, setCustomerEmail,
+  bookLeadSlot, setCustomerEmail, DrizzleOrchestratorStore,
 } from "@savvy/db";
 import { verifyPayloadToken, parseSchedulingConfig, parseFinanceConfig, computeOpenSlots, formatSlotLabel, requireSecret } from "@savvy/core";
 import { inngest } from "@savvy/agents";
+import { publishDomainEvent, makeEvent } from "@savvy/orchestrator";
+
+// Slice B bridge: fail-soft, direct publish (server action, not an Inngest
+// step). Exercised end-to-end by the B10 integration test — no injectable
+// store seam here (mirrors scheduling-actions.ts's bridgeAppointmentSet).
+async function bridgeAppointmentSet(a: {
+  tenantId: string; appointmentId: string; jobId?: string; leadId?: string; scheduledAt: string;
+}): Promise<void> {
+  try {
+    const store = new DrizzleOrchestratorStore();
+    await publishDomainEvent(store, makeEvent({
+      type: "appointment.set", source: "savvy", tenantId: a.tenantId,
+      correlationId: a.appointmentId, idempotencyKey: `appointment.set:${a.appointmentId}`,
+      payload: { appointmentId: a.appointmentId, jobId: a.jobId, leadId: a.leadId, scheduledAt: a.scheduledAt },
+    }));
+  } catch (e) { console.error("bridge-appointment-set: failed to publish appointment.set", e); }
+}
 
 const SECRET = () => requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
 
@@ -77,6 +94,9 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
         try {
           await inngest.send({ name: "appointment/booked", data: { appointmentId: r.appointmentId, tenantId: r.tenantId } });
         } catch (e) { console.error(e); }
+        await bridgeAppointmentSet({
+          tenantId: r.tenantId, appointmentId: r.appointmentId, leadId: p.leadId, scheduledAt: startsAt,
+        });
         const [l] = await adminDb.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, p.leadId));
         await captureEmail(p.tenantId, l?.customerId ?? undefined, email);
         return { ok: true as const };
@@ -101,6 +121,7 @@ export async function confirmSlot(token: string, startsAt: string, endsAt: strin
     try {
       await inngest.send({ name: "appointment/booked", data: { appointmentId: appt.id, tenantId: p.tenantId } });
     } catch (e) { console.error(e); }
+    await bridgeAppointmentSet({ tenantId: p.tenantId, appointmentId: appt.id, jobId, scheduledAt: startsAt });
     await captureEmail(p.tenantId, customerId, email);
     return { ok: true as const };
   } catch (e) {

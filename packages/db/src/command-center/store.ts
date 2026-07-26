@@ -1,5 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { DailyMetrics, QueueItem } from "@savvy/command-center";
+import { escalationToQueueItem } from "@savvy/command-center";
+import type { EscalationRecord } from "@savvy/orchestrator";
 import { withTenant } from "../tenant";
 import { dailyMetrics, exceptionQueue } from "../schema/command-center";
 export { loadEventsForDay } from "./read";
@@ -37,6 +39,13 @@ export async function upsertQueueItem(tenantId: string, it: QueueItem): Promise<
       resolutionNote: it.resolutionNote, snoozeUntil: it.snoozeUntil ? new Date(it.snoozeUntil) : null,
     } });
   });
+}
+
+// Projects an orchestrator escalation into the exception_queue read-model,
+// idempotent on (tenant_id, escalation_key) via upsertQueueItem's ON CONFLICT.
+export async function recordException(tenantId: string, esc: EscalationRecord, at: Date = new Date()): Promise<void> {
+  const item = escalationToQueueItem(esc, at.toISOString());
+  await upsertQueueItem(tenantId, item);
 }
 
 export async function listQueue(tenantId: string): Promise<QueueItem[]> {
