@@ -168,5 +168,6 @@ export {
   resolveAttribution,
   upsertDailyByRep, upsertDailyBySource, upsertDailyByLocation,
   getDailyByRepRange, getDailyBySourceRange, getDailyByLocationRange,
-  rebuildDay,
+  rebuildDay, rebuildWeek,
 } from "./command-center/scorecard-store";
+export { DEFAULT_GOALS, getGoals, seedPlaceholderGoals } from "./command-center/scorecard-goals";

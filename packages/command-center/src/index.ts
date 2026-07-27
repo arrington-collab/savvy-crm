@@ -6,6 +6,7 @@ export * from "./projection";
 export * from "./weekly";
 export * from "./dimensional";
 export * from "./degradation";
+export * from "./scorecard";
 export * from "./comparison";
 export * from "./exception-queue";
 export * from "./exception-map";

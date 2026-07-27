@@ -134,14 +134,17 @@ describe("weekly_scorecard", () => {
   it("round-trips under withTenant and is isolated from other tenants (RLS)", async () => {
     const metricKey = `leads.new.${randomUUID().slice(0, 8)}`;
     const priorWeeks: (number | null)[] = [null, ...Array(11).fill(10), 42];
+    // D4-6: value/goal hold the full MetricValue / goal-config object, not a bare number.
+    const value = { status: "ok" as const, value: 42 };
+    const goal = { target: 40, direction: "gte" as const, isPlaceholder: true };
     await withTenant(tenantAId, async (tx) => {
       await tx.insert(weeklyScorecard).values({
         tenantId: tenantAId,
         weekStart: "2026-07-20",
         locationId: null,
         metricKey,
-        value: 42,
-        goal: 40,
+        value,
+        goal,
         onTrack: true,
         priorWeeks,
       });
@@ -151,7 +154,7 @@ describe("weekly_scorecard", () => {
       tx.select().from(weeklyScorecard).where(eq(weeklyScorecard.metricKey, metricKey))
     );
     expect(ownRows).toHaveLength(1);
-    expect(ownRows[0]).toMatchObject({ tenantId: tenantAId, value: 42, goal: 40, onTrack: true });
+    expect(ownRows[0]).toMatchObject({ tenantId: tenantAId, value, goal, onTrack: true });
     expect(ownRows[0]?.priorWeeks).toHaveLength(13);
 
     const otherTenantRows = await withTenant(tenantBId, (tx) =>
@@ -167,6 +170,9 @@ describe("weekly_scorecard company-level idempotency (NULLS NOT DISTINCT)", () =
     const weekStart = "2026-07-20";
     const priorWeeksV1: (number | null)[] = [null, ...Array(11).fill(10), 42];
     const priorWeeksV2: (number | null)[] = [null, ...Array(11).fill(10), 99];
+    const goal = { target: 40, direction: "gte" as const, isPlaceholder: true };
+    const valueV1 = { status: "ok" as const, value: 42 };
+    const valueV2 = { status: "ok" as const, value: 99 };
 
     await withTenant(tenantAId, async (tx) => {
       await tx
@@ -176,14 +182,14 @@ describe("weekly_scorecard company-level idempotency (NULLS NOT DISTINCT)", () =
           weekStart,
           locationId: null,
           metricKey,
-          value: 42,
-          goal: 40,
+          value: valueV1,
+          goal,
           onTrack: true,
           priorWeeks: priorWeeksV1,
         })
         .onConflictDoUpdate({
           target: [weeklyScorecard.tenantId, weeklyScorecard.weekStart, weeklyScorecard.locationId, weeklyScorecard.metricKey],
-          set: { value: 42, goal: 40, onTrack: true, priorWeeks: priorWeeksV1 },
+          set: { value: valueV1, goal, onTrack: true, priorWeeks: priorWeeksV1 },
         });
 
       // Re-run the identical rebuildWeek-style upsert for the same company-level
@@ -198,14 +204,14 @@ describe("weekly_scorecard company-level idempotency (NULLS NOT DISTINCT)", () =
           weekStart,
           locationId: null,
           metricKey,
-          value: 99,
-          goal: 40,
+          value: valueV2,
+          goal,
           onTrack: false,
           priorWeeks: priorWeeksV2,
         })
         .onConflictDoUpdate({
           target: [weeklyScorecard.tenantId, weeklyScorecard.weekStart, weeklyScorecard.locationId, weeklyScorecard.metricKey],
-          set: { value: 99, goal: 40, onTrack: false, priorWeeks: priorWeeksV2 },
+          set: { value: valueV2, goal, onTrack: false, priorWeeks: priorWeeksV2 },
         });
     });
 
@@ -214,7 +220,7 @@ describe("weekly_scorecard company-level idempotency (NULLS NOT DISTINCT)", () =
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ tenantId: tenantAId, value: 99, onTrack: false });
+    expect(rows[0]).toMatchObject({ tenantId: tenantAId, value: valueV2, onTrack: false });
   });
 });
 

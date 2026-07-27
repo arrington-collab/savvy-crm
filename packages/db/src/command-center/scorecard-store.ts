@@ -1,15 +1,23 @@
-import { and, eq, gte, lte, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, isNull } from "drizzle-orm";
 import type { DomainEvent } from "@savvy/orchestrator";
-import type { DailyMetricsByRep, DailyMetricsBySource, DailyMetricsByLocation } from "@savvy/command-center";
+import type {
+  DailyMetricsByRep, DailyMetricsBySource, DailyMetricsByLocation,
+  DailyMetrics, ScorecardRow, MetricValue,
+} from "@savvy/command-center";
 import {
   projectDayByRep, projectDayBySource, projectDayByLocation,
   UNASSIGNED_REP, UNKNOWN_SOURCE, UNKNOWN_LOCATION,
+  projectWeek, closeRateCohort, closeRateActivity, buildScorecard,
+  weekDates, trailingWeekStarts, denverWeekWindow, emptyMetrics, ok, isActive,
 } from "@savvy/command-center";
 import { withTenant, type Tx } from "../tenant";
-import { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation } from "../schema/scorecard";
+import { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation, weeklyScorecard } from "../schema/scorecard";
 import { job } from "../schema/jobs";
 import { lead } from "../schema/crm";
+import { orchestratorEvent } from "../schema/orchestrator";
 import { loadEventsForDay } from "./read";
+import { listQueue } from "./store";
+import { getGoals } from "./scorecard-goals";
 
 export { loadEventsForDay };
 
@@ -242,4 +250,220 @@ export async function rebuildDay(tenantId: string, businessDate: string): Promis
   await upsertDailyByRep(tenantId, byRep);
   await upsertDailyBySource(tenantId, bySource);
   await upsertDailyByLocation(tenantId, byLocation);
+}
+
+// --- D4-6: rebuildWeek ------------------------------------------------------
+
+/**
+ * Additively folds a day's per-location rows into one company-wide
+ * `DailyMetrics` for that date. The buckets `projectDayByLocation` produces
+ * are a strict partition of the day's events (§8.2), so this reproduces
+ * exactly what `projectDay(allEventsForDay, date)` would have computed —
+ * "roll from aggregates, not raw events" (design principle #2), reusing the
+ * dimensional rows `rebuildDay` already persisted instead of re-scanning
+ * `orchestrator_event` a second time for the same day.
+ */
+function foldLocationsForDay(rows: { metrics: DailyMetrics }[], businessDate: string): DailyMetrics {
+  const m = emptyMetrics(businessDate);
+  for (const { metrics: d } of rows) {
+    m.topLine.leadsTotal += d.topLine.leadsTotal;
+    for (const [source, n] of Object.entries(d.topLine.leadsBySource)) {
+      m.topLine.leadsBySource[source] = (m.topLine.leadsBySource[source] ?? 0) + n;
+    }
+    m.topLine.appointmentsSet += d.topLine.appointmentsSet;
+    m.topLine.appointmentsNoShow += d.topLine.appointmentsNoShow;
+    m.topLine.contractsSigned += d.topLine.contractsSigned;
+    m.topLine.contractValueCents += d.topLine.contractValueCents;
+    m.topLine.jobsCompleted += d.topLine.jobsCompleted;
+    m.money.invoicedCents += d.money.invoicedCents;
+    m.money.cashCollectedCents += d.money.cashCollectedCents;
+    m.money.supplementsApprovedCents += d.money.supplementsApprovedCents;
+    m.money.arPastDue.d30 += d.money.arPastDue.d30;
+    m.money.arPastDue.d60 += d.money.arPastDue.d60;
+    m.money.arPastDue.d90 += d.money.arPastDue.d90;
+    m.quality.reviewsPosted += d.quality.reviewsPosted;
+    m.production.estimatesApproved += d.production.estimatesApproved;
+    m.production.materialOrders += d.production.materialOrders;
+  }
+  return m;
+}
+
+interface SignedContractRow { leadId: string; signedAt: Date }
+interface LeadIdRow { id: string; customerId: string | null }
+
+/**
+ * Resolves `contract.signed` events — ALL TIME, not just this week; the
+ * cohort close rate (A.3) needs "signed as of now" for leads created in a
+ * past week — to a `leadId`, via the same honesty-gated job/customer join
+ * `resolveAttribution` uses above (job.leadId direct path; job.customerId /
+ * event.customerId fallback ONLY when the customer has exactly one lead).
+ * A contract that can't be traced to a single lead is simply excluded from
+ * the cohort's numerator — never guessed.
+ */
+async function resolveContractSignings(tenantId: string): Promise<SignedContractRow[]> {
+  return withTenant(tenantId, async (tx) => {
+    const events = await tx.select({ payload: orchestratorEvent.payload, createdAt: orchestratorEvent.createdAt })
+      .from(orchestratorEvent)
+      .where(and(
+        eq(orchestratorEvent.tenantId, tenantId),
+        eq(orchestratorEvent.eventType, "contract.signed"),
+        eq(orchestratorEvent.outcome, "received"),
+      ));
+    if (events.length === 0) return [];
+
+    const jobIds = [...new Set(events.map((e) => (e.payload as Record<string, unknown>).jobId).filter((v): v is string => typeof v === "string"))];
+    const jobRows: JobRow[] = jobIds.length
+      ? await tx.select({ id: job.id, leadId: job.leadId, customerId: job.customerId }).from(job)
+          .where(and(eq(job.tenantId, tenantId), inArray(job.id, jobIds)))
+      : [];
+    const jobById = new Map(jobRows.map((j) => [j.id, j]));
+
+    const customerIds = new Set<string>();
+    for (const e of events) {
+      const p = e.payload as Record<string, unknown>;
+      const jobId = typeof p.jobId === "string" ? p.jobId : undefined;
+      const j = jobId ? jobById.get(jobId) : undefined;
+      if (j?.leadId) continue;
+      const customerId = typeof p.customerId === "string" ? p.customerId : j?.customerId;
+      if (customerId) customerIds.add(customerId);
+    }
+    const customerLeads: LeadIdRow[] = customerIds.size
+      ? await tx.select({ id: lead.id, customerId: lead.customerId }).from(lead)
+          .where(and(eq(lead.tenantId, tenantId), inArray(lead.customerId, [...customerIds])))
+      : [];
+    const leadsByCustomer = new Map<string, string[]>();
+    for (const l of customerLeads) {
+      if (!l.customerId) continue;
+      const arr = leadsByCustomer.get(l.customerId) ?? [];
+      arr.push(l.id);
+      leadsByCustomer.set(l.customerId, arr);
+    }
+
+    const out: SignedContractRow[] = [];
+    for (const e of events) {
+      const p = e.payload as Record<string, unknown>;
+      const jobId = typeof p.jobId === "string" ? p.jobId : undefined;
+      const j = jobId ? jobById.get(jobId) : undefined;
+      let leadId: string | undefined;
+      if (j?.leadId) {
+        leadId = j.leadId;
+      } else {
+        const customerId = typeof p.customerId === "string" ? p.customerId : j?.customerId;
+        const candidates = customerId ? leadsByCustomer.get(customerId) : undefined;
+        // Honesty guard, same as resolveAttribution: only attribute when
+        // exactly one lead exists for the customer.
+        if (candidates && candidates.length === 1) leadId = candidates[0];
+      }
+      if (leadId) out.push({ leadId, signedAt: e.createdAt });
+    }
+    return out;
+  });
+}
+
+/**
+ * Rebuilds one week's EOS scorecard from the event log (design principle
+ * "Replayable"): ensure the 7 days' dimensional rows exist (`rebuildDay`),
+ * fold them + the week's raw events into a `WeeklyFold` (`projectWeek`),
+ * resolve the two close-rate flavors + `exceptions.open` (real DB reads
+ * `buildScorecard` can't do itself, since it stays pure), assemble each
+ * measurable's 13-week trailing history from prior `weekly_scorecard` rows,
+ * then explode the resulting `ScorecardRow[]` into one `weekly_scorecard`
+ * row per metricKey.
+ *
+ * Idempotent + replayable (§8.9/§8.10): every step is a deterministic
+ * function of already-persisted state plus the (unchanged) event log, and
+ * the upsert targets the `(tenantId, weekStart, locationId, metricKey)`
+ * unique index (NULLS NOT DISTINCT) — re-running for the same week updates
+ * the same 15 rows in place instead of duplicating them.
+ *
+ * Company-wide only for now (`locationId = null`) — per-location scorecards
+ * are the empire-phase extension the design doc calls out (§9); the
+ * dimension is already on the table, just not driven here yet.
+ */
+export async function rebuildWeek(tenantId: string, weekStart: string): Promise<void> {
+  const dates = weekDates(weekStart);
+  for (const date of dates) {
+    await rebuildDay(tenantId, date);
+  }
+
+  const byLocationRows = await getDailyByLocationRange(tenantId, dates[0]!, dates[6]!);
+  const dailyRows: DailyMetrics[] = dates.map((date) =>
+    foldLocationsForDay(byLocationRows.filter((r) => r.businessDate === date), date));
+
+  const weekEventsByDay = await Promise.all(dates.map((d) => loadEventsForDay(tenantId, d)));
+  const weekEvents: DomainEvent[] = weekEventsByDay.flat();
+
+  const weekly = projectWeek({ dailyRows, weekEvents, weekStart });
+
+  const activity = closeRateActivity(weekly.topLine.contractsSigned, weekly.topLine.leadsTotal);
+  const closeRateActivityValue: MetricValue = ok(activity.rate);
+
+  const { startUtc, endUtc } = denverWeekWindow(weekStart);
+  const leadsCreatedInWeek = await withTenant(tenantId, (tx) =>
+    tx.select({ leadId: lead.id, createdAt: lead.createdAt }).from(lead)
+      .where(and(eq(lead.tenantId, tenantId), gte(lead.createdAt, startUtc), lte(lead.createdAt, endUtc))));
+  const contractsAsOfNow = await resolveContractSignings(tenantId);
+  const cohort = closeRateCohort({
+    leadsCreatedInWeek: leadsCreatedInWeek.map((l) => ({ leadId: l.leadId, createdAt: l.createdAt })),
+    contractsAsOfNow,
+    now: new Date(),
+    weekStart,
+  });
+  const closeRateCohortValue: MetricValue = ok(cohort.rate);
+  // cohort.maturing / cohort.cohortAgeDays (the "still maturing" caveat A.3
+  // wants surfaced) don't fit MetricValue's ok/pending shape — that's a
+  // render-layer (D4-7) concern, noted here so it isn't silently lost.
+
+  const queueItems = await listQueue(tenantId);
+  const now = new Date();
+  const exceptionsOpenValue: MetricValue = ok(queueItems.filter((it) => isActive(it, now)).length);
+
+  const goals = await getGoals(tenantId, null);
+
+  // 13-week trailing window (§8.4): trailingWeekStarts includes the current
+  // week as its LAST entry; the other 12 are what we look up in
+  // weekly_scorecard (the current week's own row doesn't exist yet this run).
+  const trailing = trailingWeekStarts(weekStart, 13);
+  const priorStarts = trailing.slice(0, -1);
+  const priorRows = priorStarts.length
+    ? await withTenant(tenantId, (tx) =>
+        tx.select().from(weeklyScorecard).where(and(
+          eq(weeklyScorecard.tenantId, tenantId),
+          isNull(weeklyScorecard.locationId),
+          inArray(weeklyScorecard.weekStart, priorStarts),
+        )))
+    : [];
+  const priorByMetric = new Map<string, Map<string, number | null>>();
+  for (const r of priorRows) {
+    const v = r.value as MetricValue | null;
+    const num = v && v.status === "ok" ? v.value : null;
+    let byWeek = priorByMetric.get(r.metricKey);
+    if (!byWeek) { byWeek = new Map(); priorByMetric.set(r.metricKey, byWeek); }
+    byWeek.set(r.weekStart, num);
+  }
+  const priorWeeksInput: Record<string, (number | null)[]> = {};
+  for (const metricKey of priorByMetric.keys()) {
+    priorWeeksInput[metricKey] = priorStarts.map((ws) => priorByMetric.get(metricKey)!.get(ws) ?? null);
+  }
+
+  const rows: ScorecardRow[] = buildScorecard({
+    weekly,
+    priorWeeks: priorWeeksInput,
+    goals,
+    closeRateCohort: closeRateCohortValue,
+    closeRateActivity: closeRateActivityValue,
+    exceptionsOpen: exceptionsOpenValue,
+  });
+
+  await withTenant(tenantId, async (tx) => {
+    for (const row of rows) {
+      await tx.insert(weeklyScorecard).values({
+        tenantId, weekStart, locationId: null, metricKey: row.metricKey,
+        value: row.value, goal: row.goal, onTrack: row.onTrack, priorWeeks: row.priorWeeks,
+      }).onConflictDoUpdate({
+        target: [weeklyScorecard.tenantId, weeklyScorecard.weekStart, weeklyScorecard.locationId, weeklyScorecard.metricKey],
+        set: { value: row.value, goal: row.goal, onTrack: row.onTrack, priorWeeks: row.priorWeeks },
+      });
+    }
+  });
 }

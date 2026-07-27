@@ -19,16 +19,17 @@
  */
 import { it, expect, beforeAll, afterAll, describe } from "vitest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { makeEvent } from "@savvy/orchestrator";
-import { projectDay } from "@savvy/command-center";
+import { projectDay, weekStartOf } from "@savvy/command-center";
+import { addDays } from "@savvy/core";
 import { adminDb, tenant } from "../index";
 import { user, customer, property, lead } from "../schema/index";
 import { job } from "../schema/jobs";
 import { orchestratorEvent } from "../schema/orchestrator";
-import { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation } from "../schema/scorecard";
+import { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation, weeklyScorecard } from "../schema/scorecard";
 import {
-  loadEventsForDay, rebuildDay, resolveAttribution,
+  loadEventsForDay, rebuildDay, resolveAttribution, rebuildWeek,
   getDailyByRepRange, getDailyBySourceRange, getDailyByLocationRange,
 } from "./scorecard-store";
 import { withTenant } from "../tenant";
@@ -206,5 +207,131 @@ describe("rebuildDay", () => {
     const bySource = await getDailyBySourceRange(tenantId, D, D);
     const sourceContractsSum = bySource.reduce((acc, r) => acc + r.contracts, 0);
     expect(sourceContractsSum).toBe(company.topLine.contractsSigned);
+  });
+});
+
+/**
+ * D4-6 gate: rebuildWeek against a real Postgres. Own tenant, own event
+ * seed — a `lead.created` event stream across two consecutive weeks is
+ * enough to exercise idempotency, replay, and the 13-week trailing-history
+ * shift without needing the full close-rate/exceptions machinery (those are
+ * smoke-checked, not exhaustively re-verified here — they're exercised at
+ * the DB-join level by `resolveAttribution`'s tests above, and at the
+ * pure-function level by @savvy/command-center's scorecard.test.ts).
+ */
+describe("rebuildWeek", () => {
+  let wTenantId: string;
+  const week0 = weekStartOf("2026-05-04"); // an arbitrary Monday, derived (not hand-computed) to avoid off-by-one day-of-week bugs
+  const week1 = addDays(week0, 7);
+
+  function seedTime(businessDate: string, h = 1): Date {
+    // Same convention as the `at()` helper above: 6:00Z lands at 00:00 MDT
+    // (Denver, DST). Both week0 and week1 fall inside Mar-Nov DST.
+    return new Date(Date.parse(`${businessDate}T00:00:00.000Z`) + (6 + h) * 3_600_000);
+  }
+
+  async function seedLeadCreated(occurredAt: Date, source: string, idemSuffix: string) {
+    const e = makeEvent({
+      type: "lead.created", source: "savvy", tenantId: wTenantId, correlationId: idemSuffix,
+      idempotencyKey: `lead.created:${idemSuffix}`, occurredAt: occurredAt.toISOString(),
+      payload: { leadId: randomUUID(), customerId: randomUUID(), source },
+    });
+    await adminDb.insert(orchestratorEvent).values({
+      tenantId: wTenantId, eventId: e.id, eventType: e.type, version: e.version, source: e.source,
+      correlationId: e.correlationId, idempotencyKey: e.idempotencyKey, agent: "system",
+      outcome: "received", emitted: [], payload: e.payload as Record<string, unknown>, createdAt: occurredAt,
+    });
+  }
+
+  async function weeklyRowsFor(weekStart: string) {
+    return adminDb.select().from(weeklyScorecard).where(and(
+      eq(weeklyScorecard.tenantId, wTenantId), eq(weeklyScorecard.weekStart, weekStart),
+    ));
+  }
+
+  beforeAll(async () => {
+    wTenantId = randomUUID();
+    await adminDb.insert(tenant).values({ id: wTenantId, name: "RebuildWeek-Test", publicKey: `rw-${wTenantId.slice(0, 8)}` });
+
+    // week0: 2 leads created on its Monday.
+    await seedLeadCreated(seedTime(week0), "web", "w0-lead-1");
+    await seedLeadCreated(seedTime(week0), "canvass", "w0-lead-2");
+  });
+
+  afterAll(async () => {
+    await adminDb.delete(weeklyScorecard).where(eq(weeklyScorecard.tenantId, wTenantId));
+    await adminDb.delete(dailyMetricsByRep).where(eq(dailyMetricsByRep.tenantId, wTenantId));
+    await adminDb.delete(dailyMetricsBySource).where(eq(dailyMetricsBySource.tenantId, wTenantId));
+    await adminDb.delete(dailyMetricsByLocation).where(eq(dailyMetricsByLocation.tenantId, wTenantId));
+    await adminDb.delete(orchestratorEvent).where(eq(orchestratorEvent.tenantId, wTenantId));
+    await adminDb.delete(tenant).where(eq(tenant.id, wTenantId));
+  });
+
+  it("rebuilds week0: one weekly_scorecard row per measurable (~10-15), leads.new = 2, priorWeeks = 12 nulls + current", async () => {
+    await rebuildWeek(wTenantId, week0);
+
+    const rows = await weeklyRowsFor(week0);
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+
+    const leadsRow = rows.find((r) => r.metricKey === "leads.new")!;
+    expect(leadsRow.value).toEqual({ status: "ok", value: 2 });
+    expect(leadsRow.priorWeeks).toHaveLength(13);
+    expect(leadsRow.priorWeeks.slice(0, 12)).toEqual(Array(12).fill(null)); // no prior weeks exist yet
+    expect(leadsRow.priorWeeks[12]).toBe(2);
+
+    // Every row carries the placeholder-goal flag honestly (none of these are real Brett/Scott targets yet).
+    expect(rows.every((r) => r.goal !== null)).toBe(true);
+  });
+
+  it("idempotency (§8.9) + replay (§8.10): re-running rebuildWeek with no new events reproduces byte-identical rows, same row count", async () => {
+    const before = await weeklyRowsFor(week0);
+
+    await rebuildWeek(wTenantId, week0);
+
+    const after = await weeklyRowsFor(week0);
+    expect(after).toHaveLength(before.length);
+
+    const byKey = (rows: typeof before) => new Map(rows.map((r) => [r.metricKey, r]));
+    const b = byKey(before);
+    const a = byKey(after);
+    for (const [metricKey, row] of b) {
+      const other = a.get(metricKey)!;
+      expect(other.value).toEqual(row.value);
+      expect(other.goal).toEqual(row.goal);
+      expect(other.onTrack).toBe(row.onTrack);
+      expect(other.priorWeeks).toEqual(row.priorWeeks);
+    }
+  });
+
+  it("13-week window (§8.4): a new week (week1) carries week0 forward as its most recent prior entry, and week0's own row is untouched (shifts without corrupting history)", async () => {
+    await seedLeadCreated(seedTime(week1), "web", "w1-lead-1");
+    await seedLeadCreated(seedTime(week1), "web", "w1-lead-2");
+    await seedLeadCreated(seedTime(week1), "canvass", "w1-lead-3");
+
+    await rebuildWeek(wTenantId, week1);
+
+    const week1Rows = await weeklyRowsFor(week1);
+    const leadsRow1 = week1Rows.find((r) => r.metricKey === "leads.new")!;
+    expect(leadsRow1.value).toEqual({ status: "ok", value: 3 });
+    expect(leadsRow1.priorWeeks).toHaveLength(13);
+    // trailingWeekStarts(week1, 13) oldest->newest ends [..., week0, week1] ->
+    // week0 lands at index 11 (second-to-last), week1's own value at index 12.
+    expect(leadsRow1.priorWeeks[11]).toBe(2);
+    expect(leadsRow1.priorWeeks[12]).toBe(3);
+    expect(leadsRow1.priorWeeks.slice(0, 11)).toEqual(Array(11).fill(null));
+
+    // week0's own row must be untouched by rebuilding week1 (no corruption of history).
+    const week0RowsAfter = await weeklyRowsFor(week0);
+    const leadsRow0After = week0RowsAfter.find((r) => r.metricKey === "leads.new")!;
+    expect(leadsRow0After.value).toEqual({ status: "ok", value: 2 });
+    expect(leadsRow0After.priorWeeks[12]).toBe(2);
+  });
+
+  it("on/off-track evaluates against the configured (placeholder) goal", async () => {
+    const week1Rows = await weeklyRowsFor(week1);
+    const leadsRow = week1Rows.find((r) => r.metricKey === "leads.new")!;
+    // DEFAULT_GOALS["leads.new"] = { target: 20, direction: "gte" } -> 3 leads is off-track.
+    expect(leadsRow.onTrack).toBe(false);
+    expect(leadsRow.goal).toMatchObject({ direction: "gte", isPlaceholder: true });
   });
 });

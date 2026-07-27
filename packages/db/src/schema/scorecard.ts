@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, bigint, real, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
-import type { DailyMetrics } from "@savvy/command-center";
+import type { DailyMetrics, MetricValue } from "@savvy/command-center";
 
 // Day 4 EOS weekly scorecard — 5 sibling tables over daily_metrics.
 // ALL ADDITIVE: daily_metrics and exception_queue (command-center.ts) are
@@ -90,8 +90,16 @@ export const weeklyScorecard = pgTable("weekly_scorecard", {
   weekStart: text("week_start").notNull(), // Monday YYYY-MM-DD, Denver
   locationId: uuid("location_id"), // null = company-wide rollup
   metricKey: text("metric_key").notNull(),
-  value: jsonb("value").$type<number | null>(),
-  goal: jsonb("goal").$type<number | null>(),
+  // D4-6: holds the FULL `MetricValue` ({status:"ok",value} | {status:"pending",reason}),
+  // not a bare number — jsonb accepts either shape at the DB level (no
+  // migration; this is a TS-side type annotation change only), and storing
+  // the whole MetricValue is what preserves the pending/ok distinction (§7)
+  // through persistence instead of collapsing "unknown" into null/0.
+  value: jsonb("value").$type<MetricValue | null>(),
+  // The resolved goal actually used to compute `onTrack` for this row (target
+  // + direction + whether it was a placeholder), not just the target number —
+  // so a stored row is self-describing without a second lookup.
+  goal: jsonb("goal").$type<{ target: number; direction: "gte" | "lte"; isPlaceholder: boolean } | null>(),
   onTrack: boolean("on_track"),
   priorWeeks: jsonb("prior_weeks").$type<(number | null)[]>().notNull(), // oldest->newest, 13 entries incl. current week
   createdAt: createdAt(),
