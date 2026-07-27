@@ -3,6 +3,8 @@ export * from "./week-window";
 export * from "./metrics";
 export * from "./weekly-metrics";
 export * from "./projection";
+export * from "./dimensional";
+export * from "./degradation";
 export * from "./comparison";
 export * from "./exception-queue";
 export * from "./exception-map";
