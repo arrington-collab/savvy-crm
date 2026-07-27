@@ -8,7 +8,7 @@ import {
   projectDayByRep, projectDayBySource, projectDayByLocation,
   UNASSIGNED_REP, UNKNOWN_SOURCE, UNKNOWN_LOCATION,
   projectWeek, closeRateCohort, closeRateActivity, buildScorecard,
-  weekDates, trailingWeekStarts, denverWeekWindow, emptyMetrics, ok, isActive,
+  weekDates, trailingWeekStarts, denverWeekWindow, emptyMetrics, ok, pending, isActive,
 } from "@savvy/command-center";
 import { withTenant, type Tx } from "../tenant";
 import { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation, weeklyScorecard } from "../schema/scorecard";
@@ -395,8 +395,15 @@ export async function rebuildWeek(tenantId: string, weekStart: string): Promise<
 
   const weekly = projectWeek({ dailyRows, weekEvents, weekStart });
 
+  // Honesty guard (matches noShowRate's pattern below): a zero denominator
+  // means "not computable this week", not a real 0% — closeRateActivity /
+  // closeRateCohort fall back to `rate: 0` internally to avoid NaN, but
+  // wrapping that in ok() would fabricate an alarming, off-track-looking
+  // number (and poison the persisted 13-week sparkline with a fake data
+  // point). Degrade to pending instead when there were no leads this week.
   const activity = closeRateActivity(weekly.topLine.contractsSigned, weekly.topLine.leadsTotal);
-  const closeRateActivityValue: MetricValue = ok(activity.rate);
+  const closeRateActivityValue: MetricValue =
+    weekly.topLine.leadsTotal === 0 ? pending("no leads created this week") : ok(activity.rate);
 
   const { startUtc, endUtc } = denverWeekWindow(weekStart);
   const leadsCreatedInWeek = await withTenant(tenantId, (tx) =>
@@ -409,7 +416,8 @@ export async function rebuildWeek(tenantId: string, weekStart: string): Promise<
     now: new Date(),
     weekStart,
   });
-  const closeRateCohortValue: MetricValue = ok(cohort.rate);
+  const closeRateCohortValue: MetricValue =
+    leadsCreatedInWeek.length === 0 ? pending("no leads created this week") : ok(cohort.rate);
   // cohort.maturing / cohort.cohortAgeDays (the "still maturing" caveat A.3
   // wants surfaced) don't fit MetricValue's ok/pending shape — that's a
   // render-layer (D4-7) concern, noted here so it isn't silently lost.

@@ -243,6 +243,22 @@ describe("rebuildWeek", () => {
     });
   }
 
+  async function seedContractSigned(occurredAt: Date, idemSuffix: string) {
+    const e = makeEvent({
+      type: "contract.signed", source: "savvy", tenantId: wTenantId, correlationId: idemSuffix,
+      idempotencyKey: `contract.signed:${idemSuffix}`, occurredAt: occurredAt.toISOString(),
+      // No matching job/customer/lead rows exist for these ids -> the contract
+      // stays unattributed to any lead (resolveContractSignings excludes it),
+      // which is fine here: this test only needs the WEEK to have 0 leads.
+      payload: { jobId: randomUUID(), customerId: randomUUID(), contractValueCents: 100_000 },
+    });
+    await adminDb.insert(orchestratorEvent).values({
+      tenantId: wTenantId, eventId: e.id, eventType: e.type, version: e.version, source: e.source,
+      correlationId: e.correlationId, idempotencyKey: e.idempotencyKey, agent: "system",
+      outcome: "received", emitted: [], payload: e.payload as Record<string, unknown>, createdAt: occurredAt,
+    });
+  }
+
   async function weeklyRowsFor(weekStart: string) {
     return adminDb.select().from(weeklyScorecard).where(and(
       eq(weeklyScorecard.tenantId, wTenantId), eq(weeklyScorecard.weekStart, weekStart),
@@ -333,5 +349,27 @@ describe("rebuildWeek", () => {
     // DEFAULT_GOALS["leads.new"] = { target: 20, direction: "gte" } -> 3 leads is off-track.
     expect(leadsRow.onTrack).toBe(false);
     expect(leadsRow.goal).toMatchObject({ direction: "gte", isPlaceholder: true });
+  });
+
+  it("honesty guard: a zero-lead week with a contract signed degrades close_rate.activity/cohort to pending, never a fake ok(0)", async () => {
+    const week2 = addDays(week1, 7);
+    // 0 lead.created events this week, but >=1 contract.signed -> a naive
+    // contracts/leads division would be 0/0, which closeRateActivity /
+    // closeRateCohort guard internally to `rate: 0` (to avoid NaN). Without
+    // the rebuildWeek-level pending guard, that 0 gets wrapped in ok(...) and
+    // reads as a real, alarming "0% close rate" for a week where the metric
+    // simply isn't computable.
+    await seedContractSigned(seedTime(week2), "w2-contract-1");
+
+    await rebuildWeek(wTenantId, week2);
+
+    const rows = await weeklyRowsFor(week2);
+    const activityRow = rows.find((r) => r.metricKey === "close_rate.activity")!;
+    const cohortRow = rows.find((r) => r.metricKey === "close_rate.cohort")!;
+
+    expect(activityRow.value).toMatchObject({ status: "pending" });
+    expect((activityRow.value as { status: string }).status).not.toBe("ok");
+    expect(cohortRow.value).toMatchObject({ status: "pending" });
+    expect((cohortRow.value as { status: string }).status).not.toBe("ok");
   });
 });
