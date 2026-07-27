@@ -45,8 +45,9 @@ export async function searchJobsAction(q: string): Promise<SchedulableJob[]> {
 async function emit(
   name: "appointment/changed",
   data: { appointmentId: string; tenantId: string; reason: "rescheduled" | "reassigned" | "canceled" | "done" | "no_show" },
+  opts?: { id?: string },
 ) {
-  try { await inngest.send({ name, data }); } catch (e) { console.error("inngest.send failed", e); }
+  try { await inngest.send({ name, data, ...(opts?.id ? { id: opts.id } : {}) }); } catch (e) { console.error("inngest.send failed", e); }
 }
 
 export async function rescheduleAction(
@@ -80,7 +81,15 @@ export async function markStatusAction(
 ): Promise<{ ok: true }> {
   const tenantId = await getTenantId();
   await setAppointmentStatus({ tenantId, appointmentId, status });
-  await emit("appointment/changed", { appointmentId, tenantId, reason: status });
+  // no_show gets a stable event id (Day 3 Slice C4): dedupes a double-click /
+  // retry of the same no-show mark so the reschedule-outreach handler
+  // (no-show-reschedule.ts) fires at most once per appointment. Other reasons
+  // are unaffected (default Inngest-generated id, as before).
+  await emit(
+    "appointment/changed",
+    { appointmentId, tenantId, reason: status },
+    status === "no_show" ? { id: `appt-noshow-${appointmentId}` } : undefined,
+  );
   // A completed inspection (with a landed measurement) triggers the lead's draft
   // estimate; the handler no-ops for non-inspection / job-scoped appointments.
   if (status === "done") {

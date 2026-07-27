@@ -5,6 +5,10 @@ import type { CanvassContract } from "@savvy/core";
 type Events = {
   "lead/created": { data: { leadId: string; tenantId: string } };
   "demo/ping": { data: { msg: string } };
+  // Day 3 Slice C: fired by the Twilio voice-status webhook on a no-answer/
+  // busy/failed call. The lead is already created (missed_call source) by the
+  // time this fires; C3's durable text-back handler consumes it.
+  "call/missed": { data: { tenantId: string; leadId: string; fromNumber: string; toNumber: string } };
   "job/stage-changed": { data: { jobId: string; tenantId: string; toStage: string; byAgent?: string } };
   "drip/enroll": { data: { tenantId: string; dripKey: string; customerId: string; jobId?: string; leadId?: string } };
   "drip/stop": { data: { tenantId: string; customerId: string; reason: "reply" | "converted" | "opted_out" | "manual" } };
