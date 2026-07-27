@@ -106,7 +106,7 @@ export default async function RepsPage() {
                 <th className="py-1">Rank</th>
                 <th>Rep</th>
                 <th>Leads</th>
-                <th>Median speed</th>
+                <th>Median speed (approx.)</th>
                 <th>% under SLA</th>
                 <th>Appts set</th>
                 <th>No-show rate</th>
@@ -156,6 +156,14 @@ export default async function RepsPage() {
           </table>
         )}
       </Card>
+
+      {ranked.length > 0 && (
+        <p className="text-xs" style={{ color: "var(--text-faint)" }}>
+          Median speed is an <span className="italic">approximation</span>: a firstTouches-weighted average of each
+          day&rsquo;s median response time, not the true median across the whole week&rsquo;s raw response times —
+          the daily rows store only a per-day median, not individual latencies.
+        </p>
+      )}
     </div>
   );
 }
