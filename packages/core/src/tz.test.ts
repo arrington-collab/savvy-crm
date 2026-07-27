@@ -1,5 +1,5 @@
 import { test, expect, describe, it } from "vitest";
-import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate, addCalendarDays, startOfLocalDayInTimeZone, dateKeyInTimeZone } from "./tz";
+import { hourInTimeZone, tenantsDueAtHour, dayOfMonthInTimeZone, isoWeekdayInTimeZone, priorMonthKeyInTimeZone, instantAtLocalHourOnDayOf, instantAtLocalTimeOnDate, addCalendarDays, startOfLocalDayInTimeZone, dateKeyInTimeZone } from "./tz";
 
 describe("addCalendarDays", () => {
   it("adds days with month + year wrap and negative steps", () => {
@@ -46,6 +46,20 @@ test("tenantsDueAtHour selects only tenants whose local hour matches (one hourly
 test("dayOfMonthInTimeZone returns the local day, respecting the midnight boundary", () => {
   expect(dayOfMonthInTimeZone(new Date("2026-07-01T13:00:00Z"), "America/Phoenix")).toBe(1); // 06:00 Jul 1 local
   expect(dayOfMonthInTimeZone(new Date("2026-07-01T06:00:00Z"), "America/Phoenix")).toBe(30); // 23:00 Jun 30 local
+});
+
+describe("isoWeekdayInTimeZone", () => {
+  it("returns the ISO weekday (1=Mon..7=Sun) for the given IANA zone", () => {
+    // 2026-07-06 is a Monday; 13:00Z is 06:00 Phoenix (UTC-7), same local day.
+    expect(isoWeekdayInTimeZone(new Date("2026-07-06T13:00:00Z"), "America/Phoenix")).toBe(1);
+    // 2026-07-05 is a Sunday.
+    expect(isoWeekdayInTimeZone(new Date("2026-07-05T13:00:00Z"), "America/Phoenix")).toBe(7);
+  });
+
+  it("respects the local-day boundary, not the UTC day", () => {
+    // 05:00Z Monday July 6 is still 22:00 Sunday July 5 in Phoenix (UTC-7).
+    expect(isoWeekdayInTimeZone(new Date("2026-07-06T05:00:00Z"), "America/Phoenix")).toBe(7);
+  });
 });
 
 test("priorMonthKeyInTimeZone keys off the tenant's LOCAL month, not UTC", () => {

@@ -138,6 +138,9 @@ importers:
       '@savvy/ai':
         specifier: workspace:*
         version: link:../ai
+      '@savvy/command-center':
+        specifier: workspace:*
+        version: link:../command-center
       '@savvy/core':
         specifier: workspace:*
         version: link:../core
