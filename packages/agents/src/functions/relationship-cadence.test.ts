@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  adminDb, tenant, customer, property, job, communication, relationshipTouch, relationshipEnrollment, eq, and,
+  adminDb, tenant, customer, property, job, communication, relationshipTouch, relationshipEnrollment, eq, and, suppress,
 } from "@savvy/db";
 import { sweepTenantRelationshipCadence } from "./relationship-cadence.js";
 
@@ -13,7 +13,8 @@ async function seedCompletedJob(opts: { demo?: boolean; completedDaysAgo?: numbe
     settings: { homeowner: { quietHours: { startHour: 0, endHour: 0 } } } as never,
   }).returning();
   const tenantId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Wanda Warmly", phone: "+16025550888" }).returning();
+  // Stamp smsConsentAt so guardedSms admits the happy-path send.
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Wanda Warmly", phone: "+16025550888", smsConsentAt: new Date("2026-01-01") }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "9 Cadence Cv" }).returning();
   const completedAt = new Date(Date.now() - (opts.completedDaysAgo ?? 31) * DAY);
   const [j] = await adminDb.insert(job).values({
@@ -57,6 +58,59 @@ describe("sweepTenantRelationshipCadence", () => {
     const again = await sweepTenantRelationshipCadence(tenantId, deps as never);
     expect(again.sent).toBe(0);
     expect(deps.sent).toHaveLength(1);
+  });
+
+  // Compliance follow-up: sweepTenantRelationshipCadence previously called
+  // sender.sendSms directly, bypassing the global contact_suppression list.
+  // Proves guardedSms is wired: a consented, non-opted-out homeowner who is
+  // globally suppressed is NOT texted, but the touch is still marked sent
+  // (durable — a suppressed customer must not be retried forever) with a
+  // comm row whose body reflects the block, excluded from the sent count.
+  it("globally suppressed homeowner: sender NOT called, touch still marked sent, comm body reflects block", async () => {
+    const { tenantId, customerId, jobId } = await seedCompletedJob({ completedDaysAgo: 31 });
+    await suppress({ tenantId, phoneE164: "+16025550888", channel: "sms", reason: "stop", source: "test" });
+    const deps = fakeSmsDeps();
+
+    const first = await sweepTenantRelationshipCadence(tenantId, deps as never);
+    expect(first.enrolled).toBe(1);
+    expect(first.sent).toBe(0);
+    expect(deps.sent).toHaveLength(0);
+
+    // Marked sent so it's never retried, even though the guard blocked it.
+    const [touch] = await adminDb.select().from(relationshipTouch)
+      .where(eq(relationshipTouch.sourceRef, `${jobId}:checkin_30d`));
+    expect(touch!.sentAt).toBeInstanceOf(Date);
+
+    const comms = await adminDb.select().from(communication)
+      .where(and(eq(communication.customerId, customerId), eq(communication.channel, "sms")));
+    expect(comms).toHaveLength(1);
+    expect(comms[0]!.body).toContain("blocked");
+
+    // A later sweep never retries the blocked touch.
+    const again = await sweepTenantRelationshipCadence(tenantId, deps as never);
+    expect(again.sent).toBe(0);
+    expect(deps.sent).toHaveLength(0);
+  });
+
+  // A THROWN error (transient DB blip / provider 5xx) must NOT be treated as a
+  // blocked verdict: no markTouchSent, no real-body comm row, no false sent
+  // count — the touch stays due so the next sweep retries.
+  it("guardedSms throw: touch NOT marked sent, no real-body comm row — a later sweep retries", async () => {
+    const { tenantId, jobId } = await seedCompletedJob({ completedDaysAgo: 31 });
+    const throwingDeps = { getTenantSms: (async () => { throw new Error("provider 5xx"); }) as never };
+
+    const first = await sweepTenantRelationshipCadence(tenantId, throwingDeps);
+    expect(first.sent).toBe(0);
+
+    const [touch] = await adminDb.select().from(relationshipTouch)
+      .where(eq(relationshipTouch.sourceRef, `${jobId}:checkin_30d`));
+    expect(touch!.sentAt).toBeNull();
+
+    const deps = fakeSmsDeps();
+    const retry = await sweepTenantRelationshipCadence(tenantId, deps as never);
+    expect(retry.sent).toBe(1);
+    expect(deps.sent).toHaveLength(1);
+    expect(deps.sent[0]!.to).toBe("+16025550888");
   });
 
   it("demo tenants are hard-muted: no enrollment, no sends", async () => {

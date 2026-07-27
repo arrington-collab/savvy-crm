@@ -149,7 +149,7 @@ export async function holdDuePrintTouches(tenantId: string, now: Date = new Date
 
 export type DueCadenceTouch = {
   touchId: string; customerId: string; program: string; sourceRef: string | null;
-  name: string; phone: string;
+  name: string; phone: string; smsConsentAt: Date | null; emailOptOut: boolean;
 };
 
 /** Due standing-cadence TEXT touches with reachable, un-held customers — the
@@ -160,6 +160,7 @@ export async function dueCadenceTextTouches(tenantId: string, now: Date = new Da
       touchId: relationshipTouch.id, customerId: relationshipTouch.customerId,
       program: relationshipTouch.program, sourceRef: relationshipTouch.sourceRef,
       name: customer.name, phone: customer.phone,
+      smsConsentAt: customer.smsConsentAt, emailOptOut: customer.emailOptOut,
     })
       .from(relationshipTouch)
       .innerJoin(customer, eq(customer.id, relationshipTouch.customerId))
