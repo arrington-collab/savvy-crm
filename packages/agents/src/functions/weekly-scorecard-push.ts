@@ -152,6 +152,51 @@ export async function sendTenantWeeklyScorecard(tenantId: string, deps: WeeklySc
   return { sent, offTrack };
 }
 
+type StepRunner = { run: <T>(name: string, fn: () => T | Promise<T>) => Promise<T> };
+
+export interface WeeklyScorecardLoopResult {
+  sent: number;
+  failed: number;
+}
+
+/**
+ * Testable core of the weekly cron's per-tenant fan-out. Each tenant still
+ * runs as its own durable, individually-retryable `step.run` — but a failure
+ * is caught and isolated *at the loop level*, so one tenant can never block
+ * the rest.
+ *
+ * Why this matters: `sendTenantWeeklyScorecard` only fail-softs its delivery
+ * step — `rebuildWeek` (compute) is unguarded. Without this try/catch, one
+ * tenant's `rebuildWeek` throwing would fail the whole `step.run` unguarded,
+ * and Inngest's retry would replay the same memoized `due` list and get stuck
+ * on that tenant forever — starving every tenant listed after it for the
+ * entire week (this cron fires weekly, so there's no next-day recovery).
+ *
+ * A caught failure is logged and counted in `failed` so a stuck tenant stays
+ * a visible signal (via the function's return summary) rather than silently
+ * disappearing. Extracted from `weeklyScorecardPush` so this isolation
+ * guarantee is unit-testable without a real Inngest runtime or DB tenants
+ * (mirrors `photoQcHandler`'s extracted-testable-handler pattern).
+ */
+export async function runWeeklyScorecardLoop(
+  due: string[],
+  step: StepRunner,
+  send: (tenantId: string) => Promise<{ sent: boolean; offTrack: number }> = sendTenantWeeklyScorecard,
+): Promise<WeeklyScorecardLoopResult> {
+  let sent = 0;
+  let failed = 0;
+  for (const id of due) {
+    try {
+      const r = await step.run(`weekly-scorecard:${id}`, () => send(id));
+      if (r.sent) sent += 1;
+    } catch (err) {
+      failed += 1;
+      console.error(`weekly-scorecard-push: tenant ${id} failed`, err);
+    }
+  }
+  return { sent, failed };
+}
+
 export const weeklyScorecardPush = inngest.createFunction(
   { id: "weekly-scorecard-push" },
   { cron: "0 * * * *" },
@@ -162,11 +207,7 @@ export const weeklyScorecardPush = inngest.createFunction(
       return dueTenantsForWeeklyScorecard(tenants, now).map((t) => t.id);
     });
 
-    let sent = 0;
-    for (const id of due) {
-      const r = await step.run(`weekly-scorecard:${id}`, () => sendTenantWeeklyScorecard(id));
-      if (r.sent) sent += 1;
-    }
-    return { sent, due: due.length };
+    const { sent, failed } = await runWeeklyScorecardLoop(due, step as unknown as StepRunner);
+    return { sent, failed, due: due.length };
   },
 );
