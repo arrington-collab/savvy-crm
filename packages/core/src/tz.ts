@@ -30,6 +30,19 @@ export function dayOfMonthInTimeZone(now: Date, tz: string): number {
   return parseInt(d, 10);
 }
 
+const ISO_WEEKDAY: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+
+/**
+ * ISO day-of-week (1=Monday..7=Sunday) at `now` in an IANA zone — gates
+ * day-of-week crons (e.g. "Monday morning") the same way `hourInTimeZone`
+ * gates hour-of-day, so a weekly tenant-local cron only needs an hourly tick
+ * plus this + `hourInTimeZone`, never a hardcoded TZ.
+ */
+export function isoWeekdayInTimeZone(now: Date, tz: string): number {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(now);
+  return ISO_WEEKDAY[wd]!;
+}
+
 /**
  * "YYYY-MM" of the month BEFORE the tenant's current LOCAL month — the period a
  * monthly meter run bills. Keyed off local (not UTC) month so a tenant near a

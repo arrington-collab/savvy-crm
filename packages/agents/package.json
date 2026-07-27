@@ -8,6 +8,7 @@
   "scripts": { "lint": "eslint .", "typecheck": "tsc --noEmit", "test": "vitest run" },
   "dependencies": {
     "@savvy/ai": "workspace:*",
+    "@savvy/command-center": "workspace:*",
     "@savvy/core": "workspace:*",
     "@savvy/db": "workspace:*",
     "@savvy/integrations": "workspace:*",

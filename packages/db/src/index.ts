@@ -163,3 +163,12 @@ export { matchCustomerByPhone } from "./lifecycle/match-customer-phone";
 export { contactSuppression } from "./schema/comms-suppression";
 export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue, recordException } from "./command-center/store";
 export { dailyMetrics, exceptionQueue } from "./schema/command-center";
+export { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation, weeklyScorecard, scorecardGoal } from "./schema/scorecard";
+export {
+  resolveAttribution,
+  upsertDailyByRep, upsertDailyBySource, upsertDailyByLocation,
+  getDailyByRepRange, getDailyBySourceRange, getDailyByLocationRange,
+  rebuildDay, rebuildWeek,
+  resolveContractSignings, type SignedContractRow,
+} from "./command-center/scorecard-store";
+export { DEFAULT_GOALS, getGoals, seedPlaceholderGoals } from "./command-center/scorecard-goals";

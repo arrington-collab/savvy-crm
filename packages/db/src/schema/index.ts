@@ -41,3 +41,4 @@ export * from "./import-record";
 export * from "./orchestrator";
 export * from "./command-center";
 export * from "./comms-suppression";
+export * from "./scorecard";
