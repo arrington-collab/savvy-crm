@@ -18403,7 +18403,7 @@
           "name": "rep_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "leads": {
           "name": "leads",

@@ -37,12 +37,15 @@ function field(e: DomainEvent, key: string): string | undefined {
  *   bucket, `UNKNOWN_LOCATION`. Still counted — never dropped.
  * - `contract.signed` / `estimate.approved` / `appointment.no_show` carry no
  *   `leadId` at all in the current event schema (only `jobId`/`customerId`),
- *   so there is no reliable join back to a lead's assigned rep for these
- *   specific events. Rather than fabricate a join (e.g. guessing via
- *   `customerId`, which isn't guaranteed 1:1 with a same-day lead), they land
- *   in the `UNASSIGNED_REP` bucket. This is a known limitation of the current
- *   schema, not a bug — flagged in the report for a follow-up event-schema
- *   addition (e.g. echoing `leadId` onto `contract.signed`).
+ *   so there is no reliable join back to a lead's assigned rep from the event
+ *   payload alone. D4-4's `resolveAttribution` (in @savvy/db) resolves these
+ *   via a DB join (job.leadId -> lead.assignedUserId/source, honesty-gated
+ *   customerId fallback) and attaches the result as `payload.repId` /
+ *   `payload.source` on an enriched copy of the event — read below when
+ *   present. Events that reach this function unenriched (e.g. direct unit
+ *   tests, or the honesty guard leaving an event unresolved) fall back to the
+ *   `UNASSIGNED_REP` bucket exactly as before; this is a known limitation of
+ *   the current schema, not a bug, when no attribution was resolvable.
  * - `appointment.set` carries an optional `leadId`; used when present.
  */
 export function projectDayByRep(events: DomainEvent[], businessDate: string): DailyMetricsByRep[] {
@@ -111,20 +114,27 @@ export function projectDayByRep(events: DomainEvent[], businessDate: string): Da
         break;
       }
       case "appointment.no_show": {
-        // no leadId on this event type — see doc comment above.
-        bucketFor(e.tenantId, UNASSIGNED_REP, UNKNOWN_LOCATION).noShows += 1;
+        // no leadId on this event type — see doc comment above. repId, when
+        // attached by resolveAttribution, routes this to the real rep.
+        const repId = field(e, "repId") ?? UNASSIGNED_REP;
+        bucketFor(e.tenantId, repId, UNKNOWN_LOCATION).noShows += 1;
         break;
       }
       case "contract.signed": {
+        // repId, when attached by resolveAttribution's DB join, routes this to
+        // the real rep instead of the sentinel; locationId is unchanged (lead
+        // has no locationId — see the doc comment above and dimensional.test.ts).
         const p = e.payload as { contractValueCents: number };
-        const b = bucketFor(e.tenantId, UNASSIGNED_REP, UNKNOWN_LOCATION);
+        const repId = field(e, "repId") ?? UNASSIGNED_REP;
+        const b = bucketFor(e.tenantId, repId, UNKNOWN_LOCATION);
         b.contracts += 1;
         b.contractValueCents += p.contractValueCents;
         break;
       }
       case "estimate.approved": {
         const p = e.payload as { marginPct: number };
-        const b = bucketFor(e.tenantId, UNASSIGNED_REP, UNKNOWN_LOCATION);
+        const repId = field(e, "repId") ?? UNASSIGNED_REP;
+        const b = bucketFor(e.tenantId, repId, UNKNOWN_LOCATION);
         b.estimatesApproved += 1;
         b.margins.push(p.marginPct);
         break;
@@ -157,8 +167,10 @@ export function projectDayByRep(events: DomainEvent[], businessDate: string): Da
  * dashboard renders "no cost data" rather than imputing a number (§7).
  *
  * Same attribution limitation as `projectDayByRep`: `contract.signed` carries
- * no `leadId`, so it cannot be traced back to a source and lands in the
- * `UNKNOWN_SOURCE` bucket (documented, tested).
+ * no `leadId`, so it cannot be traced back to a source from the payload
+ * alone — falls to the `UNKNOWN_SOURCE` bucket unless D4-4's
+ * `resolveAttribution` (in @savvy/db) has attached a resolved `payload.source`
+ * via its DB join, in which case that source is used (documented, tested).
  */
 export function projectDayBySource(events: DomainEvent[], businessDate: string): DailyMetricsBySource[] {
   const day = events.filter((e) => businessDateOf(e.occurredAt) === businessDate);
@@ -205,9 +217,11 @@ export function projectDayBySource(events: DomainEvent[], businessDate: string):
         break;
       }
       case "contract.signed": {
-        // no leadId on this event type — see doc comment above.
+        // no leadId on this event type — see doc comment above. source, when
+        // attached by resolveAttribution, routes this to the real source.
         const p = e.payload as { contractValueCents: number };
-        const b = bucketFor(e.tenantId, UNKNOWN_SOURCE, UNKNOWN_LOCATION);
+        const source = field(e, "source") ?? UNKNOWN_SOURCE;
+        const b = bucketFor(e.tenantId, source, UNKNOWN_LOCATION);
         b.contracts += 1;
         b.contractValueCents += p.contractValueCents;
         break;

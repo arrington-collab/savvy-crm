@@ -16,7 +16,13 @@ export const dailyMetricsByRep = pgTable("daily_metrics_by_rep", {
   tenantId: uuid("tenant_id").notNull().references(() => tenant.id),
   businessDate: text("business_date").notNull(), // YYYY-MM-DD Denver
   locationId: uuid("location_id"),
-  repId: uuid("rep_id").notNull(),
+  // Nullable (amended in D4-4, migration 0122): the projectors' UNASSIGNED_REP
+  // sentinel ("unassigned") is not a valid uuid, so it is translated to SQL
+  // NULL on write (see scorecard-store.ts upsertDailyByRep). The unique index
+  // is NULLS NOT DISTINCT so the unassigned-rep bucket still dedupes/upserts
+  // correctly per (tenant, date, locationId) — the §8.2 sum-back invariant
+  // holds at the table level including the NULL-rep row.
+  repId: uuid("rep_id"),
   leads: integer("leads").notNull(),
   firstTouches: integer("first_touches").notNull(),
   medianSpeedSeconds: integer("median_speed_seconds"),

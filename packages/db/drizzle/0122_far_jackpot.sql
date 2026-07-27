@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "daily_metrics_by_rep" (
 	"tenant_id" uuid NOT NULL,
 	"business_date" text NOT NULL,
 	"location_id" uuid,
-	"rep_id" uuid NOT NULL,
+	"rep_id" uuid,
 	"leads" integer NOT NULL,
 	"first_touches" integer NOT NULL,
 	"median_speed_seconds" integer,

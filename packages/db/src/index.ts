@@ -164,3 +164,9 @@ export { contactSuppression } from "./schema/comms-suppression";
 export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue, recordException } from "./command-center/store";
 export { dailyMetrics, exceptionQueue } from "./schema/command-center";
 export { dailyMetricsByRep, dailyMetricsBySource, dailyMetricsByLocation, weeklyScorecard, scorecardGoal } from "./schema/scorecard";
+export {
+  resolveAttribution,
+  upsertDailyByRep, upsertDailyBySource, upsertDailyByLocation,
+  getDailyByRepRange, getDailyBySourceRange, getDailyByLocationRange,
+  rebuildDay,
+} from "./command-center/scorecard-store";

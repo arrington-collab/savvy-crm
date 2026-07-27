@@ -72,6 +72,26 @@ it("contract.signed carries no leadId in the current event schema, so it lands i
   expect(unassigned.contractValueCents).toBe(100_000);
 });
 
+it("an enriched contract.signed carrying payload.repId/source (attached by @savvy/db's resolveAttribution) attributes to the real rep/source instead of the sentinel", () => {
+  const events: DomainEvent[] = [
+    ev("lead.assigned", { leadId: "l1", userId: "u1", repId: "rep-z", locationId: "loc-1" }, at(0, 30)),
+    ev(
+      "contract.signed",
+      // repId/source are not part of contract.signed's zod payload schema —
+      // they are attached by D4-4's DB-side enrichment, not emitted by any
+      // publisher. The projector reads them off the payload when present.
+      { jobId: "j1", customerId: "c1", contractValueCents: 250_000, repId: "rep-z", source: "canvass" },
+      at(4),
+    ),
+  ];
+  const byRep = projectDayByRep(events, D);
+  const bySource = projectDayBySource(events, D);
+  expect(byRep.find((r) => r.repId === "rep-z")?.contracts).toBe(1);
+  expect(byRep.some((r) => r.repId === UNASSIGNED_REP && r.contracts > 0)).toBe(false);
+  expect(bySource.find((r) => r.source === "canvass")?.contracts).toBe(1);
+  expect(bySource.some((r) => r.source === UNKNOWN_SOURCE && r.contracts > 0)).toBe(false);
+});
+
 // ---------- projectDayBySource ----------
 
 it("groups by lead.created source and folds appts/contracts; sums back to the flat lead.created count", () => {
