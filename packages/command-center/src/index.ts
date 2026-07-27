@@ -1,5 +1,7 @@
 export * from "./day-window";
+export * from "./week-window";
 export * from "./metrics";
+export * from "./weekly-metrics";
 export * from "./projection";
 export * from "./comparison";
 export * from "./exception-queue";
