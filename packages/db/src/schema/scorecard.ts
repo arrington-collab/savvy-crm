@@ -28,6 +28,14 @@ export const dailyMetricsByRep = pgTable("daily_metrics_by_rep", {
   avgMarginPct: real("avg_margin_pct"),
   createdAt: createdAt(),
 }, (t) => [
+  // NULLS NOT DISTINCT: locationId is nullable ("null = company-wide rollup").
+  // Plain Postgres unique indexes treat NULL != NULL, so company-level rows
+  // would never collide and rebuildDay's onConflictDoUpdate would insert
+  // duplicates instead of updating (acceptance §8.9 idempotency). drizzle-orm
+  // 0.36.4's IndexBuilder (uniqueIndex().on()) does NOT expose
+  // .nullsNotDistinct() — only UniqueConstraintBuilder (unique().on()) does —
+  // so NULLS NOT DISTINCT is applied via hand-edited raw SQL in migration
+  // 0122_far_jackpot.sql instead of being expressible here.
   uniqueIndex("daily_metrics_by_rep_uq").on(t.tenantId, t.businessDate, t.locationId, t.repId),
   tenantIsolation(),
 ]);
@@ -46,6 +54,8 @@ export const dailyMetricsBySource = pgTable("daily_metrics_by_source", {
   costCents: bigint("cost_cents", { mode: "number" }),
   createdAt: createdAt(),
 }, (t) => [
+  // NULLS NOT DISTINCT (see daily_metrics_by_rep_uq comment above for why) —
+  // hand-edited into migration 0122_far_jackpot.sql; not expressible here.
   uniqueIndex("daily_metrics_by_source_uq").on(t.tenantId, t.businessDate, t.locationId, t.source),
   tenantIsolation(),
 ]);
@@ -60,6 +70,8 @@ export const dailyMetricsByLocation = pgTable("daily_metrics_by_location", {
   metrics: jsonb("metrics").$type<DailyMetrics>().notNull(),
   createdAt: createdAt(),
 }, (t) => [
+  // NULLS NOT DISTINCT (see daily_metrics_by_rep_uq comment above for why) —
+  // hand-edited into migration 0122_far_jackpot.sql; not expressible here.
   uniqueIndex("daily_metrics_by_location_uq").on(t.tenantId, t.businessDate, t.locationId),
   tenantIsolation(),
 ]);
@@ -78,6 +90,8 @@ export const weeklyScorecard = pgTable("weekly_scorecard", {
   priorWeeks: jsonb("prior_weeks").$type<(number | null)[]>().notNull(), // oldest->newest, 13 entries incl. current week
   createdAt: createdAt(),
 }, (t) => [
+  // NULLS NOT DISTINCT (see daily_metrics_by_rep_uq comment above for why) —
+  // hand-edited into migration 0122_far_jackpot.sql; not expressible here.
   uniqueIndex("weekly_scorecard_uq").on(t.tenantId, t.weekStart, t.locationId, t.metricKey),
   tenantIsolation(),
 ]);
@@ -93,6 +107,8 @@ export const scorecardGoal = pgTable("scorecard_goal", {
   isPlaceholder: boolean("is_placeholder").default(true).notNull(),
   createdAt: createdAt(),
 }, (t) => [
+  // NULLS NOT DISTINCT (see daily_metrics_by_rep_uq comment above for why) —
+  // hand-edited into migration 0122_far_jackpot.sql; not expressible here.
   uniqueIndex("scorecard_goal_uq").on(t.tenantId, t.locationId, t.metricKey),
   tenantIsolation(),
 ]);

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { emptyMetrics } from "@savvy/command-center";
 import { adminDb, tenant, withTenant } from "../index";
 import {
@@ -158,6 +158,101 @@ describe("weekly_scorecard", () => {
       tx.select().from(weeklyScorecard).where(eq(weeklyScorecard.metricKey, metricKey))
     );
     expect(otherTenantRows).toHaveLength(0);
+  });
+});
+
+describe("weekly_scorecard company-level idempotency (NULLS NOT DISTINCT)", () => {
+  it("upserting the same (tenant, weekStart, locationId=null, metricKey) key updates in place instead of duplicating", async () => {
+    const metricKey = `company.rollup.${randomUUID().slice(0, 8)}`;
+    const weekStart = "2026-07-20";
+    const priorWeeksV1: (number | null)[] = [null, ...Array(11).fill(10), 42];
+    const priorWeeksV2: (number | null)[] = [null, ...Array(11).fill(10), 99];
+
+    await withTenant(tenantAId, async (tx) => {
+      await tx
+        .insert(weeklyScorecard)
+        .values({
+          tenantId: tenantAId,
+          weekStart,
+          locationId: null,
+          metricKey,
+          value: 42,
+          goal: 40,
+          onTrack: true,
+          priorWeeks: priorWeeksV1,
+        })
+        .onConflictDoUpdate({
+          target: [weeklyScorecard.tenantId, weeklyScorecard.weekStart, weeklyScorecard.locationId, weeklyScorecard.metricKey],
+          set: { value: 42, goal: 40, onTrack: true, priorWeeks: priorWeeksV1 },
+        });
+
+      // Re-run the identical rebuildWeek-style upsert for the same company-level
+      // key (locationId still null). Without NULLS NOT DISTINCT on
+      // weekly_scorecard_uq, Postgres treats NULL != NULL, the ON CONFLICT
+      // target fails to match, and this INSERTs a second row instead of
+      // updating the first — breaking acceptance §8.9 idempotency.
+      await tx
+        .insert(weeklyScorecard)
+        .values({
+          tenantId: tenantAId,
+          weekStart,
+          locationId: null,
+          metricKey,
+          value: 99,
+          goal: 40,
+          onTrack: false,
+          priorWeeks: priorWeeksV2,
+        })
+        .onConflictDoUpdate({
+          target: [weeklyScorecard.tenantId, weeklyScorecard.weekStart, weeklyScorecard.locationId, weeklyScorecard.metricKey],
+          set: { value: 99, goal: 40, onTrack: false, priorWeeks: priorWeeksV2 },
+        });
+    });
+
+    const rows = await withTenant(tenantAId, (tx) =>
+      tx.select().from(weeklyScorecard).where(eq(weeklyScorecard.metricKey, metricKey))
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tenantId: tenantAId, value: 99, onTrack: false });
+  });
+});
+
+describe("daily_metrics_by_location company-level idempotency (NULLS NOT DISTINCT)", () => {
+  it("upserting the same (tenant, businessDate, locationId=null) key updates in place instead of duplicating", async () => {
+    const businessDate = `2026-07-${randomUUID().slice(0, 2)}`;
+    const metricsV1 = emptyMetrics(businessDate);
+    metricsV1.topLine.leadsTotal = 7;
+    const metricsV2 = emptyMetrics(businessDate);
+    metricsV2.topLine.leadsTotal = 21;
+
+    await withTenant(tenantAId, async (tx) => {
+      await tx
+        .insert(dailyMetricsByLocation)
+        .values({ tenantId: tenantAId, businessDate, locationId: null, metrics: metricsV1 })
+        .onConflictDoUpdate({
+          target: [dailyMetricsByLocation.tenantId, dailyMetricsByLocation.businessDate, dailyMetricsByLocation.locationId],
+          set: { metrics: metricsV1 },
+        });
+
+      await tx
+        .insert(dailyMetricsByLocation)
+        .values({ tenantId: tenantAId, businessDate, locationId: null, metrics: metricsV2 })
+        .onConflictDoUpdate({
+          target: [dailyMetricsByLocation.tenantId, dailyMetricsByLocation.businessDate, dailyMetricsByLocation.locationId],
+          set: { metrics: metricsV2 },
+        });
+    });
+
+    const rows = await withTenant(tenantAId, (tx) =>
+      tx
+        .select()
+        .from(dailyMetricsByLocation)
+        .where(and(eq(dailyMetricsByLocation.tenantId, tenantAId), eq(dailyMetricsByLocation.businessDate, businessDate)))
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.metrics.topLine.leadsTotal).toBe(21);
   });
 });
 

@@ -98,11 +98,11 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_location_uq" ON "daily_metrics_by_location" USING btree ("tenant_id","business_date","location_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_rep_uq" ON "daily_metrics_by_rep" USING btree ("tenant_id","business_date","location_id","rep_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_source_uq" ON "daily_metrics_by_source" USING btree ("tenant_id","business_date","location_id","source");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "scorecard_goal_uq" ON "scorecard_goal" USING btree ("tenant_id","location_id","metric_key");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "weekly_scorecard_uq" ON "weekly_scorecard" USING btree ("tenant_id","week_start","location_id","metric_key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_location_uq" ON "daily_metrics_by_location" USING btree ("tenant_id","business_date","location_id") NULLS NOT DISTINCT;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_rep_uq" ON "daily_metrics_by_rep" USING btree ("tenant_id","business_date","location_id","rep_id") NULLS NOT DISTINCT;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "daily_metrics_by_source_uq" ON "daily_metrics_by_source" USING btree ("tenant_id","business_date","location_id","source") NULLS NOT DISTINCT;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "scorecard_goal_uq" ON "scorecard_goal" USING btree ("tenant_id","location_id","metric_key") NULLS NOT DISTINCT;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "weekly_scorecard_uq" ON "weekly_scorecard" USING btree ("tenant_id","week_start","location_id","metric_key") NULLS NOT DISTINCT;--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "daily_metrics_by_location" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "daily_metrics_by_rep" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "daily_metrics_by_source" AS PERMISSIVE FOR ALL TO "savvy_app" USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);--> statement-breakpoint
