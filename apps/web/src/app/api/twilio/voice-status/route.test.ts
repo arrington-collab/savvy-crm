@@ -72,6 +72,7 @@ describe("POST /api/twilio/voice-status", () => {
       source: "missed_call",
     });
     expect(sendMock).toHaveBeenCalledWith({
+      id: "call-missed-CA1",
       name: "call/missed",
       data: { tenantId: "tenant-1", leadId: "lead-1", fromNumber: "+15550001111", toNumber: "+15551230000" },
     });

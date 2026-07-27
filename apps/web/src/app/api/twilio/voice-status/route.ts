@@ -18,7 +18,10 @@ const MISSED_STATUSES = new Set(["no-answer", "busy", "failed"]);
 // Acts ONLY on a missed call: creates the lead (via the @savvy/db-level
 // createLeadForTenant, NOT the web wrapper — that wrapper emits lead/created,
 // which would fire lead-intake's own ack SMS and double-text the caller
-// alongside C3's missed-call text-back), fires call/missed for C3 to consume,
+// alongside C3's missed-call text-back), fires call/missed for C3 to consume
+// (with a CallSid-keyed id so Inngest dedupes the event when both the
+// CallStatus and DialCallStatus callbacks fire for the same call, or Twilio
+// retries the webhook — otherwise missedCallTextback would text twice),
 // and fail-soft bridge-publishes call.missed onto the domain-event bus.
 export async function POST(req: Request) {
   const form = await req.formData();
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
   });
 
   try {
-    await inngest.send({ name: "call/missed", data: { tenantId: t.id, leadId, fromNumber: from, toNumber: to } });
+    await inngest.send({ id: `call-missed-${callSid}`, name: "call/missed", data: { tenantId: t.id, leadId, fromNumber: from, toNumber: to } });
   } catch (err) {
     // Lead is already persisted; a missing Inngest engine must not fail the webhook.
     console.error("call/missed send failed (lead still created):", err);
