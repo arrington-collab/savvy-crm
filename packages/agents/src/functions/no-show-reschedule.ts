@@ -1,5 +1,5 @@
 import { withTenant, eq, appointment, communication, isSuppressed, customer as customerTbl, tenant as tenantTbl } from "@savvy/db";
-import { renderLocalized, signPayloadToken, requireSecret, type QuietHours } from "@savvy/core";
+import { renderLocalized, signPayloadToken, requireSecret, nextAllowedSendTime, type QuietHours } from "@savvy/core";
 import type { SmsSender } from "@savvy/integrations";
 import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { guardedSms, type GuardedSmsResult } from "../comms-gateway";
@@ -34,6 +34,21 @@ export function buildNoShowSms(v: { companyName: string; bookingUrl: string; lan
   );
 }
 
+/**
+ * Pure decision: is `now` inside the tenant's quiet hours, and if so, what
+ * Date should the caller sleep until before sending? Returns null when `now`
+ * is already outside quiet hours (send immediately, no sleep needed).
+ *
+ * Extracted so the "should we sleep, and until when" decision is
+ * unit-testable without a live Inngest runtime — mirrors the inline
+ * `nextAllowedSendTime` check lead-cadence.ts makes per-touch before its own
+ * `step.sleepUntil` call.
+ */
+export function quietSleepUntil(now: Date, tz: string, qh: QuietHours): Date | null {
+  const allowed = nextAllowedSendTime(now, tz, qh);
+  return allowed.getTime() > now.getTime() ? allowed : null;
+}
+
 export interface NoShowRescheduleDeps {
   isSuppressed: (a: { tenantId: string; contactId?: string; phoneE164?: string; channel: "sms" }) => Promise<boolean>;
   sms: SmsSender;
@@ -66,7 +81,11 @@ export type NoShowRescheduleOutcome =
  * missed-call-textback.ts's sendMissedCallTextback, which omits `quiet`
  * because a text-back is an immediate response to a customer-initiated call.
  * A no-show reschedule is outreach initiated by us on a schedule, not a direct
- * response, so it defers like any other nurture/cadence touch.
+ * response, so it defers like any other nurture/cadence touch — this stays
+ * as defense-in-depth (guardedSms re-checks at actual send time), but the
+ * Inngest handler below already sleeps past quiet hours via `quietSleepUntil`
+ * before ever calling this function, so a "deferred" result from `guardedSms`
+ * here should be rare in production, not the normal quiet-hours path.
  */
 export async function sendNoShowReschedule(
   deps: NoShowRescheduleDeps,
@@ -114,9 +133,20 @@ export async function sendNoShowReschedule(
 /**
  * Pure decision: hand the customer back to cadence ONLY on a confirmed send.
  * A skip (not-no_show / no-phone), a block (suppressed/no-consent/a2p/cap), or
- * a quiet-hours defer must never silently re-enroll — the appointment stays
- * eligible for a later no_show event (e.g. a future re-book that no-shows
- * again) to try the reschedule text again from scratch.
+ * a quiet-hours defer must never silently re-enroll. In production the
+ * Inngest handler below now sleeps past quiet hours (via `quietSleepUntil`)
+ * BEFORE ever calling sendNoShowReschedule, so a "deferred" outcome should no
+ * longer normally occur there — this stays conservative regardless, in case
+ * this pure unit is ever invoked directly without that sleep (e.g. a test, or
+ * a boundary race between the sleep decision and guardedSms's own re-check).
+ *
+ * Note this does NOT mean the appointment gets another attempt later: the
+ * no_show producer (scheduling-actions.ts markStatusAction) sets a permanent
+ * Inngest event id `appt-noshow-${appointmentId}` on the emit, so a repeat
+ * no_show event for the SAME appointment row is deduped by Inngest before
+ * this handler ever runs again — there is no "try again from scratch" for
+ * that appointment. A genuine retry only happens if the customer is
+ * re-booked onto a NEW appointment (a new id) that later also no-shows.
  */
 export function shouldReenrollAfterNoShow(outcome: NoShowRescheduleOutcome): boolean {
   return "result" in outcome && outcome.result.status === "sent";
@@ -163,6 +193,23 @@ export const noShowReschedule = inngest.createFunction(
     const secret = requireSecret("UNSUBSCRIBE_SECRET", { devFallback: "dev-unsubscribe-secret" });
     const token = signPayloadToken({ appointmentId, tenantId, type: "inspection" }, secret);
     const bookingUrl = await step.run("mint-short-link", () => buildShortLink({ tenantId, token, kind: "booking" }));
+
+    // Quiet hours: SLEEP THEN SEND, mirroring lead-cadence.ts's per-touch gate.
+    // Without this, marking a no-show at night would hit guardedSms's quiet
+    // check directly, get `{ status: "deferred" }`, and the reschedule text
+    // would never actually go out — shouldReenrollAfterNoShow also never
+    // re-enrolls on a deferred outcome, so the whole touchpoint would silently
+    // no-op for any no-show marked during the tenant's quiet window. Compute
+    // the decision inside a step.run so the `now` snapshot (and therefore the
+    // sleep target) is durable across replays, then sleepUntil OUTSIDE any
+    // step.run (step.sleepUntil is itself the durable primitive).
+    const quietUntilIso = await step.run("quiet-check", () => {
+      const until = quietSleepUntil(new Date(), sendCtx.tz, sendCtx.quietHours);
+      return until ? until.toISOString() : null;
+    });
+    if (quietUntilIso) {
+      await step.sleepUntil("quiet-window", quietUntilIso);
+    }
 
     // Keyed on appointmentId — one reschedule attempt per appointment. Combined
     // with the `id: appt-noshow-${appointmentId}` Inngest event id the no_show
