@@ -76,8 +76,9 @@ it("§8.1/A.2 median re-derives from the week's events and is NOT the mean of da
 
   expect(week.speed.median_seconds).toEqual({ status: "ok", value: 180 }); // true pooled median
   // sanity: this must NOT equal a mean-of-daily-medians value (which would be
-  // (mean(60,180) + 3600) / 2 = 1920, a very different, wrong number).
-  expect(week.speed.median_seconds).not.toEqual({ status: "ok", value: 1920 });
+  // (mean(60,180) + 3600) / 2 = (120 + 3600) / 2 = 1860, a very different,
+  // wrong number).
+  expect(week.speed.median_seconds).not.toEqual({ status: "ok", value: 1860 });
 });
 
 it("§8.7 speed prefers slaLatencySeconds over latencySeconds, and a quietHoursDeferred touch is NOT a breach", () => {
@@ -102,6 +103,36 @@ it("§8.7 speed prefers slaLatencySeconds over latencySeconds, and a quietHoursD
 
   // 2 of 3 first touches count as "under SLA" (l1 via slaLatencySeconds, l2 via quiet-hours exemption); l3 breaches.
   expect(week.speed.pct_under_sla).toEqual({ status: "ok", value: 2 / 3 });
+});
+
+it("§8.7 a quietHoursDeferred touch with latency WELL OVER the SLA is exempt, not a breach", () => {
+  // This pins the blanket quiet-hours exemption on its own: a deferred touch
+  // whose latency (and slaLatencySeconds copy — see weekly.ts comment on
+  // Slice B's lead-intake.ts:202) is 10x the 5-minute SLA must still count as
+  // "under SLA" (compliant), because the delay was policy-mandated, not a
+  // rep failure. Without this test, the suite only ever exercised
+  // quietHoursDeferred alongside other touches, so it never pinned that a
+  // deferred touch's `pct_under_sla` contribution is unaffected by how large
+  // its latency is.
+  const dailyRows: DailyMetrics[] = [dailyRowFor(0)];
+  const weekEvents: DomainEvent[] = [
+    ev(
+      "lead.first_touch",
+      {
+        leadId: "l1",
+        channel: "sms",
+        latencySeconds: 36_000, // 10 hours — 120x the 5-minute SLA
+        slaLatencySeconds: 36_000,
+        quietHoursDeferred: true,
+      },
+      isoAt(0, 1),
+    ),
+  ];
+  const week = projectWeek({ dailyRows, weekEvents, weekStart: WEEK_START });
+
+  // The lone touch is deferred, so it must NOT reduce pct_under_sla — it's
+  // excluded from breach entirely, i.e. treated as compliant.
+  expect(week.speed.pct_under_sla).toEqual({ status: "ok", value: 1 });
 });
 
 it("§7 degradation: no lead.first_touch data -> speed is pending, not a silent 0", () => {

@@ -126,8 +126,22 @@ export function projectWeek(input: {
     if (secs == null) continue;
     latencies.push(secs);
     slaEligible += 1;
-    // A quiet-hours-deferred first touch is never counted as a breach — the
-    // SLA clock was legitimately paused, not violated (§8.7).
+    // A quiet-hours-deferred first touch is NEVER counted as a breach,
+    // regardless of how large `secs` is — the delay was policy-mandated (the
+    // SLA clock was legitimately paused while quiet hours were in effect),
+    // not a rep failure, so it would be dishonest to penalize it (§8.7).
+    //
+    // This is a blanket exemption, not a "judge from window-open" adjustment
+    // (spec A.2 language). It would be more precise to compare the touch
+    // against the SLA measured from when the quiet-hours window reopened,
+    // but `slaLatencySeconds` does not carry that yet: Slice B's
+    // `lead-intake.ts:202` currently sets `slaLatencySeconds: a.latencySeconds`
+    // — a straight copy of `latencySeconds`, not a window-open-adjusted value.
+    // Until Slice B computes a real window-open latency for deferred leads,
+    // the blanket exemption is the only honest signal available here, and
+    // testing `secs > SLA` for a deferred lead would just wrongly penalize a
+    // rep for a system-mandated delay. Revisit this once a true window-open
+    // latency exists upstream.
     const breach = !p.quietHoursDeferred && secs > SLA_SECONDS;
     if (!breach) underSla += 1;
   }
@@ -162,6 +176,11 @@ export function projectWeek(input: {
 // (a conservative reading of a typical roofing signing cycle) is used as the
 // default maturity threshold. Flagged in the D4-5 report for confirmation —
 // D4-6/dashboard copy may want this configurable rather than hard-coded.
+//
+// PLACEHOLDER: this is an assumed default, not a business figure confirmed by
+// Brett/Scott (no recorded history backs "30 days" as the true signing-cycle
+// maturity point for this business). Do not treat 30 as spec-pinned — it's a
+// reasonable guess standing in until they confirm the real number.
 const COHORT_MATURITY_DAYS = 30;
 
 /**
