@@ -159,6 +159,7 @@ export { insertPings, listPingsForDay, type PingPoint } from "./lifecycle/canvas
 export { importAccuLynxAttachments, type AttachmentJobBundle, type AttachmentDeps, type AttachmentResult } from "./lifecycle/acculynx-attachments-import";
 export { DrizzleOrchestratorStore } from "./orchestrator/store";
 export { isSuppressed, suppress } from "./lifecycle/contact-suppression";
+export { matchCustomerByPhone } from "./lifecycle/match-customer-phone";
 export { contactSuppression } from "./schema/comms-suppression";
 export { loadEventsForDay, upsertDailyMetrics, getDailyMetrics, upsertQueueItem, listQueue, recordException } from "./command-center/store";
 export { dailyMetrics, exceptionQueue } from "./schema/command-center";
