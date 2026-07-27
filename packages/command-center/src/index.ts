@@ -3,6 +3,7 @@ export * from "./week-window";
 export * from "./metrics";
 export * from "./weekly-metrics";
 export * from "./projection";
+export * from "./weekly";
 export * from "./dimensional";
 export * from "./degradation";
 export * from "./comparison";
