@@ -288,7 +288,7 @@ function foldLocationsForDay(rows: { metrics: DailyMetrics }[], businessDate: st
   return m;
 }
 
-interface SignedContractRow { leadId: string; signedAt: Date }
+export interface SignedContractRow { leadId: string; signedAt: Date }
 interface LeadIdRow { id: string; customerId: string | null }
 
 /**
@@ -299,8 +299,13 @@ interface LeadIdRow { id: string; customerId: string | null }
  * event.customerId fallback ONLY when the customer has exactly one lead).
  * A contract that can't be traced to a single lead is simply excluded from
  * the cohort's numerator — never guessed.
+ *
+ * Exported (D4-8): the reps/sources dashboards need the same all-time
+ * leadId->signedAt resolution to compute a per-dimension cohort close rate
+ * (source page) — reusing this instead of re-deriving the job/customer join
+ * a second time in the web layer.
  */
-async function resolveContractSignings(tenantId: string): Promise<SignedContractRow[]> {
+export async function resolveContractSignings(tenantId: string): Promise<SignedContractRow[]> {
   return withTenant(tenantId, async (tx) => {
     const events = await tx.select({ payload: orchestratorEvent.payload, createdAt: orchestratorEvent.createdAt })
       .from(orchestratorEvent)

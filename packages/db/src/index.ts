@@ -169,5 +169,6 @@ export {
   upsertDailyByRep, upsertDailyBySource, upsertDailyByLocation,
   getDailyByRepRange, getDailyBySourceRange, getDailyByLocationRange,
   rebuildDay, rebuildWeek,
+  resolveContractSignings, type SignedContractRow,
 } from "./command-center/scorecard-store";
 export { DEFAULT_GOALS, getGoals, seedPlaceholderGoals } from "./command-center/scorecard-goals";
