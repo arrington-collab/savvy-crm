@@ -1,14 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
-import { adminDb, tenant, customer, property, lead, repairCredit, eq, sql, issueRepairCredit } from "@savvy/db";
+import { describe, it, expect } from "vitest";
+import { adminDb, tenant, customer, property, lead, repairCredit, relationshipTouch, suppress, eq, and, sql, issueRepairCredit } from "@savvy/db";
 import { sweepTenantRepairCredits } from "./repair-credit-sweep.js";
 
-async function seedCreditAt12mo(opts: { optOut?: boolean } = {}) {
+async function seedCreditAt12mo(opts: { optOut?: boolean; phone?: string } = {}) {
   const [t] = await adminDb.insert(tenant).values({
     name: "CreditSweep", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
     settings: { homeowner: { quietHours: { startHour: 0, endHour: 0 } } } as never, // deterministic at any hour
   }).returning();
   const tenantId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Casey Credit", phone: "+16025550777", smsOptOut: opts.optOut ?? false }).returning();
+  const [c] = await adminDb.insert(customer).values({
+    tenantId, name: "Casey Credit", phone: opts.phone ?? "+16025550777", smsOptOut: opts.optOut ?? false,
+    smsConsentAt: new Date("2026-01-01"),
+  }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "4 Credit Ct" }).returning();
   await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "web" });
 
@@ -16,7 +19,7 @@ async function seedCreditAt12mo(opts: { optOut?: boolean } = {}) {
   const creditId = (issued as { creditId: string }).creditId;
   await adminDb.update(repairCredit).set({ issuedAt: sql`now() - interval '380 days'`, expiresAt: sql`now() + interval '700 days'` })
     .where(eq(repairCredit.id, creditId));
-  return { tenantId, creditId };
+  return { tenantId, creditId, custId: c!.id };
 }
 
 function fakeSmsDeps() {
@@ -92,5 +95,56 @@ describe("sweepTenantRepairCredits", () => {
     expect(res.touched).toBe(0);
     expect(res.expired).toBe(1);
     expect(deps.sent).toHaveLength(0);
+  });
+
+  // Compliance follow-up: sweepTenantRepairCredits called sender.sendSms
+  // directly, bypassing the global contact_suppression list. Proves
+  // guardedSms is wired: a consented, non-opted-out customer who is globally
+  // suppressed is NOT texted, and their relationship-calendar touch stays
+  // unsent (never flips to sent).
+  it("globally suppressed customer → not texted, touch stays unsent (compliance bypass closed)", async () => {
+    const { tenantId, creditId, custId } = await seedCreditAt12mo({ phone: "+16025550444" });
+    await suppress({ tenantId, phoneE164: "+16025550444", channel: "sms", reason: "stop", source: "test" });
+    const deps = fakeSmsDeps();
+
+    const res = await sweepTenantRepairCredits(tenantId, deps as never);
+    expect(res.touched).toBe(0);
+    expect(deps.sent).toHaveLength(0);
+
+    const [row] = await adminDb.select().from(repairCredit).where(eq(repairCredit.id, creditId));
+    expect((row!.checkinLog as { kind: string }[]).map((l) => l.kind)).toEqual(["12mo"]);
+
+    const touches = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.customerId, custId), eq(relationshipTouch.sourceRef, `${creditId}:12mo`)));
+    expect(touches).toHaveLength(1);
+    expect(touches[0]!.sentAt).toBeNull();
+    // Admitted by the governor (opt-out is false) — the block came from the
+    // global suppression list inside guardedSms, not the governor.
+    expect(touches[0]!.suppressedReason).toBeNull();
+  });
+
+  // Review follow-up: the try/catch around guardedSms must not treat a THROWN
+  // error (transient DB blip / provider 5xx) the same as a genuine blocked
+  // verdict. A throw must NOT append to checkinLog, so a later sweep retries
+  // instead of silently dropping the homeowner touch.
+  it("guardedSms throw is NOT recorded in checkinLog — a later sweep retries", async () => {
+    const { tenantId, creditId } = await seedCreditAt12mo({ phone: "+16025559876" });
+    const throwingDeps = {
+      getTenantSms: (async () => { throw new Error("provider 5xx"); }) as never,
+    };
+
+    const first = await sweepTenantRepairCredits(tenantId, throwingDeps as never);
+    expect(first.touched).toBe(0);
+
+    const [row] = await adminDb.select().from(repairCredit).where(eq(repairCredit.id, creditId));
+    expect((row!.checkinLog as { kind: string }[]).map((l) => l.kind)).toEqual([]);
+
+    // Next sweep, with a working sender, retries and succeeds — proving the
+    // transient failure did not permanently close the checkinLog gate.
+    const workingDeps = fakeSmsDeps();
+    const retry = await sweepTenantRepairCredits(tenantId, workingDeps as never);
+    expect(retry.touched).toBe(1);
+    expect(workingDeps.sent).toHaveLength(1);
+    expect(workingDeps.sent[0]!.to).toBe("+16025559876");
   });
 });

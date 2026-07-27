@@ -18,10 +18,12 @@ import {
   recordAgentRun,
   adminDb,
   ensureEstimateLink,
+  isSuppressed,
 } from "@savvy/db";
 import { isWithinQuietHours, parseHomeownerConfig, parseFinanceConfig } from "@savvy/core";
 import { inngest } from "./client";
-import { getTenantSms } from "./telephony";
+import { getTenantSms, resolveA2pApproved } from "./telephony";
+import { guardedSms } from "./comms-gateway";
 
 type Deps = {
   getTenantSms: typeof getTenantSms;
@@ -43,7 +45,17 @@ async function loadRaceContext(tenantId: string, estimateId: string) {
       ? await tx.select({ phone: user.phone, name: user.name }).from(user).where(eq(user.id, l.assignedUserId))
       : [null];
     const [cust] = l.customerId
-      ? await tx.select({ id: customer.id, name: customer.name, phone: customer.phone, smsOptOut: customer.smsOptOut }).from(customer).where(eq(customer.id, l.customerId))
+      ? await tx
+          .select({
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+            smsOptOut: customer.smsOptOut,
+            emailOptOut: customer.emailOptOut,
+            smsConsentAt: customer.smsConsentAt,
+          })
+          .from(customer)
+          .where(eq(customer.id, l.customerId))
       : [null];
     return { est, rep: rep ?? null, cust: cust ?? null };
   });
@@ -115,8 +127,37 @@ export async function raceResolve(
     }
   }
 
-  const { sender, from } = await deps.getTenantSms(tenantId);
-  await sender.sendSms({ to: ctx.cust.phone, from, body: NOVA_RACE_COPY });
+  let loggedBody = NOVA_RACE_COPY;
+  let novaTexted = false;
+  let blockReason: string | undefined;
+  try {
+    const { sender, from } = await deps.getTenantSms(tenantId);
+    const result = await guardedSms(
+      { isSuppressed, sms: sender, smsFrom: () => from },
+      {
+        tenantId,
+        channel: "sms",
+        to: ctx.cust.phone,
+        from,
+        body: NOVA_RACE_COPY,
+        consent: { smsOptOut: ctx.cust.smsOptOut, emailOptOut: ctx.cust.emailOptOut, smsConsentAt: ctx.cust.smsConsentAt },
+        a2pApproved: resolveA2pApproved(tenantId, from),
+        contactId: ctx.cust.id,
+      },
+    );
+    if (result.status !== "sent") {
+      blockReason = result.status;
+      loggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+    } else {
+      novaTexted = true;
+    }
+  } catch (err) {
+    // guardedSms/getTenantSms threw (e.g. a transient isSuppressed DB error) —
+    // the real send never fired, so this must NOT be logged as a successful
+    // "sent" comm, nor recorded as a race_nova_text event.
+    blockReason = "error";
+    loggedBody = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+  }
   await withTenant(tenantId, (tx) =>
     tx.insert(communication).values({
       tenantId,
@@ -124,10 +165,11 @@ export async function raceResolve(
       channel: "sms",
       direction: "outbound",
       to: ctx.cust!.phone,
-      body: NOVA_RACE_COPY,
+      body: loggedBody,
       aiHandled: true,
     }),
   );
+  if (!novaTexted) return { novaTexted: false, reason: blockReason };
   await recordEstimateEvent({ tenantId, estimateId, kind: "race_nova_text", sessionId });
   await recordAgentRun({ tenantId, agent: "comms", taskKey: "estimate.race-nova", status: "ok", jobId: null });
   return { novaTexted: true };

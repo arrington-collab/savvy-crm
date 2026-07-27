@@ -8,13 +8,15 @@ import {
   adminDb, withTenant, eq, and, tenant as tenantTbl, messageTemplate, communication,
   isDemoTenant, enrollCompletedJobs, extendStandingCadence, holdDuePrintTouches,
   dueCadenceTextTouches, markTouchSent, runMaintenanceOfferSweep, runMaintenanceVisitSweep, sendDueVisitReports,
+  isSuppressed,
 } from "@savvy/db";
 import {
   parseFinanceConfig, parseHomeownerConfig, parseRelationshipCadenceConfig, parseMovePlayConfig,
   parseSlowWeekFillConfig, parseMaintenanceConfig, isWithinQuietHours, hourInTimeZone, renderTemplate,
 } from "@savvy/core";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 export const RELATIONSHIP_TEMPLATE_KEYS = {
   checkin_30d: "relationship-checkin-30d",
@@ -83,19 +85,45 @@ export async function sweepTenantRelationshipCadence(
       years: d.sourceRef?.split(":")[2] ?? "",
     });
 
-    const { sender, from } = await deps.getTenantSms(tenantId);
-    await sender.sendSms({ to: d.phone, from, body });
-    await markTouchSent({ tenantId, touchId: d.touchId });
     // checkin/roofiversary sourceRefs are job-anchored (`${jobId}:…`); move_play
     // (move_event) and fill plays (estimate/credit) have no jobId to log against.
     const jobId = program === "checkin_30d" || program === "roofiversary"
       ? d.sourceRef?.split(":")[0] ?? null
       : null;
-    await withTenant(tenantId, (tx) => tx.insert(communication).values({
-      tenantId, jobId, customerId: d.customerId, channel: "sms", direction: "outbound",
-      to: d.phone, body, aiHandled: false,
-    }));
-    sent += 1;
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: d.phone, from, body,
+          consent: { smsOptOut: false, emailOptOut: d.emailOptOut, smsConsentAt: d.smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: d.customerId,
+        },
+      );
+      if (result.status === "sent") {
+        await markTouchSent({ tenantId, touchId: d.touchId });
+        await withTenant(tenantId, (tx) => tx.insert(communication).values({
+          tenantId, jobId, customerId: d.customerId, channel: "sms", direction: "outbound",
+          to: d.phone, body, aiHandled: false,
+        }));
+        sent += 1;
+      } else {
+        // Blocked/deferred verdict is durable: markTouchSent so a suppressed
+        // customer is never retried, but log the block, not the real body.
+        await markTouchSent({ tenantId, touchId: d.touchId });
+        const reason = result.status === "blocked" ? result.reason : result.status;
+        await withTenant(tenantId, (tx) => tx.insert(communication).values({
+          tenantId, jobId, customerId: d.customerId, channel: "sms", direction: "outbound",
+          to: d.phone, body: `[blocked: ${reason}]`, aiHandled: false,
+        }));
+      }
+    } catch (err) {
+      // Fail-soft: a thrown error (transient DB blip / provider 5xx) is
+      // retryable — do NOT markTouchSent and do NOT write a real-body comm
+      // row, so the touch stays due and a later sweep retries.
+      console.error("sweepTenantRelationshipCadence: guardedSms threw, will retry next sweep", err);
+    }
   }
   return { enrolled, extended, sent, held };
 }

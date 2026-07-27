@@ -1,14 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { adminDb, tenant, customer, property, job, productionUpdate, eq, submitCrewEodReport } from "@savvy/db";
+import { adminDb, tenant, customer, property, job, productionUpdate, eq, submitCrewEodReport, suppress } from "@savvy/db";
 import { sendEodWrap } from "./production-eod-wrap.js";
 
-async function seedReportedDay() {
+async function seedReportedDay(opts: { phone?: string } = {}) {
   const [t] = await adminDb.insert(tenant).values({
     name: "EODWrap", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
     settings: { homeowner: { quietHours: { startHour: 0, endHour: 0 } } } as never,
   }).returning();
   const tenantId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Wendy Wrap", phone: "+16025551100" }).returning();
+  const [c] = await adminDb.insert(customer).values({
+    tenantId, name: "Wendy Wrap", phone: opts.phone ?? "+16025551100", smsConsentAt: new Date("2026-01-01"),
+  }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "6 Wrap Way" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "retail", stage: "production" }).returning();
   const { dayKey } = await submitCrewEodReport({
@@ -51,5 +53,29 @@ describe("sendEodWrap", () => {
     const res = await sendEodWrap({ tenantId, jobId, dayKey: "1999-01-01" }, deps as never);
     expect(res).toMatchObject({ sent: false, suppressed: "no_report" });
     expect(deps.sent).toHaveLength(0);
+  });
+
+  // Compliance follow-up: sendEodWrap previously called sender.sendSms
+  // directly, bypassing the global contact_suppression list. Proves
+  // guardedSms is wired: a consented, non-opted-out homeowner who is
+  // globally suppressed is NOT texted, and the ledger records the
+  // suppression (never a false "sent").
+  it("globally suppressed homeowner → not texted, suppression logged, once-per-job-day gate closes", async () => {
+    const { tenantId, jobId, dayKey } = await seedReportedDay({ phone: "+16025558888" });
+    await suppress({ tenantId, phoneE164: "+16025558888", channel: "sms", reason: "stop", source: "test" });
+    const deps = fakeDeps();
+
+    const res = await sendEodWrap({ tenantId, jobId, dayKey }, deps as never);
+    expect("sent" in res && res.sent).toBe(false);
+    expect((res as { suppressed: string }).suppressed).toContain("guard_");
+    expect(deps.sent).toHaveLength(0);
+
+    const [row] = await adminDb.select().from(productionUpdate).where(eq(productionUpdate.jobId, jobId));
+    expect(row!.suppressedReason).toContain("guard_");
+
+    const replay = await sendEodWrap({ tenantId, jobId, dayKey }, deps as never);
+    expect(replay).toMatchObject({ sent: false, suppressed: "already_wrapped" });
+    const rows = await adminDb.select().from(productionUpdate).where(eq(productionUpdate.jobId, jobId));
+    expect(rows).toHaveLength(1);
   });
 });

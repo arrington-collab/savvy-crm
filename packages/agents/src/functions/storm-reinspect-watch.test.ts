@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  adminDb, tenant, customer, property, lead, user, membership, stormReinspectBatch, eq,
+  adminDb, tenant, customer, property, lead, user, membership, stormReinspectBatch, relationshipTouch, suppress, eq, and,
   startInspectionForLead, completeInspection, approveInspection, publishInspection,
   proposeStormReinspectBatch, approveStormReinspectBatch,
 } from "@savvy/db";
@@ -12,7 +12,7 @@ const PHX_RING = [[33.3, -112.3], [33.6, -112.3], [33.6, -111.9], [33.3, -111.9]
 async function baselineCustomer(
   tenantId: string, userId: string, o: { name: string; phone: string; lat: number; lng: number },
 ) {
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: o.name, phone: o.phone }).returning();
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: o.name, phone: o.phone, smsConsentAt: new Date("2026-01-01") }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: `${o.name} St`, lat: o.lat, lng: o.lng }).returning();
   const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "web" }).returning();
   const started = await startInspectionForLead({ tenantId, leadId: l!.id });
@@ -29,7 +29,7 @@ async function seedBaselined() {
     settings: { homeowner: { quietHours: { startHour: 0, endHour: 0 } } } as never,
   }).returning();
   const tenantId = t!.id;
-  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Harper Homeowner", phone: "+16025550888" }).returning();
+  const [c] = await adminDb.insert(customer).values({ tenantId, name: "Harper Homeowner", phone: "+16025550888", smsConsentAt: new Date("2026-01-01") }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "5 Baseline Blvd", lat: 33.45, lng: -112.07 }).returning();
   const [l] = await adminDb.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "web" }).returning();
   const [u] = await adminDb.insert(user).values({ tenantId, clerkUserId: `clk-${crypto.randomUUID()}`, name: "Owner", email: `o-${crypto.randomUUID()}@t.local`, role: "admin" }).returning();
@@ -125,5 +125,42 @@ describe("sendStormReinspectOutreach", () => {
     expect(res).toEqual({ sent: 2 });
     // The member is reached before the non-member — invariant: member ∩ swath first.
     expect(sent.map((m) => m.to)).toEqual([member.phone, nonMember.phone]);
+  });
+
+  // Compliance follow-up: sendStormReinspectOutreach previously called
+  // sender.sendSms directly, bypassing the global contact_suppression list.
+  // Proves guardedSms is wired: a consented, non-opted-out homeowner who is
+  // globally suppressed is NOT texted, and their relationship-calendar touch
+  // is never flipped to sent.
+  it("globally suppressed homeowner → not texted, touch stays unsent", async () => {
+    const { tenantId, userId } = await seedBaselined();
+    await suppress({ tenantId, phoneE164: "+16025550888", channel: "sms", reason: "stop", source: "test" });
+
+    const proposed = await proposeStormReinspectBatch({
+      tenantId,
+      swath: { kind: "hail", rings: [PHX_RING], size: 1.5, windMph: null, date: "2026-07-12" },
+    });
+    const batchId = (proposed as { batchId: string }).batchId;
+    await approveStormReinspectBatch({ tenantId, batchId, userId });
+
+    const sent: { to: string; body: string }[] = [];
+    const deps = {
+      getTenantSms: (async () => ({
+        sender: { sendSms: async (m: { to: string; body: string }) => { sent.push(m); return { providerId: "fake" }; } },
+        from: "+15555550000",
+      })) as never,
+    };
+
+    const res = await sendStormReinspectOutreach({ tenantId, batchId }, deps as never);
+    expect(res).toEqual({ sent: 0 });
+    expect(sent).toHaveLength(0);
+
+    const touches = await adminDb.select().from(relationshipTouch)
+      .where(and(eq(relationshipTouch.tenantId, tenantId), eq(relationshipTouch.program, "storm_check")));
+    expect(touches).toHaveLength(1);
+    expect(touches[0]!.sentAt).toBeNull();
+
+    const [batch] = await adminDb.select().from(stormReinspectBatch).where(eq(stormReinspectBatch.id, batchId));
+    expect(batch!.status).toBe("sent"); // batch still flips — a blocked recipient doesn't stall the sweep
   });
 });

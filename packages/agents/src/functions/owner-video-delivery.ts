@@ -2,10 +2,11 @@
 // first; the generic tenant video keeps the touch alive when the owner's day
 // got away from them. Once per estimate, ever; quiet hours + demo-mute.
 
-import { withTenant, eq, adminDb, tenant as tenantTbl, estimateVideo, recordEstimateEvent, ownerVideoDeliveryQueue, ensureEstimateLink } from "@savvy/db";
+import { withTenant, eq, adminDb, tenant as tenantTbl, estimateVideo, recordEstimateEvent, ownerVideoDeliveryQueue, ensureEstimateLink, isSuppressed } from "@savvy/db";
 import { parseFinanceConfig, parseHomeownerConfig, parseOwnerVideoConfig, isWithinQuietHours, hourInTimeZone } from "@savvy/core";
 import { inngest } from "../client";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
+import { guardedSms } from "../comms-gateway";
 
 const WRAPPER = (repName: string | null, link: string) =>
   `You talked with ${repName ?? "our team"} yesterday — our owner wanted a word. 30 seconds, worth it: ${link}`;
@@ -31,15 +32,41 @@ export async function deliverOwnerVideos(
     }
     const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
     const { code } = await ensureEstimateLink({ tenantId, estimateId: entry.estimateId });
-    const { sender, from } = await deps.getTenantSms(tenantId);
-    await sender.sendSms({ to: entry.customerPhone, from, body: WRAPPER(entry.repName, `${base}/estimate/${code}?v=1`) });
-    await recordEstimateEvent({ tenantId, estimateId: entry.estimateId, kind: "video_sent", meta: { personalized: entry.personalized, documentId: entry.documentId } });
-    if (entry.personalized) {
-      await withTenant(tenantId, (tx) =>
-        tx.update(estimateVideo).set({ status: "delivered" }).where(eq(estimateVideo.documentId, entry.documentId)),
+    try {
+      const { sender, from } = await deps.getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: entry.customerPhone, from, body: WRAPPER(entry.repName, `${base}/estimate/${code}?v=1`),
+          consent: { smsOptOut: false, emailOptOut: entry.emailOptOut, smsConsentAt: entry.smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: entry.customerId ?? undefined,
+        },
       );
+      if (result.status === "sent") {
+        await recordEstimateEvent({ tenantId, estimateId: entry.estimateId, kind: "video_sent", meta: { personalized: entry.personalized, documentId: entry.documentId } });
+        if (entry.personalized) {
+          await withTenant(tenantId, (tx) =>
+            tx.update(estimateVideo).set({ status: "delivered" }).where(eq(estimateVideo.documentId, entry.documentId)),
+          );
+        }
+        sent += 1;
+      } else {
+        // Blocked/deferred verdict: close the once-ever gate (mirrors the
+        // no_phone suppressed-event shape) so the queue doesn't re-offer it —
+        // but never mark delivered and never count it as sent.
+        await recordEstimateEvent({
+          tenantId, estimateId: entry.estimateId, kind: "video_sent",
+          meta: { suppressed: `guard_${result.status === "blocked" ? result.reason : result.status}`, personalized: entry.personalized },
+        });
+      }
+    } catch (err) {
+      // Fail-soft: a thrown error (DB blip, provider 5xx) is transient — do NOT
+      // record video_sent, so the once-ever gate stays open and the next
+      // delivery pass retries instead of silently dropping the video.
+      console.error("deliverOwnerVideos: guardedSms threw, will retry next pass", err);
+      continue;
     }
-    sent += 1;
   }
   return { sent };
 }

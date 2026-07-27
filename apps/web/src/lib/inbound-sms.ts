@@ -1,6 +1,6 @@
 import {
   withTenant, customer, communication, appointment, eq, and, asc, stopDripEnrollments, markCustomerLeadsContacted,
-  createMoveLeadOnReply, DrizzleOrchestratorStore,
+  createMoveLeadOnReply, DrizzleOrchestratorStore, matchCustomerByPhone,
 } from "@savvy/db";
 import { isStopKeyword, isCancelKeyword } from "@savvy/core";
 import { inngest } from "@savvy/agents";
@@ -41,7 +41,7 @@ export async function handleInboundSms(
 
   // 1) Log inbound communication + match customer by phone
   const c = await withTenant(tenantId, async (tx) => {
-    const [row] = await tx.select().from(customer).where(eq(customer.phone, opts.from));
+    const row = await matchCustomerByPhone(tx, opts.from);
     await tx.insert(communication).values({
       tenantId, customerId: row?.id ?? null, channel: "sms", direction: "inbound",
       from: opts.from, body: opts.body, twilioSid: opts.twilioSid ?? null,

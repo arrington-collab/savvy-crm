@@ -1,7 +1,7 @@
 import {
   adminDb, withTenant, tenant, appointment, job, property, customer, communication,
   setAppointmentWeatherFlag, rescheduleAppointment, getCrewBusyStarts, getCrewContacts, SlotTakenError,
-  and, eq, gte, lte,
+  and, eq, gte, lte, isSuppressed,
 } from "@savvy/db";
 import {
   parseWeatherConfig, parseFinanceConfig, parseHomeownerConfig, parseEmailConfig,
@@ -10,8 +10,9 @@ import {
   toCivilDate, tenantsDueAtHour, type WeatherConfig, type HomeownerConfig,
 } from "@savvy/core";
 import { forecast, type ForecastGateway } from "@savvy/integrations";
-import { getTenantSms } from "../telephony";
+import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
+import { guardedSms } from "../comms-gateway";
 import { inngest } from "../client";
 
 type WeatherResult = { flagged: number; cleared: number; rescheduled: number; rescheduledAppointmentIds: string[] };
@@ -21,6 +22,7 @@ type AtRiskRow = {
   id: string; startsAt: Date; endsAt: Date; lat: number | null; lng: number | null;
   crewId: string | null; jobId: string; customerId: string | null;
   phone: string | null; email: string | null; smsOptOut: boolean | null; emailOptOut: boolean | null;
+  smsConsentAt: Date | null;
   address: string | null;
 };
 
@@ -53,6 +55,7 @@ export async function evaluateTenantWeather(
       crewId: appointment.crewId, lat: property.lat, lng: property.lng,
       jobId: appointment.jobId, customerId: job.customerId, address: property.address,
       phone: customer.phone, email: customer.email, smsOptOut: customer.smsOptOut, emailOptOut: customer.emailOptOut,
+      smsConsentAt: customer.smsConsentAt,
     })
       .from(appointment)
       .leftJoin(job, eq(job.id, appointment.jobId))
@@ -136,8 +139,29 @@ async function notifyWeatherMove(
   const body = buildWeatherMoveHomeownerBody({ originalLabel, targetLabel, reason });
 
   if (r.phone && !r.smsOptOut && !isWithinQuietHours(ctx.now, tz, ctx.homeownerCfg.quietHours)) {
-    try { const { sender, from } = await getTenantSms(tenantId); await sender.sendSms({ to: r.phone, from, body }); } catch { /* fail-soft: no creds */ }
-    try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "sms", direction: "outbound", to: r.phone, body, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
+    // Homeowner leg: gated through guardedSms (global contact_suppression list,
+    // consent, A2P). A thrown error is fail-soft — swallowed, never a false
+    // "sent", and never logged as a delivered text (per notifyWeatherMove's
+    // MUST-NOT-throw invariant).
+    let smsLoggedBody = body;
+    try {
+      const { sender, from } = await getTenantSms(tenantId);
+      const result = await guardedSms(
+        { isSuppressed, sms: sender, smsFrom: () => from },
+        {
+          tenantId, channel: "sms", to: r.phone, from, body,
+          consent: { smsOptOut: r.smsOptOut ?? false, emailOptOut: r.emailOptOut ?? false, smsConsentAt: r.smsConsentAt },
+          a2pApproved: resolveA2pApproved(tenantId, from),
+          contactId: r.customerId ?? undefined,
+        },
+      );
+      if (result.status !== "sent") {
+        smsLoggedBody = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+      }
+    } catch (err) {
+      smsLoggedBody = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+    }
+    try { await withTenant(tenantId, (tx) => tx.insert(communication).values({ tenantId, jobId: r.jobId, customerId: r.customerId, channel: "sms", direction: "outbound", to: r.phone, body: smsLoggedBody, aiHandled: false })); } catch { /* fail-soft: DB hiccup */ }
   }
   if (r.email && !r.emailOptOut) {
     try {

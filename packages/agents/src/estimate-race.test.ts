@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { adminDb, eq, tenant, customer, property, lead, user, measurement, tierProduct, withTenant } from "@savvy/db";
+import { adminDb, eq, tenant, customer, property, lead, user, measurement, tierProduct, withTenant, communication, suppress } from "@savvy/db";
 import { ensureTenantForOrg, ensurePriceBook, ensureTierProducts } from "@savvy/db";
 import { createEstimateFromMeasurement, setEstimateStatus } from "@savvy/db";
 import { recordEstimateEvent, listEstimateEvents } from "@savvy/db";
 import { raceNotify, raceResolve } from "./estimate-race";
 
 let tenantId: string;
+let custId: string;
 let estimateId: string;
 let sent: { to: string; body: string }[] = [];
 
@@ -25,7 +26,8 @@ beforeAll(async () => {
 
   const ids = await withTenant(tenantId, async (tx) => {
     const [rep] = await tx.insert(user).values({ tenantId, name: "Race Rep", email: `rep-${Date.now()}@e2e.test`, role: "rep", phone: "+16025550777" }).returning();
-    const [c] = await tx.insert(customer).values({ tenantId, name: "Hot Homeowner", phone: "+16025550888" }).returning();
+    const [c] = await tx.insert(customer).values({ tenantId, name: "Hot Homeowner", phone: "+16025550888", smsConsentAt: new Date("2026-01-01") }).returning();
+    custId = c!.id;
     const [p] = await tx.insert(property).values({ tenantId, customerId: c!.id, address: "9 Race St", city: "Phoenix", state: "AZ" }).returning();
     const [l] = await tx.insert(lead).values({ tenantId, customerId: c!.id, propertyId: p!.id, source: "referral", status: "qualified", assignedUserId: rep!.id }).returning();
     const [m] = await tx.insert(measurement).values({ tenantId, propertyId: p!.id, provider: "roofr", areas: { squares: 20, predominantPitch: "6/12", eaveLf: 100, rakeLf: 50 } }).returning();
@@ -83,5 +85,19 @@ describe("raceResolve", () => {
     expect(sent[0]!.body.toLowerCase()).toContain("estimate");
     const events = await listEstimateEvents(tenantId, estimateId);
     expect(events.some((e) => e.kind === "race_nova_text" && e.sessionId === "sess-2")).toBe(true);
+  });
+
+  // Compliance follow-up: raceResolve previously called sender.sendSms directly,
+  // bypassing the global contact_suppression list (a homeowner who STOPped a
+  // DIFFERENT agent could still get raced). Proves guardedSms is wired: a
+  // globally-suppressed, consented, non-opted-out customer is NOT texted.
+  it("globally suppressed customer → NOVA does NOT text and logs a blocked comm", async () => {
+    sent = [];
+    await suppress({ tenantId, phoneE164: "+16025550888", channel: "sms", reason: "stop", source: "test" });
+    const res = await raceResolve({ tenantId, estimateId, sessionId: "sess-3" }, fakeSms);
+    expect(res.novaTexted).toBe(false);
+    expect(sent).toHaveLength(0);
+    const comms = await withTenant(tenantId, (tx) => tx.select().from(communication).where(eq(communication.customerId, custId)));
+    expect(comms.some((r) => r.body?.includes("blocked: suppressed"))).toBe(true);
   });
 });

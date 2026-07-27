@@ -19,7 +19,7 @@ async function seedTenant(opts: {
   ]);
 
   const [c] = await adminDb.insert(customer).values({
-    tenantId: t!.id, name: "Jane Homeowner", email: "jane@example.com", phone: "+15555550100",
+    tenantId: t!.id, name: "Jane Homeowner", email: "jane@example.com", phone: "+15555550100", smsConsentAt: new Date(),
   }).returning();
 
   const [p] = await adminDb.insert(property).values({

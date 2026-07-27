@@ -2,10 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import {
   adminDb, tenant, customer, property, job, document, productionUpdate, eq,
   ensureProductionPhaseTemplates, instantiateProductionPhases, ingestProductionMedia, setPhotoCustomerSafe,
+  suppress,
 } from "@savvy/db";
 import { sendPhaseCompleteUpdate } from "./production-ho-update.js";
 
-async function seedDoneVisiblePhase(opts: { safePhotos?: number; optOut?: boolean; language?: string } = {}) {
+async function seedDoneVisiblePhase(opts: { safePhotos?: number; optOut?: boolean; language?: string; phone?: string } = {}) {
   const [t] = await adminDb.insert(tenant).values({
     name: "HOUpd", publicKey: `pk-${crypto.randomUUID()}`, clerkOrgId: `org-${crypto.randomUUID()}`,
     settings: { homeowner: { quietHours: { startHour: 0, endHour: 0 } } } as never,
@@ -13,8 +14,8 @@ async function seedDoneVisiblePhase(opts: { safePhotos?: number; optOut?: boolea
   const tenantId = t!.id;
   await ensureProductionPhaseTemplates(tenantId);
   const [c] = await adminDb.insert(customer).values({
-    tenantId, name: "Homer Owner", phone: "+16025551000", smsOptOut: opts.optOut ?? false,
-    preferredLanguage: opts.language ?? null,
+    tenantId, name: "Homer Owner", phone: opts.phone ?? "+16025551000", smsOptOut: opts.optOut ?? false,
+    smsConsentAt: new Date("2026-01-01"), preferredLanguage: opts.language ?? null,
   }).returning();
   const [p] = await adminDb.insert(property).values({ tenantId, customerId: c!.id, address: "12 Update Dr" }).returning();
   const [j] = await adminDb.insert(job).values({ tenantId, customerId: c!.id, propertyId: p!.id, type: "repair", stage: "production" }).returning();
@@ -106,5 +107,30 @@ describe("sendPhaseCompleteUpdate — the good kind of noise, auto-sent", () => 
     await sendPhaseCompleteUpdate({ tenantId, jobId, phaseKey: "repair_work" }, deps as never);
     const call = (deps.ai.complete.mock.calls as unknown as [{ system: string }][])[0]![0];
     expect(call.system.toLowerCase()).toContain("spanish");
+  });
+
+  // Compliance follow-up: sendPhaseCompleteUpdate previously called
+  // sender.sendSms directly, bypassing the global contact_suppression list.
+  // Proves guardedSms is wired: a consented, non-opted-out homeowner who is
+  // globally suppressed is NOT texted, and the ledger records the suppression
+  // (never a false "sent").
+  it("globally suppressed homeowner → not texted, suppression logged, gate closes once", async () => {
+    const { tenantId, jobId } = await seedDoneVisiblePhase({ phone: "+16025559999" });
+    await suppress({ tenantId, phoneE164: "+16025559999", channel: "sms", reason: "stop", source: "test" });
+    const deps = fakeDeps();
+
+    const res = await sendPhaseCompleteUpdate({ tenantId, jobId, phaseKey: "repair_work" }, deps as never);
+    expect("sent" in res && res.sent).toBe(false);
+    expect((res as { suppressed: string }).suppressed).toContain("guard_");
+    expect(deps.sent).toHaveLength(0);
+
+    const [row] = await adminDb.select().from(productionUpdate).where(eq(productionUpdate.jobId, jobId));
+    expect(row!.suppressedReason).toContain("guard_");
+
+    // Once-per-phase gate holds even for a guard-blocked send.
+    const replay = await sendPhaseCompleteUpdate({ tenantId, jobId, phaseKey: "repair_work" }, deps as never);
+    expect(replay).toMatchObject({ sent: false, suppressed: "already_updated" });
+    const rows = await adminDb.select().from(productionUpdate).where(eq(productionUpdate.jobId, jobId));
+    expect(rows).toHaveLength(1);
   });
 });

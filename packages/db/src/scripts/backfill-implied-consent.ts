@@ -21,15 +21,20 @@
  *
  * THIS IS A DEPLOY-TIME PROD OP, NOT RUN BY TESTS. Run it once per tenant (or
  * across all tenants) when SMS goes live for that tenant/environment. Do NOT
- * run it against prod from this session — local verification / --dry-run
+ * run it against prod from this session — local verification / dry-run
  * only; a human runs the real prod backfill deliberately, against a real
  * DATABASE_ADMIN_URL, outside of an agent session.
  *
+ * SAFE BY DEFAULT: with no flags this script is a DRY RUN — it prints the
+ * eligible row count and writes nothing. Pass --commit to actually apply the
+ * UPDATE. --dry-run is still accepted (explicit no-op alias); if both
+ * --dry-run and --commit are passed, dry-run wins.
+ *
  * Usage (local):
- *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --dry-run
- *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --dry-run --tenant=<tenantId>
- *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts             (all tenants, applies)
- *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --tenant=<tenantId>
+ *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts                          (dry-run, all tenants)
+ *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --tenant=<tenantId>       (dry-run, one tenant)
+ *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --commit                  (applies, all tenants)
+ *   pnpm --filter @savvy/db exec tsx src/scripts/backfill-implied-consent.ts --commit --tenant=<tenantId>
  */
 import { adminPool } from "../admin-client";
 
@@ -53,10 +58,22 @@ const UPDATE_TENANT = `
      set sms_consent_at = coalesce(sms_consent_at, created_at)
    where tenant_id = $1 and phone is not null and sms_opt_out = false and sms_consent_at is null`;
 
+// Pure arg-parsing decision, exported for unit testing without a DB. Default
+// (no flags) is dry-run; --commit is required to write. If both --dry-run
+// and --commit are passed, dry-run wins (safer).
+export function shouldCommit(argv: string[]): boolean {
+  if (argv.includes("--dry-run")) return false;
+  return argv.includes("--commit");
+}
+
 async function main() {
-  const dryRun = process.argv.includes("--dry-run");
+  const commit = shouldCommit(process.argv);
   const tenantArg = process.argv.find((a) => a.startsWith("--tenant="));
   const tenantId = tenantArg ? tenantArg.slice("--tenant=".length) : null;
+
+  if (process.argv.includes("--dry-run") && process.argv.includes("--commit")) {
+    console.log("both --dry-run and --commit passed: dry-run wins (safer)");
+  }
 
   const scope = tenantId ? `tenant ${tenantId}` : "ALL tenants";
   const { rows } = tenantId
@@ -65,8 +82,8 @@ async function main() {
   const n = rows[0]?.n ?? 0;
   console.log(`backfill-implied-consent: ${scope} — ${n} customer row(s) eligible (phone set, not opted out, no consent stamp)`);
 
-  if (dryRun) {
-    console.log("dry-run: no changes written");
+  if (!commit) {
+    console.log("dry-run: no changes written (pass --commit to apply)");
   } else {
     const res = tenantId
       ? await adminPool.query(UPDATE_TENANT, [tenantId])
