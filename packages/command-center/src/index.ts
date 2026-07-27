@@ -11,5 +11,6 @@ export * from "./scorecard";
 export * from "./comparison";
 export * from "./exception-queue";
 export * from "./exception-map";
+export * from "./accountability";
 export * from "./flash";
 export * from "./seams";

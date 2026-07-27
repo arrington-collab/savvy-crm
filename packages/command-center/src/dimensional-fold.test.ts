@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   foldRepWeek, rankReps, foldSourceWeek, MIN_LEADS_FOR_RANK,
+  foldLocationWeek, sumLocationWeeks,
   type DailyRepInput, type DailySourceInput, type RepWeekRow,
+  type DailyLocationInput,
 } from "./dimensional-fold";
+import { emptyMetrics, type DailyMetrics } from "./metrics";
 
 describe("foldRepWeek", () => {
   it("sums counts additively across days for the same rep", () => {
@@ -152,5 +155,113 @@ describe("foldSourceWeek", () => {
   it("keeps the unknown-source bucket as a labeled row, not hidden", () => {
     const rows = foldSourceWeek([{ source: "unknown", leads: 1, apptsSet: 0, contracts: 0, contractValueCents: 0, costCents: null }]);
     expect(rows.find((r) => r.source === "unknown")).toBeDefined();
+  });
+});
+
+describe("foldLocationWeek / sumLocationWeeks (§8.12 empire view)", () => {
+  // Builds a DailyMetrics fixture whose additive fields are cheap to assert on.
+  function day(businessDate: string, opts: {
+    leads?: number; apptsSet?: number; noShows?: number; contracts?: number; contractValueCents?: number;
+    invoicedCents?: number; cashCollectedCents?: number; reviewsPosted?: number; estimatesApproved?: number;
+    materialOrders?: number; jobsCompleted?: number;
+  }): DailyMetrics {
+    const m = emptyMetrics(businessDate);
+    m.topLine.leadsTotal = opts.leads ?? 0;
+    m.topLine.appointmentsSet = opts.apptsSet ?? 0;
+    m.topLine.appointmentsNoShow = opts.noShows ?? 0;
+    m.topLine.contractsSigned = opts.contracts ?? 0;
+    m.topLine.contractValueCents = opts.contractValueCents ?? 0;
+    m.topLine.jobsCompleted = opts.jobsCompleted ?? 0;
+    m.money.invoicedCents = opts.invoicedCents ?? 0;
+    m.money.cashCollectedCents = opts.cashCollectedCents ?? 0;
+    m.quality.reviewsPosted = opts.reviewsPosted ?? 0;
+    m.production.estimatesApproved = opts.estimatesApproved ?? 0;
+    m.production.materialOrders = opts.materialOrders ?? 0;
+    return m;
+  }
+
+  it("sums counts additively across days for the same location", () => {
+    const rows: DailyLocationInput[] = [
+      { locationId: "loc-a", metrics: day("2026-07-27", { leads: 3, apptsSet: 2, noShows: 1, contracts: 1, contractValueCents: 500_00 }) },
+      { locationId: "loc-a", metrics: day("2026-07-28", { leads: 2, apptsSet: 1, contracts: 0 }) },
+    ];
+    const [row] = foldLocationWeek(rows);
+    expect(row!.locationId).toBe("loc-a");
+    expect(row!.leads).toBe(5);
+    expect(row!.appointmentsSet).toBe(3);
+    expect(row!.appointmentsNoShow).toBe(1);
+    expect(row!.contracts).toBe(1);
+    expect(row!.contractValueCents).toBe(500_00);
+    expect(row!.noShowRate).toEqual({ status: "ok", value: 1 / 3 });
+  });
+
+  it("degrades no-show rate to pending when no appointments were set", () => {
+    const [row] = foldLocationWeek([{ locationId: "loc-a", metrics: day("2026-07-27", {}) }]);
+    expect(row!.noShowRate.status).toBe("pending");
+  });
+
+  it("never folds avgStars/avgMarginPct into a fake average — always pending (medians don't fold)", () => {
+    const [row] = foldLocationWeek([{ locationId: "loc-a", metrics: day("2026-07-27", { leads: 1 }) }]);
+    expect(row!.avgStars.status).toBe("pending");
+    expect(row!.avgMarginPct.status).toBe("pending");
+  });
+
+  it("keeps the unattributed (null locationId) bucket separate from real locations, not hidden", () => {
+    const rows: DailyLocationInput[] = [
+      { locationId: "loc-a", metrics: day("2026-07-27", { leads: 3 }) },
+      { locationId: null, metrics: day("2026-07-27", { leads: 2 }) },
+    ];
+    const folded = foldLocationWeek(rows);
+    expect(folded).toHaveLength(2);
+    const unattributed = folded.find((r) => r.locationId === null);
+    expect(unattributed).toBeDefined();
+    expect(unattributed!.leads).toBe(2);
+  });
+
+  it("§8.12 invariant: company total === sum of per-location rows, across multiple locations + the unattributed bucket", () => {
+    const rows: DailyLocationInput[] = [
+      { locationId: "loc-a", metrics: day("2026-07-27", { leads: 3, apptsSet: 2, noShows: 1, contracts: 1, contractValueCents: 500_00, invoicedCents: 100_00, reviewsPosted: 2, estimatesApproved: 1, materialOrders: 1, jobsCompleted: 1 }) },
+      { locationId: "loc-a", metrics: day("2026-07-28", { leads: 1, apptsSet: 1 }) },
+      { locationId: "loc-b", metrics: day("2026-07-27", { leads: 4, apptsSet: 3, contracts: 2, contractValueCents: 900_00, cashCollectedCents: 50_00 }) },
+      { locationId: null, metrics: day("2026-07-27", { leads: 1 }) },
+    ];
+    const folded = foldLocationWeek(rows);
+    const total = sumLocationWeeks(folded);
+
+    const expectedLeads = rows.reduce((sum, r) => sum + r.metrics.topLine.leadsTotal, 0);
+    const expectedApptsSet = rows.reduce((sum, r) => sum + r.metrics.topLine.appointmentsSet, 0);
+    const expectedContracts = rows.reduce((sum, r) => sum + r.metrics.topLine.contractsSigned, 0);
+    const expectedContractValue = rows.reduce((sum, r) => sum + r.metrics.topLine.contractValueCents, 0);
+    const expectedInvoiced = rows.reduce((sum, r) => sum + r.metrics.money.invoicedCents, 0);
+    const expectedCash = rows.reduce((sum, r) => sum + r.metrics.money.cashCollectedCents, 0);
+
+    expect(total.leads).toBe(expectedLeads);
+    expect(total.appointmentsSet).toBe(expectedApptsSet);
+    expect(total.contracts).toBe(expectedContracts);
+    expect(total.contractValueCents).toBe(expectedContractValue);
+    expect(total.invoicedCents).toBe(expectedInvoiced);
+    expect(total.cashCollectedCents).toBe(expectedCash);
+
+    // Also the literal §8.12 phrasing: field-by-field sum of the per-location rows.
+    expect(total.leads).toBe(folded.reduce((sum, r) => sum + r.leads, 0));
+    expect(total.contractValueCents).toBe(folded.reduce((sum, r) => sum + r.contractValueCents, 0));
+  });
+
+  it("single-location tenant: company total equals the one location's row exactly (no rework needed at location #2)", () => {
+    const rows: DailyLocationInput[] = [
+      { locationId: "only-loc", metrics: day("2026-07-27", { leads: 5, apptsSet: 4, noShows: 1, contracts: 2, contractValueCents: 700_00, invoicedCents: 200_00, cashCollectedCents: 150_00, reviewsPosted: 3, estimatesApproved: 2, materialOrders: 1, jobsCompleted: 1 }) },
+    ];
+    const folded = foldLocationWeek(rows);
+    expect(folded).toHaveLength(1);
+    const total = sumLocationWeeks(folded);
+    const [only] = folded;
+
+    expect(total.leads).toBe(only!.leads);
+    expect(total.appointmentsSet).toBe(only!.appointmentsSet);
+    expect(total.contracts).toBe(only!.contracts);
+    expect(total.contractValueCents).toBe(only!.contractValueCents);
+    expect(total.invoicedCents).toBe(only!.invoicedCents);
+    expect(total.cashCollectedCents).toBe(only!.cashCollectedCents);
+    expect(total.noShowRate).toEqual(only!.noShowRate);
   });
 });

@@ -1,4 +1,5 @@
 import { ok, pending, type MetricValue } from "./degradation";
+import type { DailyMetrics } from "./metrics";
 
 // D4-8: folds the D4-4 dimensional daily rows (`daily_metrics_by_rep` /
 // `daily_metrics_by_source`, read via `getDailyByRepRange`/
@@ -204,4 +205,153 @@ export function foldSourceWeek(rows: DailySourceInput[]): SourceWeekRow[] {
     contractValueCents: b.contractValueCents,
     costCents: b.hasCost ? b.costSum : null,
   }));
+}
+
+// --- D4-9: location empire view fold ----------------------------------------
+//
+// Folds the D4-4 dimensional daily rows (`daily_metrics_by_location`, read via
+// `getDailyByLocationRange`) over a week into one row per location, for the
+// "empire view" (spec §6d/§8.12: company totals + per-location breakdown +
+// side-by-side comparison of the same measurables). Each daily row already
+// carries a full `DailyMetrics` blob (one location's `projectDay` output for
+// that date) — only the pure counts/sums fold additively across the week;
+// `speed.median_seconds` / `margin.avg_pct` / `reviews.avg_stars` are averages
+// over *events*, not something a per-day-per-location median/mean can be
+// re-averaged into honestly (same "medians don't fold" rule `weekly.ts` and
+// `foldRepWeek` document above) — re-deriving them per-location from
+// `orchestrator_event` is out of scope for a render-only dashboard task, so
+// they render `pending` here rather than a misleading average-of-averages.
+//
+// `locationId: null` is the **unattributed** bucket (events whose location
+// couldn't be resolved — `UNKNOWN_LOCATION`, translated to SQL NULL by
+// `sqlLocationId`), NOT the company total. It is one row among the
+// per-location breakdown like any other, just labeled clearly by the caller.
+// The company total is a SEPARATE synthesized row (`sumLocationWeeks`) that
+// sums every bucket returned here, unattributed included — the §8.12
+// invariant is company total === sum of the per-location rows.
+
+export interface LocationWeekRow {
+  /** null = the "unattributed" bucket — events with no resolvable locationId, not a real location. */
+  locationId: string | null;
+  leads: number;
+  appointmentsSet: number;
+  appointmentsNoShow: number;
+  noShowRate: MetricValue;
+  contracts: number;
+  contractValueCents: number;
+  invoicedCents: number;
+  cashCollectedCents: number;
+  reviewsPosted: number;
+  avgStars: MetricValue;
+  estimatesApproved: number;
+  avgMarginPct: MetricValue;
+  materialOrders: number;
+  jobsCompleted: number;
+}
+
+export interface DailyLocationInput {
+  locationId: string | null;
+  metrics: DailyMetrics;
+}
+
+const NULL_LOCATION_KEY = "__unattributed__";
+
+const AVG_STARS_PENDING_REASON = "avg stars not derivable from a location fold — needs per-event re-scan";
+const AVG_MARGIN_PENDING_REASON = "avg margin not derivable from a location fold — needs per-event re-scan";
+
+/** Folds N days' worth of `daily_metrics_by_location` rows into one row per locationId. */
+export function foldLocationWeek(rows: DailyLocationInput[]): LocationWeekRow[] {
+  interface Bucket {
+    locationId: string | null;
+    leads: number; appointmentsSet: number; appointmentsNoShow: number;
+    contracts: number; contractValueCents: number;
+    invoicedCents: number; cashCollectedCents: number;
+    reviewsPosted: number; estimatesApproved: number; materialOrders: number; jobsCompleted: number;
+  }
+  const buckets = new Map<string, Bucket>();
+
+  for (const r of rows) {
+    const key = r.locationId ?? NULL_LOCATION_KEY;
+    let b = buckets.get(key);
+    if (!b) {
+      b = {
+        locationId: r.locationId, leads: 0, appointmentsSet: 0, appointmentsNoShow: 0,
+        contracts: 0, contractValueCents: 0, invoicedCents: 0, cashCollectedCents: 0,
+        reviewsPosted: 0, estimatesApproved: 0, materialOrders: 0, jobsCompleted: 0,
+      };
+      buckets.set(key, b);
+    }
+    const d = r.metrics;
+    b.leads += d.topLine.leadsTotal;
+    b.appointmentsSet += d.topLine.appointmentsSet;
+    b.appointmentsNoShow += d.topLine.appointmentsNoShow;
+    b.contracts += d.topLine.contractsSigned;
+    b.contractValueCents += d.topLine.contractValueCents;
+    b.jobsCompleted += d.topLine.jobsCompleted;
+    b.invoicedCents += d.money.invoicedCents;
+    b.cashCollectedCents += d.money.cashCollectedCents;
+    b.reviewsPosted += d.quality.reviewsPosted;
+    b.estimatesApproved += d.production.estimatesApproved;
+    b.materialOrders += d.production.materialOrders;
+  }
+
+  return [...buckets.values()].map((b) => ({
+    locationId: b.locationId,
+    leads: b.leads,
+    appointmentsSet: b.appointmentsSet,
+    appointmentsNoShow: b.appointmentsNoShow,
+    // Same denominator/formula as scorecard.ts's company-wide noShowRate.
+    noShowRate: b.appointmentsSet > 0 ? ok(b.appointmentsNoShow / b.appointmentsSet) : pending("no appointments set this week"),
+    contracts: b.contracts,
+    contractValueCents: b.contractValueCents,
+    invoicedCents: b.invoicedCents,
+    cashCollectedCents: b.cashCollectedCents,
+    reviewsPosted: b.reviewsPosted,
+    avgStars: pending(AVG_STARS_PENDING_REASON),
+    estimatesApproved: b.estimatesApproved,
+    avgMarginPct: pending(AVG_MARGIN_PENDING_REASON),
+    materialOrders: b.materialOrders,
+    jobsCompleted: b.jobsCompleted,
+  }));
+}
+
+/** The company-wide row: every per-location row, unattributed bucket included. */
+export type CompanyLocationTotal = Omit<LocationWeekRow, "locationId">;
+
+/**
+ * Sums `foldLocationWeek`'s per-location rows into one company-wide total.
+ * Since the buckets `foldLocationWeek` produces are a strict partition of the
+ * same daily rows (§8.2), this MUST equal what folding all locations' daily
+ * rows together (ignoring locationId) would produce — the §8.12 invariant
+ * ("company total === sum of locations"). Exposed standalone (not just
+ * inlined in the page) so a unit test can assert the invariant directly,
+ * and so the empire page never has to hand-roll company arithmetic.
+ */
+export function sumLocationWeeks(rows: LocationWeekRow[]): CompanyLocationTotal {
+  let leads = 0, appointmentsSet = 0, appointmentsNoShow = 0, contracts = 0, contractValueCents = 0;
+  let invoicedCents = 0, cashCollectedCents = 0, reviewsPosted = 0, estimatesApproved = 0, materialOrders = 0, jobsCompleted = 0;
+
+  for (const r of rows) {
+    leads += r.leads;
+    appointmentsSet += r.appointmentsSet;
+    appointmentsNoShow += r.appointmentsNoShow;
+    contracts += r.contracts;
+    contractValueCents += r.contractValueCents;
+    invoicedCents += r.invoicedCents;
+    cashCollectedCents += r.cashCollectedCents;
+    reviewsPosted += r.reviewsPosted;
+    estimatesApproved += r.estimatesApproved;
+    materialOrders += r.materialOrders;
+    jobsCompleted += r.jobsCompleted;
+  }
+
+  return {
+    leads, appointmentsSet, appointmentsNoShow,
+    noShowRate: appointmentsSet > 0 ? ok(appointmentsNoShow / appointmentsSet) : pending("no appointments set this week"),
+    contracts, contractValueCents, invoicedCents, cashCollectedCents, reviewsPosted,
+    avgStars: pending(AVG_STARS_PENDING_REASON),
+    estimatesApproved,
+    avgMarginPct: pending(AVG_MARGIN_PENDING_REASON),
+    materialOrders, jobsCompleted,
+  };
 }
