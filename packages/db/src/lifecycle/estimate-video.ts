@@ -126,6 +126,9 @@ export interface VideoDeliveryEntry {
   personalized: boolean;
   customerPhone: string | null;
   repName: string | null;
+  customerId: string | null;
+  smsConsentAt: Date | null;
+  emailOptOut: boolean;
 }
 
 /** Day-after delivery picks: estimates sent 20–48h ago, not yet delivered
@@ -162,14 +165,33 @@ export async function ownerVideoDeliveryQueue(
 
       const ctx = await estimateContext(tx, est);
       let customerPhone: string | null = null;
+      let customerId: string | null = null;
+      let smsConsentAt: Date | null = null;
+      let emailOptOut = false;
       if (est.leadId) {
         const [l] = await tx.select({ customerId: lead.customerId }).from(lead).where(eq(lead.id, est.leadId));
         if (l?.customerId) {
-          const [c] = await tx.select({ phone: customer.phone, smsOptOut: customer.smsOptOut }).from(customer).where(eq(customer.id, l.customerId));
+          const [c] = await tx
+            .select({
+              id: customer.id,
+              phone: customer.phone,
+              smsOptOut: customer.smsOptOut,
+              smsConsentAt: customer.smsConsentAt,
+              emailOptOut: customer.emailOptOut,
+            })
+            .from(customer)
+            .where(eq(customer.id, l.customerId));
+          // Pre-null on opt-out: the sender's `!entry.customerPhone` skip depends on this.
           customerPhone = c && !c.smsOptOut ? c.phone : null;
+          customerId = c?.id ?? null;
+          smsConsentAt = c?.smsConsentAt ?? null;
+          emailOptOut = c?.emailOptOut ?? false;
         }
       }
-      out.push({ estimateId: est.id, documentId: pick.documentId, personalized: pick.personalized, customerPhone, repName: ctx.repName });
+      out.push({
+        estimateId: est.id, documentId: pick.documentId, personalized: pick.personalized, customerPhone, repName: ctx.repName,
+        customerId, smsConsentAt, emailOptOut,
+      });
     }
     return out;
   });
