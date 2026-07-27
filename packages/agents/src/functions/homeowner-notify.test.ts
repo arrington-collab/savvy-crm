@@ -96,5 +96,14 @@ describe("evaluateTenantHomeownerNotifs", () => {
     // suppression list (the claim row is still inserted for dedupe/idempotency,
     // but no message actually went out and it isn't counted as sent).
     expect(r.sent).toBe(0);
+    // Audit-integrity regression: the claimed communication row must NOT read
+    // as a delivered milestone SMS. It should be rewritten to the blocked
+    // verdict marker, not left with the real milestone body.
+    const smsRows = await withTenant(tenantId, (tx) =>
+      tx.select({ body: communication.body }).from(communication).where(and(eq(communication.tenantId, tenantId), eq(communication.channel, "sms"))),
+    );
+    expect(smsRows).toHaveLength(1);
+    expect(smsRows[0]!.body).toContain("blocked: suppressed");
+    expect(smsRows[0]!.body).not.toContain("Track your project");
   });
 });

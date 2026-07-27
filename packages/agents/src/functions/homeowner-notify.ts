@@ -1,4 +1,4 @@
-import { adminDb, withTenant, tenant, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq, isSuppressed } from "@savvy/db";
+import { adminDb, withTenant, tenant, communication, listStageEventsToNotify, markStageEventNotified, claimCommunication, eq, isSuppressed } from "@savvy/db";
 import { parseHomeownerConfig, parseEmailConfig, homeownerStageCopy, signPayloadToken, requireSecret, isWithinQuietHours } from "@savvy/core";
 import { getTenantSms, resolveA2pApproved } from "../telephony";
 import { getTenantEmail } from "../email";
@@ -50,8 +50,21 @@ export async function evaluateTenantHomeownerNotifs(tenantId: string, now: Date)
               contactId: ev.customerId ?? undefined,
             },
           );
-          if (result.status === "sent") delivered = true;
-        } catch { /* fail-soft */ }
+          if (result.status === "sent") {
+            delivered = true;
+          } else {
+            // Non-sent verdict: the claimed row still holds the real milestone
+            // body — rewrite it to the verdict marker so it doesn't read as a
+            // delivered SMS to a suppressed/blocked/deferred customer.
+            const marker = `[${result.status}: ${result.status === "blocked" ? result.reason : result.untilIso}]`;
+            await withTenant(tenantId, (tx) => tx.update(communication).set({ body: marker }).where(eq(communication.id, claimed.id)));
+          }
+        } catch (err) {
+          // fail-soft on the send itself, but the claimed row must not be left
+          // with the real body — it never actually went out.
+          const marker = `[error: ${err instanceof Error ? err.message : "guardedSms failed"}]`;
+          await withTenant(tenantId, (tx) => tx.update(communication).set({ body: marker }).where(eq(communication.id, claimed.id)));
+        }
       }
     }
     // Email — same claim-then-send pattern
