@@ -65,7 +65,7 @@ describe("canvassContractObject", () => {
 });
 
 describe("allowedCanvassOrigin", () => {
-  const origin = "https://canvass.alta.example";
+  const origin = "https://canvass.example";
 
   it("echoes any origin when the allowlist is unset", () => {
     expect(allowedCanvassOrigin(origin, undefined)).toBe(origin);

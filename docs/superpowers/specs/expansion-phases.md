@@ -164,7 +164,7 @@ production scheduled.
 | 354 | Office Today: scoped exception queue (their cards: scheduling, docs, collections calls, endorsement signatures) with owner-only items excluded; card ownership field on exceptions | SAGE | FA | invariant: owner-tier cards never render for office role |
 
 **Deferred from this round (owner):** Spanish-speaking homeowner experience (revisit
-post-Alta launch).
+post-Northwind launch).
 
 ---
 

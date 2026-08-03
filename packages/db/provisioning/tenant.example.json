@@ -1,0 +1,26 @@
+{
+  "name": "Northwind Roofing",
+  "clerkOrgId": "org_REPLACE_WITH_CLERK_ORG_ID",
+  "timezone": "America/Denver",
+  "digestTimes": ["07:00", "17:00"],
+  "breakGlass": { "min_dollars": 1000, "deadline_hours": 48 },
+  "owner": {
+    "clerkUserId": "usr_REPLACE_WITH_OWNER_CLERK_USER_ID",
+    "name": "Tenant Owner",
+    "email": "owner@REPLACE.example"
+  },
+  "licenses": [
+    { "state": "REPLACE_STATE", "city": null, "authority": "REPLACE — state licensing authority", "licenseNumber": "REPLACE-STATE", "status": "active" },
+    { "state": "REPLACE_STATE", "city": "REPLACE_CITY", "authority": "REPLACE — city building authority", "licenseNumber": "REPLACE-CITY", "status": "active" }
+  ],
+  "contractTemplates": [
+    { "state": "REPLACE_STATE", "version": 1, "name": "REPLACE — state roofing contract", "clauses": ["right_to_rescind", "no_deductible_waiver"], "status": "active" }
+  ],
+  "taskConfig": [
+    { "taskId": 44, "enabled": true }
+  ],
+  "twilio": {
+    "fromNumber": "+1REPLACE",
+    "a2p": { "brandStatus": "pending", "campaignStatus": "pending" }
+  }
+}

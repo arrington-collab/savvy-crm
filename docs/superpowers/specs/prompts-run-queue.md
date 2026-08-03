@@ -347,5 +347,5 @@ every card's ledger/timeline/docs populated. State verification in the PR.
 **Order logic:** 1→2 is the only hard chain (gates before/around canvass jobs — if canvass
 is already running, fine: gate re-derivation cleans up after). 3, 4, 5, 8 are
 parallel-safe any time. 6 must precede 7. 9 runs last so it seeds through the gates.
-After the queue: re-run the full smoke test, then Alta launch (checklist + provisioning),
+After the queue: re-run the full smoke test, then Northwind launch (checklist + provisioning),
 then decide on "The Next 20."

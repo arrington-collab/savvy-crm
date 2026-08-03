@@ -1,4 +1,4 @@
-// Per-tenant branding (Alta cutover): tenant.settings.brand recolors the app
+// Per-tenant branding: tenant.settings.brand recolors the app
 // chrome so an operator always knows whose company they're looking at. The
 // theme system is four CSS accent variables consumed app-wide; one validated
 // accent hex derives all four. Values are validated hard here because they are

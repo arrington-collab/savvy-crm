@@ -99,12 +99,12 @@ describe("emailSignedCopy", () => {
     contract: { ...contract, termsText: "RIGHT OF RESCISSION\nProperty Owner may cancel within 72 HOURS of signing." },
     customerEmail: "jane@ho.example",
     customerName: "Jane HO",
-    companyName: "Alta Roofing",
+    companyName: "Northwind Roofing",
   };
 
   it("sends the full signed copy with the rescission notice", async () => {
     const email = fakeSender();
-    const r = await emailSignedCopy(input, { email, from: "docs@alta.example" });
+    const r = await emailSignedCopy(input, { email, from: "docs@example.com" });
     expect(r).toEqual({ sent: true });
     expect(email.sent).toHaveLength(1);
     const m = email.sent[0]!;
@@ -117,10 +117,10 @@ describe("emailSignedCopy", () => {
   });
 
   it("fails soft without an email address and never throws on send errors", async () => {
-    const r1 = await emailSignedCopy({ ...input, customerEmail: null }, { email: fakeSender(), from: "docs@alta.example" });
+    const r1 = await emailSignedCopy({ ...input, customerEmail: null }, { email: fakeSender(), from: "docs@example.com" });
     expect(r1).toEqual({ sent: false, reason: "no_email" });
     const boom = { async sendEmail() { throw new Error("resend down"); } };
-    const r2 = await emailSignedCopy(input, { email: boom, from: "docs@alta.example" });
+    const r2 = await emailSignedCopy(input, { email: boom, from: "docs@example.com" });
     expect(r2.sent).toBe(false);
     expect(r2.reason).toContain("send_failed");
   });
@@ -130,7 +130,7 @@ describe("emailSignedCopy", () => {
   // stays byte-identical to the pre-17b notice.
   it("adds the CO SB38 provisions (6-22-105 + 10-day) for a CO contract", async () => {
     const email = fakeSender();
-    await emailSignedCopy({ ...input, state: "CO" }, { email, from: "docs@alta.example" });
+    await emailSignedCopy({ ...input, state: "CO" }, { email, from: "docs@example.com" });
     const html = email.sent[0]!.html;
     expect(html).toContain("6-22-105"); // no waiver of the insurance deductible
     expect(html).toMatch(/10[\s-]day/i); // insurer-decision window
@@ -138,14 +138,14 @@ describe("emailSignedCopy", () => {
 
   it("leaves the AZ / non-CO door-to-door notice unchanged (no CO 6-22-105 provision)", async () => {
     const azEmail = fakeSender();
-    await emailSignedCopy({ ...input, state: "AZ" }, { email: azEmail, from: "docs@alta.example" });
+    await emailSignedCopy({ ...input, state: "AZ" }, { email: azEmail, from: "docs@example.com" });
     const azHtml = azEmail.sent[0]!.html;
     expect(azHtml).toContain("RIGHT TO CANCEL");
     expect(azHtml).toContain("72 HOURS");
     expect(azHtml).not.toContain("6-22-105");
     // Byte-identical to the notice rendered with no state at all (as-is).
     const noneEmail = fakeSender();
-    await emailSignedCopy({ ...input, state: null }, { email: noneEmail, from: "docs@alta.example" });
+    await emailSignedCopy({ ...input, state: null }, { email: noneEmail, from: "docs@example.com" });
     expect(azHtml).toBe(noneEmail.sent[0]!.html);
   });
 });

@@ -1,5 +1,5 @@
 // Market clocks (tenant.settings.markets): the top bar shows local time for
-// every market the tenant operates in — e.g. Bloom in AZ, Alta in CO. Config
+// every market the tenant operates in — e.g. Bloom in AZ, Northwind in CO. Config
 // only; growing into a new market is a settings edit, not a code change.
 // Settings are hostile input (client-editable JSON), so entries are validated
 // hard: a bad timezone must die here, never reach Intl at render time.

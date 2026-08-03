@@ -17,7 +17,7 @@ const tier = (t: Partial<TierEstimate> & { tier: TierEstimate["tier"] }): TierEs
 });
 
 const BASE = {
-  companyName: "Alta Roofing",
+  companyName: "Northwind Roofing",
   customerName: "Jordan Homeowner",
   address: "12 Oak Ln, Phoenix, AZ",
   sentAt: new Date("2026-07-01T17:00:00Z"),

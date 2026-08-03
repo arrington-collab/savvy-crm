@@ -11,11 +11,11 @@ import { provisionTenant, DORMANT_SEAMS, type TenantProvisionConfig } from "./pr
 // Required for seal/open when the Twilio wiring step encrypts the auth token.
 process.env.INTEGRATION_SECRET_KEY = Buffer.alloc(32, 9).toString("base64");
 
-// A committable config (NO secrets) modelling a Denver tenant like Alta.
+// A committable config (NO secrets) modelling a Denver tenant like Northwind.
 const baseConfig = (orgSuffix: string): TenantProvisionConfig => ({
-  name: "Alta Roofing",
-  clerkOrgId: `org_alta_${orgSuffix}`,
-  owner: { clerkUserId: `usr_owner_${orgSuffix}`, name: "Alta Owner", email: "owner@alta.example" },
+  name: "Northwind Roofing",
+  clerkOrgId: `org_northwind_${orgSuffix}`,
+  owner: { clerkUserId: `usr_owner_${orgSuffix}`, name: "Northwind Owner", email: "owner@example.com" },
   licenses: [
     { state: "CO", city: null, authority: "CO SoS", licenseNumber: `CO-${orgSuffix}`, status: "active" },
     { state: "CO", city: "Denver", authority: "Denver", licenseNumber: `DEN-${orgSuffix}`, status: "active" },
@@ -49,13 +49,13 @@ afterAll(async () => {
 describe("provisionTenant — dry run", () => {
   it("writes NOTHING and returns a plan for every step", async () => {
     const suffix = `dry_${Math.random().toString(36).slice(2)}`;
-    orgs.push(`org_alta_${suffix}`);
+    orgs.push(`org_northwind_${suffix}`);
     const res = await provisionTenant(baseConfig(suffix), {}, { dryRun: true });
     expect(res.dryRun).toBe(true);
     expect(res.steps.length).toBeGreaterThan(0);
     expect(res.steps.every((s) => s.action === "planned")).toBe(true);
     // Nothing persisted.
-    const rows = await adminDb.select({ id: tenant.id }).from(tenant).where(eq(tenant.clerkOrgId, `org_alta_${suffix}`));
+    const rows = await adminDb.select({ id: tenant.id }).from(tenant).where(eq(tenant.clerkOrgId, `org_northwind_${suffix}`));
     expect(rows).toHaveLength(0);
   });
 });
@@ -63,7 +63,7 @@ describe("provisionTenant — dry run", () => {
 describe("provisionTenant — commit", () => {
   it("creates tenant #N with Denver TZ, owner, price book, licenses, and CO SB38 template", async () => {
     const suffix = `co_${Math.random().toString(36).slice(2)}`;
-    orgs.push(`org_alta_${suffix}`);
+    orgs.push(`org_northwind_${suffix}`);
     const res = await provisionTenant(baseConfig(suffix), {}, { dryRun: false });
     expect(res.dryRun).toBe(false);
     expect(res.tenantId).toBeTruthy();
@@ -86,7 +86,7 @@ describe("provisionTenant — commit", () => {
 
   it("is idempotent — a second run reuses the tenant and creates no duplicates", async () => {
     const suffix = `idem_${Math.random().toString(36).slice(2)}`;
-    orgs.push(`org_alta_${suffix}`);
+    orgs.push(`org_northwind_${suffix}`);
     const first = await provisionTenant(baseConfig(suffix), {}, { dryRun: false });
     const second = await provisionTenant(baseConfig(suffix), {}, { dryRun: false });
     expect(second.tenantId).toBe(first.tenantId);
@@ -101,7 +101,7 @@ describe("provisionTenant — commit", () => {
 describe("provisionTenant — dormant seams + Twilio", () => {
   it("reports Twilio as a dormant seam when no secret is provided", async () => {
     const suffix = `seam_${Math.random().toString(36).slice(2)}`;
-    orgs.push(`org_alta_${suffix}`);
+    orgs.push(`org_northwind_${suffix}`);
     const res = await provisionTenant({ ...baseConfig(suffix), twilio: { fromNumber: "+13035550123" } }, {}, { dryRun: false });
     const twilioSeam = res.dormantSeams.find((s) => s.key === "twilio");
     expect(twilioSeam).toBeTruthy();
@@ -115,7 +115,7 @@ describe("provisionTenant — dormant seams + Twilio", () => {
 
   it("wires Twilio + A2P pointers when a secret is supplied (never from config)", async () => {
     const suffix = `tw_${Math.random().toString(36).slice(2)}`;
-    orgs.push(`org_alta_${suffix}`);
+    orgs.push(`org_northwind_${suffix}`);
     const res = await provisionTenant(
       { ...baseConfig(suffix), twilio: { fromNumber: "+13035550123", a2p: { brandStatus: "pending", campaignStatus: "pending" } } },
       { twilioSecret: { accountSid: "ACtest", authToken: "tok_from_env" } },

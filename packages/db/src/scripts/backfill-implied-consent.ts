@@ -13,8 +13,8 @@
  * consent — stamp sms_consent_at now (backdated to created_at, so it reads
  * as "consent existed since the relationship began" rather than "just now"),
  * send the texts, formalize express consent later. This is the same shape as
- * the new-path fix in acculynx-import.ts / cert-request.ts / move-play.ts,
- * just applied retroactively to rows that predate it.
+ * the new-path fix in cert-request.ts / move-play.ts, just applied
+ * retroactively to rows that predate it.
  *
  * Idempotent: only touches rows where sms_consent_at IS NULL (COALESCE is a
  * no-op if already set), so re-running changes 0 additional rows.

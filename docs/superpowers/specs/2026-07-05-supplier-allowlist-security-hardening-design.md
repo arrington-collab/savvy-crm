@@ -10,12 +10,12 @@ Harden the supplier auto-send path before it emails real suppliers in production
 
 ## Part 1 — Canvass provisioning repo-hygiene (small)
 
-**Context:** an automated security review flagged a hardcoded tenant `publicKey` in `canvass-app/seed-alta-tenant.sql` and weak key generation in `packages/db/src/setup-canvass.ts`. **Both files are UNTRACKED local scripts** (never committed; confirmed via `git ls-files`/`git log --all`) — they are not repo code, but they are also not gitignored, so they *could* be committed by accident.
+**Context:** an automated security review flagged a hardcoded tenant `publicKey` in `canvass-app/seed-tenant.sql` and weak key generation in `packages/db/src/setup-canvass.ts`. **Both files are UNTRACKED local scripts** (never committed; confirmed via `git ls-files`/`git log --all`) — they are not repo code, but they are also not gitignored, so they *could* be committed by accident.
 
 - **In the PR:** add `.gitignore` entries so these untracked, secret-bearing local files can never be committed:
   - `canvass-app/` (local seed scripts with real tenant keys)
   - `packages/db/src/setup-canvass.ts` (local admin provisioning script)
-- **Out of scope (local/ops, not a repo change):** hardening the generator in the local `setup-canvass.ts` (`randomUUID().slice(0,12)` → `randomBytes(32).toString("base64url")`) and rotating the Alta tenant's publicKey. These are edits to untracked local files / the prod DB and are handled directly, not via this PR.
+- **Out of scope (local/ops, not a repo change):** hardening the generator in the local `setup-canvass.ts` (`randomUUID().slice(0,12)` → `randomBytes(32).toString("base64url")`) and rotating the tenant's publicKey. These are edits to untracked local files / the prod DB and are handled directly, not via this PR.
 
 ## Part 2 — Supplier auto-send allow-list + observability (feature)
 
@@ -86,6 +86,6 @@ supplier_allowlist { id, tenant_id (FK, notNull), domain (text, notNull, lowerca
 - [ ] Unit + e2e green; typecheck + lint clean; migrations 0051 generated (run on prod post-merge, with 0050).
 
 ## Out of scope / follow-ups
-- Local `setup-canvass.ts` CSPRNG fix + Alta key rotation (local/ops, offered separately).
+- Local `setup-canvass.ts` CSPRNG fix + tenant key rotation (local/ops, offered separately).
 - AI PDF-email recipient extraction; supplier directory beyond the domain allow-list.
 - Full audit-log entity for auto-sends (structured logs suffice for v1).

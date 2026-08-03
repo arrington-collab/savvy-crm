@@ -43,8 +43,8 @@ describe("newAlertSwaths", () => {
 
 describe("alertEmailHtml", () => {
   it("names the company and lists the events", () => {
-    const html = alertEmailHtml("Alta Roofing", [{ kind: "hail", mag: '1.75" hail', date: "2026-07-10" }]);
-    expect(html).toContain("Alta Roofing");
+    const html = alertEmailHtml("Northwind Roofing", [{ kind: "hail", mag: '1.75" hail', date: "2026-07-10" }]);
+    expect(html).toContain("Northwind Roofing");
     expect(html).toContain("⛈ Hail");
     expect(html).toContain("1.75");
   });

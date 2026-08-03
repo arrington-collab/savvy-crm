@@ -66,7 +66,7 @@ cron consumer) is deferred (§3: "keep the core transport-independent so you can
 
 ## Event catalog (§4)
 All types from the prompt implemented in the payload map (`lead.created … review.posted`).
-`Tool = savvy | canvass | alta-estimates | supplement-iq | bloomcam | bloom-materials | system`.
+`Tool = savvy | canvass | supplement-iq | bloomcam | bloom-materials | system`.
 
 ## Trigger registry seed (§5)
 The prompt's table, e.g. `lead.created`→Comms(first_touch, emits `lead.first_touch`) +

@@ -53,8 +53,8 @@ export const taskRegistry = pgTable(
 );
 
 /**
- * Per-tenant overrides on a registry task — how Alta (CO hail) and Bloom (AZ
- * wind/monsoon) diverge without forking the registry.
+ * Per-tenant overrides on a registry task — how Northwind (CO hail) and Bloom
+ * (AZ wind/monsoon) diverge without forking the registry.
  */
 export const tenantTaskConfig = pgTable(
   "tenant_task_config",

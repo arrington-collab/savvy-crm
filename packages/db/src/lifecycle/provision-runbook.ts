@@ -15,8 +15,8 @@ import { seedTaskRegistry } from "../../seeds/master-task-list";
 // stands up a new tenant end-to-end. Secrets NEVER live in the committable
 // config — they arrive via `secrets` (the CLI reads them from env / the secret
 // box). The Twilio auth token is sealed by upsertTwilioConnection before it
-// touches the DB. Execution for a real tenant (e.g. Alta) is owner-run because
-// the licenses, price book, and Twilio/QB/Stripe accounts are real-world inputs.
+// touches the DB. Execution for a real tenant is owner-run because the
+// licenses, price book, and Twilio/QB/Stripe accounts are real-world inputs.
 
 const DEFAULT_TZ = "America/Denver";
 
@@ -94,7 +94,7 @@ const looksLikeEmail = (s: string): boolean => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test
  * Preflight: lists config fields that still carry a `REPLACE` placeholder, are
  * empty-but-required, or malformed (owner email). Empty list = ready to commit.
  * Used to WARN on dry-run and to REFUSE a --commit run (so a half-filled
- * alta.json can never create a broken tenant #2).
+ * provisioning input can never create a broken tenant #2).
  */
 export function findUnresolvedConfigFields(config: TenantProvisionConfig): string[] {
   const issues: string[] = [];

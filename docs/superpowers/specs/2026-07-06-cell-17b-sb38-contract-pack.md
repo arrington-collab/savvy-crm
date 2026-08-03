@@ -3,7 +3,7 @@
 **Date:** 2026-07-06
 **Contract:** First-20-Cells, Cell 17 remainder (Wave D, SB38 templates #293). Completes Cell 17 with 17a (license matrix + scheduling block, #143).
 **Migration:** 0055 (next after 0054; confirmed in `_journal.json`).
-**Branch:** `cell-17b-contract-pack` (fresh off current `origin/main` — NOT the stranded `cell-17b-sb38-contracts` branch, which is based on pre-`f3e82fe` main and would regress the canvass rescission email + Alta prompts if merged).
+**Branch:** `cell-17b-contract-pack` (fresh off current `origin/main` — NOT the stranded `cell-17b-sb38-contracts` branch, which is based on pre-`f3e82fe` main and would regress the canvass rescission email + Northwind prompts if merged).
 
 ## Why
 

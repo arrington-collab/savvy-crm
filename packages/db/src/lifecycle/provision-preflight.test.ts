@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { findUnresolvedConfigFields, provisionTenant, type TenantProvisionConfig } from "./provision-runbook";
 
 const placeholder: TenantProvisionConfig = {
-  name: "Alta Roofing",
-  clerkOrgId: "org_REPLACE_WITH_ALTA_CLERK_ORG_ID",
-  owner: { clerkUserId: "usr_REPLACE_WITH_OWNER", name: "Alta Owner", email: "owner@REPLACE.example" },
+  name: "Northwind Roofing",
+  clerkOrgId: "org_REPLACE_WITH_NORTHWIND_CLERK_ORG_ID",
+  owner: { clerkUserId: "usr_REPLACE_WITH_OWNER", name: "Northwind Owner", email: "owner@REPLACE.example" },
   licenses: [{ state: "CO", authority: "CO SoS", licenseNumber: "REPLACE-CO-STATE" }],
   twilio: { fromNumber: "+1303REPLACE" },
 };
 
 const ready: TenantProvisionConfig = {
-  name: "Alta Roofing",
-  clerkOrgId: "org_2abcAlta",
-  owner: { clerkUserId: "usr_2abc", name: "Jane Alta", email: "jane@altaroofing.com" },
+  name: "Northwind Roofing",
+  clerkOrgId: "org_2abcNorthwind",
+  owner: { clerkUserId: "usr_2abc", name: "Jane Northwind", email: "jane@northwindroofing.com" },
   licenses: [{ state: "CO", authority: "CO SoS", licenseNumber: "CO-12345" }],
 };
 

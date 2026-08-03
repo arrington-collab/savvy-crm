@@ -1,6 +1,6 @@
 # Claude Code Prompt: Final Cells — Close the Contract
 
-Written 2026-07-05 against repo state at #143 + canvass beta hardening. Supersedes `prompts-alta-launch.md` (cells 6 and 17a are now DONE — do not rebuild).
+Written 2026-07-05 against repo state at #143 + canvass beta hardening. Supersedes `prompts-launch.md` (cells 6 and 17a are now DONE — do not rebuild).
 
 ---
 
@@ -16,8 +16,8 @@ Close out the First-20-Cells contract (`docs/superpowers/specs/first-20-cells.md
 ### 1 · Cell 17b — SB38 contract pack (finish it; small)
 Rescission notice already exists in the canvass signed-copy email (f3e82fe) — extend to ALL CO contract paths, not just door-knock intake. Add: deductible no-waiver language (C.R.S. 6-22-105), 10-day/rescission provisions, and the **template-version invariant**: every signed CO contract records the template version used, and a compliant-version check runs in the sweep. Red-path test: a contract from a stale template fails the invariant. AZ door-to-door rescission stays as-is in canvass.
 
-### 2 · Cell 20 — Alta provisioning script + execution
-`ensureTenantForOrg`/`ensureUser` primitives exist in `packages/db/src/lifecycle/provisioning.ts` — build the full runbook on top: one idempotent script (dry-run mode first) that creates/configures the tenant end-to-end — name + `America/Denver`, Twilio subaccount + number wiring + 10DLC campaign pointers (monitor from #141 will surface registration state), golden-set template clone, price book import, license matrix seed (cell 17a table), registry seed + `tenant_task_config`, digest times + break-glass rules, dormant-seam inventory (financing, PostGrid, etc. — what activating each requires). Secrets via env/secret-box only. Then EXECUTE for Alta with the owner; log wall-clock time; produce a `provisioning.complete` artifact. **This cell ends with Alta live as tenant #2.**
+### 2 · Cell 20 — Northwind provisioning script + execution
+`ensureTenantForOrg`/`ensureUser` primitives exist in `packages/db/src/lifecycle/provisioning.ts` — build the full runbook on top: one idempotent script (dry-run mode first) that creates/configures the tenant end-to-end — name + `America/Denver`, Twilio subaccount + number wiring + 10DLC campaign pointers (monitor from #141 will surface registration state), golden-set template clone, price book import, license matrix seed (cell 17a table), registry seed + `tenant_task_config`, digest times + break-glass rules, dormant-seam inventory (financing, PostGrid, etc. — what activating each requires). Secrets via env/secret-box only. Then EXECUTE for Northwind with the owner; log wall-clock time; produce a `provisioning.complete` artifact. **This cell ends with Northwind live as tenant #2.**
 
 ### 3 · Cell 8 — QB + Stripe reconciliation checks
 `finance.qb_reconcile` (Savvy AR == QuickBooks AR nightly) and `finance.stripe_match` (payouts == payments ledger) are still absent from `packages/core/src/verification/checks.ts`. Build both on the existing builders; failures emit an exception with the diff attached. Fail-soft to `stale` on vendor API downtime.
@@ -40,6 +40,6 @@ Update `first-20-cells.md` STATUS to 20/20 with PR/evidence links. Write "The Ne
 ## Owner actions this prompt cannot do (surface as cards, then move on)
 - File A2P 10DLC brand/campaign registration (monitor #141 shows state + steps).
 - Choose the financing vendor (cell 11 waits on it).
-- Provide Alta's real-world inputs at cell 20 execution: licenses for the matrix, price book, Twilio/QB/Stripe accounts.
+- Provide Northwind's real-world inputs at cell 20 execution: licenses for the matrix, price book, Twilio/QB/Stripe accounts.
 
 One cell at a time, in this order. Blocked ⇒ say why and stop. Every PR: which cell + what proves it ran correctly. Start with Step 0, then 17b.
