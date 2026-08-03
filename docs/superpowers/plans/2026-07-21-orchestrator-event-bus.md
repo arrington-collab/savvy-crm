@@ -60,7 +60,7 @@
 **Interfaces:**
 - Produces:
   - `type EventType` — union of the catalog string literals.
-  - `type Tool = "savvy" | "canvass" | "alta-estimates" | "supplement-iq" | "bloomcam" | "bloom-materials" | "system"`.
+  - `type Tool = "savvy" | "canvass" | "supplement-iq" | "bloomcam" | "bloom-materials" | "system"`.
   - `interface DomainEvent<T extends EventType = EventType> { id: string; type: T; version: number; occurredAt: string; source: Tool; correlationId: string; idempotencyKey: string; actor?: string; tenantId: string; payload: PayloadFor<T>; }`
   - `type PayloadFor<T extends EventType>` — maps each event type to its payload shape.
   - `function validateEvent(e: unknown): { ok: true; event: DomainEvent } | { ok: false; reason: string }`
@@ -165,11 +165,11 @@ import { z } from "zod";
 // The tools that can originate an event. `system` = the orchestrator itself
 // (synthesized events like a handler failure).
 export type Tool =
-  | "savvy" | "canvass" | "alta-estimates"
+  | "savvy" | "canvass"
   | "supplement-iq" | "bloomcam" | "bloom-materials" | "system";
 
 const TOOL = z.enum([
-  "savvy", "canvass", "alta-estimates",
+  "savvy", "canvass",
   "supplement-iq", "bloomcam", "bloom-materials", "system",
 ]);
 

@@ -1,6 +1,6 @@
 # Claude Code Prompt: Final Cells — Close the Contract
 
-Written 2026-07-05 against repo state at #143 + canvass beta hardening. Supersedes `prompts-alta-launch.md` (cells 6 and 17a are now DONE — do not rebuild).
+Written 2026-07-05 against repo state at #143 + canvass beta hardening. Supersedes `prompts-launch.md` (cells 6 and 17a are now DONE — do not rebuild).
 
 ---
 
