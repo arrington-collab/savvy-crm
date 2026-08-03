@@ -44,9 +44,9 @@ Material actuals (cell 13) + labor/sub costs (sub invoices via the same ingestio
 
 Tokenized per-job route (reuse the `/b/` short-link infrastructure): schedule + crew ETA, job stage, curated photos (CompanyCam, flagged customer-safe only), payment status + pay link, documents (contract, COC, warranty), contact button that routes to comms (not a rep's cell). Read-only; no login. Link included in booking confirmation and reminder templates. Evidence: invariant — every active job has a live status page; link present in outbound templates; page uptime check.
 
-## Cell 20 — Alta provisioning runbook (scripted, then executed)
+## Cell 20 — Northwind provisioning runbook (scripted, then executed)
 
-A single idempotent script + checklist doc: create tenant (timezone `America/Denver`), telephony numbers + 10DLC, templates cloned from a golden set, price book import, license matrix entries, registry seed + tenant_task_config, digest times, break-glass rules, integration placeholders (dormant seams listed with what activating each requires). Dry-run mode that reports what it would create. Then EXECUTE it for Alta with the owner, logging wall-clock provisioning time as the baseline-to-beat. Evidence: Alta live as tenant #2 via the script; a `provisioning.complete` checklist artifact with timings.
+A single idempotent script + checklist doc: create tenant (timezone `America/Denver`), telephony numbers + 10DLC, templates cloned from a golden set, price book import, license matrix entries, registry seed + tenant_task_config, digest times, break-glass rules, integration placeholders (dormant seams listed with what activating each requires). Dry-run mode that reports what it would create. Then EXECUTE it for Northwind with the owner, logging wall-clock provisioning time as the baseline-to-beat. Evidence: Northwind live as tenant #2 via the script; a `provisioning.complete` checklist artifact with timings.
 
 ## Guardrails
 

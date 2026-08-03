@@ -9,8 +9,8 @@ describe("parseBrandConfig", () => {
   });
 
   it("accepts a full brand", () => {
-    const b = parseBrandConfig({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
-    expect(b).toEqual({ name: "Alta Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
+    const b = parseBrandConfig({ name: "Northwind Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
+    expect(b).toEqual({ name: "Northwind Roofing", logoUrl: "data:image/svg+xml;base64,abc", logoUrlDark: "https://cdn.example.com/dark.svg", accent: "#b0752b", theme: "light" });
   });
 
   it("only recognizes the light theme; junk falls back to default dark", () => {

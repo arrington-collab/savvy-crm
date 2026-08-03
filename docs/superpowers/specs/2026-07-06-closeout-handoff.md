@@ -7,7 +7,7 @@ Session shipped **7 cells** (PRs #144–#151, all merged to main, CI green). Thi
 | Cell | PR | What proves it | Prod-green gate |
 |---|---|---|---|
 | 17b SB38 contract pack | #144 | resolver + fail-closed gate on both CO paths + `compliance.contract_template` sweep (task 44) + state-aware rescission email | owner attaches real CO DocuSeal template; sweep green |
-| 20 Alta provisioning | #145 | idempotent dry-run-first `provisionTenant` + CLI + seam inventory | **owner executes** for Alta (real creds) |
+| 20 Northwind provisioning | #145 | idempotent dry-run-first `provisionTenant` + CLI + seam inventory | **owner executes** for Northwind (real creds) |
 | 8 QB + Stripe reconcile | #146 | `finance.qb_reconcile` (task 150) + `finance.stripe_match` (task 141), fail-soft to stale | tenant connects QBO/Stripe; 14 clean days |
 | 18 auto-chargeback | #147 | `recordStageChange`→lost flips unpaid commissions to `charged_back` (migration 0056) | n/a (invariant live) |
 | 11 financing seam | #148 | `FinancingProvider` + dormant default + `job.financing_status` (migration 0057) | **owner picks vendor** → adapter |
@@ -37,7 +37,7 @@ Session shipped **7 cells** (PRs #144–#151, all merged to main, CI green). Thi
 - **Payout export** with owner-approval card.
 
 ## Owner-action cards (assistant cannot do these)
-1. **Alta launch (cell 20 execution):** provide Clerk org + owner, CO license numbers, Twilio subaccount/token + carrier 10DLC registration, QB/Stripe accounts. Then `pnpm --filter @savvy/db db:provision provisioning/alta.json --commit`.
+1. **Northwind launch (cell 20 execution):** provide Clerk org + owner, CO license numbers, Twilio subaccount/token + carrier 10DLC registration, QB/Stripe accounts. Then `pnpm --filter @savvy/db db:provision provisioning/tenant.json --commit`.
 2. **A2P 10DLC carrier registration (cell 6 green):** the break-glass card in the app has the exact brand/campaign steps.
 3. **Financing vendor (cell 11 adapter):** pick a GreenSky-class provider; then implement `FinancingProvider` + estimate apply-link injection + webhook route.
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript · Drizzle/Postgres (RLS) · `@savvy/core` pure helpers + verification framework (Vitest) · `@savvy/integrations` Twilio wrapper (Vitest) · `@savvy/agents` health sweep + Inngest (Vitest, DI) · Next.js App Router route handler + server components · Playwright e2e.
 
-**Spec:** `docs/superpowers/specs/first-20-cells.md` (Cell 6). Cell is DONE-in-prod when both tenants are A2P-registered and the delivery-rate check is green 14 days; this plan delivers the machine (merge ≠ done, per the contract). Only Bloom exists today; Alta's card is produced automatically when Alta exists (Cell 20). Twilio is mock-only today, so live sends are exercised via injected stubs.
+**Spec:** `docs/superpowers/specs/first-20-cells.md` (Cell 6). Cell is DONE-in-prod when both tenants are A2P-registered and the delivery-rate check is green 14 days; this plan delivers the machine (merge ≠ done, per the contract). Only Bloom exists today; Northwind's card is produced automatically when Northwind exists (Cell 20). Twilio is mock-only today, so live sends are exercised via injected stubs.
 
 **Base:** `origin/main` @ `b4f38f3`. **Next migration:** `0052` (verified: last is `0051_neat_phalanx`).
 
@@ -665,5 +665,5 @@ gh pr checks <n> --watch
 
 - **Spec coverage:** audit-via-registration-state (no live creds today) → Task 4+5 (unregistered ⇒ card) ✓; delivery-rate monitor + 30007 watch → Task 5 ✓; auto-throttle + card → Task 6 + reconcile ✓; bind `comms.deliverability` evidence → Task 5 ✓; registration state on Agents page → Task 7 ✓; break-glass card with exact steps → Task 5 (force) + Task 7 (copy) ✓. Live Twilio API audit + actual carrier registration + 14-day-green are owner/time-gated (documented).
 - **Type consistency:** `A2pState` defined Task 4, consumed Tasks 5/7; `isA2pRegistered(state, connectionActive)` Task 4 → used Task 4 DB; `DELIVERY_RATE_FLOOR`/`SPAM_ERROR_CODE` Task 5 → reused Task 6; `BREAK_GLASS_ON_FAIL_CHECK_KEYS` Task 5 core → consumed Task 5 db reconcile; `applyDeliveryReceipt` Task 1 → Task 3 webhook.
-- **Deferred (out of scope, documented):** live Twilio A2P sync poll (no creds), Alta's card (Cell 20), the 14-day prod-green clock, RingCentral deliverability (Twilio-first).
+- **Deferred (out of scope, documented):** live Twilio A2P sync poll (no creds), Northwind's card (Cell 20), the 14-day prod-green clock, RingCentral deliverability (Twilio-first).
 - **Watch items for the executor:** (a) possible `@savvy/core → @savvy/db` import cycle in Task 5 Step 5 — fallback documented; (b) `CHECK_BINDINGS`/`master-task-list.test.ts` bound-set assertion when seeding the new task; (c) local `db:migrate` 0045 drift — apply additive SQL directly.

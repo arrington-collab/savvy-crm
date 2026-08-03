@@ -1,10 +1,10 @@
-# Claude Code Prompt: Finish the Contract — Alta Launch Path
+# Claude Code Prompt: Finish the Contract — Northwind Launch Path
 
 Paste everything below this line into a fresh Claude Code session at `~/Sites/savvy-crm`. Supersedes the run-order in older prompt files for the remaining cells. Written 2026-07-04 against repo state at #136 + canvass slices.
 
 ---
 
-Finish the First-20-Cells contract (`docs/superpowers/specs/first-20-cells.md`) on the Alta-critical path. **12 of 20 cells are DONE** — verify, don't rebuild: 1 (timezone) · 2 (registry) · 3 (evidence framework) · 4 (health sweep/Today/digest/founder-minutes) · 5 (Operator Console #126–#132) · 7 (comms hygiene #125) · 9 (Roofr auto-order) · 10 (estimate auto-draft) · 13 (supplier invoice ingestion + price-guard + auto-credit #133–#136) · 14 (job costing actuals → GM·MTD #135) · 15 (depreciation G1/G2 #111–#112) · 19 (homeowner status page).
+Finish the First-20-Cells contract (`docs/superpowers/specs/first-20-cells.md`) on the Northwind-critical path. **12 of 20 cells are DONE** — verify, don't rebuild: 1 (timezone) · 2 (registry) · 3 (evidence framework) · 4 (health sweep/Today/digest/founder-minutes) · 5 (Operator Console #126–#132) · 7 (comms hygiene #125) · 9 (Roofr auto-order) · 10 (estimate auto-draft) · 13 (supplier invoice ingestion + price-guard + auto-credit #133–#136) · 14 (job costing actuals → GM·MTD #135) · 15 (depreciation G1/G2 #111–#112) · 19 (homeowner status page).
 
 ## Step 0 — state check (do not skip)
 
@@ -13,16 +13,16 @@ Finish the First-20-Cells contract (`docs/superpowers/specs/first-20-cells.md`) 
 3. Check `packages/db/drizzle/meta/_journal.json` for the true next migration number.
 4. House rules: worktree per cell, TDD, PR per cell, watch CI; per-tenant crons on `tenant.timezone`; seams dormant by default; secret-box for creds; computed exception vectors; **no real tenant keys in any tracked file** (a canvass script nearly leaked keys — treat this as a live risk, audit anything you touch).
 
-## Build order (Alta-critical first)
+## Build order (Northwind-critical first)
 
 ### Cell 6 — A2P 10DLC + deliverability (DO FIRST — external clock)
 Audit both tenants' Twilio setup via API: brand + campaign registration state, number→campaign attachment. Output a **break-glass exception card per unregistered tenant** with the exact registration steps (brand EIN info, campaign type, sample messages) — the owner performs the carrier registration; code can't. Build the ongoing monitor: delivery-rate per number per tenant from Twilio delivery receipts, spam/error-code watch (30007 etc.), auto-throttle outbound below threshold + card. Bind `comms.deliverability` evidence. Done when: registration state visible on the Agents page, monitor green 14 days (or amber with the card explaining exactly what the owner must do).
 
-### Cell 17 remainder — license matrix + SB38 (Alta/CO legal gate)
+### Cell 17 remainder — license matrix + SB38 (Northwind/CO legal gate)
 `license` table: per-tenant, per-jurisdiction (Denver-metro city registrations; AZ ROC), number, expiry, status. **Blocking invariant in the scheduling write path: no job scheduled in a jurisdiction without an active license** — red-path test is the deliverable. Renewal clocks (60d card). SB38 contract pack: right-to-rescind, deductible no-waiver, 10-day language in CO contract templates; template-version invariant — every signed CO contract used a compliant version. Permit gates already exist in `packages/core/src/production.ts` — extend, don't duplicate.
 
-### Cell 20 — Alta provisioning (the launch itself)
-One idempotent script + runbook: create tenant (name, `America/Denver`), Twilio subaccount/number wiring (+ 10DLC pointers from cell 6), golden-set template clone, price book import, license matrix seed (from cell 17), registry seed + `tenant_task_config`, digest times, break-glass rules, dormant-seam inventory (what activating each requires). Dry-run mode first. **Secrets via env/secret-box only — the script must contain zero literal keys.** Then execute with the owner and log wall-clock time as the baseline. Done when Alta exists as tenant #2 with a `provisioning.complete` artifact.
+### Cell 20 — Northwind provisioning (the launch itself)
+One idempotent script + runbook: create tenant (name, `America/Denver`), Twilio subaccount/number wiring (+ 10DLC pointers from cell 6), golden-set template clone, price book import, license matrix seed (from cell 17), registry seed + `tenant_task_config`, digest times, break-glass rules, dormant-seam inventory (what activating each requires). Dry-run mode first. **Secrets via env/secret-box only — the script must contain zero literal keys.** Then execute with the owner and log wall-clock time as the baseline. Done when Northwind exists as tenant #2 with a `provisioning.complete` artifact.
 
 ### Cell 8 remainder — verify/complete money reconciliation
 Confirm `finance.qb_reconcile` and `finance.stripe_match` checks exist and run in the sweep (invoice_math + commissions confirmed already). Build whichever is missing: Savvy AR == QuickBooks AR nightly; Stripe payouts == payments ledger. Fail ⇒ exception with the diff attached.

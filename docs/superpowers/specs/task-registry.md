@@ -7,7 +7,7 @@
 
 ## Why this exists (context for the agent building it)
 
-The owner runs a $25M roofing company (VRZA) full-time. Savvy exists to run **other** roofing companies (Alta/Denver first, Bloom/AZ, then acquisitions) in the background — take each to $3–5M, move to the next. The owner's attention is the strict limit. Therefore:
+The owner runs a $25M roofing company (VRZA) full-time. Savvy exists to run **other** roofing companies (Northwind/Denver first, Bloom/AZ, then acquisitions) in the background — take each to $3–5M, move to the next. The owner's attention is the strict limit. Therefore:
 
 1. **Everything defaults to background.** A feature that requires the owner to check a screen is a defect.
 2. **Trust comes from proof-of-execution, not from a screen you have to check.** Headless ops (invoices, billing, commissions auto-calculate with no CRUD frontend) are only safe if the system *proves* work happened AND was correct.
@@ -26,7 +26,7 @@ timezone        text NOT NULL DEFAULT 'America/Phoenix'   -- preserves current b
 digest_times    jsonb DEFAULT '["07:00","17:00"]'          -- local times for exception digests
 break_glass     jsonb DEFAULT '{"min_dollars":10000,"deadline_hours":48}'
 ```
-Set Alta = `America/Denver`. **Every cron, customer-facing time string, and business-hours rule must read `tenant.timezone`** — remove all hardcoded `TZ=America/Phoenix` from Inngest functions as part of this work.
+Set Northwind = `America/Denver`. **Every cron, customer-facing time string, and business-hours rule must read `tenant.timezone`** — remove all hardcoded `TZ=America/Phoenix` from Inngest functions as part of this work.
 
 ### `task_registry` — global, seeded from the Master Task List PDF (212 rows)
 | column | type | notes |
@@ -49,7 +49,7 @@ Set Alta = `America/Denver`. **Every cron, customer-facing time string, and busi
 No RLS (global read). Registry edits happen via seed migrations only — it's versioned source, like the price book.
 
 ### `tenant_task_config` — RLS by tenant
-`(tenant_id, task_id)` unique · `mode` override · `enabled` bool · `params` jsonb (thresholds like approval limits). This is how Alta and Bloom diverge (CO hail playbook vs AZ wind/monsoon) without forking the registry.
+`(tenant_id, task_id)` unique · `mode` override · `enabled` bool · `params` jsonb (thresholds like approval limits). This is how Northwind and Bloom diverge (CO hail playbook vs AZ wind/monsoon) without forking the registry.
 
 ### `job_task` — per-job instantiation · RLS
 | column | notes |

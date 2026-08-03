@@ -40,7 +40,7 @@ canvass-app/
 packages/db/src/setup-canvass.ts
 ```
 
-- [ ] **Step 3: Verify they are now ignored** — run `git check-ignore canvass-app/seed-alta-tenant.sql packages/db/src/setup-canvass.ts`. Expected: both paths printed (ignored). Run `git status --porcelain` and confirm neither file appears as untracked.
+- [ ] **Step 3: Verify they are now ignored** — run `git check-ignore canvass-app/seed-tenant.sql packages/db/src/setup-canvass.ts`. Expected: both paths printed (ignored). Run `git status --porcelain` and confirm neither file appears as untracked.
 
 - [ ] **Step 4: Commit**
 
@@ -514,4 +514,4 @@ gh pr merge <n> --squash --delete-branch
 
 - **Spec coverage:** gitignore (Task 1) ✓; `isRecipientAllowed` empty=allow (Task 2) ✓; table+0051+RLS (Task 3, 4 step 5) ✓; lifecycle (Task 4) ✓; handler 5th gate + observability (Task 5) ✓; settings UI (Task 6) ✓; e2e restrict + existing sent (Task 7) ✓. Local `setup-canvass` CSPRNG + key rotation intentionally out of scope (untracked/ops).
 - **Type consistency:** `isRecipientAllowed(recipientEmail, allowedDomains)→boolean` defined Task 2, consumed Task 5; `listAllowedDomains(tenantId)→string[]` defined Task 4, wired Task 5; `PriceGuardDeps.loadAllowedDomains` signature matches the wiring; `supplierAllowlist` columns consistent across Tasks 3/4/7; settings actions consume Task 4 writers.
-- **Deferred:** `setup-canvass.ts` CSPRNG (local), Alta key rotation (ops), AI recipient extraction, richer supplier directory.
+- **Deferred:** `setup-canvass.ts` CSPRNG (local), tenant key rotation (ops), AI recipient extraction, richer supplier directory.

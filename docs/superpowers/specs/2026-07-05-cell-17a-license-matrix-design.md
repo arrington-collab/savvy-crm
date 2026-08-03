@@ -7,16 +7,16 @@
 
 ## Why
 
-Colorado (and AZ ROC) legal exposure: doing roofing work in a jurisdiction where the tenant holds no active license is a compliance violation. The contract's principle is **blocking beats reminding** — the system must make it *physically impossible* to schedule work in an unlicensed jurisdiction, not merely warn. This is also the licensing seam Cell 20 (Alta provisioning) will seed from.
+Colorado (and AZ ROC) legal exposure: doing roofing work in a jurisdiction where the tenant holds no active license is a compliance violation. The contract's principle is **blocking beats reminding** — the system must make it *physically impossible* to schedule work in an unlicensed jurisdiction, not merely warn. This is also the licensing seam Cell 20 (tenant provisioning) will seed from.
 
 Repo survey finding: despite the spec's note that "permit gates already exist in `production.ts`," there is **no existing license/jurisdiction blocking logic** — `production.ts` only lists `permit` as a required *photo* kind. Cell 17a is effectively greenfield.
 
 ## Design decisions (locked with owner 2026-07-05)
 
 1. **PR split:** 17a (this) = license matrix + scheduling block. 17b (next) = SB38 templates.
-2. **Block scope:** hard-block **all appointment types** (inspection, sales, install) in an unlicensed jurisdiction. Simplest, strictest rule; matches Alta's intent that nothing happens in a jurisdiction until licensed.
+2. **Block scope:** hard-block **all appointment types** (inspection, sales, install) in an unlicensed jurisdiction. Simplest, strictest rule; matches the tenant's intent that nothing happens in a jurisdiction until licensed.
 3. **Jurisdiction key:** `(state, city?)`. `city` NULL = state-level license (AZ ROC covers all AZ cities); `city` set = municipal registration (Denver, Aurora, Lakewood).
-4. **Null-state escape valve:** if a property has no resolvable `state`, do **not** block. You can't prove a null jurisdiction is unlicensed, and blocking on missing data would wedge legitimate flows. Alta's CO properties always carry `state='CO'`, so the gate still bites where it matters.
+4. **Null-state escape valve:** if a property has no resolvable `state`, do **not** block. You can't prove a null jurisdiction is unlicensed, and blocking on missing data would wedge legitimate flows. The tenant's CO properties always carry `state='CO'`, so the gate still bites where it matters.
 5. **Keep `authority` label column** (e.g. "AZ ROC", "City of Denver") — human-readable provenance on cards/exceptions.
 
 ## Schema — new `license` table

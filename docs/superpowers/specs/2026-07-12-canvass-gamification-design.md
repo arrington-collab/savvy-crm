@@ -263,4 +263,4 @@ synced knocks; the app already syncs team knocks every 30s.
   pitch-based achievements to a Phase 1 fast-follow; ship the knock-derived
   badges first.
 - **Level thresholds** and the **hot_hand / rainmaker** numbers are first-guess;
-  tune after seeing real Alta point distributions.
+  tune after seeing real Northwind point distributions.

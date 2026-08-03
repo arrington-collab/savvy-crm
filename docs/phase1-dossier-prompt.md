@@ -5,9 +5,9 @@ Build the field-app half in `~/Sites/savvy-canvass`. Read `CLAUDE.md` first._
 
 ---
 
-You are building **Phase 1 of the "door dossier"** for Alta Roofing's door-knocking system.
+You are building **Phase 1 of the "door dossier"** for Northwind Roofing's door-knocking system.
 Goal: when a canvasser opens the knock modal at an address, show a small card built **only from
-Alta's own Savvy data** so the opener writes itself — e.g. "You've done 2 roofs on this street ·
+Northwind's own Savvy data** so the opener writes itself — e.g. "You've done 2 roofs on this street ·
 the Hendricks 2 doors down are customers · this door was knocked 4 days ago (no answer)."
 
 **No external vendors in this phase.** Roof age/material and storm swaths are later phases —
