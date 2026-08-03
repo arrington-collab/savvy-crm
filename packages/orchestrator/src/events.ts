@@ -3,11 +3,11 @@ import { z } from "zod";
 // The tools that can originate an event. `system` = the orchestrator itself
 // (synthesized events like a handler failure).
 export type Tool =
-  | "savvy" | "canvass" | "alta-estimates"
+  | "savvy" | "canvass"
   | "supplement-iq" | "bloomcam" | "bloom-materials" | "system";
 
 const TOOL = z.enum([
-  "savvy", "canvass", "alta-estimates",
+  "savvy", "canvass",
   "supplement-iq", "bloomcam", "bloom-materials", "system",
 ]);
 

@@ -22,7 +22,7 @@ export const tenant = pgTable("tenant", {
   // Demo tenants: comms are hard-muted (see agents/mock-comms). Never a real customer.
   demo: boolean("demo").notNull().default(false),
   // Task Registry / Scoreboard: every cron, customer-facing time string, and
-  // business-hours rule reads this instead of a hardcoded TZ. Alta = America/Denver.
+  // business-hours rule reads this instead of a hardcoded TZ. Northwind = America/Denver.
   timezone: text("timezone").notNull().default("America/Phoenix"),
   // Local times exceptions are batched into digests (protects the owner's day).
   digestTimes: jsonb("digest_times").$type<string[]>().notNull().default(["07:00", "17:00"]),

@@ -8,10 +8,10 @@ import { adminPool } from "../admin-client";
 // Dry-run by default (prints the plan, writes nothing); pass --commit to execute.
 // On commit it writes a provisioning.complete artifact next to the config.
 //
-//   tsx src/scripts/provision-tenant.ts provisioning/alta.json            # dry run
+//   tsx src/scripts/provision-tenant.ts provisioning/tenant.json            # dry run
 //   PROVISION_TWILIO_ACCOUNT_SID=AC.. PROVISION_TWILIO_AUTH_TOKEN=.. \
 //   INTEGRATION_SECRET_KEY=<base64-32> \
-//   tsx src/scripts/provision-tenant.ts provisioning/alta.json --commit    # execute
+//   tsx src/scripts/provision-tenant.ts provisioning/tenant.json --commit    # execute
 //
 // The auth token is sealed by the DB layer before it is stored; it is never
 // logged or written to the artifact.

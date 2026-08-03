@@ -38,7 +38,7 @@ Required env for a full commit run:
 ## Owner-provided inputs (why execution is owner-run)
 
 The following are **real-world inputs the owner supplies at execution** — copy
-`alta.example.json` to `alta.json` (git-ignored) and fill them in:
+`tenant.example.json` to `tenant.json` (git-ignored) and fill them in:
 
 - Clerk org id + owner Clerk user id / email
 - CO license numbers (state + Denver-metro city registrations)
@@ -50,17 +50,17 @@ The following are **real-world inputs the owner supplies at execution** — copy
 
 ```bash
 # 1. Dry run — prints the plan, writes nothing:
-pnpm --filter @savvy/db db:provision provisioning/alta.json
+pnpm --filter @savvy/db db:provision provisioning/tenant.json
 
-# 2. Execute — creates/reconciles the tenant and writes alta.complete.json:
+# 2. Execute — creates/reconciles the tenant and writes tenant.complete.json:
 INTEGRATION_SECRET_KEY=<base64-32> \
 PROVISION_TWILIO_ACCOUNT_SID=AC... PROVISION_TWILIO_AUTH_TOKEN=... \
-pnpm --filter @savvy/db db:provision provisioning/alta.json --commit
+pnpm --filter @savvy/db db:provision provisioning/tenant.json --commit
 ```
 
 The wall-clock printed on the commit run is the onboarding baseline to beat.
 
 ## Files
 
-- `alta.example.json` — committed template (no secrets). Copy to `alta.json` (git-ignored) and fill in.
+- `tenant.example.json` — committed template (no secrets). Copy to `tenant.json` (git-ignored) and fill in.
 - `*.json` (real configs) and `*.complete.json` (artifacts) are git-ignored — they carry real tenant IDs.
