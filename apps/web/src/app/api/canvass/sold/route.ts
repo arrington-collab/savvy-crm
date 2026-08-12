@@ -56,6 +56,9 @@ export async function GET(req: Request): Promise<NextResponse> {
         lat: canvassSoldListing.lat,
         lng: canvassSoldListing.lng,
         soldDate: canvassSoldListing.soldDate,
+        // Sent so the client can run its own expiry filter — without this the
+        // app-side safety net silently never fires.
+        expiresAt: canvassSoldListing.expiresAt,
         price: canvassSoldListing.price,
         beds: canvassSoldListing.beds,
         baths: canvassSoldListing.baths,

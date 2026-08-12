@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canvassSoldIngestObject, soldConfigFrom, soldDedupeKey, soldExpiresAt } from "@savvy/core";
-import { withTenant, canvassSoldListing, eq, and, lt, sql } from "@savvy/db";
+import { withTenant, canvassSoldListing, eq, and, lt, inArray, sql } from "@savvy/db";
 import { tenantByKey } from "@/lib/intake";
 import { canvassCors } from "@/lib/canvass-cors";
 import { log } from "@/lib/log";
@@ -87,7 +87,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           and(
             eq(canvassSoldListing.tenantId, t.id),
             eq(canvassSoldListing.source, SOURCE),
-            sql`${canvassSoldListing.dedupeKey} = ANY(${keys})`,
+            inArray(canvassSoldListing.dedupeKey, keys),
           ),
         );
       const have = new Set(existing.map((e) => e.dedupeKey));
