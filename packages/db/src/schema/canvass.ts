@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, index, jsonb, doublePrecision, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, index, jsonb, doublePrecision, integer, numeric, date, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { idCol, createdAt, tenantIsolation } from "./_rls";
 import { tenant } from "./tenancy";
@@ -225,5 +225,64 @@ export const canvassPing = pgTable("canvass_ping", {
   createdAt: createdAt(),
 }, (t) => [
   index("canvass_ping_tenant_rep_at_idx").on(t.tenantId, t.repId, t.at),
+  tenantIsolation(),
+]);
+
+// A recently-sold home, dropped on the field-app map so reps can target new
+// homeowners (the strongest lead signal in pest control — new owners buy plans).
+// Rows are bulk-loaded weekly and pruned once they pass expiresAt.
+//
+// Tenant-scoped even though sale records are public and identical for everyone:
+// it matches dossierCache (which caches public storm data per tenant), the
+// volume is trivial (~800 sales/week x 90-day window ~= 10k rows), and it makes
+// the source region per-tenant config instead of one region for all tenants.
+//
+// These are NOT rep pins. Rep-authored pins live in canvassKnock, so "the
+// weekly job must never touch a rep's own pins" is guaranteed by the schema
+// rather than by careful code.
+export const canvassSoldListing = pgTable("canvass_sold_listing", {
+  id: idCol(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+  mls: text("mls"), // not every source supplies one
+  address: text("address").notNull(),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  // The feed already carries coordinates, so nothing here needs geocoding.
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  soldDate: date("sold_date").notNull(),
+  price: integer("price"), // whole dollars
+  propertyType: text("property_type"),
+  beds: integer("beds"),
+  baths: numeric("baths"), // 2.5 baths is real
+  sqft: integer("sqft"),
+  yearBuilt: integer("year_built"),
+  url: text("url"),
+  source: text("source").notNull().default("redfin_recently_sold"),
+  // Normalized MLS, else address+zip. The unique index below is the whole
+  // idempotency story: overlapping weeks and re-runs insert only new homes.
+  dedupeKey: text("dedupe_key").notNull(),
+  expiresAt: date("expires_at").notNull(), // soldDate + tenant's expiryDays
+  // The sign's own lifecycle, set on the pin — deliberately NOT derived from
+  // knock outcomes (see the goback-routing spec). new|goback|notint|appt|
+  // customer|dnk. `notint` hides 7 days after statusAt; `dnk` never hides,
+  // because it exists to stop the next rep walking up to that door.
+  status: text("status").notNull().default("new"),
+  statusAt: timestamp("status_at", { withTimezone: true }).defaultNow().notNull(),
+  statusByRepId: uuid("status_by_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  // Claimed via pin-drop routing. Auto-releases 30 days after assignedAt — the
+  // eligibility predicate enforces it directly, so a stale claim is reclaimable
+  // even if no cleanup job has run.
+  assignedRepId: uuid("assigned_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
+  routeSeq: integer("route_seq"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("canvass_sold_tenant_source_dedupe_uniq").on(t.tenantId, t.source, t.dedupeKey),
+  index("canvass_sold_tenant_lat_lng_idx").on(t.tenantId, t.lat, t.lng),
+  index("canvass_sold_tenant_source_expires_idx").on(t.tenantId, t.source, t.expiresAt),
+  index("canvass_sold_tenant_assigned_idx").on(t.tenantId, t.assignedRepId, t.routeSeq),
+  index("canvass_sold_tenant_status_idx").on(t.tenantId, t.status, t.statusAt),
   tenantIsolation(),
 ]);

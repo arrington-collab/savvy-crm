@@ -116,6 +116,8 @@ export * from "./pipeline-board";
 export * from "./canvass";
 export * from "./canvass-dossier";
 export * from "./canvass-points";
+export * from "./canvass-sold";
+export * from "./canvass-route";
 export * from "./canvass-metric";
 export * from "./canvass-challenge";
 export * from "./canvass-streak";

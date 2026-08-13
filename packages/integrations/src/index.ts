@@ -32,3 +32,7 @@ export {
   spotterFeed, makeDormantSpotterFeed, makeFakeSpotterFeed,
   type SpotterFeed, type SpotterPin,
 } from "./spotter-feed";
+export {
+  parseSoldCsv, priceBands, dedupeSoldRows, normalizeSoldDate, SoldFeedParseError,
+  type ParsedSoldFeed, type PriceBand,
+} from "./sold-feed";
