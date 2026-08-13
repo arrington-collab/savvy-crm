@@ -264,10 +264,25 @@ export const canvassSoldListing = pgTable("canvass_sold_listing", {
   // idempotency story: overlapping weeks and re-runs insert only new homes.
   dedupeKey: text("dedupe_key").notNull(),
   expiresAt: date("expires_at").notNull(), // soldDate + tenant's expiryDays
+  // The sign's own lifecycle, set on the pin — deliberately NOT derived from
+  // knock outcomes (see the goback-routing spec). new|goback|notint|appt|
+  // customer|dnk. `notint` hides 7 days after statusAt; `dnk` never hides,
+  // because it exists to stop the next rep walking up to that door.
+  status: text("status").notNull().default("new"),
+  statusAt: timestamp("status_at", { withTimezone: true }).defaultNow().notNull(),
+  statusByRepId: uuid("status_by_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  // Claimed via pin-drop routing. Auto-releases 30 days after assignedAt — the
+  // eligibility predicate enforces it directly, so a stale claim is reclaimable
+  // even if no cleanup job has run.
+  assignedRepId: uuid("assigned_rep_id").references(() => canvassRep.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
+  routeSeq: integer("route_seq"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("canvass_sold_tenant_source_dedupe_uniq").on(t.tenantId, t.source, t.dedupeKey),
   index("canvass_sold_tenant_lat_lng_idx").on(t.tenantId, t.lat, t.lng),
   index("canvass_sold_tenant_source_expires_idx").on(t.tenantId, t.source, t.expiresAt),
+  index("canvass_sold_tenant_assigned_idx").on(t.tenantId, t.assignedRepId, t.routeSeq),
+  index("canvass_sold_tenant_status_idx").on(t.tenantId, t.status, t.statusAt),
   tenantIsolation(),
 ]);

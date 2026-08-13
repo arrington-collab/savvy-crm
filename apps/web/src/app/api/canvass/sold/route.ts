@@ -59,6 +59,13 @@ export async function GET(req: Request): Promise<NextResponse> {
         // Sent so the client can run its own expiry filter — without this the
         // app-side safety net silently never fires.
         expiresAt: canvassSoldListing.expiresAt,
+        // Sign lifecycle — drives the pin colour and the "hide notint after a
+        // week" rule, which is applied on both sides so a failed sweep can't
+        // resurrect dead doors.
+        status: canvassSoldListing.status,
+        statusAt: canvassSoldListing.statusAt,
+        assignedRepId: canvassSoldListing.assignedRepId,
+        routeSeq: canvassSoldListing.routeSeq,
         price: canvassSoldListing.price,
         beds: canvassSoldListing.beds,
         baths: canvassSoldListing.baths,
@@ -72,6 +79,11 @@ export async function GET(req: Request): Promise<NextResponse> {
           // Belt and braces with the weekly prune: a failed prune must never
           // surface a stale pin to a rep.
           gte(canvassSoldListing.expiresAt, sql`CURRENT_DATE`),
+          // Not-interested signs fade off the map after a week so it doesn't
+          // fill with dead doors. `dnk` is deliberately NOT hidden — it exists
+          // to stop the next rep walking up to that door.
+          sql`(${canvassSoldListing.status} <> 'notint'
+               OR ${canvassSoldListing.statusAt} > now() - interval '7 days')`,
           gte(canvassSoldListing.lat, lat - BOX_DEG),
           lte(canvassSoldListing.lat, lat + BOX_DEG),
           gte(canvassSoldListing.lng, lng - BOX_DEG),
