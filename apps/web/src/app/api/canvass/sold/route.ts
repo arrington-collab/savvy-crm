@@ -84,6 +84,14 @@ export async function GET(req: Request): Promise<NextResponse> {
           // to stop the next rep walking up to that door.
           sql`(${canvassSoldListing.status} <> 'notint'
                OR ${canvassSoldListing.statusAt} > now() - interval '7 days')`,
+          // A home actively claimed by ANOTHER rep is hidden entirely, not just
+          // unclaimable: leaving it on the map invites two reps knocking the
+          // same door, which is the exact collision claiming exists to prevent.
+          // Own claims stay visible (numbered), and a claim past its 30-day
+          // release is visible again to everyone.
+          sql`(${canvassSoldListing.assignedRepId} IS NULL
+               OR ${canvassSoldListing.assignedRepId} = ${sess.repId}
+               OR ${canvassSoldListing.assignedAt} < now() - interval '30 days')`,
           gte(canvassSoldListing.lat, lat - BOX_DEG),
           lte(canvassSoldListing.lat, lat + BOX_DEG),
           gte(canvassSoldListing.lng, lng - BOX_DEG),
