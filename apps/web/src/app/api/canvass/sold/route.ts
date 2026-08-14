@@ -19,6 +19,12 @@ export function OPTIONS(req: Request): NextResponse {
 // ~0.35 deg latitude ≈ 24 mi — comfortably past what fits on screen at the
 // zoom reps actually knock at, without pulling the whole metro.
 const BOX_DEG = 0.35;
+// A zoomed-out rep can see far more than the default box, and pins the client
+// was never sent look identical to pins that don't exist. So the client may ask
+// for a wider box — clamped, because "give me everything" is how a phone ends
+// up holding a county.
+const MAX_BOX_DEG = 1.6;
+const MAX_ROWS = 5000;
 
 export async function GET(req: Request): Promise<NextResponse> {
   const headers = canvassCors(req, "GET, OPTIONS");
@@ -33,6 +39,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
+  const askedDeg = Number(url.searchParams.get("deg"));
+  const box = Number.isFinite(askedDeg) ? Math.min(Math.max(askedDeg, 0.05), MAX_BOX_DEG) : BOX_DEG;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return reply({ error: "lat and lng are required" }, 400);
   }
@@ -96,13 +104,17 @@ export async function GET(req: Request): Promise<NextResponse> {
           sql`(${canvassSoldListing.assignedRepId} IS NULL
                OR ${canvassSoldListing.assignedRepId} = ${sess.repId}
                OR ${canvassSoldListing.assignedAt} < now() - interval '30 days')`,
-          gte(canvassSoldListing.lat, lat - BOX_DEG),
-          lte(canvassSoldListing.lat, lat + BOX_DEG),
-          gte(canvassSoldListing.lng, lng - BOX_DEG),
-          lte(canvassSoldListing.lng, lng + BOX_DEG),
+          gte(canvassSoldListing.lat, lat - box),
+          lte(canvassSoldListing.lat, lat + box),
+          gte(canvassSoldListing.lng, lng - box),
+          lte(canvassSoldListing.lng, lng + box),
         ),
       )
-      .limit(2000);
+      // Nearest-first, so if the cap ever truncates it drops the farthest
+      // homes rather than an arbitrary slice — a rep keeps what's around them.
+      .orderBy(sql`(${canvassSoldListing.lat} - ${lat}) * (${canvassSoldListing.lat} - ${lat})
+                 + (${canvassSoldListing.lng} - ${lng}) * (${canvassSoldListing.lng} - ${lng})`)
+      .limit(MAX_ROWS);
   });
 
   return reply({ listings }, 200);
