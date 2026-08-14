@@ -11,6 +11,15 @@ export const maxDuration = 120;
 
 const SOURCE = "redfin_recently_sold";
 
+// Statuses the 90-day prune must never delete.
+//
+// `customer` — a won customer is permanent social proof. Reps show prospects
+// how many neighbours already signed, and that map is worth more the longer it
+// accumulates. Deleting them three months after the win throws it away.
+// `dnk` — a do-not-knock flag has to outlive the listing that created it, or a
+// rep is sent to the exact door the flag exists to prevent.
+const KEEP_FOREVER = sql`${canvassSoldListing.status} NOT IN ('customer','dnk')`;
+
 // POST /api/canvass/sold/ingest — accepts already-parsed "recently sold" rows
 // and upserts them, then prunes anything past its expiry.
 //
@@ -99,6 +108,7 @@ export async function POST(req: Request): Promise<NextResponse> {
             eq(canvassSoldListing.tenantId, t.id),
             eq(canvassSoldListing.source, SOURCE),
             lt(canvassSoldListing.expiresAt, sql`CURRENT_DATE`),
+            KEEP_FOREVER,
           ),
         );
       return {
@@ -126,6 +136,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           eq(canvassSoldListing.tenantId, t.id),
           eq(canvassSoldListing.source, SOURCE),
           lt(canvassSoldListing.expiresAt, sql`CURRENT_DATE`),
+          KEEP_FOREVER,
         ),
       )
       .returning({ id: canvassSoldListing.id });

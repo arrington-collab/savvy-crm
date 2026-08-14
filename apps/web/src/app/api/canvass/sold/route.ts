@@ -78,7 +78,13 @@ export async function GET(req: Request): Promise<NextResponse> {
           eq(canvassSoldListing.tenantId, sess.tenantId),
           // Belt and braces with the weekly prune: a failed prune must never
           // surface a stale pin to a rep.
-          gte(canvassSoldListing.expiresAt, sql`CURRENT_DATE`),
+          //
+          // `customer` and `dnk` are exempt and never expire. A won customer is
+          // permanent social proof — reps show prospects how many neighbours
+          // already signed — and a do-not-knock flag must outlive the listing
+          // that created it, or a rep walks up to the door it exists to prevent.
+          sql`(${canvassSoldListing.expiresAt} >= CURRENT_DATE
+               OR ${canvassSoldListing.status} IN ('customer','dnk'))`,
           // Not-interested signs fade off the map after a week so it doesn't
           // fill with dead doors. `dnk` is deliberately NOT hidden — it exists
           // to stop the next rep walking up to that door.
