@@ -127,6 +127,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         outcome: canvassKnock.outcome,
         address: canvassKnock.address,
         contactName: canvassKnock.contactName,
+        contactPhone: canvassKnock.contactPhone,
         notes: canvassKnock.notes,
         amount: canvassKnock.amount,
         scheduledAt: canvassKnock.scheduledAt,
