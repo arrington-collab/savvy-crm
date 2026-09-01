@@ -116,6 +116,19 @@ export const canvassDeactivateObject = z.object({
   active: z.boolean(),
 });
 
+// Manager PATCH: toggle active and/or reset a PIN. New PINs are 6 digits —
+// stricter than login's legacy 4-6 floor on purpose.
+export const canvassRepUpdateObject = z
+  .object({
+    repId: z.string().uuid(),
+    active: z.boolean().optional(),
+    pin: z
+      .string()
+      .regex(/^\d{6}$/)
+      .optional(),
+  })
+  .refine((v) => v.active !== undefined || v.pin !== undefined, { message: "active or pin required" });
+
 // Great-circle distance in metres — for the door-vs-GPS flag.
 // Named canvassHaversineMeters to avoid collision with the scheduling.ts haversineMeters
 // (which uses a different 2-arg object signature).

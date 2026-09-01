@@ -67,9 +67,10 @@ export async function GET(req: Request): Promise<NextResponse> {
         // Sent so the client can run its own expiry filter — without this the
         // app-side safety net silently never fires.
         expiresAt: canvassSoldListing.expiresAt,
-        // Sign lifecycle — drives the pin colour and the "hide notint after a
-        // week" rule, which is applied on both sides so a failed sweep can't
-        // resurrect dead doors.
+        // Sign lifecycle — drives the pin colour and the negative-status hide
+        // rule, which is applied on both sides (server drops after 60s, client
+        // after its 30s undo grace) so a failed sweep can't resurrect dead
+        // doors.
         status: canvassSoldListing.status,
         statusAt: canvassSoldListing.statusAt,
         assignedRepId: canvassSoldListing.assignedRepId,
@@ -91,11 +92,14 @@ export async function GET(req: Request): Promise<NextResponse> {
           // social proof a rep shows prospects. Everything else ages out.
           sql`(${canvassSoldListing.expiresAt} >= CURRENT_DATE
                OR ${canvassSoldListing.status} = 'customer')`,
-          // Not-interested signs fade off the map after a week so it doesn't
-          // fill with dead doors. `dnk` is deliberately NOT hidden — it exists
-          // to stop the next rep walking up to that door.
-          sql`(${canvassSoldListing.status} <> 'notint'
-               OR ${canvassSoldListing.statusAt} > now() - interval '7 days')`,
+          // Negative outcomes disappear for the whole team: for pin-only
+          // knocking (Pestkee's workflow) removal IS the do-not-knock — a pin
+          // nobody can see is a door nobody walks up to. The 60s tail exists
+          // only so the marking rep's own 30s undo window (client-side grace)
+          // can't be cut short by a concurrent fetch; the row itself stays in
+          // the DB, so history and reporting keep both statuses.
+          sql`(${canvassSoldListing.status} NOT IN ('notint','dnk')
+               OR ${canvassSoldListing.statusAt} > now() - interval '60 seconds')`,
           // A home actively claimed by ANOTHER rep is hidden entirely, not just
           // unclaimable: leaving it on the map invites two reps knocking the
           // same door, which is the exact collision claiming exists to prevent.

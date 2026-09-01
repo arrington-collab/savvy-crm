@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { canvassRepCreateObject, canvassDeactivateObject, hashPin } from "@savvy/core";
+import { canvassRepCreateObject, canvassRepUpdateObject, hashPin } from "@savvy/core";
 import { adminDb, canvassRep, and, eq, sql } from "@savvy/db";
 import { tenantByKey } from "@/lib/intake";
 import { canvassManagerTenantId } from "@/lib/canvass-authz";
 import { canvassCors } from "@/lib/canvass-cors";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { checkRateLimit, clientIp, clearTripwire } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -16,8 +16,9 @@ export const runtime = "nodejs";
 //   app) — see canvassManagerTenantId. Tenant derived from the session either
 //   way, NOT from a client-supplied public key. PIN is scrypt-hashed server-side;
 //   the plaintext PIN never persists.
-// PATCH /api/canvass/reps       → manager deactivates/reactivates a rep. Auth =
-//   same dual model as POST (tenant from session, never public key).
+// PATCH /api/canvass/reps       → manager deactivates/reactivates a rep and/or
+//   resets their PIN ({repId, active?, pin?}). Auth = same dual model as POST
+//   (tenant from session, never public key).
 
 export function OPTIONS(req: Request): NextResponse {
   return new NextResponse(null, { status: 204, headers: canvassCors(req, "GET, POST, PATCH, OPTIONS") });
@@ -95,17 +96,31 @@ export async function PATCH(req: Request): Promise<NextResponse> {
   } catch {
     return reply({ error: "invalid json" }, 400);
   }
-  const parsed = canvassDeactivateObject.safeParse(json);
+  // Two manager mutations share this verb: toggle active, and reset a PIN
+  // (6 digits — stricter than login's legacy 4-6 floor on purpose). The old
+  // PIN stops working immediately; the new hash also clears any brute-force
+  // tripwire lock so a rep locked out by typos isn't stuck 15 minutes after
+  // their manager resets them.
+  const parsed = canvassRepUpdateObject.safeParse(json);
   if (!parsed.success) return reply({ error: parsed.error.flatten() }, 400);
-  const { repId, active } = parsed.data;
+  const { repId, active, pin } = parsed.data;
+
+  const set: Partial<{ active: boolean; pinHash: string }> = {};
+  if (active !== undefined) set.active = active;
+  if (pin !== undefined) set.pinHash = hashPin(pin);
 
   const rows = await adminDb
     .update(canvassRep)
-    .set({ active })
+    .set(set)
     .where(and(eq(canvassRep.tenantId, tenantId), eq(canvassRep.id, repId)))
-    .returning({ id: canvassRep.id, active: canvassRep.active });
+    .returning({ id: canvassRep.id, name: canvassRep.name, active: canvassRep.active });
   if (!rows.length) return reply({ error: "rep not found" }, 404);
 
-  log.info("canvass rep active toggled", { route: "/api/canvass/reps", tenantId, repId, active });
-  return reply({ ok: true, rep: rows[0] }, 200);
+  if (pin !== undefined) {
+    const nm = rows[0].name.trim().toLowerCase();
+    await clearTripwire(`pinfail:${tenantId}:${nm}`, `pinlock:${tenantId}:${nm}`);
+  }
+
+  log.info("canvass rep updated", { route: "/api/canvass/reps", tenantId, repId, active, pinReset: pin !== undefined });
+  return reply({ ok: true, rep: { id: rows[0].id, active: rows[0].active } }, 200);
 }
