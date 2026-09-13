@@ -38,8 +38,12 @@ export function soldDedupeKey(row: {
   address: string;
   zip?: string | null;
 }): string {
-  const mls = (row.mls ?? "").trim().toUpperCase();
-  if (mls) return `mls:${mls}`;
+  // Address+zip is the key, NOT the MLS number. Two feeds now supply this
+  // table — the MLS-bearing listing feed and the county assessor's sales
+  // affidavits, which carry no MLS at all. Keying on MLS would put the same
+  // house on the map twice, once per source. Address is the only identifier
+  // both feeds share. (Existing rows were rekeyed from mls: to addr: in the
+  // same change; the check for collisions came back clean.)
   const address = row.address
     .trim()
     .toUpperCase()

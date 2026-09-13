@@ -8,21 +8,30 @@ import {
 } from "./canvass-sold";
 
 describe("soldDedupeKey", () => {
-  it("prefers MLS when present", () => {
+  it("keys on address+zip, ignoring MLS", () => {
     expect(soldDedupeKey({ mls: "6712345", address: "123 Main St", zip: "85001" }))
-      .toBe("mls:6712345");
+      .toBe("addr:123 MAIN ST|85001");
   });
 
-  it("normalizes MLS case and surrounding space", () => {
-    expect(soldDedupeKey({ mls: "  ab-123 ", address: "x", zip: "1" }))
-      .toBe(soldDedupeKey({ mls: "AB-123", address: "y", zip: "2" }));
+  // The whole point of dropping the MLS preference: the county assessor's
+  // sales affidavits carry no MLS number, so the same house arriving from the
+  // listing feed and from the county must land on ONE row, not two pins.
+  it("matches the same house across a feed with MLS and one without", () => {
+    const withMls = soldDedupeKey({ mls: "6712345", address: "123 Main St.", zip: "85001" });
+    const county  = soldDedupeKey({ mls: null, address: "123  MAIN ST", zip: "85001" });
+    expect(withMls).toBe(county);
   });
 
-  it("falls back to address+zip when MLS is missing or blank", () => {
+  it("treats a missing or blank MLS the same as an absent one", () => {
     const noMls = soldDedupeKey({ mls: null, address: "123 Main St", zip: "85001" });
     const blank = soldDedupeKey({ mls: "   ", address: "123 Main St", zip: "85001" });
     expect(noMls).toBe("addr:123 MAIN ST|85001");
     expect(blank).toBe(noMls);
+  });
+
+  it("still separates different houses that share a zip", () => {
+    expect(soldDedupeKey({ mls: null, address: "123 Main St", zip: "85001" }))
+      .not.toBe(soldDedupeKey({ mls: null, address: "125 Main St", zip: "85001" }));
   });
 
   // The real-world case: the same house arriving from two weekly pulls with
