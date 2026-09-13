@@ -51,7 +51,36 @@ export function allowedCanvassOrigin(
     .map((s) => s.trim())
     .filter(Boolean);
   if (list.length === 0 || list.includes("*")) return origin ?? "*";
-  return origin && list.includes(origin) ? origin : null;
+  if (!origin) return null;
+  if (list.includes(origin)) return origin;
+
+  // Wildcard entries ("https://*.knockjockey.com") match any subdomain of a
+  // zone we own. Without this, onboarding one customer meant editing this env
+  // var and redeploying the whole roofing CRM to production.
+  //
+  // Matching is done on a PARSED url, never string suffixes: a naive
+  // endsWith() would accept https://knockjockey.com.evil.com and
+  // https://evil.com#.knockjockey.com. Requiring url.origin === origin also
+  // rejects anything carrying a path, credentials or query.
+  let u: URL;
+  try {
+    u = new URL(origin);
+  } catch {
+    return null;
+  }
+  if (u.origin !== origin || u.port !== "") return null;
+
+  for (const entry of list) {
+    const star = entry.indexOf("://*.");
+    if (star === -1) continue;
+    const scheme = entry.slice(0, star + 1); // "https:" — matches url.protocol
+    const base = entry.slice(star + 5).toLowerCase();
+    if (!base || base.includes("/") || base.includes("*")) continue;
+    if (u.protocol !== scheme) continue;
+    // apex itself is not a subdomain; require at least one label in front
+    if (u.hostname.endsWith(`.${base}`) && u.hostname.length > base.length + 1) return origin;
+  }
+  return null;
 }
 
 // ── Rep auth (Slice 1: field-app name + PIN login) ───────────────────────

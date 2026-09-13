@@ -84,6 +84,35 @@ describe("allowedCanvassOrigin", () => {
     expect(allowedCanvassOrigin("https://evil.example", "https://other.com")).toBeNull();
     expect(allowedCanvassOrigin(null, "https://other.com")).toBeNull();
   });
+
+  // Wildcard subdomains: onboarding a customer must not require an env edit
+  // plus a production redeploy of the whole CRM.
+  describe("wildcard subdomains", () => {
+    const list = "https://*.knockjockey.com";
+    it("matches any subdomain of the wildcard zone", () => {
+      expect(allowedCanvassOrigin("https://pestkee.knockjockey.com", list)).toBe("https://pestkee.knockjockey.com");
+      expect(allowedCanvassOrigin("https://acme-pest.knockjockey.com", list)).toBe("https://acme-pest.knockjockey.com");
+      expect(allowedCanvassOrigin("https://a.b.knockjockey.com", list)).toBe("https://a.b.knockjockey.com");
+    });
+    it("rejects lookalike hosts that a naive endsWith would allow", () => {
+      expect(allowedCanvassOrigin("https://knockjockey.com.evil.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("https://evilknockjockey.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("https://evil.com#.knockjockey.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("https://evil.com/.knockjockey.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("https://user@evil.com", list)).toBeNull();
+    });
+    it("rejects the apex, wrong scheme, and ports", () => {
+      expect(allowedCanvassOrigin("https://knockjockey.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("http://pestkee.knockjockey.com", list)).toBeNull();
+      expect(allowedCanvassOrigin("https://pestkee.knockjockey.com:8443", list)).toBeNull();
+    });
+    it("still honours exact entries alongside a wildcard", () => {
+      const mixed = "https://app.example.com, https://*.knockjockey.com";
+      expect(allowedCanvassOrigin("https://app.example.com", mixed)).toBe("https://app.example.com");
+      expect(allowedCanvassOrigin("https://x.knockjockey.com", mixed)).toBe("https://x.knockjockey.com");
+      expect(allowedCanvassOrigin("https://nope.com", mixed)).toBeNull();
+    });
+  });
 });
 
 describe("canvass rep auth schemas", () => {
