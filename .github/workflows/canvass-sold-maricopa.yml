@@ -1,0 +1,83 @@
+name: Maricopa sold homes
+
+# Loads Maricopa County's free public Sales Affidavits file onto the Knock
+# Jockey map. This runs here rather than on a laptop because, unlike the Redfin
+# pull it replaced, every source it touches is plain HTTP with no login — so it
+# no longer matters whether anyone's machine is awake.
+#
+# Twice a week: the county publishes weekly but not on a dependable day, so two
+# runs catch the new file within a few days without re-downloading 61MB daily.
+# Re-running is harmless — rows dedupe on address, so an unchanged file inserts
+# nothing.
+on:
+  schedule:
+    - cron: "0 13 * * 1,4"   # Mon & Thu, 13:00 UTC = 06:00 Phoenix (AZ has no DST)
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to load"
+        default: "45"
+      dry_run:
+        description: "Parse and geocode but write nothing"
+        type: boolean
+        default: false
+
+# Never let two loads overlap.
+concurrency:
+  group: canvass-sold-maricopa
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The loader imports only node builtins, so the workspace install is
+      # skipped entirely — this keeps the job about a minute instead of five.
+      - name: Load Maricopa sales into the canvass map
+        working-directory: packages/integrations
+        env:
+          CANVASS_SOLD_INGEST_TOKEN: ${{ secrets.CANVASS_SOLD_INGEST_TOKEN }}
+          # Public tenant keys — these ship in the field app's client JS and are
+          # not secrets. Add a line per company that knocks Maricopa County.
+          TENANT_KEYS: |
+            pk-pestkee-17ea2d323419ea6c080ff8fa681f1edd7c9374fb
+          DAYS: ${{ inputs.days || '45' }}
+          DRY: ${{ inputs.dry_run && '--dry' || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CANVASS_SOLD_INGEST_TOKEN:-}" ]; then
+            echo "::error::CANVASS_SOLD_INGEST_TOKEN secret is not set on this repo"
+            exit 1
+          fi
+          case "$DAYS" in ''|*[!0-9]*) echo "::error::days must be a number"; exit 1;; esac
+          # here-string, not a pipe: a pipeline would run the loop in a subshell
+          # and a failed load could be swallowed instead of failing the job.
+          while read -r KEY; do
+            [ -z "$KEY" ] && continue
+            echo "::group::$KEY"
+            TENANT_KEY="$KEY" npx -y tsx@4 load-maricopa.mts --days "$DAYS" $DRY
+            echo "::endgroup::"
+          done <<< "$TENANT_KEYS"
+
+      # GitHub emails the repo owner on failure, but the feed going quiet is the
+      # kind of thing that should reach a phone. Skipped when no bot token is set.
+      - name: Alert on failure
+        if: failure()
+        env:
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Guarded here rather than in `if:` — a step's own env is not
+          # available to its if-expression.
+          [ -z "${TG:-}" ] && { echo "no telegram token set, skipping alert"; exit 0; }
+          curl -s -X POST "https://api.telegram.org/bot${TG}/sendMessage" \
+            -H 'content-type: application/json' \
+            -d "{\"chat_id\":\"${CHAT}\",\"text\":\"🚨 Maricopa sold-home load FAILED — the map will go stale. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            >/dev/null || true
